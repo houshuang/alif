@@ -50,7 +50,7 @@ import {
   type LemmaDetail,
   type ReviewSessionBundle,
   type SentencePayload,
-  type WordRender,
+  type TokenView,
   type AcquisitionStats,
   type ComprehensionSignal,
 } from "../lib/polyglot-api";
@@ -71,6 +71,7 @@ import {
   type MarkSets,
   type SessionSlot,
 } from "../lib/polyglot-review-helpers";
+import { renderTokens } from "../lib/polyglot-render-helpers";
 
 // 2026-05-21 round 2: Renaissance Folio palette — picked + iterated through
 // 3 rounds of design-explorer (session b0b63950). Cream parchment ground,
@@ -682,12 +683,37 @@ function SentenceCard({
     () => [...payload.words].sort((a, b) => a.position - b.position),
     [payload.words],
   );
+  const spans = useMemo(() => {
+    const tokens = words.map((word, index) => ({
+      position: word.position,
+      surface: word.surface_form,
+      is_punctuation: Boolean(word.is_punctuation),
+      sentence_index: 0,
+      lemma_id: word.lemma_id,
+      lemma_form: word.lemma_form,
+      lemma_bare: null,
+      pos: null,
+      gloss_en: word.gloss_en,
+      is_function_word: word.is_function_word,
+      is_heading: false,
+      is_known: word.knowledge_state === "known",
+      is_acquiring: word.knowledge_state === "acquiring",
+      is_encountered: word.knowledge_state === "encountered",
+      is_unknown: word.knowledge_state === "unknown",
+      is_ignored: word.knowledge_state === "ignored",
+      is_new: word.knowledge_state === "new",
+      is_oov: word.lemma_id == null && !word.is_punctuation,
+      originalWordIndex: index,
+    })) as Array<TokenView & { originalWordIndex: number }>;
+    return renderTokens(tokens);
+  }, [words]);
 
   return (
     <>
       <Text style={styles.sentenceGreek}>
-        {words.map((word, i) => {
-          const state = markStateAt(marks, i);
+        {spans.map((span, i) => {
+          const wordIdx = (span.token as TokenView & { originalWordIndex: number }).originalWordIndex;
+          const state = markStateAt(marks, wordIdx);
           // Nothing in the sentence carries a pre-applied highlight — not the
           // scheduling target, not the currently-glossed word, not function
           // words. The only visible signal is the user's own mark cycle:
@@ -700,12 +726,16 @@ function SentenceCard({
 
           return (
             <Text key={`w-${i}`}>
-              {i > 0 ? " " : null}
+              {span.leadingSpace}
               <Text
-                onPress={() => onWordTap(i)}
+                onPress={
+                  !span.isPunctuation && span.token.lemma_id != null
+                    ? () => onWordTap(wordIdx)
+                    : undefined
+                }
                 style={wordStyle}
               >
-                {word.surface_form}
+                {span.surface}
               </Text>
             </Text>
           );

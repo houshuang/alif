@@ -92,6 +92,13 @@ def test_validator_passes_when_all_words_known(tmp_db):
     assert res.target_present
 
 
+def test_tokenize_display_keeps_punctuation_rows(tmp_db):
+    from app.services.sentence_validator import is_punctuation_surface, tokenize_display
+    tokens = tokenize_display("το βιβλίο είναι μεγάλο.", "el")
+    assert tokens[-1][1] == "."
+    assert is_punctuation_surface(tokens[-1][1])
+
+
 # ─── Generator tests with mocked Claude ──────────────────────────────────────
 
 
@@ -184,6 +191,8 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
         from app.services.sentence_validator import is_punctuation_surface, normalize_bare
         funcs = FUNCTION_WORD_SETS["el"]
         assert any(w.lemma_id is None and is_punctuation_surface(w.surface_form) for w in words)
+        assert words[-1].surface_form == "."
+        assert words[-1].lemma_id is None
         for w in words:
             if w.lemma_id is None:
                 if is_punctuation_surface(w.surface_form):

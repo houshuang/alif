@@ -328,6 +328,7 @@ export type WordRender = {
   is_target: boolean;
   is_function_word: boolean;
   is_proper_name: boolean;
+  is_punctuation?: boolean;
   knowledge_state: string;
 };
 

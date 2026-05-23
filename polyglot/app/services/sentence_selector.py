@@ -103,6 +103,7 @@ class WordRender:
     is_target: bool
     is_function_word: bool
     is_proper_name: bool
+    is_punctuation: bool
     knowledge_state: str
 
 
@@ -409,6 +410,9 @@ def _build_payload(
     for sw in sorted(sent.words, key=lambda w: w.position):
         lemma = lemmas_by_id.get(sw.lemma_id) if sw.lemma_id else None
         ulk = ulks_by_lemma.get(sw.lemma_id) if sw.lemma_id else None
+        is_punctuation = bool(sw.surface_form) and not any(
+            c.isalpha() or c.isdigit() for c in sw.surface_form
+        )
         is_proper_name = bool(lemma and lemma.word_category == "proper_name")
         is_function_word = bool(
             (lemma and lemma.word_category == "function_word")
@@ -424,6 +428,7 @@ def _build_payload(
                 is_target=sw.lemma_id == target_canonical_id,
                 is_function_word=is_function_word,
                 is_proper_name=is_proper_name,
+                is_punctuation=is_punctuation,
                 knowledge_state=ulk.knowledge_state if ulk else "new",
             )
         )

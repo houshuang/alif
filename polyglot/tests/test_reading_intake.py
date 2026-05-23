@@ -153,6 +153,28 @@ def test_process_page_skips_batch_gloss_when_disabled(tmp_db, monkeypatch):
         assert called["n"] == 0
 
 
+def test_process_page_normalizes_pdf_linebreak_hyphens_before_storage(tmp_db, monkeypatch):
+    monkeypatch.setattr(reading_intake, "BATCH_GLOSS_ENABLED", False)
+    monkeypatch.setattr(reading_intake.lemma_quality, "QUALITY_GATE_ENABLED", False)
+    monkeypatch.setattr(reading_intake.body_clean_svc, "BODY_CLEAN_ENABLED", False)
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db,
+            language_code="el",
+            body="Η δομή κατοίκη-\nσαν στην περιοχή.",
+        )
+        reading_intake.get_page_view(db, story.id, 1)
+        surfaces = [
+            w.surface_form
+            for w in db.query(PageWord).order_by(PageWord.position).all()
+        ]
+        assert "κατοίκησαν" in surfaces
+        assert "κατοίκη" not in surfaces
+        assert "-" not in surfaces
+        assert "σαν" not in surfaces
+
+
 def test_mark_lemma_clear_deletes_ulk(tmp_db):
     """`clear` is the third tap in the reading screen's cycle
     (unknown → encountered → clear). It must delete the ULK so the lemma

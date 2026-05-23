@@ -384,6 +384,7 @@ class WordRenderOut(BaseModel):
     is_target: bool
     is_function_word: bool
     is_proper_name: bool
+    is_punctuation: bool
     knowledge_state: str
 
 
@@ -417,6 +418,7 @@ def _payload_to_pydantic(payload) -> SentencePayloadOut:
                 is_target=w.is_target,
                 is_function_word=w.is_function_word,
                 is_proper_name=w.is_proper_name,
+                is_punctuation=w.is_punctuation,
                 knowledge_state=w.knowledge_state,
             )
             for w in payload.words

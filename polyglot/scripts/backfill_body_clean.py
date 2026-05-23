@@ -11,7 +11,7 @@ Per page, the script:
 
 1. Calls ``body_clean.clean_body(page.body_src, language_code)`` and
    stores the result in ``page.body_clean``. Skips pages where
-   body_clean is already set unless ``--force``.
+   body_clean has non-empty text unless ``--force``.
 2. Deletes harvested ``Sentence`` rows attached to the page (and their
    ``SentenceWord`` children via cascade). Without this, harvested
    sentences would point at PageWords that no longer exist.
@@ -83,10 +83,14 @@ def main() -> int:
     parser.add_argument("--language", default="el", help="Language code. Default: el")
     parser.add_argument("--story-id", type=int, default=None,
                         help="Only process this story_id. Default: all active stories.")
+    parser.add_argument("--page-number", type=int, default=None,
+                        help="Only process this page number within the selected story.")
     parser.add_argument("--max-pages", type=int, default=None,
                         help="Stop after this many pages cleaned (across all stories).")
     parser.add_argument("--force", action="store_true",
                         help="Re-clean pages whose body_clean is already set.")
+    parser.add_argument("--reprocess", action="store_true",
+                        help="Immediately rerun page tokenization, quality gate, and sentence harvest.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Report what would change without calling the LLM or writing.")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -133,12 +137,18 @@ def main() -> int:
                 .order_by(Page.page_number.asc())
                 .all()
             )
+            if args.page_number is not None:
+                pages = [p for p in pages if p.page_number == args.page_number]
             for page in pages:
                 if args.max_pages is not None and summary["pages_cleaned"] >= args.max_pages:
                     log.info("Hit --max-pages cap of %d, stopping.", args.max_pages)
                     break
                 summary["pages_examined"] += 1
-                if page.body_clean is not None and not args.force:
+                has_usable_clean = (
+                    page.body_clean is not None
+                    and (page.body_clean.strip() or not (page.body_src or "").strip())
+                )
+                if has_usable_clean and not args.force:
                     summary["pages_skipped_already_clean"] += 1
                     continue
 
@@ -177,6 +187,16 @@ def main() -> int:
                     len(page.body_src or ""), len(result.cleaned),
                     len(result.removed), len(result.hyphen_joins), pw_deleted,
                 )
+                if args.reprocess:
+                    from app.services.reading_intake import process_page
+                    db.refresh(page)
+                    process_page(db, page)
+                    db.refresh(page)
+                    log.info(
+                        "Reprocessed story=%d page=%d: processed_at=%s mappings_verified_at=%s",
+                        story.id, page.page_number,
+                        page.processed_at, page.mappings_verified_at,
+                    )
             if args.max_pages is not None and summary["pages_cleaned"] >= args.max_pages:
                 break
     finally:
