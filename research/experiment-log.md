@@ -4,6 +4,70 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-24: Polyglot sentence generation stabilized - retrieval targets, prompt quality, provider fallback
+
+Full report: [`sentence-generation-prompt-experiments-polyglot-2026-05-24.md`](sentence-generation-prompt-experiments-polyglot-2026-05-24.md)
+
+### What prompted it
+
+Polyglot had accumulated a misleading "active content" count around 1968, book/textbook
+sentences were appearing too often in review, and generated Greek sentences were still too
+often forced, repetitive, or validator-fragile. The user also wanted `παρά` treated as a
+function word, enough high-quality generated sentences for forward review, and both Codex
+and Claude providers working on the Alif host.
+
+### Experiment / intervention
+
+- Reframed generation coverage around **retrieval-eligible targets**, not raw active-state
+  rows. Cognate-known and bulk-pre-known rows with no FSRS card are scaffold vocabulary only
+  until the learner misses them.
+- Tightened the session picker so normal review prefers fresh LLM material, hard-skips
+  recently shown sentences, and caps textbook fallback.
+- Rebuilt the generation prompt around grounded, worthwhile Modern Greek micro-scenes:
+  complete standalone thoughts, finite verbs, exact target surfaces where possible, explicit
+  agreement checks, no list fragments, no dictionary paraphrases, no surreal personification.
+- Changed the candidate funnel so overgenerated candidates survive deterministic validation,
+  lemma verification, and quality review before the per-target cap is applied.
+- Added conservative Greek surface-form lookup fallbacks for generated/review sentence
+  validation and aligned generation function words with the verifier (`παρά`, crasis forms,
+  `μόνον`, `κάπου`, `γύρω`, etc.).
+- Fixed the Claude CLI adapter order and verified both providers on the server; Codex remains
+  production default.
+- Deployed, killed a stale pre-deploy warm process, ran bounded production generation, and
+  applied the existing non-content cleanup backfill.
+
+### Results
+
+Final production check after deploy:
+
+- `active_all_states=1960`, but `retrieval_eligible_targets=149`.
+- `assumed_known_no_card=1808`; these are scaffolds, not generation targets.
+- `active_noncontent=0` after retiring the final 8 active bare-form function-word ULKs.
+- Active verified quality-passing generated LLM sentences: **429**.
+- Remaining retrieval targets below `POLYGLOT_ACTIVE_TARGET=5`: **98**.
+- Next 30-card session check: **29 LLM, 0 textbook, 0 recently-shown repeats**.
+- Main post-deploy warm: run `73564479`, 43 generated, 25/32 targets covered.
+- Final prompt-alignment warm: run `d9b16148`, 17 generated, 10/16 targets covered.
+- Claude provider smoke on production returned `{'x': 'ok'}`; production env remains
+  `POLYGLOT_LLM_PROVIDER=codex`, `POLYGLOT_CODEX_MODEL=gpt-5.5`.
+
+### Verification
+
+- Focused tests: `55 passed` (`test_material_generator.py`, `test_lemma_quality.py`,
+  `test_llm_cli.py`).
+- Full Polyglot suite: `292 passed, 2 deselected`.
+- Deployed server HEAD: `1fec5e4`; root health endpoint returns
+  `{"app":"polyglot","version":"0.1.0"}`.
+
+### Decision
+
+Keep the fail-closed funnel. The acceptance rate is intentionally not maximized: bad or
+forced candidates should be rejected before storage. The next improvement should come from
+post-cron log analysis of repeated hard targets and unknown-pool escapes, not from relaxing
+validation.
+
+---
+
 ## 2026-05-22: Memory-hook mnemonics DISABLED — quality not reliably gateable
 
 ### What prompted it
