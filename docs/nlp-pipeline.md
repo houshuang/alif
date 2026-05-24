@@ -82,6 +82,12 @@ Quranic text uses Uthmani orthography which differs from standard Arabic in seve
 1. **Ta maftouha → ta marbuta fallback**: When lemma lookup fails for a Quranic word, tries replacing word-final ت (ta maftouha, the Uthmani spelling) with ة (ta marbuta, standard spelling) and re-lookup. Handles ~15 high-frequency words: رحمت→رحمة, نعمت→نعمة, سنت→سنة, كلمت→كلمة, شجرت→شجرة, etc.
 2. **Uthmani diacritics in transliteration**: The transliteration engine recognizes U+06E1 (small high dotless head of khaa / Uthmani sukun), U+06DF (small high rounded zero), U+06E2 (small high meem) — these are Uthmani-specific marks not present in standard Arabic text.
 
+## Import-time lemmatization (OCR / Quran)
+Beyond the lookup/disambiguation paths above, two import pipelines run CAMeL morphology *at intake time* to avoid storing inflected/clitic-attached surface forms as canonical lemmas.
+
+1. **Quran intake — per-surface MLE canonicalization (#76)**: `quran_service._camel_canonicalize_unknowns()` runs `get_best_lemma_mle()` on each unknown surface form (falling back to the diacritic-stripped surface) *before* any new canonical lemma is created. It takes the CAMeL `lex`, normalizes it (`strip_diacritics` + `normalize_alef`) to a bare key, and routes the surface into one of three buckets: link to an existing DB lemma when the canonical bare already exists, group under a to-be-created canonical (multiple inflected surfaces sharing a canonical collapse into one group), or fall back to LLM-only handling when CAMeL gives no analysis. This fixed the 2026-05-15 leak where conjugated surfaces like نَزَّلْنَا "we sent down" were stored as canonicals because the old prompt asked for "bare as given" and never lemmatized.
+2. **OCR textbook intake — vocalized lex for the headword (#78)**: `ocr_service._step2_morphology()` returns `base_lemma_vocalized` (the CAMeL `lex` *with* diacritics) alongside the bare/root/pos. `process_textbook_page()` uses it as the stored `lemma_ar` whenever its diacritic-stripped form matches the chosen `import_bare` — so an al-prefixed surface like الْمَاشِي (`prc0='Al_det'`) is stored with headword ماشِي instead of the clitic-attached surface. Falls back to the OCR surface if CAMeL gave nothing or its stripped form would change the bare key.
+
 ## Planned (future)
-1. MLE disambiguator for sentence-level analysis (currently single-word only)
+1. MLE disambiguator for sentence-level analysis (now only *partly* single-word only — Quran intake runs per-surface MLE canonicalization, see "Import-time lemmatization" above; full sentence-level MLE disambiguation is still unimplemented)
 2. Validate LLM grammar tags against morphological analysis

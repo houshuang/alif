@@ -280,14 +280,11 @@ PRs are required to make polyglot usable for daily Greek dogfooding.
 Suggested next priorities (no specific PR order; pick by what surfaces
 during dogfooding):
 
-- **Intro-card working-memory gate** (Hard Invariant #12). Polyglot's
-  Tier 0/1/2 graduation can currently fire on tight time scales because
-  there's no `experiment_intro_shown_at` field gating it. Port the field
-  + `_intro_shown_recently` guard from Alif's
-  `app/services/acquisition_service.py`. Add the experiment-intro card
-  to the session builder + a frontend intro-card screen interleaved with
-  sentence cards (Alif's `buildInterleavedSession` is the reference,
-  `frontend/app/index.tsx:99–198`).
+- ~~**Intro-card working-memory gate** (Hard Invariant #12)~~ — **done (PR #6)**.
+  The `experiment_intro_shown_at` field + `_intro_shown_recently` guard are ported
+  in `app/services/acquisition_service.py`, the session builder emits intro cards,
+  and the frontend interleaves them via `buildInterleavedSlots`. See the PR #6
+  entry above.
 - **Quality-gate Haiku cost-discipline experiment**. Sonnet runs
   ~$0.30-0.50/page; Haiku is 10× cheaper and the verify task is bounded.
   See "Quality gate improvements" below.
@@ -298,14 +295,16 @@ during dogfooding):
   (`eleven_multilingual_v2`). Cost discipline like Alif — only generate
   for sentences that will be shown.
 - ~~**Cron deploy of `polyglot-update-material.sh`**~~ — done 2026-05-20.
-  Running at `45 */3 * * *` on Hetzner with three phases (warm_pages_ahead
-  → warm_sentence_cache → enrich_lemma_philology, the last with
-  `--include-failed` so flagged enrichment doesn't linger).
+  Running at `45 */3 * * *` on Hetzner with five phases (warm_pages_ahead
+  → review_existing_sentences → warm_sentence_cache → translate_sentences
+  → enrich_lemma_philology, the last with `--include-failed` so flagged
+  enrichment doesn't linger).
 
-Suggested PR #5 entry points to read first in the new session:
-- `frontend/app/polyglot-review.tsx` — current bare-word screen.
-- `frontend/lib/polyglot-api.ts` — API client; add `getReviewSession()` +
-  `submitSentenceReview()`.
+Stale: previously-suggested PR #5 entry points (now done — PR #5 shipped):
+- ~~`frontend/app/polyglot-review.tsx` — current bare-word screen.~~ It is now
+  the sentence-bearing review screen (two-stage reveal, tap-cycle marks).
+- ~~`frontend/lib/polyglot-api.ts` — add `getReviewSession()` +
+  `submitSentenceReview()`.~~ Both shipped (plus `undoSentenceReview`).
 - `backend/.../sentence_selector.SentencePayload` — shape returned from
   `GET /api/reviews/session?language_code=el`.
 - `polyglot/app/services/sentence_review_service.submit_sentence_review` —

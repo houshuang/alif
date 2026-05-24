@@ -23,7 +23,7 @@
 ## Deployment Lessons (non-obvious gotchas)
 - Fresh DB + alembic: if initial migration is empty (pass), `create_all` then `stamp head`. Or better: consolidate into one real migration.
 - `ALIF_SKIP_MIGRATIONS=1` when generating new alembic revisions
-- LLM model names: use `gemini/gemini-3-flash-preview` (not `gemini-3-flash`), `gpt-5.2`, `claude-haiku-4-5`, `claude-opus-4-6`, `claude-sonnet-4-5-20250929`
+- LLM model names: use `gemini/gemini-3-flash-preview` (not `gemini-3-flash`), `gpt-5.2`, `gpt-5.5` (Codex, Polyglot primary), `claude-haiku-4-5`, `claude-opus-4-6`, `claude-sonnet-4-5-20250929`. Alif uses Claude CLI; Polyglot uses Codex `gpt-5.5`-primary + Claude-failover (`polyglot/app/services/llm_cli.py`).
 - Anthropic returns JSON wrapped in markdown fences — strip with regex before json.loads()
 - Code expects `ANTHROPIC_API_KEY` and `ELEVENLABS_API_KEY` (see .env.example). User's `.env` uses `ELEVENLABS_KEY` (no _API suffix). The TTS-only key (`sk_2cea...`) can generate audio but NOT manage voices. Full-permission key (`sk_6952...`) needed for voice cloning API.
 - TTS model: `eleven_multilingual_v2` with learner-tuned pauses (stability 0.85, similarity 0.75)

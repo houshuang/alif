@@ -19,8 +19,9 @@ venv/
 .env
 backend/.env
 
-# Logs (keep directory, ignore contents)
+# Logs (keep directory, ignore contents incl. rotated/compressed)
 backend/data/logs/*.jsonl
+backend/data/logs/*.jsonl.gz
 
 # Node
 node_modules/
@@ -71,3 +72,12 @@ backend/experiments/results/*.json
 
 # Stray top-level data dir (canonical path is backend/data/)
 /data/
+
+# Recurring tool/scratch output (do not commit)
+artifacts/
+mockups/
+linear-import.csv
+.claude/scheduled_tasks.lock
+backend/data/*_checkpoint.json
+backend/data/step4c_*.json
+backend/data/kalila_dove.*

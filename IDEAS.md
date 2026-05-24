@@ -38,6 +38,12 @@ When a lemma has `enrichment_status='done_flagged'`, the enrichment is still wri
 
 ---
 
+## 🔵 [OPEN 2026-05-24] Polyglot: deterministic transliteration-distance filter for cognate auto-marks
+
+Both `cognate_detector.py` and the `recheck_low_cognates.py` second pass share a blind spot: the LLM accepts "etymological link + matching English gloss" as recognizable without ever checking that the Greek surface form actually transliterates to anything like the proposed cognate. πτυχίο "survived" the recheck despite sharing zero letters with English "diploma" (different roots, same gloss). The fix is a **deterministic Greek-surface → Latin transliteration distance check** (e.g. romanize the Greek bare form, edit-distance against the candidate cognate, gate on a threshold) applied as a hard filter *before* any cognate auto-mark — no LLM judgment in the loop. This is required before lowering `UserProfile.cognate_auto_mark_threshold` below `medium`: the `low` tier was form-blind and ~50–72% false-positive (2026-05-21 SUBTLEX-GR audit; all 258 low survivors dropped). Until this filter exists, run bulk cognate imports at `--threshold medium` only. See `polyglot/CLAUDE.md` Hard Invariant 6 and `polyglot/scripts/recheck_low_cognates.py` docstring.
+
+---
+
 ## ✅ [DONE 2026-05-21] Polyglot: pre-existing lemma_quality test failure
 
 `tests/test_lemma_quality.py::test_partial_batch_failure_leaves_page_unverified` was failing on main. Real bug — transient Haiku failures during force re-runs (or after an earlier successful pass) carried a stale `mappings_verified_at` stamp even when one of the new batches returned `None`, violating the "verification failure ≠ success" invariant.
