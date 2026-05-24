@@ -48,17 +48,18 @@ VENV="${POLYGLOT_PYTHON:-$WORKDIR/.venv/bin/python3}"
 PYTHONPATH_VALUE="${PYTHONPATH:-/opt/limbic}"
 
 LANGUAGE="${POLYGLOT_WARM_LANGUAGE:-el}"
-# 2026-05-22: bumped 16→48. With the picker now strictly preferring generated
-# sentences over book fallbacks, the engaged-vocabulary pool (~2.1k active
-# lemmas) had only ~98 LLM sentences — 1,890 active lemmas had zero generated
-# coverage. At 16 lemmas/run × 8 runs/day the backlog cleared too slowly. 48 ×
-# 8 = ~384 lemma-attempts/day (×SENTENCES_PER_TARGET), clearing the backlog in
-# days while comfortably keeping up with new acquiring words (≤30/day cap).
-MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-48}"
-SENTENCES_PER_TARGET="${POLYGLOT_WARM_SENTENCES_PER_TARGET:-2}"
-# 1200→1800: 48 lemmas / BATCH_WORD_SIZE=4 = 12 Sonnet+Haiku batches; at up to
-# ~2 min/batch worst case that's ~24 min, so give the phase 30 min of headroom.
-TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1800}"
+# 2026-05-24: session selection now avoids recent sentence repeats and caps
+# textbook fallbacks, so the generated cache needs more depth. ACTIVE_TARGET=5
+# gives each retrieval target enough approved LLM rows for repeated acquisition
+# reviews without resurfacing yesterday's sentence. 64 lemmas/run × 8 runs/day,
+# 3 requested sentences/target, clears the current small backlog quickly while
+# quality review still fails closed before storage.
+MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-64}"
+SENTENCES_PER_TARGET="${POLYGLOT_WARM_SENTENCES_PER_TARGET:-3}"
+export POLYGLOT_ACTIVE_TARGET="${POLYGLOT_ACTIVE_TARGET:-5}"
+# 64 lemmas / BATCH_WORD_SIZE=4 = 16 Sonnet+verify+quality batches. Give the
+# phase 45 minutes so slow LLM calls don't truncate an otherwise healthy pass.
+TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-2700}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"

@@ -603,10 +603,81 @@ def test_session_respects_limit(tmp_db):
         for i in range(5):
             lemma = _seed_lemma(db, form=f"λ{i}", bare=f"λ{i}")
             _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
-            _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, f"λ{i}")], text=f"S{i}")
+            _seed_sentence(
+                db,
+                lemma_surfaces=[(lemma.lemma_id, f"λ{i}")],
+                text=f"S{i}",
+                source="llm",
+            )
         db.commit()
         bundle = build_session(db, language_code="el", limit=3)
         assert len(bundle.sentences) == 3
+
+
+def test_session_skips_recently_shown_sentence_instead_of_repeating(tmp_db):
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, target.lemma_id, box=1)
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(target.lemma_id, "λόγος")],
+            text="recent only",
+            source="llm",
+            times_shown=1,
+            last_reading_shown_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        )
+        db.commit()
+
+        bundle = build_session(db, language_code="el", limit=10)
+        assert bundle.sentences == []
+        assert [(s.lemma_id, s.reason) for s in bundle.skipped_due_lemmas] == [
+            (target.lemma_id, "no_eligible_non_recent_sentence")
+        ]
+
+
+def test_session_caps_textbook_fallbacks(tmp_db):
+    with tmp_db() as db:
+        for i in range(5):
+            lemma = _seed_lemma(db, form=f"λ{i}", bare=f"λ{i}")
+            _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
+            _seed_sentence(
+                db,
+                lemma_surfaces=[(lemma.lemma_id, f"λ{i}")],
+                text=f"textbook {i}",
+                source="textbook",
+            )
+        db.commit()
+
+        bundle = build_session(db, language_code="el", limit=15)
+        assert len(bundle.sentences) == 2
+        assert all(s.source == "textbook" for s in bundle.sentences)
+        assert len(bundle.skipped_due_lemmas) == 3
+
+
+def test_session_textbook_cap_does_not_block_generated_material(tmp_db):
+    with tmp_db() as db:
+        for i in range(3):
+            lemma = _seed_lemma(db, form=f"β{i}", bare=f"β{i}")
+            _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
+            _seed_sentence(
+                db,
+                lemma_surfaces=[(lemma.lemma_id, f"β{i}")],
+                text=f"textbook {i}",
+                source="textbook",
+            )
+        generated = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, generated.lemma_id, box=1, due_offset_s=-100)
+        llm = _seed_sentence(
+            db,
+            lemma_surfaces=[(generated.lemma_id, "λόγος")],
+            text="generated",
+            source="llm",
+        )
+        db.commit()
+
+        bundle = build_session(db, language_code="el", limit=15)
+        assert llm.id in {s.sentence_id for s in bundle.sentences}
+        assert sum(1 for s in bundle.sentences if s.source == "textbook") == 2
 
 
 # ─── HTTP endpoint smoke tests ──────────────────────────────────────────

@@ -1288,7 +1288,7 @@ proof-of-shape, not proof-of-concept.
 | `POLYGLOT_VERIFY_MODEL`           | `haiku`     | Model used by material_generator verification step               |
 | `POLYGLOT_BATCH_WORD_SIZE`        | `4`         | Target lemmas per generation batch                              |
 | `POLYGLOT_SENTENCES_PER_TARGET`   | `2`         | Sentences requested per lemma per batch                          |
-| `POLYGLOT_ACTIVE_TARGET`          | `3`         | Min reviewable sentences per active lemma (warm-cache threshold) |
+| `POLYGLOT_ACTIVE_TARGET`          | `5`         | Min reviewable generated sentences per retrieval target          |
 | `POLYGLOT_PAGES_AHEAD_BUFFER`     | `5`         | Verified pages the cron keeps ahead of the user's last view      |
 | `POLYGLOT_PAGES_AHEAD_MAX_PER_RUN`| `5`         | Cap on pages warmed per story per cron pass (safety valve)        |
 | `POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS`| `1200`  | Cron-pass timeout for the page-warm phase                         |

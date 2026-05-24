@@ -25,11 +25,10 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   enrich philology. A bounded Codex smoke pass on 2026-05-23 generated 1
   sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
 - Current generated review coverage must be measured against retrieval targets,
-  not all assumed-known cognates/pre-known rows. Corrected 2026-05-23 query:
-  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 51
-  with zero quality-approved generated LLM coverage, 136 below the 3-sentence
-  generated target. Active material: 193 quality-approved LLM sentences, 185
-  active harvested textbook sentences (178 translated), 184 enriched lemmas.
+  not all assumed-known cognates/pre-known rows. Corrected 2026-05-24 query:
+  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 35
+  with zero quality-approved generated LLM coverage, 147 below the 5-sentence
+  generated target. The 3-hour cron is responsible for catching that up.
   Textbook sentences are picker fallbacks and do not count toward generated
   coverage. Cognate-known/bulk-known rows without FSRS cards are scaffold
   vocabulary only until missed.
@@ -44,7 +43,7 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   marks them missed and they enter acquisition/FSRS.
 - Generated-material coverage now counts only active, verified,
   quality-approved `source="llm"` sentences. Harvested textbook sentences stay
-  as graceful picker fallbacks, but they do not satisfy the 3-generated-sentence
+  as graceful picker fallbacks, but they do not satisfy the 5-generated-sentence
   target.
 - The sentence-generation prompt was tightened against the 2026-05-23 log
   failures: no heading/list fragments, require complete ordinary sentences
@@ -59,6 +58,23 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   ungated content lemmas to 0.
 - Verification: `arch -x86_64 .venv/bin/python -m pytest` in `polyglot/`:
   274 passed, 2 deselected.
+
+## Done in the 2026-05-24 follow-up
+
+- Forward session selection now hard-skips sentences shown in the last 24h and
+  caps textbook/page-of-record fallbacks at 2 per normal session. A production
+  DB snapshot with the patched selector produced 29/30 cards: 27 LLM, 2
+  textbook, 0 recently-shown repeats.
+- Generated sentence depth was raised to `POLYGLOT_ACTIVE_TARGET=5`. The
+  production cron still runs every 3h, now at 64 lemmas/run and 3 requested
+  sentences/target.
+- Generation yield fix: verifier `wrong` verdicts still reject content-lemma
+  corrections, but non-content/same-lemma nitpicks no longer discard the
+  candidate. This specifically addresses production rejects on articles and
+  prepositions/adverbs such as `η`, `το`, `κοντά`, and `επάνω`.
+- Prompt quality tightened again: prefer concrete plausible situations and
+  avoid surreal/absurd claims or forced target-word combinations. The
+  sentence-level quality gate remains fail-closed before storage.
 
 ## Done in the 2026-05-21 session
 
@@ -137,7 +153,7 @@ Six PRs landed (squash-merged, branches deleted):
   entry. Canonical resolution at write time. Function-word tokens may carry
   `lemma_id=NULL` (matches `sentence_harvest`). `warm_sentence_cache(language,
   max_lemmas)` finds acquiring/learning/known/lapsed lemmas below
-  `POLYGLOT_ACTIVE_TARGET=3` reviewable sentences and fills them in
+  `POLYGLOT_ACTIVE_TARGET=5` reviewable sentences and fills them in
   `BATCH_WORD_SIZE` chunks. Endpoints: `POST /api/materials/generate`,
   `POST /api/materials/warm-cache`. CLI: `scripts/warm_sentence_cache.py`.
   Cron wrapper: `deploy/polyglot-update-material.sh`. Backend tests:

@@ -275,10 +275,10 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
 - **Sentence review and generation** — `sentence_selector.py`,
   `sentence_review_service.py`, and `material_generator.py` are active.
   Generated sentences are mandatory-verifier gated before write; the warm
-  cache targets `POLYGLOT_ACTIVE_TARGET=3` active verified sentences per
-  active-study lemma. Review sessions filter non-content lemmas out of due
-  queues, prefer generated sentences over page-of-record text, and apply a
-  24h soft repeat penalty to recently shown sentences.
+  cache targets `POLYGLOT_ACTIVE_TARGET=5` active verified sentences per
+  retrieval target. Review sessions filter non-content lemmas out of due
+  queues, prefer generated sentences over page-of-record text, hard-skip
+  sentences shown in the last 24h, and cap textbook fallbacks at 2/session.
 - **Production interaction logs** — `interactions_YYYY-MM-DD.jsonl` captures
   session builds, selected sentence diagnostics, sentence-review payloads,
   per-word results, and skipped-due reasons. `TESTING=0` does not disable

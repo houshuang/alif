@@ -9,7 +9,8 @@ Deliberately scoped down from Alif's 2,864-line ``sentence_selector.py``:
 - No intro cards, no reintros, no passages, no grammar-slot weighting.
 - No frequency-lane / awzān / clitic / Hindawi-tier machinery.
 - No diversity scoring or near-duplicate veto beyond "don't repeat the same
-  sentence in one session".
+  sentence in one session" and "don't repeat a recently-shown sentence in a
+  normal session".
 - No generation fallback — when nothing fits, return ``None`` and let PR #4's
   material generator fill the gap.
 
@@ -51,12 +52,14 @@ multiplier so quality-approved generated material is *strictly* preferred):
 4. **None**, when no eligible sentence covers the lemma at all. Caller
    defers to generation or skips the lemma.
 
-Book sentences remain a graceful fallback: when no generated sentence covers
-the lemma yet — the lag between tapping an unknown word and the warm-cache
-cron generating — the picker still returns the textbook sentence rather than
-skipping the lemma for the session. Those fallback sentences are translated
-lazily by ``material_generator.translate_untranslated_sentences`` in the cron
-so a fallback never reaches the screen without an English line.
+Book sentences remain a graceful fallback, but session construction caps them:
+when no generated sentence covers the lemma yet — the lag between tapping an
+unknown word and the warm-cache cron generating — the picker may still return
+the textbook sentence, but a normal session only admits a small number of
+textbook fallbacks before skipping the rest and waiting for generated material.
+Those fallback sentences are translated lazily by
+``material_generator.translate_untranslated_sentences`` in the cron so a
+fallback never reaches the screen without an English line.
 """
 from __future__ import annotations
 
@@ -98,6 +101,13 @@ RECENT_PAGE_PENALTY = 0.2
 # penalty, not a veto, so one-candidate words still have material.
 SENTENCE_RECENCY_HOURS = 24
 RECENT_SENTENCE_PENALTY = 0.25
+
+# Textbook/page-of-record sentences are useful stopgaps while generated
+# material catches up, but they should not dominate a review session. Keep the
+# cap deliberately small: a short session may still show one fallback; normal
+# sessions show at most two.
+TEXTBOOK_FALLBACK_SOURCES = frozenset({"textbook"})
+TEXTBOOK_FALLBACK_MAX_PER_SESSION = 2
 
 
 def _quality_multiplier_for_sentence(sent: Sentence) -> float:
@@ -229,6 +239,8 @@ def pick_sentence_for_lemma(
     lemma_id: int,
     language_code: str,
     exclude_sentence_ids: Optional[set[int]] = None,
+    exclude_sources: Optional[set[str]] = None,
+    avoid_recently_shown: bool = False,
 ) -> Optional[SentencePayload]:
     """Pick the best sentence covering ``lemma_id`` for the learner.
 
@@ -241,6 +253,7 @@ def pick_sentence_for_lemma(
         return None
 
     exclude = set(exclude_sentence_ids or ())
+    source_exclude = set(exclude_sources or ())
     function_words = FUNCTION_WORD_SETS.get(language_code, set())
 
     target_lemma = (
@@ -268,7 +281,12 @@ def pick_sentence_for_lemma(
         .distinct()
         .all()
     )
-    candidates = [s for s in candidate_rows if s.id not in exclude]
+    candidates = [
+        s for s in candidate_rows
+        if s.id not in exclude and (s.source or "") not in source_exclude
+    ]
+    if avoid_recently_shown:
+        candidates = [s for s in candidates if not _sentence_recently_shown(s)]
     if not candidates:
         return None
     candidate_count = len(candidates)
@@ -765,9 +783,10 @@ def build_session(
     is skipped for this session — it will reappear once material exists.
 
     Within a single session we don't repeat the same sentence even if two
-    due lemmas happen to share a candidate. The duplicate-avoidance shape
-    mirrors Alif's ``selected_sentence_ids`` pattern but without the
-    diversity/Jaccard machinery.
+    due lemmas happen to share a candidate, and we skip sentences shown in
+    the last ``SENTENCE_RECENCY_HOURS`` rather than resurfacing yesterday's
+    row. Textbook fallbacks are capped per session so review remains mostly
+    generated/novel material while the warm cache catches up.
     """
     if not db.query(Language).filter(Language.code == language_code).first():
         return SessionBundle(sentences=[])
@@ -779,21 +798,37 @@ def build_session(
     selected: list[SentencePayload] = []
     used_sentence_ids: set[int] = set()
     skipped_due: list[SkippedDueLemma] = []
+    textbook_fallback_limit = _textbook_fallback_limit(limit)
+    textbook_fallback_count = 0
+
+    def _pick_for_session(lemma_id: int) -> Optional[SentencePayload]:
+        nonlocal textbook_fallback_count
+        exclude_sources = (
+            set(TEXTBOOK_FALLBACK_SOURCES)
+            if textbook_fallback_count >= textbook_fallback_limit
+            else None
+        )
+        payload = pick_sentence_for_lemma(
+            db,
+            lemma_id=lemma_id,
+            language_code=language_code,
+            exclude_sentence_ids=used_sentence_ids,
+            exclude_sources=exclude_sources,
+            avoid_recently_shown=True,
+        )
+        if payload is not None and (payload.source or "") in TEXTBOOK_FALLBACK_SOURCES:
+            textbook_fallback_count += 1
+        return payload
 
     for ulk, lemma in acquiring:
         if len(selected) >= limit:
             break
-        payload = pick_sentence_for_lemma(
-            db,
-            lemma_id=lemma.lemma_id,
-            language_code=language_code,
-            exclude_sentence_ids=used_sentence_ids,
-        )
+        payload = _pick_for_session(lemma.lemma_id)
         if payload is None:
             skipped_due.append(SkippedDueLemma(
                 lemma_id=lemma.lemma_id,
                 queue="acquisition",
-                reason="no_eligible_sentence",
+                reason="no_eligible_non_recent_sentence",
             ))
             continue
         used_sentence_ids.add(payload.sentence_id)
@@ -805,17 +840,12 @@ def build_session(
     for ulk, lemma, _due in fsrs:
         if len(selected) >= limit:
             break
-        payload = pick_sentence_for_lemma(
-            db,
-            lemma_id=lemma.lemma_id,
-            language_code=language_code,
-            exclude_sentence_ids=used_sentence_ids,
-        )
+        payload = _pick_for_session(lemma.lemma_id)
         if payload is None:
             skipped_due.append(SkippedDueLemma(
                 lemma_id=lemma.lemma_id,
                 queue="fsrs",
-                reason="no_eligible_sentence",
+                reason="no_eligible_non_recent_sentence",
             ))
             continue
         used_sentence_ids.add(payload.sentence_id)
@@ -827,3 +857,9 @@ def build_session(
         intro_cards=intro_cards,
         skipped_due_lemmas=skipped_due,
     )
+
+
+def _textbook_fallback_limit(session_limit: int) -> int:
+    if session_limit <= 0:
+        return 0
+    return min(TEXTBOOK_FALLBACK_MAX_PER_SESSION, max(1, session_limit // 5))

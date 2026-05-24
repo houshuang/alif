@@ -107,13 +107,14 @@ TRANSLATE_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_TRANSLATE_BATCH_SIZE"
 BATCH_WORD_SIZE = max(1, int(os.environ.get("POLYGLOT_BATCH_WORD_SIZE", "4")))
 
 # How many sentences to request per target. The picker keeps the best; extras
-# hedge against deterministic-validation failures.
+# hedge against deterministic-validation failures. The cron wrapper requests 3
+# per pass; the module default stays lower for manual/API calls.
 SENTENCES_PER_TARGET = max(1, int(os.environ.get("POLYGLOT_SENTENCES_PER_TARGET", "2")))
 
 # A target is considered "covered" when it has at least this many active +
 # verified Sentence rows referencing it. The picker still chooses among them
 # per-session; this threshold just governs the warm-cache backfill loop.
-ACTIVE_TARGET = max(1, int(os.environ.get("POLYGLOT_ACTIVE_TARGET", "3")))
+ACTIVE_TARGET = max(1, int(os.environ.get("POLYGLOT_ACTIVE_TARGET", "5")))
 
 # Known-words sample passed to the generation prompt. Larger = more lexical
 # diversity in generated sentences, but the prompt gets bigger. Bumped from
@@ -214,6 +215,9 @@ Rules:
 - Write complete, ordinary sentences with a finite verb. Do not return
   headings, fragments, colon-separated vocabulary lists, or comma chains of
   loosely related nouns.
+- Prefer concrete, plausible situations. Avoid surreal or absurd claims,
+  contrived encyclopedic definitions, and sentences that only exist to force
+  unrelated target words into one line.
 - For Modern Greek, prefer surface forms that a dictionary-backed lemmatizer
   can map back to the citation forms in the known-words pool. When a target
   form is itself usable in a natural sentence, use that exact form instead of
@@ -713,6 +717,44 @@ def verify_sentence_mappings_llm(
     return per_candidate
 
 
+def _wrong_verdict_rejects_candidate(
+    decision: VerifyDecision,
+    mappings: list[Mapping],
+    lemma_by_id: dict[int, Lemma],
+    *,
+    language_code: str,
+    function_words: set[str],
+) -> bool:
+    """Whether a verifier ``wrong`` decision should discard a candidate.
+
+    The verifier is useful for catching content-lemma mistakes, but production
+    logs show it sometimes returns ``wrong`` for closed-class tokens while
+    proposing the same lemma (articles, prepositions, adverbs such as κοντά).
+    Those are not retrieval targets and should not tank an otherwise good
+    generated sentence. Keep failing closed for real content corrections.
+    """
+    mapping = next((m for m in mappings if m.position == decision.position), None)
+    if mapping is None or mapping.lemma_id is None:
+        return False
+    lemma = lemma_by_id.get(mapping.lemma_id)
+    if lemma is None:
+        return True
+    if is_noncontent_lemma(
+        lemma,
+        language_code=language_code,
+        function_words=function_words,
+    ):
+        return False
+    correct_bare = normalize_bare(decision.correct_lemma or "", language_code)
+    proposed_bares = {
+        lemma.lemma_bare or "",
+        normalize_bare(lemma.lemma_form or "", language_code),
+    }
+    if correct_bare and correct_bare in proposed_bares:
+        return False
+    return True
+
+
 # ─── Orchestration ─────────────────────────────────────────────────────────
 
 
@@ -1017,13 +1059,25 @@ def batch_generate_material(
             "words_failed": target_indexed_ids,
         }
 
-    # Reject any candidate where Haiku flagged ANY position as "wrong" — we
+    # Reject candidates where Haiku flagged a content position as "wrong" — we
     # don't auto-create new lemmas from a generated sentence (the no-auto-
-    # create-from-corrections invariant). "unclear" is tolerated; the picker
-    # / sentence-review pipeline will surface bad cases via leech detection.
+    # create-from-corrections invariant). "unclear" is tolerated; wrong
+    # verdicts on non-content/same-lemma positions are ignored because the
+    # verifier often nitpicks articles and prepositions even when the proposed
+    # lemma is already right.
     accepted: list[dict] = []
     for cand, verdicts in zip(candidates, verify_per_cand):
-        wrong = [v for v in verdicts if v.verdict == "wrong"]
+        wrong = [
+            v for v in verdicts
+            if v.verdict == "wrong"
+            and _wrong_verdict_rejects_candidate(
+                v,
+                cand["mappings"],
+                lemma_by_id,
+                language_code=language_code,
+                function_words=function_words,
+            )
+        ]
         if wrong:
             _log_pipeline({
                 "event": "verify_rejected",

@@ -301,6 +301,72 @@ def test_verifier_wrong_verdict_discards_candidate(tmp_db, fake_claude):
         assert db.query(Sentence).count() == 0
 
 
+def test_verifier_wrong_same_lemma_does_not_discard_candidate(tmp_db, fake_claude):
+    """Verifier sometimes says wrong while proposing the same lemma. That is
+    not a content correction and should not lower generation yield."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+        _verify_response([
+            {"sentence_index": 0, "position": 1, "verdict": "wrong",
+             "correct_lemma": "βιβλίο", "reason": "same lemma"},
+            {"sentence_index": 0, "position": 2, "verdict": "ok"},
+            {"sentence_index": 0, "position": 3, "verdict": "ok"},
+        ]),
+        _quality_response(),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+
+def test_verifier_wrong_noncontent_position_does_not_discard_candidate(tmp_db, fake_claude):
+    """Wrong verdicts on function-word mappings should not reject an otherwise
+    valid generated sentence; function words are not retrieval targets."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_lemma(
+            db,
+            form="κοντά",
+            bare="κοντα",
+            gloss="near",
+            word_category="function_word",
+        )
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι κοντά.", "The book is nearby.")]),
+        _verify_response([
+            {"sentence_index": 0, "position": 1, "verdict": "ok"},
+            {"sentence_index": 0, "position": 2, "verdict": "ok"},
+            {"sentence_index": 0, "position": 3, "verdict": "wrong",
+             "correct_lemma": "κοντά", "reason": "function word nit"},
+        ]),
+        _quality_response(),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+
 def test_glossless_target_is_skipped(tmp_db, fake_claude):
     """Hard Invariant gloss gate at the entry point — target with empty gloss
     never reaches generation."""
