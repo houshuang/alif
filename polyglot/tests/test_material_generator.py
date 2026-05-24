@@ -960,6 +960,8 @@ def test_generation_prompt_rejects_catalog_fragments():
     assert "No surreal personification" in prompt
     assert "Allowed function words outside the pool" in prompt
     assert "όταν" in prompt
+    assert "παρά" in prompt
+    assert "κάπου" in prompt
 
 
 def test_generation_prompt_includes_target_examples_and_candidate_depth():

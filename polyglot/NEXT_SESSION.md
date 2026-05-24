@@ -5,7 +5,7 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
-## Current production status — 2026-05-23
+## Current production status — 2026-05-24
 
 - Production no longer depends on Claude Max. `codex-cli 0.133.0` is installed
   on the VM and Polyglot uses `POLYGLOT_LLM_PROVIDER=codex`,
@@ -25,10 +25,9 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   enrich philology. A bounded Codex smoke pass on 2026-05-23 generated 1
   sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
 - Current generated review coverage must be measured against retrieval targets,
-  not all assumed-known cognates/pre-known rows. Corrected 2026-05-24 query:
-  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 35
-  with zero quality-approved generated LLM coverage, 147 below the 5-sentence
-  generated target. The 3-hour cron is responsible for catching that up.
+  not all assumed-known cognates/pre-known rows. Post-deploy 2026-05-24 query:
+  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 101
+  still below the 5-sentence generated target after the manual warm run.
   Textbook sentences are picker fallbacks and do not count toward generated
   coverage. Cognate-known/bulk-known rows without FSRS cards are scaffold
   vocabulary only until missed.
@@ -83,7 +82,7 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   mapping as by prose style. The deployed prompt now asks for grounded,
   worth-reading micro-scenes, exact target surfaces where possible, explicit
   Greek agreement checks, and no surreal personification/random-prop weirdness.
-  The pipeline over-generates `max(requested+2, 5)` candidates per target, then
+  The pipeline over-generates `max(requested+5, 8)` candidates per target, then
   keeps only the requested number after deterministic validation.
 - Generated validation now enforces the actual engaged scaffold vocabulary:
   non-target content words must be in the learner's known/acquiring/learning
@@ -103,6 +102,10 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   generated/review sentence validation, covering common adjective endings and
   present verb forms such as `στρωμένο -> στρωμένος` and
   `συντελείται -> συντελούμαι`. Exact DB `lemma_bare` keys still win.
+- The sentence prompt's explicit "allowed function words" list is aligned with
+  the verifier for common Greek closed-class scaffolds, including `παρά`,
+  `μόνον`, crasis forms, and spatial/temporal adverbs such as `κάπου` and
+  `γύρω`.
 - Local production-snapshot eval after these changes:
   `scripts/warm_sentence_cache.py --language el --max-lemmas 8 --sentences-per-target 2`
   stored 14 sentences covering 7/8 due targets. The remaining miss was a hard
@@ -110,8 +113,9 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 - Claude provider status: the Alif host has Claude Code 2.1.42 installed and
   authenticated for structured JSON. Production remains on
   `POLYGLOT_LLM_PROVIDER=codex`/`gpt-5.5`, but the Claude adapter command order
-  is fixed locally (`claude --output-format ... --json-schema ... -p prompt`);
-  deploy before switching production back to Claude.
+  is fixed and deployed (`claude --output-format ... --json-schema ... -p prompt`);
+  a production wrapper smoke returned `{"x": "ok"}` with
+  `POLYGLOT_LLM_PROVIDER=claude`.
 
 ## Done in the 2026-05-21 session
 
