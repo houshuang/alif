@@ -1131,7 +1131,12 @@ reader.
 
 Knowledge-state breakdown (encountered / acquiring / learning / known /
 lapsed / suspended) with progress bars. Per-story progress. Acquisition box
-distribution. Recent activity timeline (from `ActivityLog`).
+distribution. Recent activity timeline (from `ActivityLog`). Polyglot also
+separates **known inventory** from the **judged study set**: known inventory
+includes assumed-known scaffold rows (bulk pre-known + cognate-known), while
+to-learn/learnt counts only words that have ever had a red or green judgment.
+If an assumed-known no-card word is later missed, it is reported as a lapsed
+known word and enters the to-learn pipeline.
 
 ### 11.5 Language switching
 
