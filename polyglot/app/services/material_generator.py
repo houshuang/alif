@@ -221,7 +221,8 @@ Rules:
 - For Modern Greek, prefer surface forms that a dictionary-backed lemmatizer
   can map back to the citation forms in the known-words pool. When a target
   form is itself usable in a natural sentence, use that exact form instead of
-  an obscure inflection.
+  an inflected variant. Modern Greek verb citation forms can be used naturally
+  as first-person statements when needed.
 - Include articles and prepositions where natural; clipped textbook-heading
   style is rejected by the quality gate.
 - Provide a faithful English translation. Do not transliterate.
@@ -618,6 +619,7 @@ def verify_sentence_mappings_llm(
         return []
     items: list[dict] = []
     expected_positions: set[tuple[int, int]] = set()
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
     for s_idx, cand in enumerate(candidates):
         for m in cand["mappings"]:
             if m.lemma_id is None:
@@ -629,6 +631,12 @@ def verify_sentence_mappings_llm(
                     m.lemma_id, s_idx, m.position,
                 )
                 return None
+            if is_noncontent_lemma(
+                lemma,
+                language_code=language_code,
+                function_words=function_words,
+            ):
+                continue
             expected_positions.add((s_idx, m.position))
             items.append({
                 "sentence_index": s_idx,
@@ -673,6 +681,8 @@ def verify_sentence_mappings_llm(
         if not isinstance(s_idx, int) or not isinstance(pos, int):
             continue
         if not (0 <= s_idx < len(candidates)):
+            continue
+        if (s_idx, pos) not in expected_positions:
             continue
         if verdict not in ("ok", "wrong", "unclear"):
             continue

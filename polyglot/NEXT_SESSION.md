@@ -70,8 +70,9 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   sentences/target.
 - Generation yield fix: verifier `wrong` verdicts still reject content-lemma
   corrections, but non-content/same-lemma nitpicks no longer discard the
-  candidate. This specifically addresses production rejects on articles and
-  prepositions/adverbs such as `η`, `το`, `κοντά`, and `επάνω`.
+  candidate, and non-content tokens are skipped by the generated-sentence
+  verifier entirely. This specifically addresses production rejects on
+  articles and prepositions/adverbs such as `η`, `το`, `κοντά`, and `επάνω`.
 - Prompt quality tightened again: prefer concrete plausible situations and
   avoid surreal/absurd claims or forced target-word combinations. The
   sentence-level quality gate remains fail-closed before storage.
