@@ -79,7 +79,7 @@ RECOVERY_FULL_INTRO_BUDGET = 8
 # (system-driven rescue of stuck words) and reading-screen "I don't know this"
 # taps (user-driven; capturing the unknown-fact is data, separate from how the
 # scheduler paces it). Other sources go through the normal cap.
-CAP_EXEMPT_SOURCES = frozenset({"leech_reintro", "reading_intake"})
+CAP_EXEMPT_SOURCES = frozenset({"leech_reintro", "reading_intake", "review_lapse"})
 
 # Sources that subsequent callers are allowed to overwrite. Strong sources
 # (`textbook_scan`, `reading_intake`) should win when they upgrade a weak

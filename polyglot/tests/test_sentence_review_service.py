@@ -496,7 +496,7 @@ def test_learning_lemma_routes_through_fsrs(tmp_db):
         assert result["word_results"][0]["new_state"] in {"learning", "known", "lapsed"}
 
 
-def test_bulk_known_without_card_gets_encounter_credit_only(tmp_db):
+def test_bulk_known_without_card_gets_green_encounter_credit_only(tmp_db):
     with tmp_db() as db:
         lemma = _seed_lemma(db, form="known", bare="known")
         db.add(UserLemmaKnowledge(
@@ -505,6 +505,7 @@ def test_bulk_known_without_card_gets_encounter_credit_only(tmp_db):
             fsrs_card_json=None,
             total_encounters=2,
             source="bulk_mark",
+            knowledge_origin="pre_known",
         ))
         sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
         db.commit()
@@ -518,6 +519,42 @@ def test_bulk_known_without_card_gets_encounter_credit_only(tmp_db):
         assert ulk.knowledge_state == "known"
         assert ulk.fsrs_card_json is None
         assert ulk.total_encounters == 3
+
+
+def test_missed_bulk_known_without_card_enters_acquisition(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="known", bare="known")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=None,
+            total_encounters=2,
+            source="bulk_mark",
+            knowledge_origin="pre_known",
+        ))
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(
+            db,
+            sentence_id=sid,
+            comprehension_signal="partial",
+            missed_lemma_ids=[lemma_id],
+        )
+        assert result["word_results"][0]["lemma_id"] == lemma_id
+        assert result["word_results"][0]["rating"] == 1
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.fsrs_card_json is None
+        assert ulk.knowledge_origin == "pre_known"
+        assert ulk.first_failed_at is not None
+        assert ulk.failure_count == 1
+        log = db.query(ReviewLog).filter_by(lemma_id=lemma_id).one()
+        assert log.is_acquisition is True
+        assert log.rating == 1
 
 
 # ─── Tagging + sentence-level audit row ────────────────────────────────────

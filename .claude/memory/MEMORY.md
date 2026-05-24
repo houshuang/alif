@@ -114,8 +114,14 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Check Prior Work Before Proposing Pipeline Fixes
 - [Details](feedback_check_prior_work_first.md) — For long-iterated areas (gen pipeline / FSRS / sentence selector / validator / lemma quality), the first three reads before drafting a fix are `git log -3mo`, `grep IDEAS.md docs/scripts-catalog.md research/experiment-log.md`, and `ls backend/scripts/`. Codified as CLAUDE.md Critical Rule #14. Caught 2026-05-03 about to weaken same_lemma + re-add lookup_lemma + miss two existing scripts.
 
+## Alif Lemma-Deletion Scripts Must Enumerate Inbound FKs (2026-05-20)
+- [Details](feedback_lemma_deletion_fks.md) — `ReviewLog.lemma_id` is NOT NULL plus 6 other tables hold nullable FKs to `lemmas.lemma_id`. Grep `ForeignKey("lemmas.lemma_id")` in models.py before writing any Lemma-deletion script. Hit by cleanup_numeric_ocr_lemmas.py first --apply.
+
 ## Polyglot Mirrors Alif's Design and Code (2026-05-20)
 - [Details](feedback_polyglot_mirror_alif.md) — When working in polyglot/, mirror Alif by default. Divergence only for specific Greek/Latin-driven reasons. Read Alif's equivalent file FIRST before designing any polyglot screen/service. Don't ask UX questions Alif has already answered. Caught 2026-05-20: asked AskUserQuestion about polyglot sentence-review UX before reading Alif's index.tsx.
+
+## Polyglot Typography: EB Garamond, never italic (2026-05-22, PR #126)
+- [Details](feedback_polyglot_typography_eb_garamond.md) — Polyglot Greek font is EB Garamond (loaded via @expo-google-fonts in _layout.tsx). Never use italic in polyglot Greek. Reference fonts by registered constant name (EBGaramond_400Regular), NOT "EB Garamond" — wrong-name = silent Georgia fallback (the bug PR #126 fixed).
 
 ## Verify Before Recommending
 - [Details](feedback_verify_before_recommending.md) — Check crontab before "you should run X"; check denominator filter symmetry before quoting a ratio. Got caught twice same session (2026-04-21).
@@ -140,6 +146,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 
 ## iOS EAS Dev Build Gotchas (2026-05-14)
 - [Details](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads required for Hetzner dev server, icon source HTMLs in `frontend/assets/sources/`, CgBI PNGs aren't broken, Apple PLA periodically blocks builds.
+
+## Don't trust bg-task "exit 0" alone — tail the output (2026-05-21)
+- [Details](feedback_bg_task_exit_code_misleading.md) — A bg notification claimed pytest exit 0 but the output showed 1 failed. Always tail the file even on "passing" notifications.
 
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"

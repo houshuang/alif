@@ -533,8 +533,8 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
       - ``unknown``: enters the SRS engine immediately. The lemma is routed
         through ``start_acquisition`` with ``source='reading_intake'`` and
         ``due_immediately=True``, so it lands in Box 1 with the next review
-        due now. The daily intro cap still applies: cap-exceeded marks
-        remain in ``encountered`` state and promote on a future day.
+        due now. Reading-screen unknown taps bypass the daily intro cap so
+        explicit "I don't know this" data is never discarded.
         A tiny English gloss is also fetched if missing.
       - ``encountered``: lightweight state-only update; no SRS enrolment.
       - ``ignore``: mark as a proper name / out-of-band token and remove from SRS.

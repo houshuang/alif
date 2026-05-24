@@ -27,6 +27,8 @@ def _as_utc(dt: datetime | None) -> datetime | None:
 
 
 def _origin_for_source(source: str | None) -> str | None:
+    if source == "review_lapse":
+        return ORIGIN_MARKED_UNKNOWN
     if source == "cognate":
         return ORIGIN_COGNATE_KNOWN
     if source == "cognate_propagation":

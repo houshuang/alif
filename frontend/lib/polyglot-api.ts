@@ -204,6 +204,41 @@ export type LanguageStats = {
     lapsed_after_failure: number;
     failed_not_yet_recovered: number;
   };
+  known_summary: {
+    total: number;
+    pre_known: number;
+    cognate_known: number;
+    fsrs_known: number;
+    assumed_known: number;
+    judged_known: number;
+    unjudged_known: number;
+    lapsed_from_assumed_known: number;
+    lapsed_from_assumed_known_to_learn: number;
+  };
+  judged_progress: {
+    total: number;
+    to_learn: number;
+    learnt: number;
+    pending: number;
+    ever_red: number;
+    ever_green: number;
+    yellow_only: number;
+    lapsed_from_known: number;
+    lapsed_from_known_to_learn: number;
+    pipeline: {
+      acquiring: number;
+      box_1: number;
+      box_2: number;
+      box_3: number;
+      acquisition_due_now: number;
+      learning: number;
+      known: number;
+      lapsed: number;
+      suspended: number;
+      fsrs_tracked: number;
+      fsrs_due_now: number;
+    };
+  };
   today: {
     reviews: number;
     sentence_reviews: number;

@@ -82,7 +82,7 @@ export default function PolyglotStats() {
 
   const languageName = LANGUAGE_NAMES[stats.language_code] ?? stats.language_code;
   const knownPct = stats.total_lemmas > 0
-    ? Math.round((stats.by_state.known / stats.total_lemmas) * 100)
+    ? Math.round((stats.known_summary.total / stats.total_lemmas) * 100)
     : 0;
 
   return (
@@ -90,11 +90,17 @@ export default function PolyglotStats() {
       <ScrollView contentContainerStyle={s.body}>
         <Text style={s.h1}>{languageName}</Text>
         <Text style={s.h2}>
-          {stats.recovery.recovered_once.toLocaleString()} recovered {"·"} {stats.recovery.pre_known.toLocaleString()} pre-known {"·"} {knownPct}% known
+          {stats.known_summary.total.toLocaleString()} known total {"·"} {stats.judged_progress.to_learn.toLocaleString()} to learn {"·"} {stats.judged_progress.learnt.toLocaleString()} learnt {"·"} {knownPct}% known
         </Text>
 
         <SectionHeader label="Today" />
         <TodayCard today={stats.today} />
+
+        <SectionHeader label="Known" />
+        <KnownSummaryCard known={stats.known_summary} total={stats.total_lemmas} />
+
+        <SectionHeader label="To learn / learnt" />
+        <JudgedProgressCard progress={stats.judged_progress} />
 
         <SectionHeader label="Recovery" />
         <RecoveryCard recovery={stats.recovery} />
@@ -146,6 +152,166 @@ function SectionHeader({ label }: { label: string }) {
     <View style={s.sectionHeader}>
       <Text style={s.sectionHeaderText}>{label.toUpperCase()}</Text>
       <View style={s.sectionHeaderLine} />
+    </View>
+  );
+}
+
+// ── Known inventory ──────────────────────────────────────────────────────
+
+function KnownSummaryCard({
+  known, total,
+}: {
+  known: LanguageStats["known_summary"]; total: number;
+}) {
+  const knownPct = total > 0 ? Math.min(Math.round((known.total / total) * 100), 100) : 0;
+  const chips = [
+    { label: "Pre-known", count: known.pre_known, color: C.known },
+    { label: "Cognates", count: known.cognate_known, color: C.accent },
+    { label: "FSRS", count: known.fsrs_known, color: C.learning },
+    { label: "Judged", count: known.judged_known, color: C.good },
+    { label: "Auto", count: known.unjudged_known, color: C.textDim },
+  ].filter((chip) => chip.count > 0);
+
+  return (
+    <View style={s.card}>
+      <View style={s.heroRow}>
+        <Text style={s.heroNum}>{known.total.toLocaleString()}</Text>
+        <Text style={s.heroLabel}>known words</Text>
+      </View>
+      <View style={s.knownMeter}>
+        <View style={[s.knownMeterFill, { width: `${knownPct}%` }]} />
+      </View>
+      <View style={s.chipRow}>
+        {chips.map((chip) => (
+          <View key={chip.label} style={s.chip}>
+            <Text style={s.chipLabel}>{chip.label}</Text>
+            <Text style={[s.chipValue, { color: chip.color }]}>
+              {chip.count.toLocaleString()}
+            </Text>
+          </View>
+        ))}
+        {known.lapsed_from_assumed_known > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Lapsed known</Text>
+            <Text style={[s.chipValue, { color: C.lapsed }]}>
+              {known.lapsed_from_assumed_known.toLocaleString()}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ── Judged study progress ────────────────────────────────────────────────
+
+function JudgedProgressCard({ progress }: { progress: LanguageStats["judged_progress"] }) {
+  const p = progress.pipeline;
+  const stages = [
+    { label: "Box 1", count: p.box_1, color: C.unknown },
+    { label: "Box 2", count: p.box_2, color: C.warn },
+    { label: "Box 3", count: p.box_3, color: C.acquiring },
+    { label: "FSRS", count: p.learning, color: C.learning },
+    { label: "Known", count: p.known, color: C.known },
+    { label: "Lapsed", count: p.lapsed, color: C.lapsed },
+  ].filter((stage) => stage.count > 0);
+  const total = Math.max(stages.reduce((sum, stage) => sum + stage.count, 0), 1);
+
+  return (
+    <View style={s.card}>
+      <View style={s.duoHero}>
+        <View style={s.duoCell}>
+          <Text style={[s.duoNum, { color: C.warn }]}>
+            {progress.to_learn.toLocaleString()}
+          </Text>
+          <Text style={s.duoLabel}>to learn</Text>
+        </View>
+        <View style={s.duoCell}>
+          <Text style={[s.duoNum, { color: C.good }]}>
+            {progress.learnt.toLocaleString()}
+          </Text>
+          <Text style={s.duoLabel}>learnt</Text>
+        </View>
+      </View>
+
+      {stages.length > 0 ? (
+        <>
+          <View style={s.pipelineTrack}>
+            {stages.map((stage) => (
+              <View
+                key={stage.label}
+                style={{
+                  flex: Math.max(stage.count / total, 0.04),
+                  backgroundColor: stage.color,
+                  height: "100%",
+                }}
+              />
+            ))}
+          </View>
+          <View style={s.pipelineLegend}>
+            {stages.map((stage) => (
+              <View key={stage.label} style={s.pipelineLegendItem}>
+                <View style={[s.legendDot, { backgroundColor: stage.color }]} />
+                <Text style={s.pipelineLegendText}>{stage.label}</Text>
+                <Text style={s.pipelineLegendCount}>{stage.count}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text style={s.emptyText}>No red or green judgments yet.</Text>
+      )}
+
+      <View style={s.chipRow}>
+        <View style={s.chip}>
+          <Text style={s.chipLabel}>Judged</Text>
+          <Text style={s.chipValue}>{progress.total.toLocaleString()}</Text>
+        </View>
+        {p.acquisition_due_now > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Box due</Text>
+            <Text style={[s.chipValue, { color: C.warn }]}>
+              {p.acquisition_due_now.toLocaleString()}
+            </Text>
+          </View>
+        )}
+        {p.fsrs_due_now > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>FSRS due</Text>
+            <Text style={[s.chipValue, { color: C.warn }]}>
+              {p.fsrs_due_now.toLocaleString()}
+            </Text>
+          </View>
+        )}
+        <View style={s.chip}>
+          <Text style={s.chipLabel}>Red</Text>
+          <Text style={[s.chipValue, { color: C.unknown }]}>
+            {progress.ever_red.toLocaleString()}
+          </Text>
+        </View>
+        <View style={s.chip}>
+          <Text style={s.chipLabel}>Green</Text>
+          <Text style={[s.chipValue, { color: C.good }]}>
+            {progress.ever_green.toLocaleString()}
+          </Text>
+        </View>
+        {progress.yellow_only > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Yellow only</Text>
+            <Text style={[s.chipValue, { color: C.warn }]}>
+              {progress.yellow_only.toLocaleString()}
+            </Text>
+          </View>
+        )}
+        {progress.lapsed_from_known > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Known lapsed</Text>
+            <Text style={[s.chipValue, { color: C.lapsed }]}>
+              {progress.lapsed_from_known.toLocaleString()}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -656,6 +822,28 @@ const s = StyleSheet.create({
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginBottom: 14 },
   heroNum: { fontSize: 38, fontWeight: "700", color: C.text },
   heroLabel: { fontSize: 14, color: C.textDim },
+  knownMeter: {
+    height: 8, borderRadius: 4, backgroundColor: C.surfaceAlt,
+    overflow: "hidden", marginBottom: 2,
+  },
+  knownMeterFill: { height: "100%", backgroundColor: C.known },
+  duoHero: {
+    flexDirection: "row", gap: 10, marginBottom: 12,
+  },
+  duoCell: {
+    flex: 1, backgroundColor: C.surfaceAlt, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  duoNum: { fontSize: 32, fontWeight: "700" },
+  duoLabel: { color: C.textDim, fontSize: 12, marginTop: 2 },
+  pipelineTrack: {
+    height: 12, borderRadius: 6, backgroundColor: C.surfaceAlt,
+    overflow: "hidden", flexDirection: "row", marginTop: 2,
+  },
+  pipelineLegend: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 9 },
+  pipelineLegendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  pipelineLegendText: { color: C.textDim, fontSize: 11 },
+  pipelineLegendCount: { color: C.text, fontSize: 11, fontWeight: "700" },
   recoveryBars: { gap: 4, marginBottom: 8 },
   recoveryTrack: {
     height: 5, borderRadius: 3, backgroundColor: C.surfaceAlt, overflow: "hidden",
