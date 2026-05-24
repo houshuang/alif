@@ -402,6 +402,55 @@ def test_verifier_does_not_require_decisions_for_noncontent_positions(tmp_db, fa
     assert result["generated"] == 1
 
 
+def test_verifier_skips_surface_function_word_mapped_to_content_lemma(tmp_db, monkeypatch):
+    """The surface form can be scaffold even when the lemmatizer maps it to a
+    content lemma row, e.g. μακριά -> μακρύς. Do not verify scaffold tokens."""
+    with tmp_db() as db:
+        far = _seed_lemma(db, form="μακρύς", bare="μακρυς", gloss="far")
+        db.flush()
+
+        def fail_call_llm(**kwargs):
+            raise AssertionError("surface function word should not be verified")
+
+        monkeypatch.setattr(mg, "_call_llm", fail_call_llm)
+        result = mg.verify_sentence_mappings_llm(
+            "el",
+            [{
+                "text": "μακριά.",
+                "mappings": [
+                    mg.Mapping(position=0, surface_form="μακριά", lemma_id=far.lemma_id),
+                ],
+            }],
+            {far.lemma_id: far},
+        )
+
+    assert result == [[]]
+
+
+def test_wrong_verdict_surface_function_word_does_not_discard_candidate(tmp_db):
+    """A verifier nit about a scaffold surface should not reject the sentence,
+    even if that token has been attached to a content DB lemma."""
+    with tmp_db() as db:
+        far = _seed_lemma(db, form="μακρύς", bare="μακρυς", gloss="far")
+        db.flush()
+        lemma_by_id = {far.lemma_id: far}
+        mapping = mg.Mapping(position=3, surface_form="μακριά", lemma_id=far.lemma_id)
+
+        assert not mg._wrong_verdict_rejects_candidate(
+            mg.VerifyDecision(
+                sentence_index=0,
+                position=3,
+                verdict="wrong",
+                correct_lemma="μακριά",
+                reason="surface scaffold nit",
+            ),
+            [mapping],
+            lemma_by_id,
+            language_code="el",
+            function_words=mg.FUNCTION_WORD_SETS["el"],
+        )
+
+
 def test_glossless_target_is_skipped(tmp_db, fake_claude):
     """Hard Invariant gloss gate at the entry point — target with empty gloss
     never reaches generation."""

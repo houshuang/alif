@@ -624,6 +624,8 @@ def verify_sentence_mappings_llm(
         for m in cand["mappings"]:
             if m.lemma_id is None:
                 continue
+            if normalize_bare(m.surface_form, language_code) in function_words:
+                continue
             lemma = lemma_by_id.get(m.lemma_id)
             if lemma is None:
                 log.warning(
@@ -745,6 +747,8 @@ def _wrong_verdict_rejects_candidate(
     """
     mapping = next((m for m in mappings if m.position == decision.position), None)
     if mapping is None or mapping.lemma_id is None:
+        return False
+    if normalize_bare(mapping.surface_form, language_code) in function_words:
         return False
     lemma = lemma_by_id.get(mapping.lemma_id)
     if lemma is None:

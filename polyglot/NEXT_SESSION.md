@@ -72,7 +72,9 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   corrections, but non-content/same-lemma nitpicks no longer discard the
   candidate, and non-content tokens are skipped by the generated-sentence
   verifier entirely. This specifically addresses production rejects on
-  articles and prepositions/adverbs such as `η`, `το`, `κοντά`, and `επάνω`.
+  articles and prepositions/adverbs such as `η`, `το`, `κοντά`, and `επάνω`;
+  the skip checks both the mapped lemma and the normalized surface form so
+  scaffold surfaces like `μακριά` do not get reclassified by a content lemma.
 - Prompt quality tightened again: prefer concrete plausible situations and
   avoid surreal/absurd claims or forced target-word combinations. The
   sentence-level quality gate remains fail-closed before storage.
