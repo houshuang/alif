@@ -100,10 +100,11 @@ def _call_claude(
     runner: Runner,
 ) -> Optional[dict]:
     cmd = [
-        "claude", "-p",
+        "claude",
         "--output-format", "json",
         "--model", model,
         "--json-schema", json.dumps(schema, ensure_ascii=False),
+        "-p",
         prompt,
     ]
     try:

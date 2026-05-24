@@ -189,6 +189,10 @@ def test_function_word_set_does_not_swallow_lexical_adverbs():
     function_words = lemma_quality.EL_FUNCTION_WORDS
     assert "προτου" in function_words
     assert "στην" in function_words
+    assert "οταν" in function_words
+    assert "που" in function_words
+    assert "μα" in function_words
+    assert "μονο" in function_words
     assert "δωρεαν" not in function_words
     assert "πληρως" not in function_words
 

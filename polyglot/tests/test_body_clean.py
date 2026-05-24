@@ -2,8 +2,8 @@
 
 CLI subprocess is mocked everywhere except the explicit `slow` test which
 hits a real Claude CLI. The shape of the mock matches what
-`lemma_quality._call_claude` expects from `claude -p --output-format json
---json-schema`: a `structured_output` dict at the top level (or a JSON-string
+`lemma_quality._call_claude` expects from the structured LLM CLI wrapper:
+a `structured_output` dict at the top level (or a JSON-string
 `result` field as the legacy fallback).
 """
 from __future__ import annotations

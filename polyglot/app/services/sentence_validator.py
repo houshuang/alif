@@ -98,6 +98,117 @@ def tokenize_display(
     return out
 
 
+def _el_surface_bares_for_lemma(lemma_bare: str, pos: str | None = None) -> set[str]:
+    """Conservative Modern Greek surface keys for dictionary lookup fallback.
+
+    simplemma often leaves common inflected Greek forms unreduced. These forms
+    are not authoritative morphology; they only let generated/review sentences
+    survive deterministic validation until the verifier checks the mapping.
+    Exact DB lemma_bare keys are always inserted first and therefore win over
+    these fallback variants.
+    """
+    if not lemma_bare:
+        return set()
+
+    forms = {lemma_bare}
+    pos_norm = (pos or "").lower()
+
+    if pos_norm == "verb" or lemma_bare.endswith(("ω", "ομαι", "ουμαι")):
+        if lemma_bare.endswith("ουμαι"):
+            stem = lemma_bare[:-5]
+            forms.update({
+                lemma_bare,
+                f"{stem}ειται",
+                f"{stem}εισαι",
+                f"{stem}ουμαστε",
+                f"{stem}ειστε",
+                f"{stem}ουνται",
+            })
+        elif lemma_bare.endswith("ομαι"):
+            stem = lemma_bare[:-4]
+            forms.update({
+                lemma_bare,
+                f"{stem}εσαι",
+                f"{stem}εται",
+                f"{stem}ομαστε",
+                f"{stem}εστε",
+                f"{stem}ονται",
+            })
+        elif lemma_bare.endswith("ω"):
+            stem = lemma_bare[:-1]
+            forms.update({
+                lemma_bare,
+                f"{stem}εις",
+                f"{stem}ει",
+                f"{stem}ουμε",
+                f"{stem}ουν",
+            })
+
+    if pos_norm in {"adjective", "adj", ""} or lemma_bare.endswith(("ος", "ης", "μενος")):
+        if lemma_bare.endswith("μενος"):
+            stem = lemma_bare[:-2]
+            forms.update({
+                lemma_bare,
+                f"{stem}ου",
+                f"{stem}ο",
+                f"{stem}ε",
+                f"{stem}η",
+                f"{stem}ης",
+                f"{stem}οι",
+                f"{stem}ους",
+                f"{stem}ες",
+                f"{stem}α",
+                f"{stem}ων",
+            })
+        elif lemma_bare.endswith("ος"):
+            stem = lemma_bare[:-2]
+            forms.update({
+                lemma_bare,
+                f"{stem}ου",
+                f"{stem}ο",
+                f"{stem}ε",
+                f"{stem}η",
+                f"{stem}ης",
+                f"{stem}οι",
+                f"{stem}ους",
+                f"{stem}ες",
+                f"{stem}α",
+                f"{stem}ων",
+            })
+        elif lemma_bare.endswith("ης"):
+            stem = lemma_bare[:-2]
+            forms.update({
+                lemma_bare,
+                f"{stem}η",
+                f"{stem}ες",
+                f"{stem}εις",
+                f"{stem}ους",
+                f"{stem}ων",
+            })
+
+    if pos_norm == "noun":
+        if lemma_bare.endswith("ος"):
+            stem = lemma_bare[:-2]
+            forms.update({lemma_bare, f"{stem}ου", f"{stem}ο", f"{stem}οι", f"{stem}ους", f"{stem}ων"})
+        elif lemma_bare.endswith(("η", "α")):
+            stem = lemma_bare[:-1]
+            forms.update({lemma_bare, f"{stem}ης", f"{stem}ας", f"{stem}ες", f"{stem}ων"})
+
+    return {f for f in forms if f}
+
+
+def surface_bares_for_lemma(
+    language_code: str,
+    lemma_bare: str,
+    pos: str | None = None,
+) -> set[str]:
+    if not lemma_bare:
+        return set()
+    if language_code == "el":
+        return _el_surface_bares_for_lemma(lemma_bare, pos)
+    return {lemma_bare}
+
+
 def build_lemma_lookup(db: Session, language_code: str) -> dict[str, int]:
     """All ``lemma_bare → lemma_id`` for one language.
 
@@ -107,15 +218,21 @@ def build_lemma_lookup(db: Session, language_code: str) -> dict[str, int]:
     already do this.
     """
     rows = (
-        db.query(Lemma.lemma_id, Lemma.lemma_bare)
+        db.query(Lemma.lemma_id, Lemma.lemma_bare, Lemma.pos)
         .filter(Lemma.language_code == language_code)
         .all()
     )
     lookup: dict[str, int] = {}
-    for lemma_id, lemma_bare in rows:
+    for lemma_id, lemma_bare, _pos in rows:
         if not lemma_bare:
             continue
         lookup.setdefault(lemma_bare, lemma_id)
+    if language_code == "el":
+        for lemma_id, lemma_bare, pos in rows:
+            if not lemma_bare:
+                continue
+            for bare in surface_bares_for_lemma(language_code, lemma_bare, pos):
+                lookup.setdefault(bare, lemma_id)
     return lookup
 
 
@@ -178,6 +295,9 @@ def validate_sentence(
     known_bare_forms: set[str],
     function_word_bares: set[str],
     language_code: str,
+    *,
+    lemma_lookup: dict[str, int] | None = None,
+    target_lemma_id: int | None = None,
 ) -> ValidationResult:
     """Deterministic pre-LLM gate: every content token must lemmatize to a
     known bare form (or be the target). Returns ``valid=True`` only if so.
@@ -201,11 +321,20 @@ def validate_sentence(
             result.function_words.append(surface)
             continue
         result.total_content_tokens += 1
-        if bare == target_bare or normalize_bare(surface, language_code) == target_bare:
+        surface_bare = normalize_bare(surface, language_code)
+        maps_to_target = (
+            lemma_lookup is not None
+            and target_lemma_id is not None
+            and (
+                lemma_lookup.get(bare) == target_lemma_id
+                or lemma_lookup.get(surface_bare) == target_lemma_id
+            )
+        )
+        if bare == target_bare or surface_bare == target_bare or maps_to_target:
             result.target_present = True
             result.known_count += 1
             continue
-        if bare in known_bare_forms or normalize_bare(surface, language_code) in known_bare_forms:
+        if bare in known_bare_forms or surface_bare in known_bare_forms:
             result.known_count += 1
             continue
         result.unknown_words.append(surface)

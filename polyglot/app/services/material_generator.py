@@ -68,6 +68,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
     normalize_bare,
+    surface_bares_for_lemma,
     tokenize_display,
     validate_sentence,
 )
@@ -135,6 +136,25 @@ MIN_SAMPLE_WEIGHT = 0.05
 # is computed dynamically per run (max of MEDIAN * 1.5 and ABS_FLOOR).
 AVOID_ABS_FLOOR = 3
 MAX_AVOID_WORDS = 30
+GENERATION_MIN_CANDIDATES_PER_TARGET = 8
+GENERATION_EXTRA_CANDIDATES_PER_TARGET = 5
+COMMON_SCAFFOLD_SAMPLE_SIZE = 180
+HIGH_UTILITY_SCAFFOLD_WORDS = (
+    "είμαι", "έχω", "κάνω", "βλέπω", "λέω", "δίνω", "παίρνω",
+    "έρχομαι", "μένω", "θέλω", "μπορώ", "γίνομαι", "πηγαίνω",
+    "άνθρωπος", "παιδί", "φίλος", "φίλη", "σπίτι", "μέρα", "νύχτα",
+    "φωνή", "πόρτα", "δρόμος", "χρόνος", "μάτι", "χέρι", "λίγο",
+)
+GENERATION_FUNCTION_WORDS = {
+    "el": [
+        "ο", "η", "το", "οι", "τα", "τον", "την", "του", "της", "των",
+        "ένας", "μια", "ένα", "και", "ή", "αλλά", "μα", "ότι", "πως",
+        "που", "γιατί", "όταν", "αν", "όμως", "δεν", "θα", "να", "ας",
+        "με", "σε", "στο", "στην", "στον", "από", "για", "προς", "ως",
+        "μετά", "πριν", "κάθε", "μόνο", "σαν", "κοντά", "μακριά",
+        "μέσα", "έξω", "πάνω", "κάτω", "εδώ", "εκεί", "σήμερα",
+    ],
+}
 
 LANG_DISPLAY = {
     "el": "Modern Greek",
@@ -175,6 +195,8 @@ class GenTarget:
     lemma_bare: str
     gloss_en: str
     pos: str
+    example_src: str = ""
+    example_en: str = ""
 
 
 @dataclass
@@ -193,47 +215,90 @@ def _gen_prompt(language_code: str, targets: list[GenTarget],
     lang = LANG_DISPLAY.get(language_code, language_code)
     known_block = ", ".join(known_sample[:KNOWN_SAMPLE_SIZE]) or "(none)"
     avoid_block = ", ".join(avoid_words) if avoid_words else "(none)"
-    target_block = "\n".join(
-        f"  {i}. {t.lemma_form}"
-        + (f" ({t.pos})" if t.pos else "")
-        + f" — {t.gloss_en or '(no gloss)'}"
-        for i, t in enumerate(targets)
-    )
+    function_block = ", ".join(GENERATION_FUNCTION_WORDS.get(language_code, [])) or "(none)"
+    target_lines: list[str] = []
+    for i, t in enumerate(targets):
+        line = (
+            f"  {i}. {t.lemma_form}"
+            + (f" ({t.pos})" if t.pos else "")
+            + f" — {t.gloss_en or '(no gloss)'}"
+        )
+        if t.example_src and t.example_en:
+            line += f"\n     intended-sense example: {t.example_src} -> {t.example_en}"
+        target_lines.append(line)
+    target_block = "\n".join(target_lines)
     register_instruction = _register_instruction(language_code)
-    return f"""You are generating natural {lang} practice sentences for a learner.
+    return f"""You are generating {lang} sentence cards for a language learner.
 
-For each target lemma below, produce {sentences_per_target} short sentences
-(6–12 words each) that use the lemma in its primary sense. Every non-target
-word in the sentence MUST come from the known-words pool below — sentences
-that reach for vocabulary outside the pool will be rejected by the validator
-and the work wasted.
+For each target lemma below, try to produce exactly {sentences_per_target}
+candidate sentences that use the lemma in its primary sense. Return fewer only
+when a target cannot be used naturally with the available vocabulary. These are
+not drills: the accepted sentence should be worth reading. It may be
+meaningful, poignant, nostalgic, beautiful, literary, surprising, insightful,
+quietly funny, or just a clear human moment.
 
-Rules:
+Hard constraints:
 - Use the target lemma exactly once per sentence.
-- {register_instruction} No headlines, no all-caps, no proper-noun
-  heavy contexts unless the target itself is a proper noun.
-- Write complete, ordinary sentences with a finite verb. Do not return
-  headings, fragments, colon-separated vocabulary lists, or comma chains of
-  loosely related nouns.
-- Prefer concrete, plausible situations. Avoid surreal or absurd claims,
-  contrived encyclopedic definitions, and sentences that only exist to force
-  unrelated target words into one line.
-- For Modern Greek, prefer surface forms that a dictionary-backed lemmatizer
-  can map back to the citation forms in the known-words pool. When a target
-  form is itself usable in a natural sentence, use that exact form instead of
-  an inflected variant. Modern Greek verb citation forms can be used naturally
-  as first-person statements when needed.
+- Every non-target content word MUST come from the known-word pool below.
+- You may use the listed function words freely for grammar. Do not use other
+  connectors, particles, helper adverbs, or pronouns unless they appear in the
+  known-word pool.
+- If a non-target content word is not visibly present in the known-word pool,
+  do not use it, even if it feels basic.
+- Write a standalone complete thought with a finite verb. The learner must
+  understand who did what without any previous sentence.
+- Use one clear scene, observation, memory, joke, or fact. Do not maximize
+  vocabulary count.
+- {register_instruction} No headlines, no all-caps, no proper-noun-heavy
+  contexts unless the target itself is a proper noun.
+- Never return catalog/list fragments, colon-separated vocabulary lists,
+  comma chains, abstract noun piles, tautologies, dictionary definitions, or
+  sentences that only exist to force unrelated words into one line.
+- Avoid anaphoric openings or context-dependent subjects. Do not start with
+  "and then", "so", "but", or "afterwards"; avoid αυτός/αυτή/αυτό as a subject
+  unless the referent appears in the same sentence.
+- Prefer explicit noun subjects for third-person verbs. Do not use a
+  first-person verb form with a third-person subject.
+- Check article, noun, adjective, and verb agreement before returning.
+- For Modern Greek, make the target token validator-safe: normally use the
+  target surface form exactly as written in the Targets list, with the same
+  accent/case, exactly once. This is especially important for adjectives and
+  -ομαι/-ουμαι verbs, because dictionary lookup often cannot map
+  feminine/neuter/plural adjective forms or third-person mediopassive verb
+  forms back to the citation lemma.
+- Before writing each Modern Greek sentence, do a morphology check around the
+  target. If the target is an adjective, choose a nearby noun or subject that
+  agrees with the target form you actually wrote. If the target is a verb
+  citation form ending in -ω/-ώ/-ομαι/-ουμαι, treat that exact form as
+  first-person singular present. If agreement would force an inflected target
+  form, rephrase so the exact target form is grammatical.
+- Do not pair a masculine adjective target such as -ος/-ικός/-μένος with a
+  neuter or feminine subject. Use an explicit masculine subject from the pool
+  when the target form is masculine.
+- Make each sentence a grounded micro-scene: concrete, emotionally legible,
+  and a little surprising, but still plausible.
+- No surreal personification: revelations, signatures, machines, food, tools,
+  abstract nouns, and body parts must not telephone, wait, imagine, comfort,
+  demand, or perform human actions.
+- Avoid random comic, sexual, violent, horror, or gross props unless the target
+  itself requires them.
 - Include articles and prepositions where natural; clipped textbook-heading
   style is rejected by the quality gate.
-- Provide a faithful English translation. Do not transliterate.
-- Use only vocabulary from the known-words pool below for every non-target
-  word. If you can't construct a natural sentence within this constraint,
-  return fewer sentences rather than reaching outside the pool.
+- Prefer common scaffold words from the pool for grammar. Use rare/colorful
+  words sparingly, never more than one per sentence.
+- The first words in the known-word pool are safe scaffolding; prefer them for
+  subjects, verbs, and simple predicates.
 - Avoid the listed over-represented words — pick less-used vocabulary from
-  the pool to keep the corpus diverse.
+  the pool when that does not damage naturalness.
+- If a target cannot be used naturally within this constraint, return fewer
+  sentences rather than reaching outside the pool.
+- Provide a faithful English translation. Do not transliterate.
 
 Known-words pool ({len(known_sample)} words available, all in the learner's vocabulary):
 {known_block}
+
+Allowed function words outside the pool:
+{function_block}
 
 Words to avoid (already over-represented): {avoid_block}
 
@@ -403,6 +468,14 @@ Reject with `natural=false` for:
   "the work constitutes supervision by the center" with no plausible context.
 - Catalog/list fragments: comma-separated nouns, headings, labels, or glossary
   snippets without a real predicate and complete thought.
+- Context-dependent/anaphoric sentences that need a previous sentence to tell
+  who did what.
+- Tautologies, dictionary-entry paraphrases, or examples that merely restate
+  the target gloss.
+- Invented proper-name-like phrases built from content words.
+- Surreal personification or random-prop weirdness: inanimate/abstract things
+  acting like people, or comic/violent/gross props that appear only because the
+  generator had the words available.
 - Grammar/agreement/case/preposition errors or wrong register for the language.
 - Wrong target sense when a target gloss is supplied.
 
@@ -760,6 +833,8 @@ def _wrong_verdict_rejects_candidate(
     ):
         return False
     correct_bare = normalize_bare(decision.correct_lemma or "", language_code)
+    if correct_bare and correct_bare in function_words:
+        return False
     proposed_bares = {
         lemma.lemma_bare or "",
         normalize_bare(lemma.lemma_form or "", language_code),
@@ -788,7 +863,13 @@ def _snapshot_known_pool(
     No SQLite limit — at ~2.4k engaged lemmas this is still <1ms.
     """
     rows = (
-        db.query(Lemma.lemma_id, Lemma.lemma_form)
+        db.query(
+            Lemma.lemma_id,
+            Lemma.lemma_form,
+            Lemma.lemma_bare,
+            Lemma.pos,
+            Lemma.frequency_rank,
+        )
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
             Lemma.language_code == language_code,
@@ -799,8 +880,14 @@ def _snapshot_known_pool(
     if exclude_lemma_ids:
         rows = rows.filter(~Lemma.lemma_id.in_(exclude_lemma_ids))
     return [
-        {"lemma_id": lid, "lemma_form": lf}
-        for lid, lf in rows.all()
+        {
+            "lemma_id": lid,
+            "lemma_form": lf,
+            "lemma_bare": lb,
+            "pos": pos,
+            "frequency_rank": frequency_rank,
+        }
+        for lid, lf, lb, pos, frequency_rank in rows.all()
         if lf
     ]
 
@@ -831,6 +918,7 @@ def _sample_known_words_weighted(
     pool: list[dict],
     counts: dict[int, int],
     sample_size: int = KNOWN_SAMPLE_SIZE,
+    language_code: str = "el",
 ) -> list[str]:
     """Inverse-frequency weighted sampling. Words appearing in many existing
     sentences get lower probability so the LLM is nudged toward
@@ -842,21 +930,110 @@ def _sample_known_words_weighted(
     """
     import random
     if len(pool) <= sample_size:
-        return [w["lemma_form"] for w in pool]
+        return _ensure_high_utility_scaffold_words(
+            [w["lemma_form"] for w in pool],
+            pool,
+            sample_size,
+            language_code,
+        )
+
+    common_limit = min(COMMON_SCAFFOLD_SAMPLE_SIZE, max(0, sample_size // 2))
+    common_pool = [
+        w for w in pool
+        if w.get("frequency_rank") is not None
+    ]
+    common_pool.sort(key=lambda w: int(w.get("frequency_rank") or 10**9))
+    common = common_pool[:common_limit]
+    common_ids = {w["lemma_id"] for w in common}
+    rest_pool = [w for w in pool if w["lemma_id"] not in common_ids]
 
     weighted: list[tuple[float, dict]] = []
-    for w in pool:
+    for w in rest_pool:
         cnt = counts.get(w["lemma_id"], 0)
         weight = max(MIN_SAMPLE_WEIGHT, 1.0 / (1 + cnt))
         jittered = weight * random.uniform(0.5, 1.5)
         weighted.append((jittered, w))
     weighted.sort(key=lambda x: x[0], reverse=True)
-    return [w["lemma_form"] for _, w in weighted[:sample_size]]
+    return _ensure_high_utility_scaffold_words(
+        [
+            *[w["lemma_form"] for w in common],
+            *[w["lemma_form"] for _, w in weighted[:max(0, sample_size - len(common))]],
+        ],
+        pool,
+        sample_size,
+        language_code,
+    )
+
+
+def _high_utility_scaffold_bares(language_code: str) -> set[str]:
+    if language_code != "el":
+        return set()
+    return {normalize_bare(w, language_code) for w in HIGH_UTILITY_SCAFFOLD_WORDS}
+
+
+def _ensure_high_utility_scaffold_words(
+    sample: list[str],
+    pool: list[dict],
+    sample_size: int,
+    language_code: str,
+) -> list[str]:
+    scaffold_bares = _high_utility_scaffold_bares(language_code)
+    if not scaffold_bares or not sample:
+        return sample[:sample_size]
+
+    available: dict[str, str] = {}
+    for item in pool:
+        form = item.get("lemma_form") or ""
+        if not form:
+            continue
+        for bare in {
+            item.get("lemma_bare") or normalize_bare(form, language_code),
+            normalize_bare(form, language_code),
+        }:
+            if bare in scaffold_bares:
+                available.setdefault(bare, form)
+
+    ordered_scaffolds: list[str] = []
+    seen_bares: set[str] = set()
+    for word in HIGH_UTILITY_SCAFFOLD_WORDS:
+        bare = normalize_bare(word, language_code)
+        form = available.get(bare)
+        if form and bare not in seen_bares:
+            ordered_scaffolds.append(form)
+            seen_bares.add(bare)
+
+    result = ordered_scaffolds[:sample_size]
+    result_bares = {normalize_bare(form, language_code) for form in result}
+    for form in sample:
+        form_bare = normalize_bare(form, language_code)
+        if form_bare in result_bares:
+            continue
+        result.append(form)
+        result_bares.add(form_bare)
+        if len(result) >= sample_size:
+            break
+    return result[:sample_size]
+
+
+def _known_pool_bare_forms(pool: list[dict], language_code: str) -> set[str]:
+    bares: set[str] = set()
+    for item in pool:
+        form = item.get("lemma_form") or ""
+        lemma_bare = item.get("lemma_bare") or normalize_bare(form, language_code)
+        pos = item.get("pos") or ""
+        for bare in surface_bares_for_lemma(language_code, lemma_bare, pos):
+            if bare:
+                bares.add(bare)
+        form_bare = normalize_bare(form, language_code)
+        if form_bare:
+            bares.add(form_bare)
+    return bares
 
 
 def _compute_avoid_words(
     pool: list[dict],
     counts: dict[int, int],
+    language_code: str,
 ) -> Optional[list[str]]:
     """Return up to MAX_AVOID_WORDS lemma_form strings the LLM should avoid.
 
@@ -877,7 +1054,15 @@ def _compute_avoid_words(
         if cnt >= threshold and lid in by_id_to_form
     ]
     over.sort(key=lambda x: x[1], reverse=True)
-    result = [by_id_to_form[lid] for lid, _ in over[:MAX_AVOID_WORDS]]
+    scaffold_bares = _high_utility_scaffold_bares(language_code)
+    result: list[str] = []
+    for lid, _cnt in over:
+        form = by_id_to_form[lid]
+        if normalize_bare(form, language_code) in scaffold_bares:
+            continue
+        result.append(form)
+        if len(result) >= MAX_AVOID_WORDS:
+            break
     return result or None
 
 
@@ -929,6 +1114,8 @@ def batch_generate_material(
                 lemma_bare=lem.lemma_bare or normalize_bare(lem.lemma_form, language_code),
                 gloss_en=lem.gloss_en or "",
                 pos=lem.pos or "",
+                example_src=lem.example_src or "",
+                example_en=lem.example_en or "",
             ))
             target_indexed_ids.append(canonical_id)
 
@@ -943,15 +1130,25 @@ def batch_generate_material(
     finally:
         db.close()
 
-    known_sample = _sample_known_words_weighted(known_pool, sentence_counts, KNOWN_SAMPLE_SIZE)
-    avoid_words = _compute_avoid_words(known_pool, sentence_counts)
+    known_sample = _sample_known_words_weighted(
+        known_pool,
+        sentence_counts,
+        KNOWN_SAMPLE_SIZE,
+        language_code,
+    )
+    known_bare_forms = _known_pool_bare_forms(known_pool, language_code)
+    avoid_words = _compute_avoid_words(known_pool, sentence_counts, language_code)
+    generation_candidates_per_target = max(
+        sentences_per_target + GENERATION_EXTRA_CANDIDATES_PER_TARGET,
+        GENERATION_MIN_CANDIDATES_PER_TARGET,
+    )
 
     # ── Phase 2a: Sonnet generation ──
     raw_sentences = generate_sentences_batch(
         language_code=language_code,
         targets=targets,
         known_sample=known_sample,
-        sentences_per_target=sentences_per_target,
+        sentences_per_target=generation_candidates_per_target,
         avoid_words=avoid_words,
     )
     if not raw_sentences:
@@ -969,19 +1166,17 @@ def batch_generate_material(
     for raw in raw_sentences:
         target = targets[raw.target_index]
         target_lemma_id = target.lemma_id
-        if per_target_kept[target_lemma_id] >= sentences_per_target:
+        if per_target_kept[target_lemma_id] >= generation_candidates_per_target:
             continue
 
-        # All bare forms the picker would consider scaffold-known. We don't have
-        # full ULK state here without a DB hit; but `validate_sentence` just
-        # needs to confirm that every token resolves to *some* DB lemma. The
-        # comprehensibility judgment happens at picker time, not at gen time.
         validation = validate_sentence(
             text=raw.text,
             target_bare=target.lemma_bare,
-            known_bare_forms=set(lemma_lookup.keys()),
+            known_bare_forms=known_bare_forms,
             function_word_bares=function_words,
             language_code=language_code,
+            lemma_lookup=lemma_lookup,
+            target_lemma_id=target_lemma_id,
         )
         if not validation.valid:
             _log_pipeline({
@@ -1177,6 +1372,15 @@ def batch_generate_material(
             "words_covered": 0,
             "words_failed": target_indexed_ids,
         }
+    selected: list[dict] = []
+    per_target_selected: dict[int, int] = {t.lemma_id: 0 for t in targets}
+    for cand in accepted:
+        target_lemma_id = cand["target_lemma_id"]
+        if per_target_selected[target_lemma_id] >= sentences_per_target:
+            continue
+        selected.append(cand)
+        per_target_selected[target_lemma_id] += 1
+    accepted = selected
 
     # ── Phase 3: DB write (fast, single commit) ──
     db = database.SessionLocal()

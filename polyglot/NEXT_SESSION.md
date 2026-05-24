@@ -78,6 +78,40 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 - Prompt quality tightened again: prefer concrete plausible situations and
   avoid surreal/absurd claims or forced target-word combinations. The
   sentence-level quality gate remains fail-closed before storage.
+- Local prompt iteration used parallel subagents plus a production DB snapshot.
+  Result: high-quality sentence yield is limited as much by Greek surface-form
+  mapping as by prose style. The deployed prompt now asks for grounded,
+  worth-reading micro-scenes, exact target surfaces where possible, explicit
+  Greek agreement checks, and no surreal personification/random-prop weirdness.
+  The pipeline over-generates `max(requested+2, 5)` candidates per target, then
+  keeps only the requested number after deterministic validation.
+- Generated validation now enforces the actual engaged scaffold vocabulary:
+  non-target content words must be in the learner's known/acquiring/learning
+  pool, not merely present somewhere in the lemma DB. The mapper still uses the
+  full DB for lemma IDs. High-utility scaffold words such as `είμαι`/`έχω` are
+  forced to the front of the known-word sample when available and are never put
+  on the avoid list. The prompt sample now starts with frequent engaged words
+  before inverse-frequency diversity so the model has a stable grammatical
+  backbone instead of a mostly rare/colorful word list.
+- Over-generation is now meaningful through the whole funnel: extra
+  deterministic-valid candidates survive verification and quality review, and
+  the requested per-target cap is applied only after quality filtering. The
+  generator now asks for `max(requested+5, 8)` candidates per target. This fixed
+  the case where the first weak candidates for a target hid later good
+  candidates from the quality gate.
+- Modern Greek lookup now adds conservative surface-form fallback keys for
+  generated/review sentence validation, covering common adjective endings and
+  present verb forms such as `στρωμένο -> στρωμένος` and
+  `συντελείται -> συντελούμαι`. Exact DB `lemma_bare` keys still win.
+- Local production-snapshot eval after these changes:
+  `scripts/warm_sentence_cache.py --language el --max-lemmas 8 --sentences-per-target 2`
+  stored 14 sentences covering 7/8 due targets. The remaining miss was a hard
+  adjective/collocation target, not an adapter or validation failure.
+- Claude provider status: the Alif host has Claude Code 2.1.42 installed and
+  authenticated for structured JSON. Production remains on
+  `POLYGLOT_LLM_PROVIDER=codex`/`gpt-5.5`, but the Claude adapter command order
+  is fixed locally (`claude --output-format ... --json-schema ... -p prompt`);
+  deploy before switching production back to Claude.
 
 ## Done in the 2026-05-21 session
 

@@ -34,8 +34,18 @@ def _envelope(structured: dict) -> str:
     return json.dumps({"structured_output": structured, "result": ""})
 
 
-def _seed_lemma(db, *, form: str, bare: str | None = None, gloss: str = "x",
-                canonical: int | None = None, word_category: str | None = None) -> Lemma:
+def _seed_lemma(
+    db,
+    *,
+    form: str,
+    bare: str | None = None,
+    gloss: str = "x",
+    canonical: int | None = None,
+    word_category: str | None = None,
+    pos: str | None = None,
+    example_src: str | None = None,
+    example_en: str | None = None,
+) -> Lemma:
     lemma = Lemma(
         language_code="el",
         lemma_form=form,
@@ -44,6 +54,9 @@ def _seed_lemma(db, *, form: str, bare: str | None = None, gloss: str = "x",
         source="test",
         canonical_lemma_id=canonical,
         word_category=word_category,
+        pos=pos,
+        example_src=example_src,
+        example_en=example_en,
     )
     db.add(lemma)
     db.flush()
@@ -85,6 +98,12 @@ def _seed_known(
     return ulk
 
 
+def _seed_known_scaffold(db, **kwargs) -> Lemma:
+    lemma = _seed_lemma(db, **kwargs)
+    _seed_known(db, lemma.lemma_id)
+    return lemma
+
+
 # ─── Pure-function tests for sentence_validator ──────────────────────────────
 
 
@@ -119,6 +138,107 @@ def test_tokenize_display_keeps_punctuation_rows(tmp_db):
     tokens = tokenize_display("το βιβλίο είναι μεγάλο.", "el")
     assert tokens[-1][1] == "."
     assert is_punctuation_surface(tokens[-1][1])
+
+
+def test_greek_surface_fallback_maps_adjective_target(tmp_db):
+    from app.services.lemma_quality import FUNCTION_WORD_SETS
+    from app.services.sentence_validator import (
+        build_lemma_lookup,
+        map_tokens_to_lemmas,
+        tokenize_display,
+        validate_sentence,
+    )
+
+    with tmp_db() as db:
+        target = _seed_lemma(
+            db,
+            form="στρωμένος",
+            bare="στρωμενος",
+            gloss="made",
+            pos="adjective",
+        )
+        _seed_lemma(db, form="κρεβάτι", bare="κρεβατι", gloss="bed", pos="noun")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be", pos="verb")
+        db.commit()
+        target_id = target.lemma_id
+        lookup = build_lemma_lookup(db, "el")
+
+    assert lookup["στρωμενο"] == target_id
+
+    text = "το κρεβάτι είναι στρωμένο."
+    validation = validate_sentence(
+        text=text,
+        target_bare="στρωμενος",
+        known_bare_forms=set(lookup.keys()),
+        function_word_bares=FUNCTION_WORD_SETS["el"],
+        language_code="el",
+        lemma_lookup=lookup,
+        target_lemma_id=target_id,
+    )
+    assert validation.valid
+    assert validation.target_present
+
+    mappings = map_tokens_to_lemmas(
+        tokens=tokenize_display(text, "el"),
+        lemma_lookup=lookup,
+        language_code="el",
+        target_lemma_id=target_id,
+        target_bare="στρωμενος",
+    )
+    target_mappings = [m for m in mappings if m.surface_form == "στρωμένο"]
+    assert len(target_mappings) == 1
+    assert target_mappings[0].lemma_id == target_id
+    assert target_mappings[0].is_target is True
+
+
+def test_greek_surface_fallback_maps_middle_passive_verb_target(tmp_db):
+    from app.services.lemma_quality import FUNCTION_WORD_SETS
+    from app.services.sentence_validator import (
+        build_lemma_lookup,
+        map_tokens_to_lemmas,
+        tokenize_display,
+        validate_sentence,
+    )
+
+    with tmp_db() as db:
+        target = _seed_lemma(
+            db,
+            form="συντελούμαι",
+            bare="συντελουμαι",
+            gloss="to be carried out",
+            pos="verb",
+        )
+        _seed_lemma(db, form="δουλειά", bare="δουλεια", gloss="work", pos="noun")
+        db.commit()
+        target_id = target.lemma_id
+        lookup = build_lemma_lookup(db, "el")
+
+    assert lookup["συντελειται"] == target_id
+
+    text = "η δουλειά συντελείται σήμερα."
+    validation = validate_sentence(
+        text=text,
+        target_bare="συντελουμαι",
+        known_bare_forms=set(lookup.keys()),
+        function_word_bares=FUNCTION_WORD_SETS["el"],
+        language_code="el",
+        lemma_lookup=lookup,
+        target_lemma_id=target_id,
+    )
+    assert validation.valid
+    assert validation.target_present
+
+    mappings = map_tokens_to_lemmas(
+        tokens=tokenize_display(text, "el"),
+        lemma_lookup=lookup,
+        language_code="el",
+        target_lemma_id=target_id,
+        target_bare="συντελουμαι",
+    )
+    target_mappings = [m for m in mappings if m.surface_form == "συντελείται"]
+    assert len(target_mappings) == 1
+    assert target_mappings[0].lemma_id == target_id
+    assert target_mappings[0].is_target is True
 
 
 # ─── Generator tests with mocked Claude ──────────────────────────────────────
@@ -167,6 +287,17 @@ def _verify_ok_response(positions: tuple[int, ...] = (1, 2, 3)) -> _FakeProc:
     ])
 
 
+def _verify_ok_response_for_candidates(
+    count: int,
+    positions: tuple[int, ...] = (1, 2, 3),
+) -> _FakeProc:
+    return _verify_response([
+        {"sentence_index": sentence_index, "position": pos, "verdict": "ok"}
+        for sentence_index in range(count)
+        for pos in positions
+    ])
+
+
 def _quality_response(reviews: list[dict] | None = None) -> _FakeProc:
     if reviews is None:
         reviews = [
@@ -183,10 +314,9 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        # Scaffold lemma — the validator needs every non-function token to
-        # resolve to *something* in the DB.
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        # Scaffold lemmas must be in the learner's engaged vocabulary.
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -247,8 +377,8 @@ def test_verification_failure_discards_all(tmp_db, fake_claude):
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -275,8 +405,8 @@ def test_verifier_wrong_verdict_discards_candidate(tmp_db, fake_claude):
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -307,8 +437,8 @@ def test_verifier_wrong_same_lemma_does_not_discard_candidate(tmp_db, fake_claud
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -337,7 +467,7 @@ def test_verifier_wrong_noncontent_position_does_not_discard_candidate(tmp_db, f
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         _seed_lemma(
             db,
             form="κοντά",
@@ -373,7 +503,7 @@ def test_verifier_does_not_require_decisions_for_noncontent_positions(tmp_db, fa
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         _seed_lemma(
             db,
             form="κοντά",
@@ -479,8 +609,8 @@ def test_canonical_redirect_at_entry(tmp_db, fake_claude):
         variant = _seed_lemma(db, form="βιβλίο-var", bare="βιβλιο",
                               gloss="book", canonical=canonical.lemma_id)
         _seed_acquiring(db, canonical.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         canonical_id = canonical.lemma_id
         variant_id = variant.lemma_id
@@ -533,13 +663,38 @@ def test_unmapped_token_drops_candidate(tmp_db, fake_claude):
     assert result["generated"] == 0
 
 
+def test_content_word_outside_engaged_pool_drops_candidate(tmp_db, fake_claude):
+    """Generation may map against the full lemma DB, but non-target content
+    must still be in the learner's engaged scaffold vocabulary."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 0
+    assert result["words_failed"] == [target_id]
+    assert len(fake_claude["calls"]) == 1
+
+
 def test_incomplete_verifier_response_discards_candidate(tmp_db, fake_claude):
     """A verifier response must cover every mapped content position."""
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -566,8 +721,8 @@ def test_quality_rejection_discards_candidate(tmp_db, fake_claude):
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -596,14 +751,53 @@ def test_quality_rejection_discards_candidate(tmp_db, fake_claude):
         assert db.query(Sentence).count() == 0
 
 
+def test_overgenerated_candidates_survive_quality_filter(tmp_db, fake_claude):
+    """Extra generated candidates should stay alive through quality review;
+    otherwise the first weak candidate can hide a later good one."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="καλό", bare="καλος", gloss="good")
+        _seed_known_scaffold(db, form="παλιό", bare="παλιος", gloss="old")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([
+            (0, "το βιβλίο είναι μεγάλο", "The book is big."),
+            (0, "το βιβλίο είναι καλό", "The book is good."),
+            (0, "το βιβλίο είναι παλιό", "The book is old."),
+        ]),
+        _verify_ok_response_for_candidates(3),
+        _quality_response([
+            {"id": 0, "natural": False, "translation_correct": True, "reason": "weak"},
+            {"id": 1, "natural": False, "translation_correct": True, "reason": "weak"},
+            {"id": 2, "natural": True, "translation_correct": True, "reason": "ok"},
+        ]),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+    with tmp_db() as db:
+        sentence = db.query(Sentence).one()
+        assert sentence.text == "το βιβλίο είναι παλιό"
+
+
 def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude):
     """Reading intake can create function-word Lemma rows without glosses."""
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
         _seed_lemma(db, form="το", bare="το", gloss="", word_category="function_word")
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -633,8 +827,8 @@ def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
         _seed_acquiring(db, needy.lemma_id)
         already_full = _seed_lemma(db, form="σπίτι", bare="σπιτι", gloss="house")
         _seed_acquiring(db, already_full.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         # Three already-existing sentences for the "full" lemma so it meets
         # ACTIVE_TARGET (default 3).
         for _ in range(mg.ACTIVE_TARGET):
@@ -726,8 +920,8 @@ def test_warm_cache_includes_fsrs_known_card(tmp_db, fake_claude):
             target.lemma_id,
             fsrs_card_json={"due": datetime.now(timezone.utc).isoformat()},
         )
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         db.commit()
         target_id = target.lemma_id
 
@@ -758,9 +952,93 @@ def test_generation_prompt_rejects_catalog_fragments():
         pos="noun",
     )
     prompt = mg._gen_prompt("el", [target], ["είμαι", "μεγάλο"], 1)
-    assert "complete, ordinary sentences" in prompt
+    assert "worth reading" in prompt
+    assert "standalone complete thought" in prompt
     assert "colon-separated vocabulary lists" in prompt
-    assert "dictionary-backed lemmatizer" in prompt
+    assert "comma chains" in prompt
+    assert "target surface form exactly as written" in prompt
+    assert "No surreal personification" in prompt
+    assert "Allowed function words outside the pool" in prompt
+    assert "όταν" in prompt
+
+
+def test_generation_prompt_includes_target_examples_and_candidate_depth():
+    target = mg.GenTarget(
+        lemma_id=1,
+        lemma_form="μνήμη",
+        lemma_bare="μνημη",
+        gloss_en="memory",
+        pos="noun",
+        example_src="η μνήμη μένει",
+        example_en="the memory remains",
+    )
+    prompt = mg._gen_prompt("el", [target], ["είμαι", "σπίτι"], 5)
+    assert "produce exactly 5" in prompt
+    assert "intended-sense example: η μνήμη μένει -> the memory remains" in prompt
+    assert "common scaffold words" in prompt
+    assert "first words in the known-word pool are safe scaffolding" in prompt
+
+
+def test_compute_avoid_words_keeps_high_utility_scaffold_available():
+    pool = [
+        {"lemma_id": 1, "lemma_form": "είμαι"},
+        {"lemma_id": 2, "lemma_form": "βιβλίο"},
+    ]
+    counts = {1: 10, 2: 10, 3: 1, 4: 1}
+    assert mg._compute_avoid_words(pool, counts, "el") == ["βιβλίο"]
+
+
+def test_known_sample_forces_high_utility_scaffold_words():
+    sample = ["βιβλίο", "μεγάλο"]
+    pool = [
+        {"lemma_id": 1, "lemma_form": "βιβλίο", "lemma_bare": "βιβλιο"},
+        {"lemma_id": 2, "lemma_form": "μεγάλο", "lemma_bare": "μεγαλο"},
+        {"lemma_id": 3, "lemma_form": "είναι", "lemma_bare": "ειμαι"},
+    ]
+    result = mg._ensure_high_utility_scaffold_words(sample, pool, 2, "el")
+    assert "είναι" in result
+    assert len(result) == 2
+
+
+def test_known_sample_prefers_common_scaffold_before_rare_diversity(monkeypatch):
+    monkeypatch.setattr(mg, "COMMON_SCAFFOLD_SAMPLE_SIZE", 2)
+    pool = [
+        {"lemma_id": 1, "lemma_form": "σπάνιο", "frequency_rank": 9000},
+        {"lemma_id": 2, "lemma_form": "άνθρωπος", "lemma_bare": "ανθρωπος", "frequency_rank": 20},
+        {"lemma_id": 3, "lemma_form": "δρόμος", "lemma_bare": "δρομος", "frequency_rank": 30},
+        {"lemma_id": 4, "lemma_form": "μαργαρίτα", "frequency_rank": 7000},
+        {"lemma_id": 5, "lemma_form": "πλαστός", "frequency_rank": 8000},
+    ]
+    result = mg._sample_known_words_weighted(pool, {}, sample_size=4, language_code="el")
+    assert result[:2] == ["άνθρωπος", "δρόμος"]
+
+
+def test_wrong_verdict_with_function_word_correction_is_ignored():
+    from app.services.sentence_validator import Mapping
+
+    lemma = Lemma(
+        lemma_id=1,
+        language_code="el",
+        lemma_form="μακριά",
+        lemma_bare="μακρια",
+        gloss_en="far",
+    )
+    decision = mg.VerifyDecision(
+        sentence_index=0,
+        position=2,
+        verdict="wrong",
+        correct_lemma="κοντά",
+    )
+    should_reject = mg._wrong_verdict_rejects_candidate(
+        decision,
+        mappings=[
+            Mapping(position=2, surface_form="μακριά", lemma_id=1),
+        ],
+        lemma_by_id={1: lemma},
+        language_code="el",
+        function_words={"κοντα"},
+    )
+    assert should_reject is False
 
 
 # ─── Book-sentence translation ───────────────────────────────────────────────
@@ -869,8 +1147,8 @@ def test_warm_cache_does_not_count_harvested_sentenceword_coverage(tmp_db, fake_
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
-        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
-        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
         for _ in range(mg.ACTIVE_TARGET):
             s = Sentence(
                 language_code="el",
