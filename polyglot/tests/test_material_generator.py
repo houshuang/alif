@@ -249,7 +249,12 @@ def fake_claude(monkeypatch):
     """Patch ``subprocess.run`` inside material_generator to return canned
     responses based on a script. The script is a list of `_FakeProc` instances
     consumed in call order.
+
+    Scripts an exact single-provider (Claude) sequence, so pin failover off —
+    provider failover is covered in test_llm_cli.py.
     """
+    monkeypatch.setenv("POLYGLOT_LLM_FALLBACK", "0")
+    monkeypatch.delenv("POLYGLOT_LLM_PROVIDER", raising=False)
     state = {"script": [], "calls": []}
 
     def fake_run(cmd, capture_output=False, text=False, timeout=None):

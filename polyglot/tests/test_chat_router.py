@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.database import get_db
 from app.main import app
 from app.models import ChatMessage
-from app.routers import chat
+from app.services import llm_cli
 
 
 def _client(tmp_db):
@@ -19,7 +19,9 @@ def _client(tmp_db):
 
 
 def test_chat_ask_persists_messages(tmp_db, monkeypatch):
-    monkeypatch.setattr(chat, "_call_claude", lambda prompt: "Use kosmos as 'world'.")
+    monkeypatch.setattr(
+        llm_cli, "call_text", lambda **kwargs: "Use kosmos as 'world'."
+    )
     client, factory = _client(tmp_db)
     try:
         r = client.post("/api/chat/ask", json={

@@ -1,11 +1,13 @@
-"""AI chat endpoint for Polyglot review context."""
+"""AI chat (Ask-AI tutor) endpoint for Polyglot review context.
+
+All LLM work routes through ``llm_cli`` so the tutor honours the active provider
+(Claude or Codex) and fails over on quota exhaustion, exactly like the
+structured pipelines.
+"""
 from __future__ import annotations
 
-import json
 import logging
 import os
-import shutil
-import subprocess
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,22 +16,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ChatMessage
+from app.services import llm_cli
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-_MODEL_ALIASES = {
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "haiku": "claude-haiku-4-5-20251001",
-}
-
-
-def _resolve_model(raw: str) -> str:
-    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
-
-
-CHAT_MODEL = _resolve_model(os.environ.get("POLYGLOT_CHAT_MODEL", "haiku"))
-CHAT_TIMEOUT_S = int(os.environ.get("POLYGLOT_CHAT_TIMEOUT", "30"))
+CHAT_MODEL = os.environ.get("POLYGLOT_CHAT_MODEL", "haiku")
+CHAT_TIMEOUT_S = int(os.environ.get("POLYGLOT_CHAT_TIMEOUT", "60"))
 
 CHAT_SYSTEM_PROMPT = (
     "You are a concise language tutor for Polyglot, a reading-comprehension app "
@@ -53,41 +46,17 @@ class AskQuestionOut(BaseModel):
     conversation_id: str
 
 
-def _call_claude(prompt: str) -> str:
-    if not shutil.which("claude"):
-        raise HTTPException(503, "claude CLI not found")
-
-    cmd = [
-        "claude", "-p",
-        "--tools", "",
-        "--output-format", "json",
-        "--model", CHAT_MODEL,
-        "--no-session-persistence",
-        "--system-prompt", CHAT_SYSTEM_PROMPT,
-    ]
-    try:
-        proc = subprocess.run(
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=CHAT_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise HTTPException(504, "AI request timed out") from exc
-
-    if proc.returncode != 0:
-        logger.warning("polyglot chat failed (%s): %s", proc.returncode, proc.stderr[:500])
+def _call_tutor(prompt: str) -> str:
+    answer = llm_cli.call_text(
+        prompt=prompt,
+        model=CHAT_MODEL,
+        timeout_s=CHAT_TIMEOUT_S,
+        log_context="polyglot.chat",
+        system_prompt=CHAT_SYSTEM_PROMPT,
+    )
+    if answer is None:
         raise HTTPException(502, "AI request failed")
-
-    text = proc.stdout.strip()
-    try:
-        wrapper = json.loads(text)
-        if isinstance(wrapper, dict) and isinstance(wrapper.get("result"), str):
-            return wrapper["result"].strip()
-    except json.JSONDecodeError:
-        pass
-    return text
+    return answer
 
 
 @router.post("/ask", response_model=AskQuestionOut)
@@ -110,7 +79,7 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
     parts.append(f"User: {body.question}")
     prompt = "\n\n".join(parts)
 
-    answer = _call_claude(prompt)
+    answer = _call_tutor(prompt)
 
     try:
         db.add(ChatMessage(

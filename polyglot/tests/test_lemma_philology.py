@@ -76,6 +76,10 @@ def _seed_ulk(db, lemma_id: int) -> UserLemmaKnowledge:
 
 @pytest.fixture
 def fake_claude(monkeypatch):
+    # Scripts an exact single-provider (Claude) call sequence, so pin failover
+    # off — provider failover is covered in test_llm_cli.py.
+    monkeypatch.setenv("POLYGLOT_LLM_FALLBACK", "0")
+    monkeypatch.delenv("POLYGLOT_LLM_PROVIDER", raising=False)
     state = {"script": [], "calls": []}
 
     def fake_run(cmd, capture_output=False, text=False, timeout=None):

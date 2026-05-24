@@ -105,19 +105,26 @@ Hetzner VM (same host as Alif), separate systemd service
 `/opt/alif/polyglot/polyglot.db`. No overlap with Alif's data, services, or
 process tree.
 
-LLM work goes through `app/services/llm_cli.py`. Production runs Codex
-headless:
+Every LLM call (structured JSON *and* the free-text Ask-AI tutor) goes through
+`app/services/llm_cli.py`, which supports both Claude and Codex and **fails over
+automatically** between them on any primary failure (quota exhaustion, rate
+limit, timeout, missing CLI, parse error). Production runs Codex headless as
+primary with Claude as the live fallback:
 
 ```bash
-POLYGLOT_LLM_PROVIDER=codex
+POLYGLOT_LLM_PROVIDER=codex        # primary provider (default: claude)
 POLYGLOT_CODEX_MODEL=gpt-5.5
 POLYGLOT_CODEX_HOME=/opt/alif/.codex
 CODEX_HOME=/opt/alif/.codex
+# POLYGLOT_LLM_FALLBACK=0          # optional: disable failover, or pin a provider
+# POLYGLOT_CHAT_MODEL=haiku        # optional: Ask-AI tutor model (resolved per provider)
 ```
 
-The VM has `codex-cli 0.133.0` installed at `/usr/bin/codex`; auth is stored
-under `/opt/alif/.codex` and initialized from the shared OpenAI API key in
-`/opt/alif/.env`. Do not print or commit token values.
+The VM has both `codex-cli 0.133.0` (`/usr/bin/codex`) and `claude` Code
+(`/usr/bin/claude`) installed/authenticated, so failover works in either
+direction. Codex auth is stored under `/opt/alif/.codex` and initialized from
+the shared OpenAI API key in `/opt/alif/.env`. Do not print or commit token
+values.
 
 Deploys go through Git `main`; do not `scp` application files or cron wrappers
 to the VM. The deploy script pushes local `main` if needed, pulls
@@ -290,9 +297,11 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
 - **Textbook-sentence translation backfill** — `translate_sentences.py` fills
   `translation_en` for harvested textbook sentences that cover active-study
   lemmas.
-- **Codex headless runtime** — all structured LLM calls can be switched by
-  `POLYGLOT_LLM_PROVIDER`. Production is set to `codex`; Claude remains a
-  supported local fallback for tests and dev runs.
+- **Dual-provider LLM runtime with failover** — every LLM call (structured and
+  free-text) routes through `llm_cli.py` and runs against `POLYGLOT_LLM_PROVIDER`
+  (production: `codex`), automatically failing over to the other provider on
+  quota exhaustion, timeout, missing CLI, or parse failure. `POLYGLOT_LLM_FALLBACK`
+  disables or pins the fallback.
 
 ## What's deliberately missing (Phase 2+)
 
