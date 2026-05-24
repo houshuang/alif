@@ -4,6 +4,38 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-24: Production learning-data repair (no code change)
+
+Full note: [`analysis-2026-05-24-production-learning-data-repair.md`](analysis-2026-05-24-production-learning-data-repair.md)
+
+Live SQLite cleanup across 2026-05-23/24 after a seven-day learning-health review — no application code changed. Fixed 7 lemma display forms carrying a stray `al-`, reset 14 fast-intro acquisition promotions (`reset_fast_intro_promotions_2026_05_17.py`), cleared stale acquisition state (`cleanup_stale_state.py`), merged history-bearing Quranic/inflected variants into canonicals (`#2847→#2838`, `#40 زَوْجة→#184 زَوج`, `#1592 تَهْتَمُّ→#2237 اِهْتَمَّ` preserving review_log + sentence_words), suspended zero-history variant ULKs, cleared stale FSRS cards on 21 already-suspended variants, and reactivated 4 verified sentences for due words with no active material. All mutations backed up first; final invariant checks (`non_suspended_variant_ulks=0`, `variant_acquisition_boxes=0`, due/no-active=0, `PRAGMA quick_check=ok`) clean. Operational lesson: never blindly run `suspend_variant_ulks.py` on a variant with real review history — merge into the canonical instead.
+
+---
+
+## 2026-05-18: Require denser maintenance passage reviews
+
+Commit `ddf3bc44` ("Require denser maintenance passage reviews"), `backend/app/services/sentence_selector.py`.
+
+### What prompted it
+
+Maintenance passage cards (3-5 consecutive `source="passage"` sentences shown as one reading block) cost the learner more reading effort than a single sentence, so they should only be assembled when they pay that cost back in due-word coverage. The previous gate keyed on a per-sentence density ratio (`PASSAGE_MIN_DUE_PER_SENTENCE = 1.25`), which let a long passage qualify on a thin spread of due words.
+
+### Experiment / intervention
+
+- Replaced `PASSAGE_MIN_DUE_PER_SENTENCE = 1.25` with two absolute constants: `PASSAGE_MIN_DUE_WORDS = 3` (hard floor — a passage must cover at least 3 distinct due lemmas) and `PASSAGE_PREFERRED_DUE_WORDS = 4` (preference tier for ranking).
+- Extracted the viability check into a shared helper `_is_viable_maintenance_passage_group()` and added `_candidate_group_due_ids()` so both passage-assembly paths (`_group_maintenance_passages` for stored passages and `_best_generated_passage_seed` for generated seeds) apply the same floor.
+- Added `_maintenance_passage_sort_key()` so candidate groups are ranked first by whether they clear `PASSAGE_PREFERRED_DUE_WORDS`, then by raw due count, then density, then recency.
+
+### Expected effect
+
+Fewer, denser passage cards: thin passages that previously qualified on the per-sentence ratio are now rejected, and when multiple passage groups are viable the one covering the most due words wins.
+
+### Verification
+
+- `backend/tests/test_passage_generator.py` and `backend/tests/test_sentence_selector.py` updated for the new floor + ranking (3 files, +98/-29 in the commit).
+
+---
+
 ## 2026-05-24: Polyglot sentence generation stabilized - retrieval targets, prompt quality, provider fallback
 
 Full report: [`sentence-generation-prompt-experiments-polyglot-2026-05-24.md`](sentence-generation-prompt-experiments-polyglot-2026-05-24.md)
@@ -79,8 +111,8 @@ to the user's taste.
 
 ### Experiment
 
-Two calibration batches via the calibration-eval skill (`research/eval-hook-quality-2026-05-22.html`
-+ `-batch2-`): the user rated 49 hooks (batch 1) then 45 fresh hooks (batch 2). Batch 1 = teaching
+Two calibration batches via the calibration-eval skill ([`eval-hook-quality-2026-05-22.html`](eval-hook-quality-2026-05-22.html)
++ [`eval-hook-quality-batch2-2026-05-22.html`](eval-hook-quality-batch2-2026-05-22.html)): the user rated 49 hooks (batch 1) then 45 fresh hooks (batch 2). Batch 1 = teaching
 examples; batch 2 = held-out validation. An independent CLI-Sonnet critic (json-schema constrained)
 was iterated: v1 (sound-led rubric) κ=0.44, v2 (picturability-led) κ=0.29, v3 (few-shot with the 49
 labels) on held-out batch 2 → **κ = −0.12 (worse than chance)**.
@@ -459,6 +491,8 @@ budgeting, sentence practice, and real review evidence before promotion.
 ---
 
 ## 2026-05-17: Acquisition working-memory recovery gate + fast-promotion reset
+
+Full analysis: [`analysis-2026-05-17-acquisition-recovery.md`](analysis-2026-05-17-acquisition-recovery.md)
 
 ### What
 

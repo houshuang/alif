@@ -1691,6 +1691,20 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | Encountered excluded | — | Merely seen words don't count as "known" scaffold |
 | Fresh-today excluded (2026-05-15) | acquired today, times_correct == 0 | Acquiring words promoted today with no successful review yet count as unknown for the comprehensibility gate. Clears after first correct review. Prevents sentences stuffed with just-promoted words from reading as comprehensible. |
 
+### Maintenance Passage (`sentence_selector.py`)
+
+Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence rows authored as one cohesive `source="passage"` story (sharing a `story_id`) are bundled — standalone generated/book/corpus rows are never opportunistically grouped. Acquisition cards always stay single-sentence. Replaced the old `PASSAGE_MIN_DUE_PER_SENTENCE = 1.25` density check with explicit min/preferred due-word floors (commit `ddf3bc44`, "Require denser maintenance passage reviews", 2026-05-18).
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `PASSAGE_MIN_SENTENCES` | 3 | Min sentences in a viable passage group (`_is_viable_maintenance_passage_group`) |
+| `PASSAGE_MAX_SENTENCES` | 5 | Max sentences taken from a story when forming a passage group |
+| `PASSAGE_MIN_DUE_WORDS` | 3 | Min distinct due lemmas a passage group must cover to be viable — a passage card must earn its extra reading cost with enough due reviews |
+| `PASSAGE_PREFERRED_DUE_WORDS` | 4 | Sort threshold in `_maintenance_passage_sort_key`: groups at or above this due-word count rank first |
+| `PASSAGE_REVIEW_STATES` | {`known`, `learning`, `lapsed`} | Only FSRS maintenance words in these states are eligible for bundled passage cards (`_is_maintenance_passage_candidate`) |
+
+**Viability gate** (`_is_viable_maintenance_passage_group`): a group is viable iff it has ≥ `PASSAGE_MIN_SENTENCES` sentences, covers ≥ `PASSAGE_MIN_DUE_WORDS` distinct due lemmas, has at least one due-covering member, and *every* due-covering member is a maintenance-passage candidate (all its due lemmas in `PASSAGE_REVIEW_STATES`).
+
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 
 | Constant | Value | Purpose |

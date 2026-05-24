@@ -266,10 +266,21 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
   lemmas, graduated, streak), last-14-day activity, frequency-rank coverage
   bands (when a frequency list is loaded), enriched story progress, and the
   most recent `ActivityLog` entries.
-- **Expo frontend** — `frontend/app/polyglot.tsx`. Tap-to-lookup with a
-  single-line bottom bar (preserves reading flow), four mark actions
-  (known/unknown/encountered/ignore), next-page button that triggers
-  bulk-mark.
+- **Expo frontend** — Greek side has three tabs plus a hidden detail screen:
+  - **Reading screen** (`frontend/app/polyglot.tsx`) — tap-to-lookup with a
+    single-line bottom bar (preserves reading flow), four mark actions
+    (known/unknown/encountered/ignore), next-page button that triggers
+    bulk-mark. Taps open the shared **lookup card**
+    (`frontend/lib/polyglot-lookup-card.tsx`) — a mid-density tap surface
+    with gloss, POS, diachrony peek, a literary quote, collocations, and a
+    "View full philology ›" link.
+  - **Review screen** (`frontend/app/polyglot-review.tsx`) — the sentence-review
+    surface. Mirrors Alif's `SentenceReadingCard`: two-stage reveal, per-word
+    tap-cycle marks (missed/confused), 3-signal comprehension model, and
+    **intro cards** interleaved before a lemma's first review.
+  - **Lemma-detail screen** (`frontend/app/polyglot-lemma/[id].tsx`) — full
+    Modern Editorial philology page (diachrony timeline, cognates table,
+    quotes, register); hidden tab, reached from the lookup card / intro card.
 - **Language switcher** — Globe tab in the Expo tab bar. `LanguageContext`
   persists the active language via AsyncStorage; tab visibility flips
   between Arabic-mode and Modern-Greek-mode based on selection.

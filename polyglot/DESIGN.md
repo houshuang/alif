@@ -18,19 +18,19 @@ the single place to read *why* polyglot is built the way it is.
 
 ---
 
-## 0. Snapshot (as of 2026-05-20)
+## 0. Snapshot (as of 2026-05-24)
 
-- **Backend**: 152 tests passing. Modern Greek end-to-end loop works:
+- **Backend**: 303 tests passing. Modern Greek end-to-end loop works:
   PDF intake → lazy page processing → mark unknown → enters acquisition →
   sentence review session with intro cards → FSRS scheduling → leech
   detection.
-- **Frontend**: 101 tests passing. Reading screen + sentence-review screen
+- **Frontend**: Reading screen + sentence-review screen
   with intro card interleave (Globe tab switches between Arabic/Greek modes).
 - **Languages**: Modern Greek fully wired (simplemma + GR-NLP-TOOLKIT + Claude
   verifier). Ancient Greek + Latin scaffolded with `ProviderUnavailable`
   fallback — OdyCy / LatinCy wire-up deferred.
-- **Deployment**: not yet on Hetzner. Local dev only (port 3001). Frontend
-  app config (`frontend/app.json` → `polyglotApiUrl`) points at a placeholder.
+- **Deployment**: live on Hetzner since 2026-05-20. systemd `polyglot-backend`
+  on port 3002 (dev still 3001); the material cron runs at `45 */3 * * *`.
 - **Open scope** (see § 13): cron install of warm-cache script, Haiku
   cost-discipline experiment, Greek TTS, OdyCy+LatinCy wiring, mnemonic
   hooks on failure.
@@ -221,15 +221,17 @@ alif/
 │   │   ├── main.py
 │   │   ├── config.py
 │   │   ├── database.py     # Engine + WAL pragmas + ensure_schema()
-│   │   ├── models.py       # Multilingual schema (13 tables)
+│   │   ├── models.py       # Multilingual schema (16 tables)
 │   │   ├── schemas.py      # Pydantic request/response
 │   │   ├── routers/
 │   │   │   ├── languages.py
 │   │   │   ├── texts.py
 │   │   │   ├── reviews.py        # SRS surface (submit, due, stats, session)
-│   │   │   ├── materials.py      # Generate sentences + warm cache
-│   │   │   ├── profile.py        # Cognates
-│   │   │   └── stats.py
+│   │   │   ├── materials.py      # Generate sentences + warm cache + translate + enrich
+│   │   │   ├── profile.py        # Profile, cognates, lemma detail
+│   │   │   ├── stats.py
+│   │   │   ├── chat.py           # Ask-AI tutor (POST /api/chat/ask)
+│   │   │   └── flags.py          # User-reported content flags
 │   │   └── services/
 │   │       ├── core/             # (placeholder for alif_core extraction)
 │   │       ├── languages/        # NLP per-language providers
@@ -324,9 +326,10 @@ own iteration. Numbering matches `CLAUDE.md`.
 1. **Lazy page processing.** Pages tokenize + LLM-verify only on first
    view (`GET /api/texts/{sid}/pages/{n}`). Importing a 300-page textbook
    is fast; cost is paid per-page-view.
-2. **Quality gate is the lemmatization safety net.** simplemma misclassifies
-   homographs; the LLM-in-context gate catches these. Mandatory; never skip
-   for "speed."
+2. **Citation repair + quality gate are the lemmatization safety net.**
+   simplemma misclassifies homographs, proper nouns, and POS; `lemma_integrity.py`
+   fixes the Lemma row itself and `lemma_quality.py` fixes each PageWord mapping
+   in sentence context. Mandatory; never skip for "speed."
 3. **Bulk-mark presumes content lemmas only.** Function words and
    caps-headings are excluded — they're meta-text, not vocabulary.
 4. **Cognate propagation is 'encountered', not 'known'.** Modern↔Ancient
@@ -334,10 +337,14 @@ own iteration. Numbering matches `CLAUDE.md`.
    "irrational"). Auto-promoting would silently create errors.
 5. **Modern↔Ancient bare-form linking is bidirectional + idempotent.** Runs
    on every Lemma creation. Cheap DB lookup; no LLM call.
-6. **External L1 cognate detection is opt-in.** Off by default; gated by
-   env vars. Will be turned on after prompt quality is dialed in.
-7. **Claude CLI puts structured data in `structured_output`**, not
-   `result`, when using `--json-schema`. Don't regress.
+6. **External L1 cognate detection is opt-in, and `low` is not usable.**
+   The env-gated incremental detector is off by default; bulk seeding has
+   already run (high + medium tiers only — `low` was dropped as form-blind).
+   `cognate_auto_mark_threshold` accepts `high` / `medium` / `never`. See §8.4.
+7. **All structured/free-text LLM calls go through `llm_cli.py` with failover.**
+   Structured JSON uses `call_structured_json`, prose uses `call_text`; both
+   support Codex + Claude with automatic provider failover. `None` is returned
+   only when all providers fail — never treat it as empty success.
 8. **Verification failure ≠ success.** Failed LLM calls leave
    `mappings_verified_at` NULL so the next page-view retries.
 9. **Canonical lemma is the unit of scheduling.** Every ULK-creation site
@@ -358,6 +365,12 @@ own iteration. Numbering matches `CLAUDE.md`.
     exposure but reschedule to Box 1 + 30 min (FAST_INTRO_RETRY_INTERVAL).
     Same field dedups intro cards across sessions; rescue cards observe a
     7-day cooldown on the same field.
+13. **Collateral sentence exposure is not explicit acquisition.**
+    `sentence_review_service` may auto-promote a new/encountered content lemma
+    from a sentence as `source='collateral'`, but same-sentence correctness must
+    not graduate it or advance Box 1 before its `acquisition_next_due`. Collateral
+    words need spaced confirmation — first exposure counts toward `times_seen`/
+    accuracy and keeps the existing due time.
 
 ### Foundational invariant (separate, but worth restating)
 
@@ -372,7 +385,7 @@ no privileged "target" review distinct from collateral.
 
 ## 7. Data model
 
-13 tables. Multilingual from the schema — `Lemma.language_code` is the
+16 tables. Multilingual from the schema — `Lemma.language_code` is the
 primary partition; cross-language refs (Modern↔Ancient cognates) use
 `cognate_lemma_id` and explicitly cross language codes.
 
@@ -393,6 +406,7 @@ SentenceReviewLog       (sentence-level event; one row per submission)
 MaterialJob             (background gen tracking)
 ActivityLog             (batch + service events)
 ContentFlag             (user-reported flags on lemmas/sentences)
+ChatMessage             (Ask-AI tutor conversation history)
 UserProfile             (single row; L1 list, etc.)
 ```
 
@@ -401,7 +415,9 @@ UserProfile             (single row; L1 list, etc.)
 **`Lemma`** — `lemma_id`, `language_code`, `lemma_form` (display, accented),
 `lemma_bare` (lowercased, accent-stripped for lookup), `gloss_en`, `pos`,
 `canonical_lemma_id` (variant → canonical), `cognate_lemma_id` (cross-
-language), `word_category` (NULL / `proper_name` / `function_word`),
+language), `word_category` (NULL / `proper_name` / `function_word` /
+`not_word` — the last for OCR fragments / junk, set by `lemma_integrity.py`
+and treated as non-content by `lemma_quality.is_noncontent_lemma`),
 `source` (`reading_intake` / `quality_gate` / `manual` / ...).
 
 **`UserLemmaKnowledge`** — one row per *canonical* lemma the user has
@@ -470,7 +486,7 @@ leaves earlier pages lazy — next time you go back, you eat the wait.
 Acceptable for sequential reading; revisit if random-access becomes
 common.
 
-### 8.0a Lemma philology enrichment (cron phase 3 — added 2026-05-21)
+### 8.0a Lemma philology enrichment (cron phase 5 — added 2026-05-21)
 
 After warming pages and sentences, the cron enriches lemmas with
 philological data (etymology + diachrony + cognates + literary quotes +
@@ -638,12 +654,17 @@ every Lemma creation. Bare-form match between `el` and `grc` lemmas
 auto-links via `cognate_lemma_id`. Bidirectional, idempotent, cheap (DB
 lookup only).
 
-**External (L1 → target)** — `cognate_detector.py`. Off by default. When
-`POLYGLOT_DETECT_COGNATES=1`, runs after Lemma enrichment; detects
-high-transparency cognates between Greek lemmas and user's L1 list
-(English, Norwegian, German, French, Italian, Spanish — pulled from
-`UserProfile`). High-confidence detections can auto-mark `known` when
-`POLYGLOT_AUTO_MARK_COGNATES=1` is also set.
+**External (L1 → target)** — `cognate_detector.py`. The production pool was
+**bulk-seeded** 2026-05-21 via `scripts/import_subtlex_gr.py` over the top-5000
+SUBTLEX-GR lemmas: **~1,586 cognate ULKs from the high + medium tiers only**.
+The `low` tier was dropped as form-blind (the LLM accepts an etymological link
+even when the Greek surface form shares no letters with the proposed cognate);
+`cognate_auto_mark_threshold` no longer accepts `low`. The remaining opt-in piece
+is the **incremental** detector, env-gated by `POLYGLOT_DETECT_COGNATES=1`: when
+set it runs after Lemma enrichment on newly-read lemmas, detecting high-transparency
+cognates against the user's L1 list (English, Norwegian, German, French, Italian,
+Spanish — pulled from `UserProfile`) and can auto-mark `known` when
+`POLYGLOT_AUTO_MARK_COGNATES=1` is also set. See Hard Invariant 6 in `CLAUDE.md`.
 
 **Propagation rule** — when Modern φιλία is marked known, Ancient φιλία
 becomes `encountered` (NOT `known`). Semantic drift is real (Modern
@@ -700,9 +721,11 @@ correctness cannot graduate them immediately.
 cap drifted out of central code into one caller and other paths bypassed
 it).
 
-**Recovery mode** kicks in when Box 1/2 debt piles up: ≥ 5 unreviewed Box
-1 words OR ≥ 30 due Box 2 words. Reduces the effective cap to:
-- 0 (no new intros) below 20 reviews/day or accuracy < 80%
+**Recovery mode** kicks in when Box 1/2 debt piles up:
+≥ `RECOVERY_BOX1_UNREVIEWED_LIMIT` (50) unreviewed Box 1 words OR
+≥ `RECOVERY_BOX2_DUE_LIMIT` (100) due Box 2 words. Reduces the effective cap to:
+- 0 (no new intros) below `RECOVERY_MIN_REVIEWS_FOR_ANY_INTRO` (5) reviews/day,
+  or accuracy < 80% once ≥ 10 reviews are in
 - 4 (mid budget) below 60 reviews/day OR accuracy 80–85%
 - 8 (full recovery budget) at ≥ 60 reviews/day AND accuracy ≥ 85%
 
@@ -971,7 +994,7 @@ Used for the "what's been happening" UI surface.
 ### 9.4 Mark-unknown → SRS pipeline
 
 1. User taps a word in Reading, hits "unknown".
-2. `POST /api/texts/.../mark` with `{lemma_id, state: "unknown"}`.
+2. `PATCH /api/texts/{story_id}/mark` with `{lemma_id, state: "unknown"}`.
 3. `reading_intake.mark_lemma`:
    - Canonical-resolve.
    - Call `start_acquisition(lemma_id, source="reading_intake",
@@ -1028,6 +1051,7 @@ Used for the "what's been happening" UI surface.
 | POST   | `/api/texts/pdf`                                      | Create story from uploaded PDF         |
 | GET    | `/api/texts/{story_id}`                               | Story metadata                         |
 | GET    | `/api/texts/{story_id}/pages/{n}`                     | Page view (triggers lazy processing)   |
+| PATCH  | `/api/texts/{story_id}/mark`                          | Mark one word (`{lemma_id, state}`)    |
 | POST   | `/api/texts/{story_id}/pages/{n}/mark_remaining`      | Bulk-mark untouched content words known|
 | POST   | `/api/texts/{story_id}/extract-sentences`             | Re-harvest sentences (bulk)            |
 
@@ -1051,13 +1075,17 @@ Used for the "what's been happening" UI surface.
 |--------|--------------------------------------------|-----------------------------------------------------------|
 | POST   | `/api/materials/generate`                  | Generate sentences for explicit lemma_ids                 |
 | POST   | `/api/materials/warm-cache`                | Fill gaps for lemmas in active study below sentence target|
+| POST   | `/api/materials/translate-sentences`       | Fill `translation_en` for untranslated book sentences     |
+| POST   | `/api/materials/enrich-philology`          | Generate `LemmaEnrichment` for engaged lemmas             |
 
 ### 10.5 Profile
 
 | Method | Path                                       | Purpose                                                   |
 |--------|--------------------------------------------|-----------------------------------------------------------|
 | GET    | `/api/profile`                             | User profile (L1 list, etc.)                              |
+| PATCH  | `/api/profile`                             | Update profile (incl. `cognate_auto_mark_threshold`)      |
 | GET    | `/api/lemmas/{id}/cognates`                | Cognate links for a lemma                                 |
+| GET    | `/api/lemmas/{id}/detail`                  | Full lemma detail (gloss + philology enrichment)          |
 | POST   | `/api/cognates/detect`                     | Force cognate detection for a lemma set                   |
 
 ### 10.6 Stats
@@ -1065,6 +1093,19 @@ Used for the "what's been happening" UI surface.
 | Method | Path                                       | Purpose                                                   |
 |--------|--------------------------------------------|-----------------------------------------------------------|
 | GET    | `/api/stats?language_code=...`             | One-shot dashboard payload: knowledge breakdown by state, Leitner box distribution, FSRS stability histogram, today (reviews / pages / new lemmas / graduated / streak), last-14-day activity, frequency-rank coverage bands (null when no frequency list loaded), enriched story progress, recent `ActivityLog` entries |
+
+### 10.7 Chat (Ask-AI tutor)
+
+| Method | Path                                       | Purpose                                                   |
+|--------|--------------------------------------------|-----------------------------------------------------------|
+| POST   | `/api/chat/ask`                            | Tutor question with sentence/translation/marks context (via `llm_cli.call_text`) |
+
+### 10.8 Flags
+
+| Method | Path                                       | Purpose                                                   |
+|--------|--------------------------------------------|-----------------------------------------------------------|
+| POST   | `/api/flags`                               | Report a lemma/sentence (deduped against pending reports) |
+| GET    | `/api/flags`                               | List reported content flags                               |
 
 ---
 
@@ -1170,7 +1211,9 @@ Source of truth lives in `polyglot/CLAUDE.md`. Summarized here for design-doc co
 | Comprehensibility gate                               | **Ported** (picker-side) |
 | Material generation (LLM sentences)                  | **Ported**               |
 | Warm sentence cache                                  | **Ported** + cron live (`polyglot-update-material.sh` at `45 */3`) |
-| Lemma philology enrichment                           | **Polyglot-original** (cron phase 3 with self-correct loop) |
+| Review existing sentences (retire LLM "fluent nonsense") | **Polyglot-original** (cron phase 2 — `review_existing_sentences.py`) |
+| Book-sentence translation                            | **Polyglot-original** (cron phase 4 — fills `translation_en`) |
+| Lemma philology enrichment                           | **Polyglot-original** (cron phase 5 with self-correct loop) |
 | Variant chain resolution                             | **Ported**               |
 | Proper-name handling (filter from review)            | **Schema in place** (enforcement at picker pending) |
 | Leech auto-management                                | **Ported**               |
@@ -1191,10 +1234,11 @@ surfaces in dogfooding.
 
 ### 13.1 Operational
 - ~~**Cron install of `polyglot-update-material.sh`**~~ — done 2026-05-20.
-  Running on Hetzner at `45 */3 * * *`. Three phases: warm_pages_ahead →
-  warm_sentence_cache → enrich_lemma_philology (`--include-failed`).
+  Running on Hetzner at `45 */3 * * *`. Five phases: warm_pages_ahead →
+  review_existing_sentences → warm_sentence_cache → translate_sentences →
+  enrich_lemma_philology (`--include-failed`).
 - ~~**Deploy polyglot-backend systemd unit**~~ — done 2026-05-20. Service
-  `polyglot-backend.service` is `active` on Hetzner. Port 3001.
+  `polyglot-backend.service` is `active` on Hetzner. Port 3002.
 
 ### 13.2 Quality
 - **Haiku cost-discipline experiment** for the quality gate. Sonnet runs
@@ -1338,9 +1382,21 @@ INTRO_CARDS_MAX = 6
 RESCUE_MIN_SEEN = 4
 RESCUE_MAX_ACCURACY = 0.50
 RESCUE_COOLDOWN_DAYS = 7
-PAGE_FIRST_BONUS = 3.0
 DEFAULT_SESSION_LIMIT = 15
+
+# sentence_selector.py — picker source/recency control
+GENERATED_SOURCES = {"llm"}      # generated sentences are the primary sort tier,
+                                 # strictly outranking textbook material
+PAGE_COOLDOWN_DAYS = 7           # textbook page viewed within N days →
+RECENT_PAGE_PENALTY = 0.2        #   multiply score by 0.2
+SENTENCE_RECENCY_HOURS = 24      # any sentence shown within N hours →
+RECENT_SENTENCE_PENALTY = 0.25   #   multiply score by 0.25 (build_session hard-skips)
+TEXTBOOK_FALLBACK_MAX_PER_SESSION = 2   # cap textbook fallbacks per session
 ```
+
+Picker ranking is **source-tier-first**: `GENERATED_SOURCES` (`{"llm"}`)
+strictly outranks textbook page-of-record. Within a tier,
+`score = (0.3 + 0.7·comprehensibility) · page_cooldown · sentence_recency`.
 
 ---
 
