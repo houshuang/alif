@@ -48,6 +48,8 @@ def test_stats_empty_language(tmp_db):
         assert body["fsrs"]["tracked"] == 0
         assert body["recovery"]["pre_known"] == 0
         assert body["recovery"]["recovered_once"] == 0
+        assert body["known_summary"]["total"] == 0
+        assert body["judged_progress"]["total"] == 0
         assert body["today"]["reviews"] == 0
         assert body["today"]["streak"] == 0
         assert len(body["history_14d"]) == 14
@@ -266,6 +268,124 @@ def test_stats_recovery_block(tmp_db):
         assert rec["failed_not_yet_recovered"] == 1
         assert rec["still_acquiring_after_failure"] == 1
         assert body["today"]["marked_unknown"] == 1
+    finally:
+        _cleanup()
+
+
+def test_stats_known_summary_and_judged_progress(tmp_db):
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            now = datetime.utcnow()
+
+            pre = Lemma(language_code="el", lemma_form="pre", lemma_bare="pre", source="test")
+            db.add(pre); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=pre.lemma_id,
+                knowledge_state="known",
+                knowledge_origin="pre_known",
+                fsrs_card_json=None,
+            ))
+
+            cog = Lemma(language_code="el", lemma_form="cog", lemma_bare="cog", source="test")
+            db.add(cog); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=cog.lemma_id,
+                knowledge_state="known",
+                knowledge_origin="cognate_known",
+                fsrs_card_json=None,
+            ))
+
+            lapsed_assumed = Lemma(
+                language_code="el", lemma_form="lap", lemma_bare="lap", source="test",
+            )
+            db.add(lapsed_assumed); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=lapsed_assumed.lemma_id,
+                knowledge_state="acquiring",
+                knowledge_origin="pre_known",
+                fsrs_card_json=None,
+                first_failed_at=now - timedelta(hours=1),
+                acquisition_box=1,
+                acquisition_next_due=now - timedelta(minutes=5),
+            ))
+
+            learning = Lemma(
+                language_code="el", lemma_form="learn", lemma_bare="learn", source="test",
+            )
+            db.add(learning); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=learning.lemma_id,
+                knowledge_state="learning",
+                fsrs_card_json={
+                    "stability": 2.0,
+                    "difficulty": 5.0,
+                    "state": 1,
+                    "due": (now + timedelta(days=1)).isoformat(),
+                },
+            ))
+            db.add(ReviewLog(lemma_id=learning.lemma_id, rating=3, reviewed_at=now))
+
+            fsrs_known = Lemma(
+                language_code="el", lemma_form="known", lemma_bare="known", source="test",
+            )
+            db.add(fsrs_known); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=fsrs_known.lemma_id,
+                knowledge_state="known",
+                fsrs_card_json={
+                    "stability": 30.0,
+                    "difficulty": 5.0,
+                    "state": 2,
+                    "due": (now + timedelta(days=30)).isoformat(),
+                },
+            ))
+            db.add(ReviewLog(lemma_id=fsrs_known.lemma_id, rating=3, reviewed_at=now))
+
+            fsrs_lapsed = Lemma(
+                language_code="el", lemma_form="fsrslap", lemma_bare="fsrslap", source="test",
+            )
+            db.add(fsrs_lapsed); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=fsrs_lapsed.lemma_id,
+                knowledge_state="lapsed",
+                fsrs_card_json={
+                    "stability": 0.5,
+                    "difficulty": 6.0,
+                    "state": 3,
+                    "due": (now - timedelta(minutes=10)).isoformat(),
+                },
+                first_failed_at=now - timedelta(minutes=10),
+            ))
+            db.add(ReviewLog(lemma_id=fsrs_lapsed.lemma_id, rating=1, reviewed_at=now))
+            db.commit()
+
+        body = client.get("/api/stats?language_code=el").json()
+        known = body["known_summary"]
+        assert known["total"] == 3
+        assert known["pre_known"] == 1
+        assert known["cognate_known"] == 1
+        assert known["assumed_known"] == 2
+        assert known["fsrs_known"] == 1
+        assert known["judged_known"] == 2
+        assert known["unjudged_known"] == 1
+        assert known["lapsed_from_assumed_known"] == 1
+        assert known["lapsed_from_assumed_known_to_learn"] == 1
+
+        judged = body["judged_progress"]
+        assert judged["total"] == 5
+        assert judged["learnt"] == 2
+        assert judged["to_learn"] == 3
+        assert judged["ever_red"] == 2
+        assert judged["ever_green"] == 4
+        assert judged["lapsed_from_known"] == 1
+        assert judged["pipeline"]["box_1"] == 1
+        assert judged["pipeline"]["acquisition_due_now"] == 1
+        assert judged["pipeline"]["learning"] == 1
+        assert judged["pipeline"]["known"] == 2
+        assert judged["pipeline"]["lapsed"] == 1
+        assert judged["pipeline"]["fsrs_tracked"] == 3
+        assert judged["pipeline"]["fsrs_due_now"] == 1
     finally:
         _cleanup()
 

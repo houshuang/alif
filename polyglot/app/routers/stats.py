@@ -10,7 +10,7 @@ Backs the polyglot Stats screen. Returns:
 - a recent activity feed from ActivityLog
 """
 from collections import defaultdict
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +25,7 @@ from app.models import (
 from app.services.fsrs_service import parse_json_column
 from app.services.knowledge_lifecycle import (
     ORIGIN_COGNATE_KNOWN,
+    ORIGIN_MARKED_RECOGNIZED,
     ORIGIN_PRE_KNOWN,
 )
 
@@ -52,6 +53,28 @@ def _bucket_stability(days: float | None) -> str:
     if days < 21: return "7-21d"
     if days < 60: return "21-60d"
     return "60d+"
+
+
+def _as_naive_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _card_due_on_or_before(card_json: dict[str, Any] | None, now: datetime) -> bool:
+    if not isinstance(card_json, dict):
+        return False
+    due_raw = card_json.get("due")
+    if not due_raw or not isinstance(due_raw, str):
+        return False
+    try:
+        due = datetime.fromisoformat(due_raw.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    due_naive = _as_naive_utc(due)
+    return due_naive is not None and due_naive <= now
 
 
 @router.get("")
@@ -165,6 +188,7 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "stability_buckets": stability_buckets,
     }
     recovery = _recovery_progress(db, language_code)
+    known_summary, judged_progress = _known_and_judged_progress(db, language_code, now)
 
     # ── 4. Today's activity ──────────────────────────────────────────────
     reviews_today = (
@@ -354,6 +378,8 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "leitner": leitner,
         "fsrs": fsrs,
         "recovery": recovery,
+        "known_summary": known_summary,
+        "judged_progress": judged_progress,
         "today": today,
         "history_14d": history,
         "frequency": frequency_block,
@@ -422,6 +448,146 @@ def _recovery_progress(db: Session, language_code: str) -> dict[str, int]:
                 stats["stable_after_failure_60d"] += 1
 
     return stats
+
+
+def _known_and_judged_progress(
+    db: Session,
+    language_code: str,
+    now: datetime,
+) -> tuple[dict[str, int], dict[str, Any]]:
+    rows = (
+        db.query(UserLemmaKnowledge)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    )
+    by_id = {ulk.lemma_id: ulk for ulk in rows}
+
+    red_ids: set[int] = {
+        ulk.lemma_id for ulk in rows if ulk.first_failed_at is not None
+    }
+    green_ids: set[int] = {
+        ulk.lemma_id
+        for ulk in rows
+        if ulk.knowledge_origin in {ORIGIN_PRE_KNOWN, ORIGIN_MARKED_RECOGNIZED}
+        or ulk.first_correct_after_failure_at is not None
+    }
+    yellow_ids: set[int] = set()
+
+    for lemma_id, rating in (
+        db.query(ReviewLog.lemma_id, ReviewLog.rating)
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    ):
+        if rating == 1:
+            red_ids.add(lemma_id)
+        elif rating == 2:
+            yellow_ids.add(lemma_id)
+        elif rating >= 3:
+            green_ids.add(lemma_id)
+
+    judged_ids = red_ids | green_ids
+    known_ids = {
+        ulk.lemma_id for ulk in rows if ulk.knowledge_state == "known"
+    }
+    assumed_origins = {ORIGIN_PRE_KNOWN, ORIGIN_COGNATE_KNOWN}
+    lapsed_from_assumed_ids = {
+        ulk.lemma_id
+        for ulk in rows
+        if ulk.knowledge_origin in assumed_origins and ulk.first_failed_at is not None
+    }
+
+    known_summary = {
+        "total": len(known_ids),
+        "pre_known": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.knowledge_origin == ORIGIN_PRE_KNOWN
+        ),
+        "cognate_known": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.knowledge_origin == ORIGIN_COGNATE_KNOWN
+        ),
+        "fsrs_known": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.fsrs_card_json is not None
+        ),
+        "assumed_known": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.fsrs_card_json is None
+        ),
+        "judged_known": len(known_ids & judged_ids),
+        "unjudged_known": len(known_ids - judged_ids),
+        "lapsed_from_assumed_known": len(lapsed_from_assumed_ids),
+        "lapsed_from_assumed_known_to_learn": sum(
+            1 for lid in lapsed_from_assumed_ids
+            if by_id[lid].knowledge_state in {"acquiring", "learning", "lapsed", "suspended"}
+        ),
+    }
+
+    pipeline_ids = judged_ids
+    acquiring_ids = {
+        lid for lid in pipeline_ids
+        if by_id.get(lid) is not None and by_id[lid].knowledge_state == "acquiring"
+    }
+    fsrs_ids = {
+        lid for lid in pipeline_ids
+        if by_id.get(lid) is not None
+        and by_id[lid].knowledge_state in {"learning", "known", "lapsed"}
+        and by_id[lid].fsrs_card_json is not None
+    }
+
+    def _state_count(state: str) -> int:
+        return sum(
+            1 for lid in pipeline_ids
+            if by_id.get(lid) is not None and by_id[lid].knowledge_state == state
+        )
+
+    judged_progress = {
+        "total": len(judged_ids),
+        "to_learn": sum(
+            1 for lid in pipeline_ids
+            if by_id.get(lid) is not None
+            and by_id[lid].knowledge_state in {"acquiring", "learning", "lapsed", "suspended"}
+        ),
+        "learnt": len(known_ids & judged_ids),
+        "pending": sum(
+            1 for lid in pipeline_ids
+            if by_id.get(lid) is not None
+            and by_id[lid].knowledge_state in {"encountered", "unknown"}
+        ),
+        "ever_red": len(red_ids),
+        "ever_green": len(green_ids),
+        "yellow_only": len(yellow_ids - judged_ids),
+        "lapsed_from_known": len(lapsed_from_assumed_ids),
+        "lapsed_from_known_to_learn": known_summary["lapsed_from_assumed_known_to_learn"],
+        "pipeline": {
+            "acquiring": len(acquiring_ids),
+            "box_1": sum(1 for lid in acquiring_ids if (by_id[lid].acquisition_box or 1) == 1),
+            "box_2": sum(1 for lid in acquiring_ids if by_id[lid].acquisition_box == 2),
+            "box_3": sum(1 for lid in acquiring_ids if by_id[lid].acquisition_box == 3),
+            "acquisition_due_now": sum(
+                1 for lid in acquiring_ids
+                if _as_naive_utc(by_id[lid].acquisition_next_due) is not None
+                and _as_naive_utc(by_id[lid].acquisition_next_due) <= now
+            ),
+            "learning": _state_count("learning"),
+            "known": _state_count("known"),
+            "lapsed": _state_count("lapsed"),
+            "suspended": _state_count("suspended"),
+            "fsrs_tracked": len(fsrs_ids),
+            "fsrs_due_now": sum(
+                1 for lid in fsrs_ids
+                if _card_due_on_or_before(parse_json_column(by_id[lid].fsrs_card_json), now)
+            ),
+        },
+    }
+
+    return known_summary, judged_progress
 
 
 # ── frequency progress (top-N bands) ──────────────────────────────────────
