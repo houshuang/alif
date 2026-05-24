@@ -299,11 +299,20 @@ def submit_sentence_review(
             and knowledge.fsrs_card_json is None
         ):
             # Bulk-marked/cognate-known lemmas have no scheduler card yet.
-            # Sentence review should acknowledge the exposure without pulling
-            # them into FSRS; an explicit "unknown" action can restart
-            # acquisition later.
-            knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
-            continue
+            # Green exposure stays cheap scaffold credit; a red miss is an
+            # explicit lapse signal and must move the word into acquisition.
+            if rating == 1:
+                knowledge = start_acquisition(
+                    db,
+                    lemma_id=effective_lemma_id,
+                    source="review_lapse",
+                    due_immediately=True,
+                    restart_known=True,
+                )
+                knowledge_map[effective_lemma_id] = knowledge
+            else:
+                knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+                continue
 
         word_client_id = (
             f"{client_review_id}:{effective_lemma_id}"
