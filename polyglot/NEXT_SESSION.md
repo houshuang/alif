@@ -26,11 +26,16 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
 - Current generated review coverage must be measured against retrieval targets,
   not all assumed-known cognates/pre-known rows. Post-deploy 2026-05-24 query:
-  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 101
-  still below the 5-sentence generated target after the manual warm run.
+  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 98
+  still below the 5-sentence generated target after the manual warm runs.
   Textbook sentences are picker fallbacks and do not count toward generated
   coverage. Cognate-known/bulk-known rows without FSRS cards are scaffold
   vocabulary only until missed.
+- Production cleanup backfill on 2026-05-24 retired the remaining 8 active
+  non-content ULKs (`μέσα`, `επάνω`, `κάπου`, `κοντά`, `γύρω`, `μακριά`,
+  `πάντα`, `μόνον`) to `ignore`. Current `active_noncontent=0`. The raw
+  active-state count is still 1960 because it includes 1808 assumed-known
+  no-card scaffold rows; that raw count is not the generation/retrieval queue.
 
 ## Done in the 2026-05-23 follow-up
 
