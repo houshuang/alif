@@ -4,6 +4,16 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-25: Polyglot — stats page rebuilt as the "Ledger" reading-engine dashboard
+
+Branch `sh/polyglot-stats-ledger`. Frontend-only (`frontend/app/polyglot-stats.tsx`).
+
+Replaced the old dark, section-soup stats screen with the Ledger design (chosen from a design-explorer round). Organized by **evidence strength**: a 3-tier gradient — Recall-tested (FSRS card) / Confirmed by exposure (reader OR review, merged — reader and review count identically) / Unconfirmed guess — with reading framed as the review engine. Sections: reading-engine hero (confirmed-per-week / gaps-per-week / streak), the honest split (confirmed vs guess), evidence ladder, gap-loop funnel + Leitner boxes, FSRS stability, 8-week conversion chart (with the one-time seed/backfill caveat), frequency coverage, today, texts. Switched from the stale dark palette to Modern Editorial (`POLYGLOT_COLORS`/`POLYGLOT_FONTS`), matching the reader / review / lemma-detail screens.
+
+**Language-agnostic:** every number comes from the language-scoped `/api/stats`; the active language is read from `useLanguage()` and passed straight through (fixed the old `=== "la" ? "la" : "el"` hardcode), with name maps falling back to the API `language_code`. Works for Modern Greek, Latin, and any future polyglot language with no code change. Typecheck clean. Known simplification: frequency shows coverage ("% reached") not the mockup's per-band credited-vs-confirmed overlay (per-band confirmed counts aren't in the API yet — small backend follow-up).
+
+---
+
 ## 2026-05-25: Polyglot — page-advance is a comprehension review (reader/review parity) + efficiency
 
 Branch `sh/polyglot-page-review`. Extends scaffold confirmation to the reader.
