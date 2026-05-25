@@ -27,7 +27,7 @@ def test_apply_ok_verdict_stamps_verified(tmp_db, force_gate_enabled, monkeypatc
         monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", True)
 
         # Mock Claude → every token is OK
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
         monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
 
@@ -54,7 +54,7 @@ def test_apply_wrong_verdict_creates_or_links_lemma(tmp_db, force_gate_enabled, 
         word.lemma_id = wrong.lemma_id
         db.commit()
 
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             return [Verdict(pageword_id=c.pageword_id, verdict="wrong",
                             correct_lemma="χώρα", reason="noun, not verb")
                     for c in chunk]
@@ -127,7 +127,7 @@ def test_apply_unclear_verdict_marks_but_doesnt_change(tmp_db, force_gate_enable
         word = db.query(PageWord).filter(PageWord.page_id == page.id).first()
         original_lemma_id = word.lemma_id
 
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             return [Verdict(pageword_id=c.pageword_id, verdict="unclear",
                             reason="OCR garbage")
                     for c in chunk]
@@ -152,7 +152,7 @@ def test_skips_function_words(tmp_db, force_gate_enabled, monkeypatch):
         page, _ = reading_intake.get_page_view(db, story.id, 1)
 
         calls = []
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             calls.append(chunk)
             return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
         monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
@@ -172,7 +172,7 @@ def test_skips_se_article_crasis_function_words(tmp_db, force_gate_enabled, monk
         page, _ = reading_intake.get_page_view(db, story.id, 1)
 
         calls = []
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             calls.append(chunk)
             return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
         monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
@@ -204,7 +204,7 @@ def test_skipped_when_already_verified(tmp_db, force_gate_enabled, monkeypatch):
         page, _ = reading_intake.get_page_view(db, story.id, 1)
 
         calls = []
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             calls.append(chunk)
             return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
         monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
@@ -228,7 +228,7 @@ def test_llm_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypa
         assert page.mappings_verified_at is None
         monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", True)
 
-        monkeypatch.setattr(lemma_quality, "_call_claude", lambda chunk, language_name: None)
+        monkeypatch.setattr(lemma_quality, "_call_claude", lambda chunk, language_code: None)
         monkeypatch.setenv("POLYGLOT_QG_SKIP_IDENTITY", "0")
 
         corrected = lemma_quality.verify_page_mappings(db, page, force=True)
@@ -252,9 +252,35 @@ def test_empty_llm_decisions_count_as_failure(monkeypatch):
             proposed_gloss="book",
             sentence_context="το βιβλίο",
         )
-    ], "Modern Greek")
+    ], "el")
 
     assert verdicts is None
+
+
+def test_build_prompt_is_language_specific():
+    """Each language's prompt must carry its own lemmatizer failure-mode
+    warnings and citation convention, and must NOT leak another language's."""
+    chunk = [TokenCheck(
+        pageword_id=1, surface="Malum", proposed_lemma="Malum",
+        proposed_gloss=None, sentence_context="Malum est arbor.",
+    )]
+
+    la = lemma_quality._build_prompt(chunk, "la")
+    assert "Latin lemmatization quality gate" in la
+    assert "proper noun" in la.lower()       # sentence-initial → PROPN warning
+    assert "malum" in la                      # homograph example
+    assert "miliarium" in la                  # non-reduction example
+    assert "-ne" in la                        # fused enclitic warning
+    assert "no macrons" in la                 # Latin citation convention
+    assert "χώρα" not in la                    # no Greek leakage
+    assert "with accents/diacritics" not in la
+
+    el = lemma_quality._build_prompt(chunk, "el")
+    assert "Modern Greek lemmatization quality gate" in el
+    assert "χώρα" in el                        # Greek homograph example
+    assert "with accents/diacritics" in el
+    assert "miliarium" not in el              # no Latin leakage
+    assert "no macrons" not in el
 
 
 def test_partial_batch_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypatch):
@@ -271,7 +297,7 @@ def test_partial_batch_failure_leaves_page_unverified(tmp_db, force_gate_enabled
 
         call_count = {"n": 0}
 
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             call_count["n"] += 1
             if call_count["n"] == 1:
                 return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
@@ -317,7 +343,7 @@ def test_all_caps_surface_bypasses_identity_skip(tmp_db, force_gate_enabled, mon
 
         chunks_seen = []
 
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             chunks_seen.extend(chunk)
             return [Verdict(pageword_id=c.pageword_id, verdict="wrong",
                             correct_lemma="πολιτισμός", reason="add accent")
@@ -346,7 +372,7 @@ def test_heading_sentence_words_excluded_from_batch(tmp_db, force_gate_enabled, 
 
         chunks_seen = []
 
-        def fake_call(chunk, language_name):
+        def fake_call(chunk, language_code):
             chunks_seen.extend(chunk)
             return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
 

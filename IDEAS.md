@@ -26,11 +26,17 @@ cron `POLYGLOT_LANGUAGES=el la`.
 cron lane enabled.
 
 **Remaining follow-ups:**
-- **LatinCy quality-gate prompt**: add a Latin-specific warning to
-  `lemma_quality.py` about the sentence-initial→PROPN failure mode (every
-  sentence's first word is capitalized) and homograph flips (malum/malus),
-  mirroring the Greek homograph rule + Arabic feminine-ة CAMeL lesson. Also the
-  observed `miliario`↛`miliarium` non-reduction.
+- **[DONE 2026-05-25]** **LatinCy quality-gate prompt**: `lemma_quality.py`'s
+  gate prompt is now language-aware (`_LANG_PITFALLS` / `_LANG_CITATION_HINT`,
+  rendered by the extracted `_build_prompt`). The Latin block warns about the
+  sentence-initial→PROPN failure mode, homograph flips (malum/malus, bellum/
+  bellus, populus/populus), unreduced inflections (`miliario`↛`miliarium`), and
+  fused `-ne`/`-ve` enclitics; the Latin citation hint enforces the no-macron /
+  u-i / 1sg-nominative display policy (the generic "with diacritics" hint is
+  Greek-only now). Mirrors the Greek homograph rule + Arabic feminine-ة CAMeL
+  lesson: name the upstream lemmatizer's known systematic errors explicitly so
+  the gate hunts for them. Each language's block is isolated so Greek pitfalls
+  don't leak into Latin prompts (regression: `test_build_prompt_is_language_specific`).
 - **More reading texts**: only Eutropius Book I imported; add Books II–X, Nepos,
   or Einhard via `/api/texts/paste` (split into pages).
 - **DCC core** (optional): never needed — LLPSI chapter order is the frequency
