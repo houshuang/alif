@@ -179,6 +179,21 @@ export function generateClientReviewId(): string {
   return `prv-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
 
+/**
+ * Deterministic page-review idempotency key, one per (story, page).
+ *
+ * The reader's page-advance green sweep ("presume every untapped word known")
+ * must happen exactly ONCE per page, even if the learner navigates back and
+ * forward across it repeatedly. A fixed id per page makes a re-advance a
+ * server-side no-op (`apply_page_review` returns `duplicate=True` via
+ * `page_review_log.client_review_id`), so re-reading never double-counts a
+ * comprehension review. Mark *changes* on a revisited page are applied live by
+ * the per-tap `markWord` call, independent of this one-time sweep.
+ */
+export function pageReviewClientId(storyId: number, pageNumber: number): string {
+  return `pr:${storyId}:${pageNumber}`;
+}
+
 export function generateSessionId(): string {
   return `psess-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }

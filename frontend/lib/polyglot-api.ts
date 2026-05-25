@@ -85,6 +85,14 @@ export type PageView = {
   tokens: TokenView[];
 };
 
+export type PageTranslation = {
+  story_id: number;
+  page_number: number;
+  /** Full-page English. null = LLM failed, retry; "" = blank/punctuation page. */
+  translation_en: string | null;
+  generated: boolean;
+};
+
 export type MarkState = "known" | "unknown" | "encountered" | "ignore" | "clear";
 
 export type CognateInfo = {
@@ -136,6 +144,16 @@ export async function getStory(storyId: number): Promise<StorySummary> {
 
 export async function getPage(storyId: number, pageNumber: number): Promise<PageView> {
   return get(`/api/texts/${storyId}/pages/${pageNumber}`);
+}
+
+// Lazy full-page English translation for the reader's "Show English" reveal.
+// Generated + cached server-side on first request; the reader prefetches it in
+// the background on page load so the reveal is instant.
+export async function getPageTranslation(
+  storyId: number,
+  pageNumber: number,
+): Promise<PageTranslation> {
+  return get(`/api/texts/${storyId}/pages/${pageNumber}/translation`);
 }
 
 export async function markWord(

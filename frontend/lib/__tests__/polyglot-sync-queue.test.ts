@@ -41,6 +41,28 @@ describe("enqueuePageReview", () => {
     expect(queue[0].payload.encountered_lemma_ids).toEqual([13]);
     expect(queue[0].attempts).toBe(0);
   });
+
+  it("replaces an existing same-id entry with the latest marks", async () => {
+    // Deterministic per-page id: re-advancing the same page (back-then-forward,
+    // or editing marks offline before the first send) must REPLACE the queued
+    // entry so the freshest red/yellow taps are the ones that replay.
+    await enqueuePageReview(PAGE, "pr:7:3");
+    await enqueuePageReview(
+      { ...PAGE, unknown_lemma_ids: [11, 12, 99], encountered_lemma_ids: [] },
+      "pr:7:3",
+    );
+
+    expect(await pendingPolyglotCount()).toBe(1);
+    const queue = JSON.parse((AsyncStorage as any)._store[QUEUE_KEY]);
+    expect(queue[0].payload.unknown_lemma_ids).toEqual([11, 12, 99]);
+    expect(queue[0].payload.encountered_lemma_ids).toEqual([]);
+  });
+
+  it("keeps distinct-id entries side by side", async () => {
+    await enqueuePageReview(PAGE, "pr:7:3");
+    await enqueuePageReview({ ...PAGE, page_number: 4 }, "pr:7:4");
+    expect(await pendingPolyglotCount()).toBe(2);
+  });
 });
 
 describe("removeFromPolyglotQueue", () => {

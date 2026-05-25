@@ -70,7 +70,15 @@ export async function enqueuePageReview(
 ): Promise<void> {
   await withQueueLock(async () => {
     const queue = await getQueueUnsafe();
-    queue.push({
+    // `clientReviewId` is deterministic per (story, page) — see
+    // polyglot-review-helpers.pageReviewClientId. Re-advancing a page (the
+    // learner went back then forward, or edited marks offline before the first
+    // send) must REPLACE the queued entry so the latest red/yellow taps are the
+    // ones that replay, not the stale first attempt. An already-sent entry is no
+    // longer in the queue, so this is a plain push in the common case; the
+    // server is idempotent on the same id anyway (page_review_log).
+    const next = queue.filter((e) => e.client_review_id !== clientReviewId);
+    next.push({
       id: clientReviewId,
       type: "page_review",
       payload,
@@ -78,7 +86,7 @@ export async function enqueuePageReview(
       created_at: new Date().toISOString(),
       attempts: 0,
     });
-    await saveQueueUnsafe(queue);
+    await saveQueueUnsafe(next);
   });
 }
 

@@ -323,6 +323,8 @@ class Page(Base):
     page_number = Column(Integer, nullable=False)
     body_src = Column(Text, nullable=False)
     body_clean = Column(Text, nullable=True)               # Haiku-cleaned prose; tokenizer reads from here when set
+    translation_en = Column(Text, nullable=True)           # full-page English translation (lazy, cached)
+    translated_at = Column(DateTime, nullable=True)        # when translation_en was generated
     processed_at = Column(DateTime, nullable=True)         # tokenized + simplemma lemmatized
     mappings_verified_at = Column(DateTime, nullable=True) # quality gate (LLM-in-context) pass
     viewed_at = Column(DateTime, nullable=True)            # last time user opened the page

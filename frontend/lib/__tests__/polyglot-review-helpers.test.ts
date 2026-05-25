@@ -8,6 +8,7 @@ import {
   lemmaIdsFromMarks,
   markStateAt,
   middleButtonLabel,
+  pageReviewClientId,
 } from "../polyglot-review-helpers";
 import type { IntroCard, SentencePayload, WordRender } from "../polyglot-api";
 
@@ -126,6 +127,15 @@ describe("lemmaIdsFromMarks", () => {
     const { missed, confused } = lemmaIdsFromMarks(emptyMarks(), words);
     expect(missed).toEqual([]);
     expect(confused).toEqual([]);
+  });
+});
+
+describe("pageReviewClientId", () => {
+  it("is deterministic per (story, page) so re-advancing dedups server-side", () => {
+    expect(pageReviewClientId(7, 3)).toBe("pr:7:3");
+    expect(pageReviewClientId(7, 3)).toBe(pageReviewClientId(7, 3));
+    expect(pageReviewClientId(7, 4)).not.toBe(pageReviewClientId(7, 3));
+    expect(pageReviewClientId(8, 3)).not.toBe(pageReviewClientId(7, 3));
   });
 });
 

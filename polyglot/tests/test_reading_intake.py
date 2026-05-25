@@ -496,3 +496,70 @@ def test_warm_all_active_stories_iterates_oldest_first(tmp_db, monkeypatch):
         assert [s["story_id"] for s in summaries] == [s1.id, s2.id]
         assert summaries[0]["pages_warmed"] == [1, 2, 3]
         assert summaries[1]["pages_warmed"] == [1, 2, 3]
+
+
+# ─── Page translation (Show English reveal) ─────────────────────────────────
+
+
+def test_ensure_page_translation_generates_then_caches(tmp_db, monkeypatch):
+    calls = {"n": 0}
+
+    def fake_translate(language_code, text):
+        calls["n"] += 1
+        assert language_code == "el"
+        assert "βιβλίο" in text
+        return "  book house  "  # trimmed on write
+
+    monkeypatch.setattr(reading_intake, "_translate_page_text", fake_translate)
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        sid = story.id
+
+        text, generated = reading_intake.ensure_page_translation(db, sid, 1)
+        assert generated is True
+        assert text == "book house"
+        assert calls["n"] == 1
+        # Persisted on the Page row.
+        page = db.query(Page).filter(Page.story_id == sid, Page.page_number == 1).first()
+        assert page.translation_en == "book house"
+        assert page.translated_at is not None
+
+    # A fresh session serves from cache — no second LLM call.
+    with tmp_db() as db:
+        text2, generated2 = reading_intake.ensure_page_translation(db, sid, 1)
+        assert text2 == "book house"
+        assert generated2 is False
+        assert calls["n"] == 1
+
+
+def test_ensure_page_translation_llm_failure_leaves_null_for_retry(tmp_db, monkeypatch):
+    monkeypatch.setattr(reading_intake, "_translate_page_text", lambda lc, t: None)
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        text, generated = reading_intake.ensure_page_translation(db, story.id, 1)
+        assert text is None
+        assert generated is False
+        page = db.query(Page).filter(Page.story_id == story.id).first()
+        assert page.translation_en is None  # not cached → retried next reveal
+
+
+def test_ensure_page_translation_blank_page_caches_empty_without_llm(tmp_db, monkeypatch):
+    def boom(lc, t):  # must not be called for a no-alpha page
+        raise AssertionError("LLM should not run for a blank page")
+
+    monkeypatch.setattr(reading_intake, "_translate_page_text", boom)
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="123 — 456 ...")
+        text, generated = reading_intake.ensure_page_translation(db, story.id, 1)
+        assert text == ""
+        assert generated is False
+        page = db.query(Page).filter(Page.story_id == story.id).first()
+        assert page.translation_en == ""
+        assert page.translated_at is not None
+
+
+def test_ensure_page_translation_missing_page_returns_none(tmp_db):
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
+        assert reading_intake.ensure_page_translation(db, story.id, 99) is None
