@@ -181,6 +181,41 @@ def test_stats_today_activity_and_history(tmp_db):
         _cleanup()
 
 
+def test_stats_flow_history_weekly_buckets(tmp_db):
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            now = datetime.utcnow()
+            last_week = now - timedelta(days=7)
+
+            def _mk(form, **ulk_kwargs):
+                lemma = Lemma(language_code="el", lemma_form=form, lemma_bare=form,
+                              source="test")
+                db.add(lemma); db.flush()
+                db.add(UserLemmaKnowledge(lemma_id=lemma.lemma_id, **ulk_kwargs))
+
+            # this week: 1 confirmed, 1 gap discovered
+            _mk("a", knowledge_state="known", confirmed_at=now)
+            _mk("b", knowledge_state="acquiring", first_failed_at=now)
+            # last week: 1 graduated, 1 new lemma
+            _mk("c", knowledge_state="known", graduated_at=last_week)
+            _mk("d", knowledge_state="acquiring", introduced_at=last_week)
+            db.commit()
+
+        body = client.get("/api/stats?language_code=el").json()
+        flow = body["flow_history"]
+        assert len(flow) == 8
+        assert all({"week_start", "confirmed", "gaps_discovered",
+                    "graduated", "new_lemmas"} <= set(w) for w in flow)
+        this_wk, prev_wk = flow[-1], flow[-2]
+        assert this_wk["confirmed"] == 1
+        assert this_wk["gaps_discovered"] == 1
+        assert prev_wk["graduated"] == 1
+        assert prev_wk["new_lemmas"] == 1
+    finally:
+        _cleanup()
+
+
 def test_stats_frequency_block(tmp_db):
     client, factory = _client(tmp_db)
     try:

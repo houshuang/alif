@@ -131,6 +131,14 @@ KNOWN_SAMPLE_SIZE = 500
 # wants it — but most picks go to under-represented vocabulary.
 MIN_SAMPLE_WEIGHT = 0.05
 
+# Active-but-secondary verification: assumed-known scaffold words not yet
+# confirmed by exposure (known, no FSRS card, confirmed_at IS NULL) get their
+# sampling weight multiplied by this so the generator prefers surfacing them —
+# reading a sentence then confirms them (see CLAUDE.md Hard Invariant 6).
+# Mild on purpose: it biases the *remaining* scaffold slots toward unconfirmed
+# words without starving genuine retrieval targets or breaking comprehensibility.
+UNCONFIRMED_SCAFFOLD_BOOST = 2.5
+
 # Words covered by more than this many existing sentences land on the
 # "avoid" list passed to the LLM as an explicit instruction. The threshold
 # is computed dynamically per run (max of MEDIAN * 1.5 and ABS_FLOOR).
@@ -874,6 +882,9 @@ def _snapshot_known_pool(
             Lemma.lemma_bare,
             Lemma.pos,
             Lemma.frequency_rank,
+            UserLemmaKnowledge.knowledge_state,
+            UserLemmaKnowledge.fsrs_card_json,
+            UserLemmaKnowledge.confirmed_at,
         )
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
@@ -891,8 +902,11 @@ def _snapshot_known_pool(
             "lemma_bare": lb,
             "pos": pos,
             "frequency_rank": frequency_rank,
+            # Assumed-known scaffold not yet verified by exposure. Sampling
+            # up-weights these so reading confirms them (active-but-secondary).
+            "unconfirmed_scaffold": kstate == "known" and card is None and confirmed_at is None,
         }
-        for lid, lf, lb, pos, frequency_rank in rows.all()
+        for lid, lf, lb, pos, frequency_rank, kstate, card, confirmed_at in rows.all()
         if lf
     ]
 
@@ -956,6 +970,8 @@ def _sample_known_words_weighted(
     for w in rest_pool:
         cnt = counts.get(w["lemma_id"], 0)
         weight = max(MIN_SAMPLE_WEIGHT, 1.0 / (1 + cnt))
+        if w.get("unconfirmed_scaffold"):
+            weight *= UNCONFIRMED_SCAFFOLD_BOOST
         jittered = weight * random.uniform(0.5, 1.5)
         weighted.append((jittered, w))
     weighted.sort(key=lambda x: x[0], reverse=True)

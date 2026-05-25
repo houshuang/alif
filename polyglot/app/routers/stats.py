@@ -319,6 +319,9 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
             "new_lemmas": int(n),
         })
 
+    # ── 6b. Weekly flow history (the conversion loop over time) ──────────
+    flow_history = _flow_history(db, language_code)
+
     # ── 7. Frequency-rank coverage (when a frequency list is present) ────
     frequency_block = _frequency_progress(db, language_code)
 
@@ -382,10 +385,64 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "judged_progress": judged_progress,
         "today": today,
         "history_14d": history,
+        "flow_history": flow_history,
         "frequency": frequency_block,
         "stories": stories,
         "activity": activity,
     }
+
+
+def _flow_history(db: Session, language_code: str, weeks: int = 8) -> list[dict[str, Any]]:
+    """Weekly counts of the conversion loop over time.
+
+    Buckets ULK milestone timestamps by ISO week (Monday-anchored) for the last
+    `weeks` weeks: assumed→exposure-confirmed (`confirmed_at`), gaps discovered
+    (`first_failed_at`), graduations (`graduated_at`), and new lemmas
+    (`introduced_at`). One query, bucketed in Python. Snapshot stats say how
+    many words are unconfirmed; this says whether that number is shrinking.
+    """
+    today = datetime.utcnow().date()
+    this_monday = today - timedelta(days=today.weekday())
+    week_starts = [this_monday - timedelta(weeks=w) for w in range(weeks - 1, -1, -1)]
+    earliest = week_starts[0]
+    buckets: dict[Any, dict[str, int]] = {
+        ws: {"confirmed": 0, "gaps_discovered": 0, "graduated": 0, "new_lemmas": 0}
+        for ws in week_starts
+    }
+
+    rows = (
+        db.query(
+            UserLemmaKnowledge.confirmed_at,
+            UserLemmaKnowledge.first_failed_at,
+            UserLemmaKnowledge.graduated_at,
+            UserLemmaKnowledge.introduced_at,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    )
+
+    def _week_of(value) -> Any:
+        if value is None:
+            return None
+        d = value.date() if isinstance(value, datetime) else value
+        if d < earliest or d > today:
+            return None
+        ws = d - timedelta(days=d.weekday())
+        return ws if ws in buckets else None
+
+    for confirmed_at, first_failed_at, graduated_at, introduced_at in rows:
+        for value, key in (
+            (confirmed_at, "confirmed"),
+            (first_failed_at, "gaps_discovered"),
+            (graduated_at, "graduated"),
+            (introduced_at, "new_lemmas"),
+        ):
+            ws = _week_of(value)
+            if ws is not None:
+                buckets[ws][key] += 1
+
+    return [{"week_start": ws.isoformat(), **buckets[ws]} for ws in week_starts]
 
 
 def _recovery_progress(db: Session, language_code: str) -> dict[str, int]:
