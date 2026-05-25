@@ -58,6 +58,27 @@ def test_latincy_core_lemmas():
 
 
 @pytest.mark.slow
+def test_latin_sentence_validates_via_latincy():
+    """The deterministic generation validator works for Latin with no
+    surface-expansion crutch: inflected scaffold words (librum, legit) reduce to
+    their lemmas (liber, lego) through LatinCy, matching the known-bare set.
+    Proves task #5 needs only the function-word/scaffold lists, not a Latin
+    analogue of _el_surface_bares_for_lemma."""
+    from app.services.sentence_validator import validate_sentence
+    from app.services.lemma_quality import FUNCTION_WORD_SETS
+
+    res = validate_sentence(
+        "Puer librum legit.",
+        target_bare="liber",
+        known_bare_forms={"puer", "lego"},
+        function_word_bares=FUNCTION_WORD_SETS["la"],
+        language_code="la",
+    )
+    assert res.valid, res.issues
+    assert res.target_present
+
+
+@pytest.mark.slow
 def test_latincy_cum_pos_disambiguation():
     """LatinCy resolves the cum preposition vs subordinator by context — the
     kind of disambiguation simplemma cannot do."""
