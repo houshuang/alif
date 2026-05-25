@@ -1,0 +1,5 @@
+# Keep seed vocab source files local (DCC is CC BY-SA; LLPSI / Roma Aeterna are
+# copyrighted textbook material). Only the README + this file are tracked.
+*
+!.gitignore
+!README.md
