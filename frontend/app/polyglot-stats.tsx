@@ -1,10 +1,18 @@
 /**
- * Polyglot stats — per-language progress dashboard.
+ * Polyglot stats — "Ledger" reading-engine dashboard.
  *
- * Modelled on Alif's `stats.tsx` (Today / Vocabulary / Progress sections) but
- * pared down to what polyglot actually exposes: no roots, no textbook
- * benchmarks, no Quran, no audio. See `polyglot/CLAUDE.md` § "Ground design
- * and code in Alif".
+ * Organized by EVIDENCE STRENGTH for a warm-start learner: you've either
+ * proven a word by meeting it in real text (a page OR a sentence — reader and
+ * review count identically), or you're still guessing. Reading is framed as the
+ * review engine: every finished page confirms knowns and surfaces gaps.
+ *
+ * Language-agnostic: every number comes from the language-scoped /api/stats, so
+ * the same screen serves Modern Greek, Latin, and any future polyglot language
+ * (the active one is read from the language context). Modern Editorial palette,
+ * matching the reader / review / lemma-detail screens.
+ *
+ * See research/experiment-log.md (2026-05-25) and polyglot/CLAUDE.md Hard
+ * Invariant 6 for the trust-gradient model this renders.
  */
 import { useCallback, useState } from "react";
 import {
@@ -13,48 +21,35 @@ import {
 import { useFocusEffect } from "expo-router";
 import { getLanguageStats, type LanguageStats } from "../lib/polyglot-api";
 import { useLanguage } from "../lib/language-context";
+import { POLYGLOT_COLORS as P } from "../lib/polyglot-design-colors";
+import { POLYGLOT_FONTS } from "../lib/polyglot-design-tokens";
 
-const C = {
-  bg: "#0f0f1a",
-  surface: "#1a1a2e",
-  surfaceAlt: "#22223a",
-  border: "#2a2a40",
-  text: "#e0e0f0",
-  textDim: "#9090a8",
-  textFaint: "#606078",
-  accent: "#7aa2f7",
-  known: "#5fb27a",
-  learning: "#a6c879",
-  acquiring: "#d4a06b",
-  encountered: "#506a8e",
-  lapsed: "#c95f6f",
-  unknown: "#c95f6f",
-  warn: "#e0b060",
-  good: "#5fb27a",
-};
-
-const STABILITY_COLORS: Record<string, string> = {
-  "<1d": "#e74c3c",
-  "1-3d": "#f1c40f",
-  "3-7d": "#f39c12",
-  "7-21d": "#5fb27a",
-  "21-60d": "#27ae60",
-  "60d+": "#1abc9c",
-};
-
+// English display names + native-script headline. Fallbacks keep a brand-new
+// language working before it gets a hand-tuned entry.
 const LANGUAGE_NAMES: Record<string, string> = {
-  el: "Modern Greek",
-  grc: "Ancient Greek",
-  la: "Latin",
+  el: "Modern Greek", grc: "Ancient Greek", la: "Latin",
 };
+const NATIVE_NAME: Record<string, string> = {
+  el: "ελληνικά", grc: "ἑλληνικά", la: "Latina",
+};
+
+// Gradient tier colors (Modern Editorial green → sand).
+const TIER = {
+  recall: "#2e7d6b",     // recall-tested (FSRS card)
+  confirmed: "#4f9683",  // confirmed by exposure (reader OR review)
+  guess: "#e7c9a6",      // unconfirmed cognate guess
+};
+
+const num = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 
 export default function PolyglotStats() {
   const [stats, setStats] = useState<LanguageStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { language } = useLanguage();
-  // Polyglot surface (Greek + Latin); Arabic never routes here.
-  const languageCode = language === "la" ? "la" : "el";
+  // This screen only mounts for polyglot languages; pass the active one
+  // straight through so any future language works without a code change.
+  const languageCode = language === "ar" ? "el" : language;
 
   useFocusEffect(
     useCallback(() => {
@@ -70,890 +65,358 @@ export default function PolyglotStats() {
 
   if (loading && !stats) {
     return (
-      <View style={s.screen}>
-        <ActivityIndicator color={C.accent} style={{ marginTop: 80 }} />
+      <View style={[s.screen, s.center]}>
+        <ActivityIndicator color={P.accent} />
       </View>
     );
   }
-
   if (error || !stats) {
     return (
-      <View style={s.screen}>
-        <Text style={s.error}>Failed to load stats{error ? `: ${error}` : ""}</Text>
+      <View style={[s.screen, s.center]}>
+        <Text style={s.error}>Couldn’t load stats{error ? `\n${error}` : ""}</Text>
       </View>
     );
   }
 
-  const languageName = LANGUAGE_NAMES[stats.language_code] ?? stats.language_code;
-  const knownPct = stats.total_lemmas > 0
-    ? Math.round((stats.known_summary.total / stats.total_lemmas) * 100)
-    : 0;
+  const ks = stats.known_summary;
+  const recall = ks.fsrs_known;
+  const confirmed = ks.exposure_confirmed;
+  const guess = ks.assumed_unconfirmed;
+  const confirmedTotal = recall + confirmed;
+  const totalKnown = ks.total;
+
+  const rc = stats.recovery;
+  const lt = stats.leitner;
+  const td = stats.today;
+  const fh = stats.flow_history ?? [];
+  const lastWeek = fh.length ? fh[fh.length - 1] : null;
+
+  const code = stats.language_code;
+  const native = NATIVE_NAME[code] ?? LANGUAGE_NAMES[code] ?? code;
 
   return (
-    <View style={s.screen}>
-      <ScrollView contentContainerStyle={s.body}>
-        <Text style={s.h1}>{languageName}</Text>
-        <Text style={s.h2}>
-          {stats.known_summary.total.toLocaleString()} known total {"·"} {stats.judged_progress.to_learn.toLocaleString()} to learn {"·"} {stats.judged_progress.learnt.toLocaleString()} learnt {"·"} {knownPct}% known
+    <ScrollView style={s.screen} contentContainerStyle={s.content}>
+      <Text style={s.eyebrow}>
+        {(LANGUAGE_NAMES[code] ?? code).toUpperCase()} · WHAT YOU KNOW, BY HOW IT WAS PROVEN
+      </Text>
+      <Text style={s.h1}>{native}</Text>
+
+      {/* ── Reading engine ─────────────────────────────────────── */}
+      <View style={s.engine}>
+        <Text style={s.engineText}>
+          Reading <Text style={{ fontWeight: "700" }}>is</Text> your review. Every page
+          you finish confirms the words you knew and surfaces the ones you didn’t.
         </Text>
+        <View style={s.row}>
+          <Pill n={`+${lastWeek?.confirmed ?? 0}`} label="confirmed / wk" color={TIER.recall} />
+          <Pill n={`+${lastWeek?.gaps_discovered ?? 0}`} label="gaps / wk" color={P.warning} />
+          <Pill n={`${td.streak}`} label="🔥 streak" color={P.text} />
+        </View>
+      </View>
 
-        <SectionHeader label="Today" />
-        <TodayCard today={stats.today} />
-
-        <SectionHeader label="Known" />
-        <KnownSummaryCard known={stats.known_summary} total={stats.total_lemmas} />
-
-        <SectionHeader label="To learn / learnt" />
-        <JudgedProgressCard progress={stats.judged_progress} />
-
-        <SectionHeader label="Recovery" />
-        <RecoveryCard recovery={stats.recovery} />
-
-        <SectionHeader label="Vocabulary" />
-        <LifecycleCard byState={stats.by_state} total={stats.total_lemmas} unseen={stats.new} />
-
-        {stats.leitner.total_acquiring > 0 && (
-          <LeitnerCard leitner={stats.leitner} />
-        )}
-
-        {stats.fsrs.tracked > 0 && (
-          <FsrsStabilityCard fsrs={stats.fsrs} />
-        )}
-
-        {stats.frequency && stats.frequency.total_entries > 0 && (
-          <FrequencyCard freq={stats.frequency} />
-        )}
-
-        <SectionHeader label="Activity" />
-        <History14dCard history={stats.history_14d} />
-
-        {stats.stories.length > 0 && (
-          <>
-            <SectionHeader label="Texts" />
-            <StoriesCard stories={stats.stories} />
-          </>
-        )}
-
-        {stats.activity.length > 0 && (
-          <>
-            <SectionHeader label="Recent" />
-            <ActivityFeedCard activity={stats.activity} />
-          </>
-        )}
-
-        <Text style={s.footer}>
-          Counts update as you read — pages tokenize lazily on first view.
-        </Text>
-      </ScrollView>
-    </View>
-  );
-}
-
-// ── Section header ────────────────────────────────────────────────────────
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <View style={s.sectionHeader}>
-      <Text style={s.sectionHeaderText}>{label.toUpperCase()}</Text>
-      <View style={s.sectionHeaderLine} />
-    </View>
-  );
-}
-
-// ── Known inventory ──────────────────────────────────────────────────────
-
-function KnownSummaryCard({
-  known, total,
-}: {
-  known: LanguageStats["known_summary"]; total: number;
-}) {
-  const knownPct = total > 0 ? Math.min(Math.round((known.total / total) * 100), 100) : 0;
-  const chips = [
-    { label: "Pre-known", count: known.pre_known, color: C.known },
-    { label: "Cognates", count: known.cognate_known, color: C.accent },
-    { label: "FSRS", count: known.fsrs_known, color: C.learning },
-    { label: "Judged", count: known.judged_known, color: C.good },
-    { label: "Auto", count: known.unjudged_known, color: C.textDim },
-  ].filter((chip) => chip.count > 0);
-
-  return (
-    <View style={s.card}>
+      {/* ── Hero: the honest split ─────────────────────────────── */}
       <View style={s.heroRow}>
-        <Text style={s.heroNum}>{known.total.toLocaleString()}</Text>
-        <Text style={s.heroLabel}>known words</Text>
+        <Text style={s.heroBig}>{num(confirmedTotal)}</Text>
+        <Text style={s.heroLab}>
+          confirmed · <Text style={{ color: P.etymology, fontWeight: "600" }}>{num(guess)}</Text> still a guess
+        </Text>
       </View>
-      <View style={s.knownMeter}>
-        <View style={[s.knownMeterFill, { width: `${knownPct}%` }]} />
+      <View style={s.gbar}>
+        {recall > 0 && <View style={{ flex: recall, backgroundColor: TIER.recall }} />}
+        {confirmed > 0 && <View style={{ flex: confirmed, backgroundColor: TIER.confirmed }} />}
+        {guess > 0 && <View style={{ flex: guess, backgroundColor: TIER.guess }} />}
       </View>
-      <View style={s.chipRow}>
-        {chips.map((chip) => (
-          <View key={chip.label} style={s.chip}>
-            <Text style={s.chipLabel}>{chip.label}</Text>
-            <Text style={[s.chipValue, { color: chip.color }]}>
-              {chip.count.toLocaleString()}
-            </Text>
-          </View>
-        ))}
-        {known.lapsed_from_assumed_known > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Lapsed known</Text>
-            <Text style={[s.chipValue, { color: C.lapsed }]}>
-              {known.lapsed_from_assumed_known.toLocaleString()}
-            </Text>
-          </View>
-        )}
+      <View style={s.keyRow}>
+        <KeyDot color={TIER.recall} label={`Recall-tested ${num(recall)}`} />
+        <KeyDot color={TIER.confirmed} label={`Confirmed ${num(confirmed)}`} />
+        <KeyDot color={TIER.guess} label={`Guess ${num(guess)}`} />
+        <Text style={s.keyMeta}>· {num(totalKnown)} credited · {num(stats.new)} unseen</Text>
       </View>
-    </View>
-  );
-}
 
-// ── Judged study progress ────────────────────────────────────────────────
+      {/* ── Evidence ladder ────────────────────────────────────── */}
+      <SectionHeader label="The evidence ladder" right={`${num(totalKnown)} credited known`} />
+      <Tier color={TIER.recall} name="Recall-tested" how="recalled under spacing · FSRS card" n={recall} nColor={TIER.recall} />
+      <Tier color={TIER.confirmed} name="Confirmed by exposure" how="met in a page or a sentence, not flagged · reader = review" n={confirmed} nColor="#3f8f7c" />
+      <Tier color="#d9b48f" ghost name="Unconfirmed guess" how="cognate guess · you’ve never been shown it" n={guess} nColor={P.etymology} />
 
-function JudgedProgressCard({ progress }: { progress: LanguageStats["judged_progress"] }) {
-  const p = progress.pipeline;
-  const stages = [
-    { label: "Box 1", count: p.box_1, color: C.unknown },
-    { label: "Box 2", count: p.box_2, color: C.warn },
-    { label: "Box 3", count: p.box_3, color: C.acquiring },
-    { label: "FSRS", count: p.learning, color: C.learning },
-    { label: "Known", count: p.known, color: C.known },
-    { label: "Lapsed", count: p.lapsed, color: C.lapsed },
-  ].filter((stage) => stage.count > 0);
-  const total = Math.max(stages.reduce((sum, stage) => sum + stage.count, 0), 1);
-
-  return (
-    <View style={s.card}>
-      <View style={s.duoHero}>
-        <View style={s.duoCell}>
-          <Text style={[s.duoNum, { color: C.warn }]}>
-            {progress.to_learn.toLocaleString()}
-          </Text>
-          <Text style={s.duoLabel}>to learn</Text>
+      {/* ── Gaps reading surfaced ──────────────────────────────── */}
+      <SectionHeader label="Gaps reading surfaced" right="what you’re actually learning" />
+      <View style={s.card}>
+        <View style={s.funnel}>
+          <Funnel n={rc.ever_failed} label="found" color={P.warning} />
+          <Sep />
+          <Funnel n={stats.judged_progress.pipeline.acquiring} label="in practice" color={P.etymology} />
+          <Sep />
+          <Funnel n={stats.by_state.learning} label="learning" color={P.accent} />
+          <Sep />
+          <Funnel n={rc.graduated_after_failure} label="closed" color={TIER.recall} />
         </View>
-        <View style={s.duoCell}>
-          <Text style={[s.duoNum, { color: C.good }]}>
-            {progress.learnt.toLocaleString()}
-          </Text>
-          <Text style={s.duoLabel}>learnt</Text>
+        <View style={[s.row, { marginTop: 9 }]}>
+          <Box n={lt.box_1} label="Box 1 · 4h" />
+          <Box n={lt.box_2} label="Box 2 · 1d" />
+          <Box n={lt.box_3} label="Box 3 · 3d" />
+          <Box n={rc.failed_not_yet_recovered} label="open gaps" danger />
         </View>
       </View>
+      {stats.fsrs.tracked > 0 && (
+        <View style={s.card}>
+          <Text style={s.cardLabel}>FSRS stability · {num(stats.fsrs.tracked)} verified cards</Text>
+          <StabilityBar buckets={stats.fsrs.stability_buckets} />
+        </View>
+      )}
 
-      {stages.length > 0 ? (
+      {/* ── Conversion over time ───────────────────────────────── */}
+      {fh.some((w) => w.confirmed || w.gaps_discovered) && (
         <>
-          <View style={s.pipelineTrack}>
-            {stages.map((stage) => (
-              <View
-                key={stage.label}
-                style={{
-                  flex: Math.max(stage.count / total, 0.04),
-                  backgroundColor: stage.color,
-                  height: "100%",
-                }}
-              />
-            ))}
+          <SectionHeader label="Conversion over time" right="last 8 weeks" />
+          <View style={s.card}>
+            <WeeklyChart weeks={fh} />
+            <View style={[s.keyRow, { marginTop: 8 }]}>
+              <KeyDot color={TIER.confirmed} label="confirmed" />
+              <KeyDot color={P.warning} label="gaps found" />
+            </View>
+            <Text style={s.note}>
+              A tall earlier week is the one-time seed import + history backfill, not your weekly rate.
+            </Text>
           </View>
-          <View style={s.pipelineLegend}>
-            {stages.map((stage) => (
-              <View key={stage.label} style={s.pipelineLegendItem}>
-                <View style={[s.legendDot, { backgroundColor: stage.color }]} />
-                <Text style={s.pipelineLegendText}>{stage.label}</Text>
-                <Text style={s.pipelineLegendCount}>{stage.count}</Text>
+        </>
+      )}
+
+      {/* ── Frequency coverage ─────────────────────────────────── */}
+      {stats.frequency && stats.frequency.bands.length > 0 && (
+        <>
+          <SectionHeader label="Frequency coverage" right={stats.frequency.source} />
+          <View style={s.card}>
+            {stats.frequency.bands.map((b) => (
+              <View key={b.top_n} style={{ marginBottom: 9 }}>
+                <View style={s.fqTop}>
+                  <Text style={s.fqLabel}>Top {num(b.top_n)}</Text>
+                  <Text style={s.fqPct}>{b.coverage_pct}% reached</Text>
+                </View>
+                <View style={s.fqTrack}>
+                  <View style={{ width: `${Math.min(100, b.coverage_pct)}%`, backgroundColor: TIER.confirmed, height: "100%" }} />
+                </View>
+                <Text style={s.fqDetail}>
+                  {num(b.learned)} learned · {num(b.acquiring)} acquiring · {num(b.encountered)} seen
+                </Text>
               </View>
             ))}
           </View>
         </>
-      ) : (
-        <Text style={s.emptyText}>No red or green judgments yet.</Text>
       )}
 
-      <View style={s.chipRow}>
-        <View style={s.chip}>
-          <Text style={s.chipLabel}>Judged</Text>
-          <Text style={s.chipValue}>{progress.total.toLocaleString()}</Text>
-        </View>
-        {p.acquisition_due_now > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Box due</Text>
-            <Text style={[s.chipValue, { color: C.warn }]}>
-              {p.acquisition_due_now.toLocaleString()}
-            </Text>
-          </View>
-        )}
-        {p.fsrs_due_now > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>FSRS due</Text>
-            <Text style={[s.chipValue, { color: C.warn }]}>
-              {p.fsrs_due_now.toLocaleString()}
-            </Text>
-          </View>
-        )}
-        <View style={s.chip}>
-          <Text style={s.chipLabel}>Red</Text>
-          <Text style={[s.chipValue, { color: C.unknown }]}>
-            {progress.ever_red.toLocaleString()}
-          </Text>
-        </View>
-        <View style={s.chip}>
-          <Text style={s.chipLabel}>Green</Text>
-          <Text style={[s.chipValue, { color: C.good }]}>
-            {progress.ever_green.toLocaleString()}
-          </Text>
-        </View>
-        {progress.yellow_only > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Yellow only</Text>
-            <Text style={[s.chipValue, { color: C.warn }]}>
-              {progress.yellow_only.toLocaleString()}
-            </Text>
-          </View>
-        )}
-        {progress.lapsed_from_known > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Known lapsed</Text>
-            <Text style={[s.chipValue, { color: C.lapsed }]}>
-              {progress.lapsed_from_known.toLocaleString()}
-            </Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
-
-// ── Recovery ──────────────────────────────────────────────────────────────
-
-function RecoveryCard({ recovery }: { recovery: LanguageStats["recovery"] }) {
-  const recoveredPct = recovery.ever_failed > 0
-    ? Math.round((recovery.recovered_once / recovery.ever_failed) * 100)
-    : 0;
-  const stages = [
-    { label: "Failed", count: recovery.ever_failed, color: C.unknown },
-    { label: "Correct", count: recovery.recovered_once, color: C.learning },
-    { label: "Graduated", count: recovery.graduated_after_failure, color: C.good },
-    { label: "21d+", count: recovery.stable_after_failure_21d, color: STABILITY_COLORS["21-60d"] },
-  ];
-  const flowTotal = Math.max(recovery.ever_failed, 1);
-
-  return (
-    <View style={s.card}>
-      <View style={s.heroRow}>
-        <Text style={[s.heroNum, { color: C.good }]}>
-          {recovery.recovered_once.toLocaleString()}
-        </Text>
-        <Text style={s.heroLabel}>recovered words</Text>
+      {/* ── Today ──────────────────────────────────────────────── */}
+      <SectionHeader label="Today" />
+      <View style={s.row}>
+        <TodayCell n={td.reviews} label="reviews" />
+        <TodayCell n={td.sentence_reviews} label="sentences" />
+        <TodayCell n={td.pages_read} label="pages" />
+        <TodayCell n={td.new_lemmas} label="new" color={TIER.recall} />
+        <TodayCell n={td.marked_unknown} label="marked ?" color={P.warning} />
       </View>
 
-      <View style={s.recoveryBars}>
-        {stages.slice(1).map((stage, i) => {
-          const pct = Math.min(stage.count / flowTotal, 1);
-          return (
-            <View key={stage.label} style={s.recoveryTrack}>
-              <View
-                style={[
-                  s.recoveryFill,
-                  {
-                    width: `${Math.max(pct * 100, stage.count > 0 ? 3 : 0)}%`,
-                    backgroundColor: stage.color,
-                    opacity: i === 0 ? 0.85 : 0.65,
-                  },
-                ]}
-              />
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={s.flowLabels}>
-        {stages.map((stage) => (
-          <View key={stage.label} style={s.flowLabelCell}>
-            <Text style={[s.flowCount, { color: stage.color }]}>{stage.count}</Text>
-            <Text style={s.flowName}>{stage.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={s.chipRow}>
-        <View style={s.chip}>
-          <Text style={s.chipLabel}>Rate</Text>
-          <Text style={[s.chipValue, { color: C.good }]}>{recoveredPct}%</Text>
-        </View>
-        <View style={s.chip}>
-          <Text style={s.chipLabel}>Pre-known</Text>
-          <Text style={s.chipValue}>{recovery.pre_known}</Text>
-        </View>
-        {recovery.cognate_known > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Cognates</Text>
-            <Text style={s.chipValue}>{recovery.cognate_known}</Text>
-          </View>
-        )}
-        {recovery.failed_not_yet_recovered > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Open</Text>
-            <Text style={[s.chipValue, { color: C.warn }]}>
-              {recovery.failed_not_yet_recovered}
-            </Text>
-          </View>
-        )}
-        {recovery.stable_after_failure_60d > 0 && (
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>60d+</Text>
-            <Text style={[s.chipValue, { color: STABILITY_COLORS["60d+"] }]}>
-              {recovery.stable_after_failure_60d}
-            </Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
-
-// ── Today ────────────────────────────────────────────────────────────────
-
-function TodayCard({ today }: { today: LanguageStats["today"] }) {
-  const tiles: { value: number; label: string; color?: string }[] = [];
-  tiles.push({ value: today.reviews, label: "reviews" });
-  tiles.push({ value: today.sentence_reviews, label: "sentences" });
-  tiles.push({ value: today.pages_read, label: "pages read" });
-  tiles.push({ value: today.new_lemmas, label: "new lemmas", color: C.accent });
-  tiles.push({ value: today.graduated, label: "graduated", color: C.good });
-  if (today.marked_unknown > 0) {
-    tiles.push({ value: today.marked_unknown, label: "marked ?", color: C.warn });
-  }
-  tiles.push({ value: today.streak, label: "day streak" });
-
-  const allZero =
-    today.reviews === 0 && today.pages_read === 0 &&
-    today.new_lemmas === 0 && today.streak === 0;
-  if (allZero) {
-    return (
-      <View style={s.card}>
-        <Text style={s.emptyText}>
-          Nothing today yet — open a text or run a review to get started.
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={s.card}>
-      <View style={s.tileGrid}>
-        {tiles.map((t, i) => (
-          <View key={i} style={s.tile}>
-            <Text style={[s.tileValue, t.color ? { color: t.color } : null]}>
-              {t.value.toLocaleString()}
-            </Text>
-            <Text style={s.tileLabel}>{t.label}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// ── Vocabulary lifecycle ─────────────────────────────────────────────────
-
-function LifecycleCard({
-  byState, total, unseen,
-}: {
-  byState: LanguageStats["by_state"]; total: number; unseen: number;
-}) {
-  const stages = [
-    { label: "Seen", count: byState.encountered, color: C.encountered },
-    { label: "Acq", count: byState.acquiring_only, color: C.acquiring },
-    { label: "Learn", count: byState.learning, color: C.learning },
-    { label: "Known", count: byState.known, color: C.known },
-  ];
-  const flowTotal = Math.max(stages.reduce((sum, st) => sum + st.count, 0), 1);
-
-  const extras: { label: string; count: number; color: string }[] = [];
-  if (byState.lapsed > 0) extras.push({ label: "Lapsed", count: byState.lapsed, color: C.lapsed });
-  if (byState.unknown > 0) extras.push({ label: "Marked ?", count: byState.unknown, color: C.unknown });
-  if (byState.ignored > 0) extras.push({ label: "Ignored", count: byState.ignored, color: C.textFaint });
-  if (byState.suspended > 0) extras.push({ label: "Leech", count: byState.suspended, color: C.warn });
-
-  return (
-    <View style={s.card}>
-      <View style={s.heroRow}>
-        <Text style={s.heroNum}>{byState.known.toLocaleString()}</Text>
-        <Text style={s.heroLabel}>known words</Text>
-      </View>
-
-      <View style={s.flowStrip}>
-        {stages.map((stage, i) => (
-          <View
-            key={stage.label}
-            style={{
-              flex: Math.max(stage.count / flowTotal, 0.04),
-              backgroundColor: stage.color + "40",
-              height: 10,
-              borderTopLeftRadius: i === 0 ? 5 : 0,
-              borderBottomLeftRadius: i === 0 ? 5 : 0,
-              borderTopRightRadius: i === stages.length - 1 ? 5 : 0,
-              borderBottomRightRadius: i === stages.length - 1 ? 5 : 0,
-            }}
-          />
-        ))}
-      </View>
-      <View style={s.flowLabels}>
-        {stages.map((stage) => (
-          <View key={stage.label} style={s.flowLabelCell}>
-            <Text style={[s.flowCount, { color: stage.color }]}>{stage.count}</Text>
-            <Text style={s.flowName}>{stage.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      {(extras.length > 0 || unseen > 0) && (
-        <View style={s.chipRow}>
-          {extras.map((e) => (
-            <View key={e.label} style={s.chip}>
-              <Text style={s.chipLabel}>{e.label}</Text>
-              <Text style={[s.chipValue, { color: e.color }]}>{e.count}</Text>
-            </View>
-          ))}
-          {unseen > 0 && (
-            <View style={s.chip}>
-              <Text style={s.chipLabel}>Unseen</Text>
-              <Text style={[s.chipValue, { color: C.textFaint }]}>{unseen}</Text>
-            </View>
-          )}
-          <View style={s.chip}>
-            <Text style={s.chipLabel}>Total</Text>
-            <Text style={s.chipValue}>{total}</Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-// ── Leitner ──────────────────────────────────────────────────────────────
-
-function LeitnerCard({ leitner }: { leitner: LanguageStats["leitner"] }) {
-  const boxes = [
-    { label: "Box 1", count: leitner.box_1, interval: "4h" },
-    { label: "Box 2", count: leitner.box_2, interval: "1d" },
-    { label: "Box 3", count: leitner.box_3, interval: "3d" },
-  ];
-  return (
-    <View style={s.card}>
-      <View style={s.cardHeaderRow}>
-        <Text style={s.cardTitle}>Acquisition (Leitner)</Text>
-        {leitner.due_now > 0 && (
-          <View style={s.duePill}>
-            <Text style={s.duePillText}>{leitner.due_now} due now</Text>
-          </View>
-        )}
-      </View>
-      <View style={s.leitnerRow}>
-        {boxes.map((b) => (
-          <View key={b.label} style={s.leitnerBox}>
-            <Text style={s.leitnerNum}>{b.count}</Text>
-            <Text style={s.leitnerLabel}>{b.label}</Text>
-            <Text style={s.leitnerInterval}>every {b.interval}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// ── FSRS stability ───────────────────────────────────────────────────────
-
-function FsrsStabilityCard({ fsrs }: { fsrs: LanguageStats["fsrs"] }) {
-  const total = fsrs.stability_buckets.reduce((sum, b) => sum + b.count, 0);
-  if (total === 0) return null;
-  const fragile = fsrs.stability_buckets
-    .filter((b) => b.label === "<1d" || b.label === "1-3d")
-    .reduce((s, b) => s + b.count, 0);
-  const growing = fsrs.stability_buckets
-    .filter((b) => b.label === "3-7d" || b.label === "7-21d")
-    .reduce((s, b) => s + b.count, 0);
-  const solid = fsrs.stability_buckets
-    .filter((b) => b.label === "21-60d" || b.label === "60d+")
-    .reduce((s, b) => s + b.count, 0);
-
-  return (
-    <View style={s.card}>
-      <View style={s.cardHeaderRow}>
-        <Text style={s.cardTitle}>FSRS stability</Text>
-        <Text style={s.cardSub}>{fsrs.tracked} tracked</Text>
-      </View>
-
-      <View style={s.stackedBar}>
-        {fsrs.stability_buckets.map((b) => {
-          if (b.count === 0) return null;
-          const pct = (b.count / total) * 100;
-          return (
-            <View
-              key={b.label}
-              style={{
-                width: `${Math.max(pct, 2)}%`,
-                backgroundColor: STABILITY_COLORS[b.label] ?? C.border,
-                height: "100%",
-              }}
-            />
-          );
-        })}
-      </View>
-
-      <View style={s.summaryRow}>
-        {fragile > 0 && (
-          <Text style={[s.summaryItem, { color: STABILITY_COLORS["<1d"] }]}>{fragile} fragile</Text>
-        )}
-        {growing > 0 && (
-          <Text style={[s.summaryItem, { color: STABILITY_COLORS["3-7d"] }]}>{growing} growing</Text>
-        )}
-        {solid > 0 && (
-          <Text style={[s.summaryItem, { color: STABILITY_COLORS["60d+"] }]}>{solid} solid</Text>
-        )}
-      </View>
-
-      <View style={s.bucketGrid}>
-        {fsrs.stability_buckets.filter((b) => b.count > 0).map((b) => (
-          <View key={b.label} style={s.bucketRow}>
-            <View style={[s.bucketDot, { backgroundColor: STABILITY_COLORS[b.label] }]} />
-            <Text style={s.bucketLabel}>{b.label}</Text>
-            <Text style={s.bucketCount}>{b.count}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// ── Frequency core ───────────────────────────────────────────────────────
-
-function FrequencyCard({ freq }: { freq: NonNullable<LanguageStats["frequency"]> }) {
-  return (
-    <View style={s.card}>
-      <View style={s.cardHeaderRow}>
-        <Text style={s.cardTitle}>Frequency core</Text>
-        <Text style={s.cardSub}>{freq.source}</Text>
-      </View>
-
-      {freq.bands.map((band) => {
-        const learnedPct = Math.min(band.coverage_pct, 100);
-        const acquiringPct = Math.min((band.acquiring / band.top_n) * 100, 100);
-        const encounteredPct = Math.min((band.encountered / band.top_n) * 100, 100);
-        return (
-          <View key={band.top_n} style={s.freqBand}>
-            <View style={s.freqBandTop}>
-              <Text style={s.freqBandLabel}>Top {band.top_n.toLocaleString()}</Text>
-              <Text style={s.freqBandPct}>{learnedPct.toFixed(1)}%</Text>
-            </View>
-            <View style={s.freqTrack}>
-              <View style={[s.freqLearned, { width: `${learnedPct}%` }]} />
-              <View style={[s.freqAcquiring, {
-                width: `${acquiringPct}%`,
-                left: `${learnedPct}%`,
-              }]} />
-              <View style={[s.freqEncountered, {
-                width: `${encounteredPct}%`,
-                left: `${Math.min(learnedPct + acquiringPct, 100)}%`,
-              }]} />
-            </View>
-            <Text style={s.freqDetail}>
-              {band.learned} learned {"·"} {band.acquiring} acquiring {"·"} {band.encountered} seen
-              {band.unmapped > 0 ? ` · ${band.unmapped} unmapped` : ""}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// ── 14-day activity strip ────────────────────────────────────────────────
-
-function History14dCard({ history }: { history: LanguageStats["history_14d"] }) {
-  const maxReviews = Math.max(1, ...history.map((d) => d.reviews));
-  const maxPages = Math.max(1, ...history.map((d) => d.pages_read));
-  const hasAny = history.some((d) => d.reviews > 0 || d.pages_read > 0 || d.new_lemmas > 0);
-
-  if (!hasAny) {
-    return (
-      <View style={s.card}>
-        <Text style={s.emptyText}>No activity in the last 14 days.</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={s.card}>
-      <Text style={s.cardTitle}>Last 14 days</Text>
-      <View style={s.chartArea}>
-        {history.map((d) => {
-          const rh = d.reviews > 0 ? Math.max((d.reviews / maxReviews) * 70, 3) : 0;
-          const ph = d.pages_read > 0 ? Math.max((d.pages_read / maxPages) * 70, 3) : 0;
-          const dayNum = d.date.slice(8);
-          return (
-            <View key={d.date} style={s.barCol}>
-              <View style={s.barColInner}>
-                {d.new_lemmas > 0 && <View style={s.barNewMark} />}
-                {rh > 0 && <View style={[s.barReviews, { height: rh }]} />}
-                {ph > 0 && <View style={[s.barPages, { height: ph }]} />}
+      {/* ── Texts ──────────────────────────────────────────────── */}
+      {stats.stories.length > 0 && (
+        <>
+          <SectionHeader label="Texts" />
+          <View style={s.card}>
+            {stats.stories.map((st) => (
+              <View key={st.id} style={s.textRow}>
+                <Text style={s.textTitle} numberOfLines={1}>{st.title ?? "Untitled"}</Text>
+                <Text style={s.textMeta}>
+                  {num(st.viewed_pages)}/{num(st.page_count ?? 0)} read
+                </Text>
               </View>
-              <Text style={s.barDayLabel}>{dayNum}</Text>
-            </View>
-          );
-        })}
-      </View>
-      <View style={s.legendRow}>
-        <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: C.accent }]} />
-          <Text style={s.legendText}>reviews</Text>
-        </View>
-        <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: C.known }]} />
-          <Text style={s.legendText}>pages read</Text>
-        </View>
-        <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: C.warn }]} />
-          <Text style={s.legendText}>new lemma day</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ── Stories ──────────────────────────────────────────────────────────────
-
-function StoriesCard({ stories }: { stories: LanguageStats["stories"] }) {
-  return (
-    <View style={s.card}>
-      {stories.map((st) => {
-        const total = st.page_count ?? 0;
-        const processedPct = total > 0 ? (st.processed_pages / total) * 100 : 0;
-        const viewedPct = total > 0 ? (st.viewed_pages / total) * 100 : 0;
-        return (
-          <View key={st.id} style={s.storyRow}>
-            <View style={s.storyHead}>
-              <Text style={s.storyTitle} numberOfLines={1}>
-                {st.title || `Untitled #${st.id}`}
-              </Text>
-              <Text style={s.storyMeta}>
-                {st.viewed_pages}/{total || "?"} read
-              </Text>
-            </View>
-            <View style={s.storyTrack}>
-              <View style={[s.storyProcessed, { width: `${processedPct}%` }]} />
-              <View style={[s.storyViewed, { width: `${viewedPct}%` }]} />
-            </View>
-            {(st.known_count > 0 || st.unknown_count > 0) && (
-              <Text style={s.storyDetail}>
-                {st.known_count} known {"·"} {st.unknown_count} unknown
-                {st.total_words > 0 ? ` · ${st.total_words.toLocaleString()} words` : ""}
-              </Text>
-            )}
+            ))}
           </View>
-        );
-      })}
+        </>
+      )}
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+}
+
+// ─── Small presentational pieces ───────────────────────────────────────────
+
+function SectionHeader({ label, right }: { label: string; right?: string }) {
+  return (
+    <View style={s.sec}>
+      <Text style={s.secLabel}>{label.toUpperCase()}</Text>
+      {right ? <Text style={s.secRight}>{right}</Text> : null}
     </View>
   );
 }
 
-// ── Activity feed ────────────────────────────────────────────────────────
-
-function ActivityFeedCard({ activity }: { activity: LanguageStats["activity"] }) {
+function Pill({ n, label, color }: { n: string; label: string; color: string }) {
   return (
-    <View style={s.card}>
-      {activity.map((a, i) => (
-        <View key={i} style={s.activityRow}>
-          <Text style={s.activityType}>{a.event_type.replace(/_/g, " ")}</Text>
-          <Text style={s.activitySummary} numberOfLines={2}>{a.summary}</Text>
-          {a.created_at && (
-            <Text style={s.activityTime}>{relativeTime(a.created_at)}</Text>
-          )}
+    <View style={s.pill}>
+      <Text style={[s.pillN, { color }]}>{n}</Text>
+      <Text style={s.pillL}>{label}</Text>
+    </View>
+  );
+}
+
+function KeyDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={s.keyItem}>
+      <View style={[s.dot, { backgroundColor: color }]} />
+      <Text style={s.keyText}>{label}</Text>
+    </View>
+  );
+}
+
+function Tier(
+  { color, name, how, n, nColor, ghost }:
+  { color: string; name: string; how: string; n: number; nColor: string; ghost?: boolean },
+) {
+  return (
+    <View style={[s.tier, ghost && s.tierGhost]}>
+      <View style={[s.tierBar, { backgroundColor: color }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.tierName, ghost && { color: "#a06a2c" }]}>{name}</Text>
+        <Text style={s.tierHow}>{how}</Text>
+      </View>
+      <Text style={[s.tierN, { color: nColor }]}>{num(n)}</Text>
+    </View>
+  );
+}
+
+function Funnel({ n, label, color }: { n: number; label: string; color: string }) {
+  return (
+    <View style={s.funnelCell}>
+      <Text style={[s.funnelN, { color }]}>{num(n)}</Text>
+      <Text style={s.funnelL}>{label}</Text>
+    </View>
+  );
+}
+const Sep = () => <Text style={s.sep}>›</Text>;
+
+function Box({ n, label, danger }: { n: number; label: string; danger?: boolean }) {
+  return (
+    <View style={[s.box, danger && s.boxDanger]}>
+      <Text style={[s.boxN, { color: danger ? P.warning : P.etymology }]}>{num(n)}</Text>
+      <Text style={[s.boxL, danger && { color: "#9c4133" }]}>{label}</Text>
+    </View>
+  );
+}
+
+function TodayCell({ n, label, color }: { n: number; label: string; color?: string }) {
+  return (
+    <View style={s.tcell}>
+      <Text style={[s.tcellN, color ? { color } : null]}>{num(n)}</Text>
+      <Text style={s.tcellL}>{label}</Text>
+    </View>
+  );
+}
+
+const STABILITY_COLORS: Record<string, string> = {
+  "<1d": P.warning, "1-3d": P.etymology, "3-7d": P.etymology,
+  "7-21d": TIER.recall, "21-60d": "#27ae60", "60d+": "#1abc9c",
+};
+function StabilityBar({ buckets }: { buckets: { label: string; count: number }[] }) {
+  const total = buckets.reduce((a, b) => a + b.count, 0) || 1;
+  return (
+    <>
+      <View style={s.stab}>
+        {buckets.map((b) => b.count > 0 ? (
+          <View key={b.label} style={{ flex: b.count, backgroundColor: STABILITY_COLORS[b.label] ?? P.textTertiary }} />
+        ) : null)}
+      </View>
+      <Text style={s.note}>
+        {buckets.filter((b) => b.count > 0).map((b) => `${b.count} ${b.label}`).join(" · ") || "—"}
+      </Text>
+      <Text style={[s.note, { marginTop: 0 }]}>{total} cards · nothing past 21d means memory is still young</Text>
+    </>
+  );
+}
+
+function WeeklyChart({ weeks }: { weeks: LanguageStats["flow_history"] }) {
+  const max = Math.max(1, ...weeks.map((w) => Math.max(w.confirmed, w.gaps_discovered)));
+  return (
+    <View style={s.wk}>
+      {weeks.map((w, i) => (
+        <View key={w.week_start} style={s.wcol}>
+          <View style={s.wbars}>
+            <View style={{ width: 9, height: `${(w.confirmed / max) * 100}%`, backgroundColor: TIER.confirmed, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
+            <View style={{ width: 9, height: `${(w.gaps_discovered / max) * 100}%`, backgroundColor: P.warning, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
+          </View>
+          <Text style={s.wlab}>{i === weeks.length - 1 ? "now" : `−${weeks.length - 1 - i}w`}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return "";
-  const diff = Date.now() - then;
-  const min = Math.floor(diff / 60_000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return iso.slice(0, 10);
-}
-
-// ── Styles ───────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
-  body: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 80 },
+  screen: { flex: 1, backgroundColor: P.bg },
+  content: { padding: 16 },
+  center: { alignItems: "center", justifyContent: "center" },
+  error: { color: P.warning, textAlign: "center", paddingHorizontal: 24 },
+  eyebrow: { fontSize: 10.5, letterSpacing: 1.2, color: P.textTertiary, fontWeight: "600" },
+  h1: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 28, color: P.text, marginTop: 3, marginBottom: 2 },
 
-  h1: { fontSize: 28, fontWeight: "700", color: C.text },
-  h2: { fontSize: 13, color: C.textDim, marginTop: 4, marginBottom: 18 },
+  engine: { backgroundColor: "#eef4f1", borderWidth: 1, borderColor: "#cfe2da", borderRadius: 14, padding: 14, marginTop: 12, marginBottom: 6 },
+  engineText: { fontFamily: POLYGLOT_FONTS.greekBody, fontSize: 16, color: P.text, lineHeight: 22, marginBottom: 11 },
+  row: { flexDirection: "row", gap: 8 },
+  pill: { flex: 1, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 10, paddingVertical: 9, alignItems: "center" },
+  pillN: { fontSize: 19, fontWeight: "700", letterSpacing: -0.3 },
+  pillL: { fontSize: 9, color: P.textTertiary, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
 
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginTop: 18, marginBottom: 8 },
-  sectionHeaderText: {
-    fontSize: 11, color: C.textDim, letterSpacing: 1.2, fontWeight: "700",
-  },
-  sectionHeaderLine: { flex: 1, height: 1, backgroundColor: C.border, marginLeft: 8 },
+  heroRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 12, marginBottom: 6 },
+  heroBig: { fontSize: 34, fontWeight: "800", letterSpacing: -0.5, color: TIER.recall },
+  heroLab: { fontSize: 12.5, color: P.textSecondary, paddingBottom: 4 },
+  gbar: { height: 14, borderRadius: 7, overflow: "hidden", flexDirection: "row", marginBottom: 8 },
+  keyRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
+  keyItem: { flexDirection: "row", alignItems: "center" },
+  dot: { width: 8, height: 8, borderRadius: 2, marginRight: 4 },
+  keyText: { fontSize: 11, color: P.textSecondary },
+  keyMeta: { fontSize: 11, color: P.textTertiary },
 
-  card: {
-    backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 12,
-    borderWidth: 1, borderColor: C.border,
-  },
-  cardHeaderRow: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "baseline", marginBottom: 10,
-  },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: "600" },
-  cardSub: { color: C.textDim, fontSize: 12 },
-  emptyText: { color: C.textDim, fontSize: 13 },
+  sec: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 22, marginBottom: 9 },
+  secLabel: { fontSize: 11, letterSpacing: 1, color: P.textTertiary, fontWeight: "700" },
+  secRight: { fontSize: 11, color: P.textTertiary },
 
-  // Today tiles
-  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tile: {
-    backgroundColor: C.surfaceAlt, borderRadius: 8, paddingVertical: 10,
-    paddingHorizontal: 12, minWidth: 84, flex: 1, alignItems: "flex-start",
-  },
-  tileValue: { fontSize: 22, fontWeight: "700", color: C.text },
-  tileLabel: { fontSize: 11, color: C.textDim, marginTop: 2 },
+  card: { backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 13, padding: 13, marginBottom: 9 },
+  cardLabel: { fontSize: 11, color: P.textTertiary, marginBottom: 6 },
+  note: { fontSize: 10.5, color: P.textTertiary, fontStyle: "italic", marginTop: 6, lineHeight: 14 },
 
-  // Vocabulary hero + flow
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginBottom: 14 },
-  heroNum: { fontSize: 38, fontWeight: "700", color: C.text },
-  heroLabel: { fontSize: 14, color: C.textDim },
-  knownMeter: {
-    height: 8, borderRadius: 4, backgroundColor: C.surfaceAlt,
-    overflow: "hidden", marginBottom: 2,
-  },
-  knownMeterFill: { height: "100%", backgroundColor: C.known },
-  duoHero: {
-    flexDirection: "row", gap: 10, marginBottom: 12,
-  },
-  duoCell: {
-    flex: 1, backgroundColor: C.surfaceAlt, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-  },
-  duoNum: { fontSize: 32, fontWeight: "700" },
-  duoLabel: { color: C.textDim, fontSize: 12, marginTop: 2 },
-  pipelineTrack: {
-    height: 12, borderRadius: 6, backgroundColor: C.surfaceAlt,
-    overflow: "hidden", flexDirection: "row", marginTop: 2,
-  },
-  pipelineLegend: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 9 },
-  pipelineLegendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  pipelineLegendText: { color: C.textDim, fontSize: 11 },
-  pipelineLegendCount: { color: C.text, fontSize: 11, fontWeight: "700" },
-  recoveryBars: { gap: 4, marginBottom: 8 },
-  recoveryTrack: {
-    height: 5, borderRadius: 3, backgroundColor: C.surfaceAlt, overflow: "hidden",
-  },
-  recoveryFill: { height: "100%", borderRadius: 3 },
-  flowStrip: { flexDirection: "row", borderRadius: 5, overflow: "hidden", marginBottom: 6 },
-  flowLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-  flowLabelCell: { alignItems: "center", flex: 1 },
-  flowCount: { fontSize: 16, fontWeight: "700" },
-  flowName: { fontSize: 11, color: C.textDim, marginTop: 2 },
+  tier: { flexDirection: "row", alignItems: "center", gap: 11, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 12, padding: 11, paddingLeft: 14, marginBottom: 7, overflow: "hidden" },
+  tierGhost: { backgroundColor: "#fdfaf5", borderColor: "#e6d3bb" },
+  tierBar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4 },
+  tierName: { fontSize: 13, fontWeight: "600", color: P.text },
+  tierHow: { fontSize: 11, color: P.textTertiary, marginTop: 1 },
+  tierN: { fontSize: 21, fontWeight: "700", letterSpacing: -0.3 },
 
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  chip: {
-    backgroundColor: C.surfaceAlt, borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 6,
-  },
-  chipLabel: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.6 },
-  chipValue: { fontSize: 14, fontWeight: "600", color: C.text },
+  funnel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  funnelCell: { flex: 1, alignItems: "center" },
+  funnelN: { fontSize: 19, fontWeight: "700", letterSpacing: -0.3 },
+  funnelL: { fontSize: 9, color: P.textTertiary, textTransform: "uppercase", marginTop: 3 },
+  sep: { color: "#d2d8da", fontSize: 14 },
 
-  // Leitner
-  leitnerRow: { flexDirection: "row", gap: 8 },
-  leitnerBox: {
-    flex: 1, backgroundColor: C.surfaceAlt, borderRadius: 8,
-    padding: 12, alignItems: "center",
-  },
-  leitnerNum: { fontSize: 26, fontWeight: "700", color: C.acquiring },
-  leitnerLabel: { fontSize: 12, color: C.text, marginTop: 2 },
-  leitnerInterval: { fontSize: 10, color: C.textFaint, marginTop: 2 },
-  duePill: {
-    backgroundColor: C.warn + "33", borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 3,
-  },
-  duePillText: { color: C.warn, fontSize: 12, fontWeight: "600" },
+  box: { flex: 1, backgroundColor: "#fbf3ea", borderWidth: 1, borderColor: "#efd9bf", borderRadius: 9, paddingVertical: 8, alignItems: "center" },
+  boxDanger: { backgroundColor: "#fdebe7", borderColor: "#f3c9bf" },
+  boxN: { fontSize: 16, fontWeight: "700" },
+  boxL: { fontSize: 8.5, color: "#a06a2c", marginTop: 1 },
 
-  // FSRS stability
-  stackedBar: {
-    height: 14, borderRadius: 7, backgroundColor: C.surfaceAlt,
-    overflow: "hidden", flexDirection: "row",
-  },
-  summaryRow: { flexDirection: "row", gap: 12, marginTop: 8 },
-  summaryItem: { fontSize: 12, fontWeight: "600" },
-  bucketGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8 },
-  bucketRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  bucketDot: { width: 8, height: 8, borderRadius: 4 },
-  bucketLabel: { fontSize: 11, color: C.textDim },
-  bucketCount: { fontSize: 12, color: C.text, fontWeight: "600" },
+  stab: { height: 9, borderRadius: 5, overflow: "hidden", flexDirection: "row", marginVertical: 6 },
 
-  // Frequency
-  freqBand: { marginBottom: 12 },
-  freqBandTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-  freqBandLabel: { color: C.text, fontSize: 13, fontWeight: "600" },
-  freqBandPct: { color: C.accent, fontSize: 13, fontWeight: "700" },
-  freqTrack: {
-    height: 6, borderRadius: 3, backgroundColor: C.surfaceAlt,
-    overflow: "hidden", position: "relative", marginTop: 4, marginBottom: 4,
-  },
-  freqLearned: { position: "absolute", left: 0, top: 0, height: "100%", backgroundColor: C.known },
-  freqAcquiring: { position: "absolute", top: 0, height: "100%", backgroundColor: C.acquiring + "AA" },
-  freqEncountered: { position: "absolute", top: 0, height: "100%", backgroundColor: C.encountered + "AA" },
-  freqDetail: { color: C.textDim, fontSize: 11 },
+  wk: { flexDirection: "row", alignItems: "flex-end", gap: 10, height: 96, paddingTop: 6 },
+  wcol: { flex: 1, alignItems: "center", justifyContent: "flex-end", height: "100%" },
+  wbars: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: "100%", justifyContent: "center" },
+  wlab: { fontSize: 9, color: P.textTertiary, marginTop: 5 },
 
-  // Activity chart
-  chartArea: {
-    flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between",
-    height: 90, marginTop: 4,
-  },
-  barCol: { flex: 1, alignItems: "center" },
-  barColInner: {
-    flexDirection: "row", alignItems: "flex-end", justifyContent: "center",
-    height: 75, gap: 1, position: "relative",
-  },
-  barReviews: { width: 6, backgroundColor: C.accent, borderRadius: 1 },
-  barPages: { width: 6, backgroundColor: C.known, borderRadius: 1 },
-  barNewMark: {
-    position: "absolute", top: -3, alignSelf: "center",
-    width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.warn,
-  },
-  barDayLabel: { color: C.textFaint, fontSize: 9, marginTop: 4 },
+  fqTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
+  fqLabel: { fontSize: 11.5, color: P.text },
+  fqPct: { fontSize: 11.5, color: P.textTertiary },
+  fqTrack: { height: 7, backgroundColor: "#f0ece4", borderRadius: 5, overflow: "hidden" },
+  fqDetail: { fontSize: 10.5, color: P.textSecondary, marginTop: 4 },
 
-  legendRow: { flexDirection: "row", gap: 14, marginTop: 8, flexWrap: "wrap" },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { color: C.textDim, fontSize: 11 },
+  tcell: { flex: 1, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 10, paddingVertical: 9, alignItems: "center" },
+  tcellN: { fontSize: 17, fontWeight: "700", color: P.text },
+  tcellL: { fontSize: 8.5, color: P.textTertiary, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
 
-  // Stories
-  storyRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  storyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-  storyTitle: { color: C.text, fontSize: 14, flex: 1, marginRight: 8 },
-  storyMeta: { color: C.textDim, fontSize: 11 },
-  storyTrack: {
-    height: 4, borderRadius: 2, backgroundColor: C.surfaceAlt,
-    overflow: "hidden", marginTop: 6, position: "relative",
-  },
-  storyProcessed: { position: "absolute", left: 0, top: 0, height: "100%", backgroundColor: C.encountered },
-  storyViewed: { position: "absolute", left: 0, top: 0, height: "100%", backgroundColor: C.known },
-  storyDetail: { color: C.textFaint, fontSize: 11, marginTop: 4 },
-
-  // Activity feed
-  activityRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  activityType: {
-    color: C.accent, fontSize: 11, fontWeight: "700",
-    textTransform: "uppercase", letterSpacing: 0.5,
-  },
-  activitySummary: { color: C.text, fontSize: 13, marginTop: 2 },
-  activityTime: { color: C.textFaint, fontSize: 10, marginTop: 2 },
-
-  error: { color: C.unknown, padding: 20 },
-  footer: { color: C.textFaint, fontSize: 11, marginTop: 14, textAlign: "center" },
+  textRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#f1eee7" },
+  textTitle: { flex: 1, fontSize: 12.5, color: P.text },
+  textMeta: { fontSize: 11, color: P.textTertiary },
 });
