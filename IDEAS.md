@@ -4,6 +4,39 @@
 
 ---
 
+## ✅ [DONE 2026-05-25] Polyglot: redesign the reader to mirror sentence-review
+
+The reader (`frontend/app/polyglot.tsx`) is polyglot's *primary* UX but lacked
+three affordances the sentence-review card has. Fixed so the reader works the
+same for Greek, Latin, and any future polyglot language:
+- **Show English** — full-page English translation revealed below the foreign
+  text (page-scale "Show Translation"). Lazy + cached on new `Page.translation_en`
+  / `Page.translated_at` via `reading_intake.ensure_page_translation`
+  (`llm_cli.call_text`, sonnet/gpt-5.5, write-lock-safe). Endpoint
+  `GET /api/texts/{sid}/pages/{n}/translation`; frontend prefetches on page load
+  so the reveal is instant; toggle (not one-way) since the reader is re-readable.
+- **Instant Next** — advancing enqueues the green sweep and flushes in the
+  background (never awaited) while a page cache + next-page prefetch make the
+  advance instant. Fixes "submission took forever" (old path awaited both the
+  flush and the next page's server-side tokenization).
+- **Back navigation** — `Prev` re-reads earlier pages; per-page red/yellow marks
+  are restored from AsyncStorage; editing a mark there updates the server live
+  via `markWord`. The green sweep is one-time per page via a deterministic
+  `client_review_id = pr:{storyId}:{pageNumber}` so back-then-forward never
+  double-counts. Last page → "Finish".
+
+See `polyglot/CLAUDE.md` Hard Invariant 6 § "Reader UX redesign (2026-05-25)".
+
+**Follow-ups (not done):**
+- **[OPEN]** Pre-warm page translations in the cron (`warm_pages_ahead` already
+  warms pages ahead — generate `translation_en` for those pages too) so the
+  first "Show English" is instant even without the client prefetch. Bounded cost
+  (only buffer pages). Deferred to keep this change client-prefetch-only.
+- **[OPEN]** Sentence-aligned translation (English interleaved under each
+  sentence) instead of a whole-page block — better for close reading, but needs
+  reliable per-sentence alignment (PageWord `sentence_index` exists; harvested
+  `Sentence.translation_en` is cron-filled and excludes page-boundary fragments).
+
 ## 🟢 [LIVE 2026-05-25] Polyglot: Latin as a second language (PR #140, deployed)
 
 Latin alongside Modern Greek. Learner finished LLPSI Part 1 (Familia Romana);

@@ -371,6 +371,92 @@ def get_page_view(db: Session, story_id: int, page_number: int) -> tuple[Page, l
     return _build_token_view(db, page)
 
 
+# Page translation. The reader's "Show English" reveal needs a coherent
+# English rendering of the whole page (the page-scale analogue of a
+# sentence-review card's translation). Generated lazily on first request and
+# cached on Page.translation_en for the DB lifetime — sonnet/gpt-5.5 quality so
+# the passage reads as prose, not a word-by-word gloss. Env-overridable.
+PAGE_TRANSLATE_MODEL = _os.environ.get("POLYGLOT_PAGE_TRANSLATE_MODEL", "sonnet")
+PAGE_TRANSLATE_TIMEOUT_S = int(_os.environ.get("POLYGLOT_PAGE_TRANSLATE_TIMEOUT_S", "90"))
+
+_LANG_DISPLAY = {"el": "Modern Greek", "grc": "Ancient Greek", "la": "Latin"}
+
+
+def _translate_page_text(language_code: str, text: str) -> str | None:
+    """One free-text LLM call → an English translation of the page, or None on
+    total LLM failure (caller leaves the page untranslated to retry later).
+
+    Isolated so tests can monkeypatch it without spawning a CLI subprocess."""
+    from app.services.llm_cli import call_text
+
+    lang = _LANG_DISPLAY.get(language_code, language_code)
+    prompt = (
+        f"You are translating a page of {lang} text into English for someone "
+        f"who is learning {lang} by reading it.\n\n"
+        "Produce a faithful, natural, readable English translation of the "
+        "passage below.\n"
+        "- Translate the whole passage; skip nothing.\n"
+        "- Preserve paragraph breaks.\n"
+        "- Do not transliterate, do not add notes, headings, or commentary — "
+        "output only the English translation.\n\n"
+        f"Passage:\n{text}"
+    )
+    return call_text(
+        prompt=prompt,
+        model=PAGE_TRANSLATE_MODEL,
+        timeout_s=PAGE_TRANSLATE_TIMEOUT_S,
+        log_context="page_translation",
+    )
+
+
+def ensure_page_translation(
+    db: Session, story_id: int, page_number: int,
+) -> tuple[str | None, bool] | None:
+    """Return ``(translation_en, generated)`` for a page, generating + caching
+    it on first request. ``generated`` is True only when this call produced it.
+
+    Returns ``None`` when the page doesn't exist (caller → 404).
+
+    Lock discipline: the page text is read first, the (slow) LLM call runs with
+    NO dirty session state, and only then is the result written in a short
+    transaction — the SQLite write lock is never held across the LLM call
+    (CLAUDE.md rule #10). Idempotent: a cached translation short-circuits.
+    """
+    page = (
+        db.query(Page)
+        .filter(Page.story_id == story_id, Page.page_number == page_number)
+        .first()
+    )
+    if page is None:
+        return None
+    if page.translation_en is not None and page.translation_en.strip():
+        return page.translation_en, False
+
+    page_id = page.id
+    raw_source = page.body_clean if (page.body_clean and page.body_clean.strip()) else page.body_src
+    source_text = body_clean_svc.normalize_pdf_artifacts(raw_source or "", collapse_whitespace=True)
+    if not any(c.isalpha() for c in source_text):
+        # Nothing to translate (blank / pure-punctuation page). Cache an empty
+        # string so we don't re-attempt on every reveal.
+        page.translation_en = ""
+        page.translated_at = datetime.now(timezone.utc)
+        db.commit()
+        return "", False
+
+    # Slow work — no DB writes pending while this runs.
+    english = _translate_page_text(page.story.language_code, source_text)
+    if not english or not english.strip():
+        return None, False  # leave NULL → retried on next reveal
+
+    fresh = db.get(Page, page_id)
+    if fresh is None:
+        return None
+    fresh.translation_en = english.strip()
+    fresh.translated_at = datetime.now(timezone.utc)
+    db.commit()
+    return fresh.translation_en, True
+
+
 def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:
     words = (
         db.query(PageWord)

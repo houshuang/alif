@@ -92,6 +92,16 @@ class PageView(BaseModel):
     tokens: list[TokenView]
 
 
+class PageTranslation(BaseModel):
+    story_id: int
+    page_number: int
+    # Full-page English translation. Null only when the LLM call failed and the
+    # client should retry; empty string for a blank/punctuation-only page.
+    translation_en: str | None
+    # True when this request generated it (vs. served from cache).
+    generated: bool = False
+
+
 # ─── Marking ───────────────────────────────────────────────────────────────
 
 class MarkWordRequest(BaseModel):
