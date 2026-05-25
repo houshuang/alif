@@ -18,7 +18,12 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { routeLanguage, homePathFor, type AppLanguage } from "../language-routes";
+import {
+  routeLanguage,
+  homePathFor,
+  routeMatchesLanguage,
+  type AppLanguage,
+} from "../language-routes";
 
 const APP_DIR = path.resolve(__dirname, "../../app");
 
@@ -172,5 +177,22 @@ describe("routeLanguage classifier", () => {
   test("homePathFor returns the right entry route per language", () => {
     expect(homePathFor("ar")).toBe("/");
     expect(homePathFor("el")).toBe("/polyglot-review");
+    // Latin shares the Polyglot surface — same entry route as Greek.
+    expect(homePathFor("la")).toBe("/polyglot-review");
+  });
+
+  test("routeMatchesLanguage: a polyglot route matches both el and la actives", () => {
+    const polyRoute = routeLanguage("/polyglot-review"); // "el" surface marker
+    expect(routeMatchesLanguage(polyRoute, "el")).toBe(true);
+    expect(routeMatchesLanguage(polyRoute, "la")).toBe(true);
+    expect(routeMatchesLanguage(polyRoute, "ar")).toBe(false);
+
+    const arRoute = routeLanguage("/"); // "ar"
+    expect(routeMatchesLanguage(arRoute, "ar")).toBe(true);
+    expect(routeMatchesLanguage(arRoute, "el")).toBe(false);
+    expect(routeMatchesLanguage(arRoute, "la")).toBe(false);
+
+    // Globe tab matches anything.
+    expect(routeMatchesLanguage("shared", "la")).toBe(true);
   });
 });

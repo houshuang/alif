@@ -14,8 +14,13 @@ router = APIRouter(prefix="/api/texts", tags=["texts"])
 
 
 @router.get("", response_model=list[StorySummary])
-def list_stories(db: Session = Depends(get_db)):
-    stories = db.query(Story).order_by(Story.created_at.desc()).all()
+def list_stories(language_code: str | None = None, db: Session = Depends(get_db)):
+    # Scope the library to one language so the reader doesn't mix Greek and
+    # Latin texts. Omitting the param returns all (back-compat).
+    q = db.query(Story)
+    if language_code:
+        q = q.filter(Story.language_code == language_code)
+    stories = q.order_by(Story.created_at.desc()).all()
     out = []
     for s in stories:
         processed = (

@@ -15,7 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AppLanguage } from "./language-routes";
 
 export type { AppLanguage } from "./language-routes";
-export { routeLanguage, homePathFor } from "./language-routes";
+export { routeLanguage, homePathFor, routeMatchesLanguage } from "./language-routes";
 
 const STORAGE_KEY = "@app:active-language";
 
@@ -39,7 +39,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored === "ar" || stored === "el") {
+        if (stored === "ar" || stored === "el" || stored === "la") {
           setLanguageState(stored);
         }
       } catch {
