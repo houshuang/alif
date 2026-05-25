@@ -51,16 +51,16 @@ Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (n
 
 ---
 
-## 🔵 [OPEN 2026-05-25] Polyglot: offline queue for the reader (page-advance cache + auto-send)
+## ✅ [DONE 2026-05-25] Polyglot: offline queue for the reader (page-advance cache + auto-send)
 
-The reader's page-advance (`apply_page_review`, branch `sh/polyglot-page-review`) now does one efficient request, but it's a **direct fetch** — offline it fails and the page outcome is lost. The user wants it cached offline and auto-sent on reconnect, like Alif. Alif's `frontend/lib/sync-queue.ts` is hardwired to Alif's `BASE_URL` + Alif endpoints, so it can't carry polyglot actions.
+The reader's page-advance (`apply_page_review`) was a **direct fetch** — offline it failed and the page outcome was lost. Now cached offline and auto-sent on reconnect, like Alif. (Alif's `frontend/lib/sync-queue.ts` is hardwired to Alif's `BASE_URL` + endpoints, so it couldn't carry polyglot actions.)
 
-Plan:
-- New `frontend/lib/polyglot-sync-queue.ts` (mirror of sync-queue.ts) posting to `POLYGLOT_BASE_URL`; entry type `page_review` (and optionally per-tap `mark`). Flush on reconnect via `net-status.ts`.
-- Make the page-advance a **self-contained, idempotent** action: payload `{unknown_lemma_ids, encountered_lemma_ids, client_review_id}` so a queued entry fully describes the page outcome (taps included) and replays safely. Backend `apply_page_review` then also applies reds/yellows + idempotency on `client_review_id`. Per-tap `markWord` stays best-effort for live gloss; the page submit is authoritative.
-- Mirrors Alif's offline-queue contract (`client_review_id`, retry, drop after N attempts).
+Built (branch `sh/polyglot-offline-reader`, works for Greek and Latin):
+- New `frontend/lib/polyglot-sync-queue.ts` (mirror of sync-queue.ts) posting to `POLYGLOT_BASE_URL`; single entry type `page_review`. Flushes on mount + on reconnect (`syncEvents.on("online")` from `net-status.ts`). Retry with attempts, drop after 8 — but a pure network error does NOT burn an attempt (offline a while ≠ data loss); only real HTTP 4xx/5xx responses count.
+- Page-advance is now **self-contained + idempotent**: request `{unknown_lemma_ids, encountered_lemma_ids, client_review_id, session_id}`. `apply_page_review` applies the reds/yellows itself (online they already ran via per-tap `markWord` → the word is already `acquiring`, so the failure isn't re-recorded; offline it enrols/sets them on replay). New `page_review_log` table keyed on `client_review_id` makes the whole page idempotent (one advance = many per-word ReviewLog rows, which can't dedup the page alone). Legacy `tapped_lemma_ids` (red+yellow union) still accepted for exclusion-only.
+- Per-tap `markWord` stays a best-effort online call for live gloss only (not queued; the page submit is authoritative).
 
-Until then: reader writes are online-only (no regression — they were online-only before too).
+Not built (separate, larger piece): **offline page *rendering***. `getPage` needs server-side tokenization, so advancing into an unprocessed page is still online-only; offline, the outcome is queued and the reader stays on the current page until reconnect. If we want true offline reading, prefetch + cache `PageView` for the next N pages in AsyncStorage.
 
 ---
 

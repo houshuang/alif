@@ -31,7 +31,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, Story, Page, PageWord, UserLemmaKnowledge
+from app.models import Lemma, Story, Page, PageWord, PageReviewLog, UserLemmaKnowledge
 from app.services import body_clean as body_clean_svc
 from app.services import lemma_gloss
 from app.services import pdf_extract
@@ -530,13 +530,33 @@ def apply_page_review(
     story_id: int,
     page_number: int,
     tapped_lemma_ids: list[int] | None = None,
-) -> dict[str, int]:
+    *,
+    unknown_lemma_ids: list[int] | None = None,
+    encountered_lemma_ids: list[int] | None = None,
+    client_review_id: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, int | bool]:
     """Advancing a page is a green comprehension review over every content word
     on it the user did NOT tap this session — the page-scale analogue of a
     sentence submit (Hard Invariant FOUNDATIONAL: every word in a reviewed unit
     is evaluated; reader and review count identically — Hard Invariant 6).
 
-    One pass, dispatched by each untapped word's current state to the SAME
+    **Self-contained + idempotent (Hard Invariant 11).** The submission fully
+    describes the page outcome so it can be queued offline and replayed safely:
+
+      - ``unknown_lemma_ids`` (red taps) and ``encountered_lemma_ids`` (yellow
+        taps) are *applied here*, not relied upon to have arrived via per-tap
+        ``mark_lemma`` calls. Online those calls already ran, so the red word is
+        already ``acquiring`` and we skip re-recording the failure; offline they
+        never reached the server, so we apply them now. (`start_acquisition` is
+        idempotent and always lands a word in ``acquiring`` — that post-tap
+        state is exactly the signal that tells "already applied live" apart from
+        "needs applying".)
+      - ``client_review_id`` makes the *whole page* idempotent: a re-flush of
+        the same id observes the stored counts via ``PageReviewLog`` and applies
+        nothing. Mirrors ``ReviewLog.client_review_id``.
+
+    The untapped green sweep dispatches each word's current state to the SAME
     primitives a sentence submit uses (no duplicated FSRS / acquisition math):
         no ULK / encountered          -> presume known (reading-as-mapping) + confirm
         known + no card               -> record_scaffold_confirmation
@@ -549,17 +569,41 @@ def apply_page_review(
     acquired once, briefly. The only slow step (LLM citation repair of ungated
     lemmas) runs up front, before the write transaction.
 
-    ``tapped_lemma_ids`` are the words the user actively marked (red/yellow)
-    this session; they already carry their own signal and are excluded.
+    ``tapped_lemma_ids`` is the legacy pre-offline field (the union of red +
+    yellow). It is honoured for exclusion only — kept so an already-queued old
+    client still works — but new clients send the split red/yellow lists above.
     """
     from app.services.canonical_resolution import resolve_canonical_lemma_id
     from app.services.fsrs_service import record_scaffold_confirmation, submit_review
-    from app.services.acquisition_service import submit_acquisition_review
+    from app.services.acquisition_service import start_acquisition, submit_acquisition_review
     from app.services.cognate_detector import propagate_known_via_cognate
-    from app.services.knowledge_lifecycle import ORIGIN_PRE_KNOWN
+    from app.services.knowledge_lifecycle import (
+        ORIGIN_MARKED_RECOGNIZED, ORIGIN_MARKED_UNKNOWN, ORIGIN_PRE_KNOWN,
+        record_failure, set_origin_if_missing,
+    )
     from app.services.lemma_quality import FUNCTION_WORD_SETS
 
-    exclude: set[int] = set(tapped_lemma_ids or [])
+    def _zero(duplicate: bool = False) -> dict[str, int | bool]:
+        return {"newly_known": 0, "confirmed": 0, "reviewed": 0,
+                "marked_unknown": 0, "marked_encountered": 0, "duplicate": duplicate}
+
+    # Whole-page idempotency: a replayed offline submission must not double-apply.
+    if client_review_id:
+        prior = (
+            db.query(PageReviewLog)
+            .filter(PageReviewLog.client_review_id == client_review_id)
+            .first()
+        )
+        if prior is not None:
+            return {
+                "newly_known": prior.newly_known, "confirmed": prior.confirmed,
+                "reviewed": prior.reviewed, "marked_unknown": prior.marked_unknown,
+                "marked_encountered": prior.marked_encountered, "duplicate": True,
+            }
+
+    unknown_ids = list(unknown_lemma_ids or [])
+    encountered_ids = list(encountered_lemma_ids or [])
+    legacy_tapped = list(tapped_lemma_ids or [])
     now = datetime.now(timezone.utc)
 
     page = (
@@ -568,7 +612,7 @@ def apply_page_review(
         .first()
     )
     if not page:
-        return {"newly_known": 0, "confirmed": 0, "reviewed": 0}
+        return _zero()
     if page.processed_at is None:
         process_page(db, page)
 
@@ -581,7 +625,7 @@ def apply_page_review(
         if w.lemma_id is not None
     }
     if not page_lemma_ids:
-        return {"newly_known": 0, "confirmed": 0, "reviewed": 0}
+        return _zero()
 
     def _content() -> list[Lemma]:
         rows = db.query(Lemma).filter(Lemma.lemma_id.in_(page_lemma_ids)).all()
@@ -613,22 +657,77 @@ def apply_page_review(
                 log.warning("Page-review citation repair failed (page %d): %s", page.id, e)
             content = _content()
 
-    # Resolve canonicals + batch-load every relevant ULK in ONE query, so the
-    # per-word loop does no extra round-trips.
+    # Resolve canonicals for content + restrict tap lists to content lemmas
+    # (a function/proper-name tap is a no-op, mirroring mark_lemma's guard).
     canonical_of = {l.lemma_id: resolve_canonical_lemma_id(db, l.lemma_id) for l in content}
-    canon_ids = set(canonical_of.values())
+    content_canon: set[int] = set(canonical_of.values())
+
+    def _content_canon(raw_id: int) -> int | None:
+        c = resolve_canonical_lemma_id(db, raw_id)
+        return c if c in content_canon else None
+
+    red_canon = {c for c in (_content_canon(i) for i in unknown_ids) if c is not None}
+    yellow_canon = {c for c in (_content_canon(i) for i in encountered_ids) if c is not None}
+    yellow_canon -= red_canon  # a lemma can't be both; red wins
+
+    exclude_canon = red_canon | yellow_canon | {
+        resolve_canonical_lemma_id(db, i) for i in legacy_tapped
+    }
+    exclude_raw = set(unknown_ids) | set(encountered_ids) | set(legacy_tapped)
+
+    # Batch-load every relevant ULK in ONE query (content + taps). The state
+    # captured here is post-live-tap when online, pre-tap when offline.
+    all_canon = content_canon | red_canon | yellow_canon
     ulks: dict[int, UserLemmaKnowledge] = {
         u.lemma_id: u for u in
-        db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(canon_ids)).all()
-    } if canon_ids else {}
+        db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(all_canon)).all()
+    } if all_canon else {}
 
     newly_known = confirmed = reviewed = 0
-    seen: set[int] = set()
+    marked_unknown = marked_encountered = 0
     propagate_ids: list[int] = []
 
+    # Apply red taps (commit-free): enrol into acquisition + record the failure,
+    # but only if the live per-tap call didn't already do it. A word that the
+    # live tap enrolled is already ``acquiring`` here; re-recording would inflate
+    # failure_count. Offline (no live tap) the pre-state is None/known/learning/
+    # encountered/lapsed → genuine first failure.
+    for canonical in red_canon:
+        prev = ulks.get(canonical)
+        if prev is not None and prev.knowledge_state in ("acquiring", "suspended"):
+            continue
+        ulk = start_acquisition(
+            db, lemma_id=canonical, source="reading_intake",
+            due_immediately=True, restart_known=True,
+        )
+        record_failure(ulk, now, origin=ORIGIN_MARKED_UNKNOWN)
+        ulks[canonical] = ulk
+        marked_unknown += 1
+
+    # Apply yellow taps (commit-free): light "recognize" state, no SRS card.
+    # Idempotent online (already encountered → skip); don't override a user
+    # suspend/ignore decision.
+    for canonical in yellow_canon:
+        prev = ulks.get(canonical)
+        if prev is not None and prev.knowledge_state in ("encountered", "suspended", "ignore"):
+            continue
+        if prev is None:
+            ulk = UserLemmaKnowledge(
+                lemma_id=canonical, knowledge_state="encountered", introduced_at=now,
+                source="reading_intake", knowledge_origin=ORIGIN_MARKED_RECOGNIZED,
+            )
+            db.add(ulk)
+            ulks[canonical] = ulk
+        else:
+            prev.knowledge_state = "encountered"
+            set_origin_if_missing(prev, ORIGIN_MARKED_RECOGNIZED)
+        marked_encountered += 1
+
+    # Green sweep over untapped content.
+    seen: set[int] = set(red_canon) | set(yellow_canon)
     for l in content:
         canonical = canonical_of[l.lemma_id]
-        if l.lemma_id in exclude or canonical in exclude:
+        if l.lemma_id in exclude_raw or canonical in exclude_canon:
             continue
         if canonical in seen:
             continue
@@ -675,10 +774,26 @@ def apply_page_review(
     for cid in propagate_ids:
         propagate_known_via_cognate(db, cid, commit=False)
 
+    if client_review_id:
+        db.add(PageReviewLog(
+            story_id=story_id, page_number=page_number,
+            client_review_id=client_review_id, session_id=session_id,
+            newly_known=newly_known, confirmed=confirmed, reviewed=reviewed,
+            marked_unknown=marked_unknown, marked_encountered=marked_encountered,
+        ))
+
     db.commit()  # single write-lock acquisition for the whole page
-    log.info("Page review story %d page %d: newly_known=%d confirmed=%d reviewed=%d (1 commit)",
-             story_id, page_number, newly_known, confirmed, reviewed)
-    return {"newly_known": newly_known, "confirmed": confirmed, "reviewed": reviewed}
+    log.info(
+        "Page review story %d page %d: newly_known=%d confirmed=%d reviewed=%d "
+        "marked_unknown=%d marked_encountered=%d (1 commit)",
+        story_id, page_number, newly_known, confirmed, reviewed,
+        marked_unknown, marked_encountered,
+    )
+    return {
+        "newly_known": newly_known, "confirmed": confirmed, "reviewed": reviewed,
+        "marked_unknown": marked_unknown, "marked_encountered": marked_encountered,
+        "duplicate": False,
+    }
 
 
 def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = True) -> UserLemmaKnowledge | None:
