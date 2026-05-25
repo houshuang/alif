@@ -127,8 +127,15 @@ def mark_word(story_id: int, req: MarkWordRequest, db: Session = Depends(get_db)
 
 
 class MarkRemainingRequest(BaseModel):
-    # Lemma ids the user actively tapped (red/yellow) this session — excluded
-    # from the green page-review since they already carry their own signal.
+    # Self-contained, idempotent page-advance (offline-queue safe). The red and
+    # yellow taps are *applied here*, not assumed to have arrived via per-tap
+    # /mark calls — so one queued entry fully describes the page outcome and
+    # replays safely on reconnect. See reading_intake.apply_page_review.
+    unknown_lemma_ids: list[int] = []      # red taps — enrol into acquisition
+    encountered_lemma_ids: list[int] = []  # yellow taps — light "recognize"
+    client_review_id: str | None = None    # whole-page idempotency key
+    session_id: str | None = None
+    # Legacy pre-offline field (union of red + yellow); exclusion-only.
     tapped_lemma_ids: list[int] = []
 
 
@@ -141,10 +148,19 @@ def mark_remaining_known(
 ):
     """Advancing a page = a green comprehension review over every content word
     the user didn't tap (the page-scale analogue of a sentence submit): untapped
-    new words are presumed known, and untapped words already mid-learning get a
-    positive review. Returns per-bucket counts."""
-    tapped = payload.tapped_lemma_ids if payload else []
-    result = reading_intake.apply_page_review(db, story_id, page_number, tapped_lemma_ids=tapped)
+    new words are presumed known, untapped words already mid-learning get a
+    positive review, and the red/yellow taps are applied. Self-contained and
+    idempotent on ``client_review_id`` so the offline queue can replay it.
+    Returns per-bucket counts plus ``duplicate``."""
+    p = payload or MarkRemainingRequest()
+    result = reading_intake.apply_page_review(
+        db, story_id, page_number,
+        tapped_lemma_ids=p.tapped_lemma_ids,
+        unknown_lemma_ids=p.unknown_lemma_ids,
+        encountered_lemma_ids=p.encountered_lemma_ids,
+        client_review_id=p.client_review_id,
+        session_id=p.session_id,
+    )
     return {"page_number": page_number, **result}
 
 

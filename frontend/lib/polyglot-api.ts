@@ -146,22 +146,9 @@ export async function markWord(
   return patch(`/api/texts/${storyId}/mark`, { lemma_id: lemmaId, state });
 }
 
-export async function markRemainingKnown(
-  storyId: number,
-  pageNumber: number,
-  tappedLemmaIds: number[] = [],
-): Promise<{ page_number: number; newly_known: number; confirmed?: number; reviewed?: number }> {
-  const res = await fetch(
-    `${POLYGLOT_BASE_URL}/api/texts/${storyId}/pages/${pageNumber}/mark_remaining`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tapped_lemma_ids: tappedLemmaIds }),
-    },
-  );
-  if (!res.ok) throw new Error(`mark_remaining: ${res.status}`);
-  return res.json();
-}
+// Advancing a page is a self-contained, idempotent action queued via
+// `polyglot-sync-queue.ts` (offline-safe, auto-sent on reconnect) rather than a
+// direct call here. Request shape: see the backend's MarkRemainingRequest.
 
 export async function getLemmaCognates(lemmaId: number): Promise<LemmaCognates> {
   return get(`/api/lemmas/${lemmaId}/cognates`);

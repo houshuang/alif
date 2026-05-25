@@ -23,11 +23,15 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  listStories, getPage, markWord, markRemainingKnown,
+  listStories, getPage, markWord,
   getLemmaDetail,
   type StorySummary, type PageView, type TokenView,
   type LemmaDetail,
 } from "../lib/polyglot-api";
+import { enqueuePageReview, flushPolyglotQueue } from "../lib/polyglot-sync-queue";
+import { generateClientReviewId } from "../lib/polyglot-review-helpers";
+import { netStatus } from "../lib/net-status";
+import { syncEvents } from "../lib/sync-events";
 import { renderTokens } from "../lib/polyglot-render-helpers";
 import PolyglotLookupCard from "../lib/polyglot-lookup-card";
 import { POLYGLOT_COLORS } from "../lib/polyglot-design-colors";
@@ -330,17 +334,51 @@ export default function Polyglot() {
     setBulkMarking(true);
     try {
       // Advancing the page is a green comprehension review over every content
-      // word you didn't tap. Words tapped red (0) or yellow (1) carry their own
-      // signal and are excluded; everything else is presumed understood.
-      const tappedLemmaIds = Object.entries(cyclePositions)
-        .filter(([, pos]) => pos === 0 || pos === 1)
+      // word you didn't tap. Reds (0) and yellows (1) carry their own signal and
+      // are excluded from the green sweep — but we send them inline so the page
+      // submit is self-contained: it applies the taps itself (the per-tap
+      // markWord calls are best-effort and may never have reached the server
+      // offline) and is idempotent on client_review_id. The whole page outcome
+      // is queued first, so it survives even if we're offline right now and
+      // auto-sends on reconnect.
+      const unknownLemmaIds = Object.entries(cyclePositions)
+        .filter(([, pos]) => pos === 0)
         .map(([id]) => Number(id));
-      await markRemainingKnown(storyId, pageNumber, tappedLemmaIds);
-      await loadPage(storyId, pageNumber + 1);
+      const encounteredLemmaIds = Object.entries(cyclePositions)
+        .filter(([, pos]) => pos === 1)
+        .map(([id]) => Number(id));
+      await enqueuePageReview(
+        {
+          story_id: storyId,
+          page_number: pageNumber,
+          unknown_lemma_ids: unknownLemmaIds,
+          encountered_lemma_ids: encounteredLemmaIds,
+        },
+        generateClientReviewId(),
+      );
+      if (netStatus.isOnline) {
+        await flushPolyglotQueue();
+        // Loading the next page needs server-side tokenization, so it only
+        // happens online. Offline, the outcome is safely queued and we stay on
+        // the current page (preserving the visible red/yellow marks) until the
+        // queue auto-sends on reconnect.
+        await loadPage(storyId, pageNumber + 1);
+      }
     } finally {
       setBulkMarking(false);
     }
   }, [pageData, storyId, pageNumber, loadPage, cyclePositions]);
+
+  // Auto-send any queued page reviews: once on mount (covers a previous offline
+  // session) and again whenever the network comes back. Mirrors Alif's
+  // flush-on-reconnect wiring (net-status emits "online" via syncEvents).
+  useEffect(() => {
+    flushPolyglotQueue().catch(() => {});
+    const off = syncEvents.on("online", () => {
+      flushPolyglotQueue().catch(() => {});
+    });
+    return off;
+  }, []);
 
   // ─── Story list ──────────────────────────────────────────────────────
   if (storyId == null) {

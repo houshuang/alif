@@ -1,8 +1,12 @@
 """Bulk-mark-remaining tests — the key UX accelerator for intermediate
 learners. Patchy knowledge + 'next page presumes known' = fast bootstrap.
 """
+from datetime import datetime, timezone
+
 from app.services import reading_intake
-from app.models import Lemma, UserLemmaKnowledge, PageWord
+from app.models import (
+    Language, Lemma, Page, PageReviewLog, PageWord, Story, UserLemmaKnowledge,
+)
 
 
 def test_bulk_mark_skips_function_words(tmp_db):
@@ -126,3 +130,173 @@ def test_apply_page_review_greens_untapped_excludes_tapped(tmp_db):
             assert u.confirmed_at is not None
 
         assert res["newly_known"] >= 1 and res["confirmed"] >= 1
+
+
+# ─── Offline-queue contract (self-contained + idempotent page advance) ───────
+
+def test_apply_page_review_applies_offline_reds_and_yellows(tmp_db):
+    """Offline, the per-tap markWord calls never reached the server, so the page
+    submit must apply the red/yellow taps itself: reds enrol into acquisition
+    (with a recorded failure), yellows become 'encountered', and the rest are
+    presumed known."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body="βιβλίο σπίτι ταξίδι θάλασσα",
+        )
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        ids = [t["lemma_id"] for t in tokens if t["lemma_id"]]
+        assert len(ids) >= 4
+
+        red, yellow = ids[0], ids[1]
+        # No prior mark_lemma calls — simulating a fully offline page.
+        res = reading_intake.apply_page_review(
+            db, story.id, 1,
+            unknown_lemma_ids=[red],
+            encountered_lemma_ids=[yellow],
+            client_review_id="offline-1",
+        )
+
+        u_red = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one()
+        assert u_red.knowledge_state == "acquiring"
+        assert u_red.failure_count == 1
+        assert u_red.acquisition_box == 1
+
+        u_yellow = db.query(UserLemmaKnowledge).filter_by(lemma_id=yellow).one()
+        assert u_yellow.knowledge_state == "encountered"
+
+        for lid in ids[2:]:
+            u = db.query(UserLemmaKnowledge).filter_by(lemma_id=lid).one()
+            assert u.knowledge_state == "known"
+            assert u.confirmed_at is not None
+
+        assert res["marked_unknown"] == 1
+        assert res["marked_encountered"] == 1
+        assert res["newly_known"] >= 2
+        assert res["duplicate"] is False
+
+
+def test_apply_page_review_idempotent_on_client_review_id(tmp_db):
+    """A re-flush of the same queued entry must not apply a second time."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body="βιβλίο σπίτι ταξίδι θάλασσα",
+        )
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        ids = [t["lemma_id"] for t in tokens if t["lemma_id"]]
+        red = ids[0]
+
+        first = reading_intake.apply_page_review(
+            db, story.id, 1, unknown_lemma_ids=[red], client_review_id="dup-1",
+        )
+        assert first["duplicate"] is False
+        assert first["marked_unknown"] == 1
+
+        fail_before = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one().failure_count
+        log_rows = db.query(PageReviewLog).filter_by(client_review_id="dup-1").count()
+        assert log_rows == 1
+
+        # Replay — same client_review_id.
+        second = reading_intake.apply_page_review(
+            db, story.id, 1, unknown_lemma_ids=[red], client_review_id="dup-1",
+        )
+        assert second["duplicate"] is True
+        # Stored counts are echoed back.
+        assert second["marked_unknown"] == first["marked_unknown"]
+        assert second["newly_known"] == first["newly_known"]
+
+        # No double-apply: failure stays at 1, still exactly one log row.
+        fail_after = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one().failure_count
+        assert fail_after == fail_before == 1
+        assert db.query(PageReviewLog).filter_by(client_review_id="dup-1").count() == 1
+
+
+def test_apply_page_review_online_red_not_double_counted(tmp_db):
+    """Online the live markWord already enrolled the red word (it's now
+    'acquiring' with one failure). The authoritative page submit re-sends the
+    same red inline, but must NOT record a second failure."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body="βιβλίο σπίτι ταξίδι",
+        )
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        ids = [t["lemma_id"] for t in tokens if t["lemma_id"]]
+        red = ids[0]
+
+        # Live per-tap markWord (online).
+        reading_intake.mark_lemma(db, lemma_id=red, state="unknown", fetch_gloss=False)
+        u = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one()
+        assert u.knowledge_state == "acquiring"
+        assert u.failure_count == 1
+
+        # Page submit carries the same red inline.
+        res = reading_intake.apply_page_review(
+            db, story.id, 1, unknown_lemma_ids=[red], client_review_id="online-1",
+        )
+        # Already-acquiring → skipped, no second failure recorded.
+        assert res["marked_unknown"] == 0
+        u2 = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one()
+        assert u2.failure_count == 1
+
+
+def test_apply_page_review_offline_lapses_assumed_known(tmp_db):
+    """Offline red on an assumed-known scaffold word (no live tap reached the
+    server) must lapse it into acquisition."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        ids = [t["lemma_id"] for t in tokens if t["lemma_id"]]
+        target = ids[0]
+        db.add(UserLemmaKnowledge(
+            lemma_id=target, knowledge_state="known", fsrs_card_json=None,
+            source="bulk", knowledge_origin="pre_known",
+        ))
+        db.commit()
+
+        reading_intake.apply_page_review(
+            db, story.id, 1, unknown_lemma_ids=[target], client_review_id="lapse-1",
+        )
+        u = db.query(UserLemmaKnowledge).filter_by(lemma_id=target).one()
+        assert u.knowledge_state == "acquiring"
+        assert u.failure_count == 1
+
+
+def test_apply_page_review_latin(tmp_db):
+    """The page-advance is language-agnostic — same path serves Latin. Built
+    from manual rows so the test doesn't need the LatinCy model installed."""
+    with tmp_db() as db:
+        db.add(Language(code="la", name="Latin", script="latin",
+                        direction="ltr", accent_display="macrons_off"))
+        story = Story(language_code="la", source="paste", status="active",
+                      title="Eutropius", page_count=1)
+        db.add(story)
+        db.flush()
+        page = Page(story_id=story.id, page_number=1, body_src="consul bellum gerit",
+                    processed_at=datetime.now(timezone.utc), total_words=3)
+        db.add(page)
+        db.flush()
+
+        forms = ["consul", "bellum", "gero"]
+        lemma_ids = []
+        for i, form in enumerate(forms):
+            lemma = Lemma(language_code="la", lemma_form=form, lemma_bare=form,
+                          pos="noun", gloss_en=form, source="manual",
+                          gates_completed_at=datetime.now(timezone.utc))
+            db.add(lemma)
+            db.flush()
+            lemma_ids.append(lemma.lemma_id)
+            db.add(PageWord(page_id=page.id, position=i, surface_form=form,
+                            lemma_id=lemma.lemma_id))
+        db.commit()
+
+        red = lemma_ids[0]
+        res = reading_intake.apply_page_review(
+            db, story.id, 1, unknown_lemma_ids=[red], client_review_id="la-1",
+        )
+        assert res["marked_unknown"] == 1
+        assert res["newly_known"] == 2  # the two untapped content words
+
+        u_red = db.query(UserLemmaKnowledge).filter_by(lemma_id=red).one()
+        assert u_red.knowledge_state == "acquiring"
+        for lid in lemma_ids[1:]:
+            u = db.query(UserLemmaKnowledge).filter_by(lemma_id=lid).one()
+            assert u.knowledge_state == "known"

@@ -255,6 +255,34 @@ class ReviewLog(Base):
     lemma = relationship("Lemma", back_populates="reviews")
 
 
+class PageReviewLog(Base):
+    """One row per page-advance submission from the reader.
+
+    A page advance is a single logical action that fans out into many per-word
+    ReviewLog rows (greens) plus red/yellow tap applications. None of those leaf
+    rows can dedup the *whole page* on replay, so this row is the page-level
+    idempotency record: the offline queue stamps a `client_review_id`, and a
+    re-flush of the same id observes the stored counts and applies nothing
+    (mirrors `ReviewLog.client_review_id`, Hard Invariant 11). It doubles as an
+    audit trail of pages read — including pages advanced offline then synced.
+    """
+    __tablename__ = "page_review_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False, index=True)
+    page_number = Column(Integer, nullable=False)
+    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    session_id = Column(String(50), nullable=True, index=True)
+    client_review_id = Column(String(50), nullable=True, unique=True, index=True)
+    # Per-bucket outcome counts, stored so a duplicate replay can return the
+    # original result without re-deriving it.
+    newly_known = Column(Integer, default=0)
+    confirmed = Column(Integer, default=0)
+    reviewed = Column(Integer, default=0)
+    marked_unknown = Column(Integer, default=0)
+    marked_encountered = Column(Integer, default=0)
+
+
 class Story(Base):
     """A book/text the user wants to read. PDFs are split into Page rows at
     import time; each Page is tokenized lazily on first view, not upfront.
