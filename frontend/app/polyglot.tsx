@@ -329,13 +329,18 @@ export default function Polyglot() {
     if (!pageData || !storyId) return;
     setBulkMarking(true);
     try {
-      // Presume known: everything unmarked on this page → known.
-      await markRemainingKnown(storyId, pageNumber);
+      // Advancing the page is a green comprehension review over every content
+      // word you didn't tap. Words tapped red (0) or yellow (1) carry their own
+      // signal and are excluded; everything else is presumed understood.
+      const tappedLemmaIds = Object.entries(cyclePositions)
+        .filter(([, pos]) => pos === 0 || pos === 1)
+        .map(([id]) => Number(id));
+      await markRemainingKnown(storyId, pageNumber, tappedLemmaIds);
       await loadPage(storyId, pageNumber + 1);
     } finally {
       setBulkMarking(false);
     }
-  }, [pageData, storyId, pageNumber, loadPage]);
+  }, [pageData, storyId, pageNumber, loadPage, cyclePositions]);
 
   // ─── Story list ──────────────────────────────────────────────────────
   if (storyId == null) {

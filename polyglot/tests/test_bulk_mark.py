@@ -84,3 +84,45 @@ def test_bulk_mark_returns_zero_when_all_marked(tmp_db):
 
         n = reading_intake.bulk_mark_remaining_known(db, story.id, 1)
         assert n == 0
+
+
+def test_apply_page_review_greens_untapped_excludes_tapped(tmp_db):
+    """Advancing a page = a green comprehension review over untapped words:
+    new -> presumed known + confirmed; assumed-known -> confirmed; the word the
+    user tapped unknown is excluded and keeps its red signal."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body="βιβλίο σπίτι ταξίδι θάλασσα",
+        )
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        ids = [t["lemma_id"] for t in tokens if t["lemma_id"]]
+        assert len(ids) >= 4
+
+        tapped = ids[0]
+        reading_intake.mark_lemma(db, lemma_id=tapped, state="unknown", fetch_gloss=False)
+
+        assumed = ids[1]
+        db.add(UserLemmaKnowledge(
+            lemma_id=assumed, knowledge_state="known", fsrs_card_json=None,
+            source="bulk", knowledge_origin="cognate_known",
+        ))
+        db.commit()
+
+        res = reading_intake.apply_page_review(db, story.id, 1, tapped_lemma_ids=[tapped])
+
+        # Tapped-unknown word excluded — still acquiring, not green-reviewed.
+        u_tapped = db.query(UserLemmaKnowledge).filter_by(lemma_id=tapped).one()
+        assert u_tapped.knowledge_state == "acquiring"
+
+        # Assumed-known word confirmed by reading exposure.
+        u_assumed = db.query(UserLemmaKnowledge).filter_by(lemma_id=assumed).one()
+        assert u_assumed.knowledge_state == "known"
+        assert u_assumed.confirmed_at is not None
+
+        # Remaining never-seen words presumed known + confirmed.
+        for lid in ids[2:]:
+            u = db.query(UserLemmaKnowledge).filter_by(lemma_id=lid).one()
+            assert u.knowledge_state == "known"
+            assert u.confirmed_at is not None
+
+        assert res["newly_known"] >= 1 and res["confirmed"] >= 1

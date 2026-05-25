@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -125,13 +126,26 @@ def mark_word(story_id: int, req: MarkWordRequest, db: Session = Depends(get_db)
     }
 
 
+class MarkRemainingRequest(BaseModel):
+    # Lemma ids the user actively tapped (red/yellow) this session — excluded
+    # from the green page-review since they already carry their own signal.
+    tapped_lemma_ids: list[int] = []
+
+
 @router.post("/{story_id}/pages/{page_number}/mark_remaining")
-def mark_remaining_known(story_id: int, page_number: int, db: Session = Depends(get_db)):
-    """Mark every un-marked content lemma on a page as 'known'. Called when
-    the user advances pages — presumes the user knew the words they didn't
-    tap. Returns the count newly marked."""
-    count = reading_intake.bulk_mark_remaining_known(db, story_id, page_number)
-    return {"page_number": page_number, "newly_known": count}
+def mark_remaining_known(
+    story_id: int,
+    page_number: int,
+    payload: MarkRemainingRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    """Advancing a page = a green comprehension review over every content word
+    the user didn't tap (the page-scale analogue of a sentence submit): untapped
+    new words are presumed known, and untapped words already mid-learning get a
+    positive review. Returns per-bucket counts."""
+    tapped = payload.tapped_lemma_ids if payload else []
+    result = reading_intake.apply_page_review(db, story_id, page_number, tapped_lemma_ids=tapped)
+    return {"page_number": page_number, **result}
 
 
 @router.post("/{story_id}/extract-sentences")
