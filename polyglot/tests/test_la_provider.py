@@ -42,6 +42,8 @@ def test_lemmatize_falls_back_to_simplemma_without_model(monkeypatch):
     monkeypatch.setattr(p, "_ensure_latincy", _raise)
     cand = p.lemmatize("puella")
     assert cand.lemma_bare and cand.lemma_bare == cand.lemma_bare.lower()
+    # Latin display policy: display form IS the normalized key (no macrons, u/i).
+    assert cand.lemma == cand.lemma_bare
     assert cand.pos is None  # simplemma path carries no POS
 
 

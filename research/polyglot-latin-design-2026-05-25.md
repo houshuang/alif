@@ -152,6 +152,38 @@ importer, and the frontend `"ar"|"el"` → `+"la"` generalization.
 - [ ] Eutropius reading-text import.
 - [ ] Frontend Latin enablement.
 
+## Display + canonicalization policy (decided 2026-05-25, with real data)
+
+Real data loaded: LLPSI Familia Romana PDF (1,866 entries, all 35 capitula) and
+Roma Aeterna Anki deck (2,675 entries). Parsers committed:
+`scripts/parse_llpsi_pdf.py` (column-X parsing of the Latin|English|Derivative
+table) and `scripts/parse_roma_aeterna_apkg.py` (apkg → SQLite notes, HTML/entity
+strip). Source TSVs stay gitignored (LLPSI/RA copyright). Eutropius Book 1 fetched
+from the Latin Library as the first reading text.
+
+Two policies, both driven by the data:
+- **Unified display (no macrons, u/i, 1sg/nominative lemma)** — per user: "unify
+  all display, no macrons, always `facio` etc." So for Latin `lemma_form ==
+  lemma_bare` (the normalized key). Macrons never affect lemmatization anyway
+  (the key strips them; LatinCy is macron-agnostic); this is purely display
+  consistency across the macron'd RA list, the macron-free LLPSI/Eutropius, and
+  LatinCy output.
+- **Canonicalize seed citation forms through LatinCy** — LLPSI lists verbs by
+  infinitive (`facere`, `capere`, `posse`) but reading text lemmatizes to 1sg
+  (`facio`, `capio`, `possum`). Without canonicalization the learner's known
+  verbs never match what they read. The importer runs each citation form through
+  LatinCy (`_USE_LEMMATIZER`, on by default).
+
+**Validation (temp DB, real data):** LLPSI → 1,585 canonical assumed-known
+lemmas (no FSRS card); Roma Aeterna → 2,518 learn-frontier lemmas. Eutropius
+Book 1 content-word coverage by LLPSI: **67%** (rose from 60% once
+canonicalization fixed the infinitive mismatch). Of 180 distinct new content
+lemmas, 105 are already in the Roma Aeterna learning pool. Real reading
+comprehension is higher still — proper nouns (168 tokens, recognizable names)
+and function words (all known) push unknown running-text words under ~20%, a
+good comprehensible-input level for an LLPSI graduate. Confirms Eutropius is
+well-matched and the seed mechanism works end-to-end.
+
 ## Sources
 - DCC Latin Core Vocabulary: https://dcc.dickinson.edu/vocab/core-vocabulary (CC BY-SA 3.0)
 - LLPSI Familia Romana official vocab PDF: https://hackettpublishing.com/pdfs/Familia_Romana_Latin-English_Vocabulary.pdf (~1,800 lemmas; chapter tags via Anki decks)

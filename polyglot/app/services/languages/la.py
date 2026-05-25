@@ -157,15 +157,17 @@ class LatinProvider:
         return match.lemma_, match.pos_, feats
 
     def lemmatize(self, surface: str, context: str | None = None) -> LemmaCandidate:
+        # Latin display policy: the lemma display form IS the normalized key —
+        # lowercase, macron-free, v→u, j→i (so `lemma_form == lemma_bare`). This
+        # keeps every source rendering identically (uenio / consul / uita)
+        # regardless of whether it came in macron'd (Roma Aeterna) or v-spelled
+        # (LLPSI / generated text). Unlike Greek, Latin display carries no extra
+        # info worth preserving here.
         try:
             lemma, pos, _ = self._analyze_token(surface, context)
-            confidence = 1.0 if _normalize_latin(lemma) != _normalize_latin(surface) else 0.7
-            return LemmaCandidate(
-                lemma=lemma,
-                lemma_bare=_normalize_latin(lemma),
-                pos=pos,
-                confidence=confidence,
-            )
+            bare = _normalize_latin(lemma)
+            confidence = 1.0 if bare != _normalize_latin(surface) else 0.7
+            return LemmaCandidate(lemma=bare, lemma_bare=bare, pos=pos, confidence=confidence)
         except ProviderUnavailable:
             pass
         # Fallback: simplemma (no POS, no context).
@@ -173,12 +175,12 @@ class LatinProvider:
             self._ensure_simplemma()
             import simplemma
             lemma = simplemma.lemmatize(surface, lang=self._SIMPLEMMA_LANG, greedy=True)
+            bare = _normalize_latin(lemma)
             confidence = 1.0 if lemma.lower() != surface.lower() else 0.5
-            return LemmaCandidate(lemma=lemma, lemma_bare=_normalize_latin(lemma),
-                                  pos=None, confidence=confidence)
+            return LemmaCandidate(lemma=bare, lemma_bare=bare, pos=None, confidence=confidence)
         except ProviderUnavailable:
-            return LemmaCandidate(lemma=surface, lemma_bare=_normalize_latin(surface),
-                                  pos=None, confidence=0.0)
+            bare = _normalize_latin(surface)
+            return LemmaCandidate(lemma=bare, lemma_bare=bare, pos=None, confidence=0.0)
 
     def analyze(self, surface: str, context: str | None = None) -> Morphology:
         try:

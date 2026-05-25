@@ -71,9 +71,30 @@ SOURCE_RA = "roma_aeterna"
 
 _provider = LatinProvider()  # normalize_bare is pure string folding — no model load
 
+# When True, citation forms are canonicalized through LatinCy so the stored key
+# matches reading-time lemmatization. LLPSI lists verbs by infinitive
+# ("facere") but LatinCy lemmatizes reading text to 1sg ("facio"); without this
+# the learner's known verbs would never match what they read. main() enables it
+# (production); it defaults off so the fixture tests stay fast + model-free.
+_USE_LEMMATIZER = False
+
 
 def _norm(form: str) -> str:
     return _provider.normalize_bare(form)
+
+
+def _bare(form: str) -> str:
+    """Canonical lemma key. With the lemmatizer on, runs the citation form
+    through LatinCy (facere→facio, capere→capio) so it matches reading-time
+    lemmas; falls back to plain normalization on any failure or when off."""
+    if _USE_LEMMATIZER:
+        try:
+            cand = _provider.lemmatize(form)
+            if cand.lemma_bare:
+                return cand.lemma_bare
+        except Exception:
+            pass
+    return _norm(form)
 
 
 def _function_words() -> set[str]:
@@ -156,7 +177,7 @@ def parse_vocab_file(path: Path) -> list[VocabRow]:
                 rank = int(rank_val) if rank_val is not None else order
             except ValueError:
                 rank = order  # frequency-group label, not numeric → use order
-            bare = _norm(lemma_form)
+            bare = _bare(lemma_form)
             if not bare:
                 continue
             rows.append(VocabRow(
@@ -198,7 +219,9 @@ def _get_or_create_lemma(db: Session, row: VocabRow, source: str) -> Lemma:
         return existing
     lemma = Lemma(
         language_code=LANG,
-        lemma_form=row.lemma_form,
+        # Latin display policy: display form IS the normalized key (lowercase,
+        # macron-free, v→u, j→i) so every source renders identically.
+        lemma_form=row.lemma_bare,
         lemma_bare=row.lemma_bare,
         gloss_en=row.gloss_en,
         pos=row.pos,
@@ -261,7 +284,7 @@ def phase_frequency(db: Session, path: Path, source: str) -> int:
             source=source,
             rank=row.rank or (inserted + 1),
             lemma_key=row.lemma_bare,
-            display_form=row.lemma_form,
+            display_form=row.lemma_bare,
             gloss_en=row.gloss_en,
             pos=row.pos,
         ))
@@ -348,7 +371,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dcc-file", type=Path, default=REPO_ROOT / "data" / "vocab" / "dcc_core.tsv")
     parser.add_argument("--llpsi-file", type=Path, default=REPO_ROOT / "data" / "vocab" / "llpsi_fr.tsv")
     parser.add_argument("--ra-file", type=Path, default=REPO_ROOT / "data" / "vocab" / "roma_aeterna.tsv")
+    parser.add_argument("--no-canonicalize", action="store_true",
+                        help="Skip LatinCy canonicalization of citation forms "
+                             "(faster, but verb infinitives won't match reading lemmas)")
     args = parser.parse_args(argv)
+
+    global _USE_LEMMATIZER
+    _USE_LEMMATIZER = not args.no_canonicalize
 
     db = SessionLocal()
     try:

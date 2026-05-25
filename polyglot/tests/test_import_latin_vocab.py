@@ -1,6 +1,8 @@
 """Latin vocab importer: DCC frequency ingest/promote, LLPSI assumed-known
 marking, idempotency, and cross-language isolation. Uses small fixture files —
 no real DCC/LLPSI data or network needed."""
+import pytest
+
 from app.models import FrequencyEntry, Lemma, Language, UserLemmaKnowledge
 from scripts import import_latin_vocab as imp
 
@@ -56,14 +58,21 @@ def test_llpsi_marks_assumed_known_no_card(tmp_db, tmp_path):
                    "lemma\tgloss\tchapter\n"
                    "puella\tgirl\t1\n"
                    "villa\thouse\t1\n"
+                   "cōnsul\tconsul\t2\n"   # macron'd source → stored macron-free
                    "et\tand\t1\n")  # function word: created but not enrolled
     with tmp_db() as db:
         _add_latin(db)
         touched, marked = imp.phase_llpsi(db, llpsi)
-        assert touched == 3
-        assert marked == 2  # puella, villa — not "et"
+        assert touched == 4
+        assert marked == 3  # puella, villa, consul — not "et"
+
+        # Latin display policy: display form == normalized key (no macrons, u/i)
+        consul = db.query(Lemma).filter(Lemma.lemma_bare == "consul").first()
+        assert consul is not None
+        assert consul.lemma_form == consul.lemma_bare == "consul"  # macron stripped
 
         puella = db.query(Lemma).filter(Lemma.lemma_bare == "puella").first()
+        assert puella.lemma_form == puella.lemma_bare == "puella"
         assert puella.source == "llpsi"
         assert puella.notes_json == {"llpsi_chapter": "1"}
         ulk = db.query(UserLemmaKnowledge).filter(
@@ -82,7 +91,7 @@ def test_llpsi_marks_assumed_known_no_card(tmp_db, tmp_path):
         touched2, marked2 = imp.phase_llpsi(db, llpsi)
         assert marked2 == 0
         assert db.query(Lemma).filter(Lemma.lemma_bare == "puella").count() == 1
-        assert db.query(UserLemmaKnowledge).count() == 2
+        assert db.query(UserLemmaKnowledge).count() == 3
 
 
 def test_llpsi_does_not_overwrite_existing_ulk(tmp_db, tmp_path):
@@ -133,6 +142,22 @@ def test_import_is_language_scoped(tmp_db, tmp_path):
         # ULK was created only for the Latin lemma (Greek collision untouched)
         ulk = db.query(UserLemmaKnowledge).one()
         assert ulk.lemma_id == la_vinum.lemma_id
+
+
+@pytest.mark.slow
+def test_canonicalizes_verb_infinitives_via_latincy(tmp_db, tmp_path, monkeypatch):
+    """With canonicalization on, LLPSI infinitives are stored under the lemma
+    LatinCy produces from reading text (facere→facio), so the learner's known
+    verbs actually match what they read. Requires the LatinCy model."""
+    monkeypatch.setattr(imp, "_USE_LEMMATIZER", True)
+    llpsi = _write(tmp_path / "llpsi_fr.tsv",
+                   "lemma\tgloss\nfacere\tto make\ncapere\tto take\nposse\tto be able\n")
+    with tmp_db() as db:
+        _add_latin(db)
+        imp.phase_llpsi(db, llpsi)
+        bares = {l.lemma_bare for l in db.query(Lemma).filter(Lemma.language_code == "la").all()}
+        assert {"facio", "capio", "possum"} <= bares
+        assert "facere" not in bares  # infinitive canonicalized away
 
 
 def test_csv_alternate_headers(tmp_db, tmp_path):
