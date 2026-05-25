@@ -16,6 +16,19 @@ Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (n
 
 ---
 
+## 🔵 [OPEN 2026-05-25] Polyglot: offline queue for the reader (page-advance cache + auto-send)
+
+The reader's page-advance (`apply_page_review`, branch `sh/polyglot-page-review`) now does one efficient request, but it's a **direct fetch** — offline it fails and the page outcome is lost. The user wants it cached offline and auto-sent on reconnect, like Alif. Alif's `frontend/lib/sync-queue.ts` is hardwired to Alif's `BASE_URL` + Alif endpoints, so it can't carry polyglot actions.
+
+Plan:
+- New `frontend/lib/polyglot-sync-queue.ts` (mirror of sync-queue.ts) posting to `POLYGLOT_BASE_URL`; entry type `page_review` (and optionally per-tap `mark`). Flush on reconnect via `net-status.ts`.
+- Make the page-advance a **self-contained, idempotent** action: payload `{unknown_lemma_ids, encountered_lemma_ids, client_review_id}` so a queued entry fully describes the page outcome (taps included) and replays safely. Backend `apply_page_review` then also applies reds/yellows + idempotency on `client_review_id`. Per-tap `markWord` stays best-effort for live gloss; the page submit is authoritative.
+- Mirrors Alif's offline-queue contract (`client_review_id`, retry, drop after N attempts).
+
+Until then: reader writes are online-only (no regression — they were online-only before too).
+
+---
+
 ## 🟢 [PARTIAL 2026-05-25] Polyglot: actively surface un-confirmed assumed-known words for verification
 
 The scaffold-confirmation engine (PR #138) *records* a green collateral exposure of an assumed-known word as verification evidence (`confirmed_at`, `clean_exposures`, no FSRS card). Confirmation was initially **passive** — only when an assumed word incidentally landed in a shown sentence. With ~1,477 unconfirmed words that's slow. Follow-up (user picked "active, but secondary"): bias generation toward never-confirmed assumed words so verifying the pool becomes steady background progress — **never** at the cost of genuine retrieval targets.

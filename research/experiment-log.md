@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-25: Polyglot — page-advance is a comprehension review (reader/review parity) + efficiency
+
+Branch `sh/polyglot-page-review`. Extends scaffold confirmation to the reader.
+
+**Behaviour.** Advancing a page now reviews every content word the user didn't tap — the page-scale analogue of a sentence submit (Hard Invariant FOUNDATIONAL; user: "reading a sentence and reading a page should be identical, but only once I click submit"). `reading_intake.apply_page_review` dispatches each untapped word by state: new/encountered → presume known (reading-as-mapping) + confirm; known-no-card → `record_scaffold_confirmation`; acquiring → `submit_acquisition_review(3)`; carded → `submit_review(3)`; suspended/ignore skipped. Tapped (red/yellow) words are excluded (own signal). One preserved divergence from sentence review: a brand-new untapped word is presumed *known*, not enrolled in acquisition — flipping that would "learn" thousands of already-known words. `mark_lemma(state="known")` now stamps `confirmed_at` so explicit "I know this" taps confirm too. Polyglot FSRS is already comprehension-driven (not flashcard recall), so feeding it page-level greens is the same model at larger scale, not a new signal.
+
+**Efficiency.** `apply_page_review` = ONE network request (the `mark_remaining` endpoint), batched ULK load, SINGLE commit for the whole page (~150 words); write lock acquired once, briefly. The only slow step (LLM citation repair of ungated lemmas) runs up front, outside the write transaction (SQLite lock discipline). `propagate_known_via_cognate` gained `commit=False` to join the one transaction. Endpoint accepts `{tapped_lemma_ids}`; reader sends red/yellow ids on advance.
+
+**Backfill.** `scripts/backfill_scaffold_confirmation.py` gains a reader-mark pass: existing `pre_known` rows (marked known while reading) get `confirmed_at = introduced_at`, realizing the merged "confirmed by exposure" gradient (~483 = 293 review-confirmed + ~190 reader-marked).
+
+**Open follow-up:** offline queueing for the reader (page-advance cache + auto-send on reconnect, like Alif). Alif's `sync-queue.ts` is hardwired to Alif's host/endpoints, so polyglot needs its own queue + an idempotent self-contained page-advance action. Tracked in IDEAS.
+
+**Tests.** `test_bulk_mark.py::test_apply_page_review_greens_untapped_excludes_tapped`; targeted reading/cognate/text suite 63 passed.
+
+---
+
 ## 2026-05-25: Polyglot — active confirmation surfacing + weekly conversion time-series
 
 Branch `sh/polyglot-confirm-surfacing-flow`. Follow-up to the scaffold-confirmation engine (entry below).

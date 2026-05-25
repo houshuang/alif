@@ -187,8 +187,32 @@ def main() -> int:
             ulk.times_seen = (ulk.times_seen or 0) + count
             ulk.distinct_contexts = (ulk.distinct_contexts or 0) + count
             changed += 1
+
+        # Reader-mark confirmations: pre_known rows are words the user marked
+        # known while reading — reader exposure is confirmation (surface-agnostic
+        # with sentence review). Stamp confirmed_at at their mark date so they
+        # join the exposure-confirmed tier.
+        reader_marks = (
+            db.query(UserLemmaKnowledge)
+            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                Lemma.language_code == args.language,
+                UserLemmaKnowledge.knowledge_state == "known",
+                UserLemmaKnowledge.fsrs_card_json.is_(None),
+                UserLemmaKnowledge.knowledge_origin == "pre_known",
+                UserLemmaKnowledge.confirmed_at.is_(None),
+            ).all()
+        )
+        reader_confirmed = 0
+        for ulk in reader_marks:
+            ulk.confirmed_at = ulk.introduced_at or now
+            ulk.clean_exposures = max(ulk.clean_exposures or 0, 1)
+            reader_confirmed += 1
+
         db.commit()
-        log.info("APPLIED — confirmed %s assumed-known words", changed)
+        log.info("APPLIED — confirmed %s assumed-known (logs) + %s reader-mark words",
+                 changed, reader_confirmed)
+        changed += reader_confirmed
         try:
             log_activity(
                 db,
