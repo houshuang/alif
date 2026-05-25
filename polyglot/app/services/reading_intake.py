@@ -525,6 +525,162 @@ def bulk_mark_remaining_known(db: Session, story_id: int, page_number: int) -> i
     return count
 
 
+def apply_page_review(
+    db: Session,
+    story_id: int,
+    page_number: int,
+    tapped_lemma_ids: list[int] | None = None,
+) -> dict[str, int]:
+    """Advancing a page is a green comprehension review over every content word
+    on it the user did NOT tap this session — the page-scale analogue of a
+    sentence submit (Hard Invariant FOUNDATIONAL: every word in a reviewed unit
+    is evaluated; reader and review count identically — Hard Invariant 6).
+
+    One pass, dispatched by each untapped word's current state to the SAME
+    primitives a sentence submit uses (no duplicated FSRS / acquisition math):
+        no ULK / encountered          -> presume known (reading-as-mapping) + confirm
+        known + no card               -> record_scaffold_confirmation
+        acquiring                     -> submit_acquisition_review(3)
+        learning/known/lapsed + card  -> submit_review(3)
+        suspended / ignore            -> skip (don't resurrect a user decision)
+
+    Efficiency: ONE network request (the caller endpoint), batched ULK load,
+    and a SINGLE commit for the whole page (~150 words) — the write lock is
+    acquired once, briefly. The only slow step (LLM citation repair of ungated
+    lemmas) runs up front, before the write transaction.
+
+    ``tapped_lemma_ids`` are the words the user actively marked (red/yellow)
+    this session; they already carry their own signal and are excluded.
+    """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.fsrs_service import record_scaffold_confirmation, submit_review
+    from app.services.acquisition_service import submit_acquisition_review
+    from app.services.cognate_detector import propagate_known_via_cognate
+    from app.services.knowledge_lifecycle import ORIGIN_PRE_KNOWN
+    from app.services.lemma_quality import FUNCTION_WORD_SETS
+
+    exclude: set[int] = set(tapped_lemma_ids or [])
+    now = datetime.now(timezone.utc)
+
+    page = (
+        db.query(Page)
+        .filter(Page.story_id == story_id, Page.page_number == page_number)
+        .first()
+    )
+    if not page:
+        return {"newly_known": 0, "confirmed": 0, "reviewed": 0}
+    if page.processed_at is None:
+        process_page(db, page)
+
+    language_code = page.story.language_code
+    function_word_bares = FUNCTION_WORD_SETS.get(language_code, set())
+
+    page_lemma_ids = {
+        w.lemma_id
+        for w in db.query(PageWord).filter(PageWord.page_id == page.id).all()
+        if w.lemma_id is not None
+    }
+    if not page_lemma_ids:
+        return {"newly_known": 0, "confirmed": 0, "reviewed": 0}
+
+    def _content() -> list[Lemma]:
+        rows = db.query(Lemma).filter(Lemma.lemma_id.in_(page_lemma_ids)).all()
+        return [
+            l for l in rows
+            if l.word_category not in ("function_word", "proper_name", "not_word")
+            and l.lemma_bare not in function_word_bares
+        ]
+
+    content = _content()
+
+    # Citation-repair ungated lemmas FIRST. repair_lemmas is LLM-backed and
+    # commits its own work — doing it before the write transaction keeps the
+    # SQLite write lock out of the slow path (lock discipline). After the
+    # 150-word green sweep below there are NO slow calls, so a single commit
+    # holds the lock only briefly.
+    if LEMMA_REPAIR_ENABLED:
+        repair_ids = [
+            lid for (lid,) in db.query(Lemma.lemma_id)
+            .filter(Lemma.lemma_id.in_([l.lemma_id for l in content]),
+                    Lemma.gates_completed_at.is_(None))
+            .all()
+        ]
+        if repair_ids:
+            try:
+                from app.services.lemma_integrity import repair_lemmas
+                repair_lemmas(db, language_code, repair_ids)
+            except Exception as e:
+                log.warning("Page-review citation repair failed (page %d): %s", page.id, e)
+            content = _content()
+
+    # Resolve canonicals + batch-load every relevant ULK in ONE query, so the
+    # per-word loop does no extra round-trips.
+    canonical_of = {l.lemma_id: resolve_canonical_lemma_id(db, l.lemma_id) for l in content}
+    canon_ids = set(canonical_of.values())
+    ulks: dict[int, UserLemmaKnowledge] = {
+        u.lemma_id: u for u in
+        db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(canon_ids)).all()
+    } if canon_ids else {}
+
+    newly_known = confirmed = reviewed = 0
+    seen: set[int] = set()
+    propagate_ids: list[int] = []
+
+    for l in content:
+        canonical = canonical_of[l.lemma_id]
+        if l.lemma_id in exclude or canonical in exclude:
+            continue
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        ulk = ulks.get(canonical)
+
+        if ulk is None:
+            # Never seen → presume known (reading-as-mapping) + confirm.
+            ulk = UserLemmaKnowledge(
+                lemma_id=canonical, knowledge_state="known", introduced_at=now,
+                source="reading_intake", knowledge_origin=ORIGIN_PRE_KNOWN,
+                confirmed_at=now, clean_exposures=1,
+            )
+            db.add(ulk)
+            ulks[canonical] = ulk
+            propagate_ids.append(canonical)
+            newly_known += 1
+            continue
+
+        state = ulk.knowledge_state
+        if state in ("suspended", "ignore"):
+            continue
+        if state == "known" and ulk.fsrs_card_json is None:
+            record_scaffold_confirmation(db, lemma_id=canonical, rating_int=3,
+                                         review_mode="reading", credit_type="collateral")
+            confirmed += 1
+        elif state == "acquiring":
+            submit_acquisition_review(db, lemma_id=canonical, rating_int=3,
+                                      review_mode="reading", commit=False)
+            reviewed += 1
+        elif state in ("learning", "known", "lapsed") and ulk.fsrs_card_json is not None:
+            submit_review(db, lemma_id=canonical, rating_int=3,
+                          review_mode="reading", commit=False)
+            reviewed += 1
+        elif state == "encountered":
+            ulk.knowledge_state = "known"
+            if ulk.confirmed_at is None:
+                ulk.confirmed_at = now
+            ulk.clean_exposures = (ulk.clean_exposures or 0) + 1
+            propagate_ids.append(canonical)
+            confirmed += 1
+
+    # Seed Modern↔Ancient cognates for everything newly known — commit-free.
+    for cid in propagate_ids:
+        propagate_known_via_cognate(db, cid, commit=False)
+
+    db.commit()  # single write-lock acquisition for the whole page
+    log.info("Page review story %d page %d: newly_known=%d confirmed=%d reviewed=%d (1 commit)",
+             story_id, page_number, newly_known, confirmed, reviewed)
+    return {"newly_known": newly_known, "confirmed": confirmed, "reviewed": reviewed}
+
+
 def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = True) -> UserLemmaKnowledge | None:
     """Set the user's knowledge state for a lemma. Creates ULK if missing.
 
@@ -625,6 +781,14 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
     else:
         ulk.knowledge_state = state
         set_origin_if_missing(ulk, origin)
+    if state == "known":
+        # Marking known in the reader is confirmation by exposure — equal to a
+        # sentence-review confirmation (CLAUDE.md Hard Invariant 6). Stamp
+        # confirmed_at so the gradient + conversion time-series are
+        # surface-agnostic (reader and review count identically).
+        if ulk.confirmed_at is None:
+            ulk.confirmed_at = now
+        ulk.clean_exposures = (ulk.clean_exposures or 0) + 1
     if state == "ignore":
         lemma = db.get(Lemma, lemma_id)
         if lemma is not None:

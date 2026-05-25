@@ -148,10 +148,15 @@ export async function markWord(
 export async function markRemainingKnown(
   storyId: number,
   pageNumber: number,
-): Promise<{ page_number: number; newly_known: number }> {
+  tappedLemmaIds: number[] = [],
+): Promise<{ page_number: number; newly_known: number; confirmed?: number; reviewed?: number }> {
   const res = await fetch(
     `${POLYGLOT_BASE_URL}/api/texts/${storyId}/pages/${pageNumber}/mark_remaining`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tapped_lemma_ids: tappedLemmaIds }),
+    },
   );
   if (!res.ok) throw new Error(`mark_remaining: ${res.status}`);
   return res.json();

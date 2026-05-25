@@ -79,13 +79,14 @@ def link_intra_greek_cognates(db: Session, lemma: Lemma) -> Lemma | None:
     return match
 
 
-def propagate_known_via_cognate(db: Session, lemma_id: int):
+def propagate_known_via_cognate(db: Session, lemma_id: int, *, commit: bool = True):
     """When a lemma is marked known, mark its cognate (Modern↔Ancient) as
     'encountered' so the user sees it pre-flagged in future pages without
     auto-promoting to 'known'. Semantic drift is real — let the user confirm.
 
     The cognate target is redirected to its canonical before ULK lookup/create
-    per Hard Invariant #9.
+    per Hard Invariant #9. Pass ``commit=False`` to enrol within a caller's
+    transaction (e.g. the batched page-review, which commits once).
     """
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 
@@ -107,7 +108,10 @@ def propagate_known_via_cognate(db: Session, lemma_id: int):
         knowledge_origin=ORIGIN_COGNATE_PROPAGATION,
         introduced_at=datetime.now(timezone.utc),
     ))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     log.info("Propagated 'encountered' to cognate lemma_id=%d", target_id)
 
 
