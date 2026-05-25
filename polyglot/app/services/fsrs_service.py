@@ -217,3 +217,104 @@ def submit_review(
         "new_state": new_state,
         "next_due": new_card.due.isoformat(),
     }
+
+
+def record_scaffold_confirmation(
+    db: Session,
+    lemma_id: int,
+    *,
+    rating_int: int = 3,
+    response_ms: Optional[int] = None,
+    session_id: Optional[str] = None,
+    review_mode: str = "reading",
+    comprehension_signal: Optional[str] = None,
+    client_review_id: Optional[str] = None,
+    sentence_id: Optional[int] = None,
+    credit_type: str = "collateral",
+) -> dict:
+    """Confirm an assumed-known scaffold lemma via collateral exposure.
+
+    For a word in knowledge_state='known' with NO FSRS card (bulk-marked /
+    cognate-known scaffold): a green, non-missed appearance in a shown sentence
+    is verification evidence. We record it durably — a ReviewLog row plus
+    counter bumps and a `confirmed_at` stamp — WITHOUT creating an FSRS card or
+    scheduling review. Confirmed scaffold stays out of the rotation until a
+    future red miss lapses it into acquisition (handled by the caller). This
+    honours the equal-evaluation principle (every lemma in a shown sentence is
+    evaluated) while respecting Hard Invariant 6's no-flood intent.
+
+    The caller resolves canonical + filters non-content/inactive before calling;
+    this is the leaf write. Idempotent on `client_review_id`. Never commits —
+    the sentence-review caller commits once for the whole sentence.
+    """
+    if client_review_id:
+        existing = (
+            db.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == client_review_id)
+            .first()
+        )
+        if existing:
+            return {"lemma_id": lemma_id, "new_state": "known", "next_due": "", "duplicate": True}
+
+    knowledge = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+    if not knowledge:
+        return {"lemma_id": lemma_id, "new_state": "new", "next_due": "", "duplicate": False}
+
+    now = datetime.now(timezone.utc)
+    old_times_seen = knowledge.times_seen or 0
+    old_times_correct = knowledge.times_correct or 0
+    old_total_encounters = knowledge.total_encounters or 0
+    old_distinct_contexts = knowledge.distinct_contexts or 0
+    old_clean_exposures = knowledge.clean_exposures or 0
+    old_confirmed_at = knowledge.confirmed_at
+
+    knowledge.times_seen = old_times_seen + 1
+    if rating_int >= 3:
+        knowledge.times_correct = old_times_correct + 1
+    knowledge.distinct_contexts = old_distinct_contexts + 1
+    knowledge.clean_exposures = old_clean_exposures + 1
+    knowledge.last_reviewed = now
+    if knowledge.confirmed_at is None:
+        knowledge.confirmed_at = now
+
+    log_entry = ReviewLog(
+        lemma_id=lemma_id,
+        rating=rating_int,
+        reviewed_at=now,
+        response_ms=response_ms,
+        session_id=session_id,
+        review_mode=review_mode,
+        comprehension_signal=comprehension_signal,
+        client_review_id=client_review_id,
+        sentence_id=sentence_id,
+        is_acquisition=False,
+        credit_type=credit_type,
+        fsrs_log_json={
+            "rating": rating_int,
+            "scaffold_confirmation": True,
+            "state": "known",
+            "pre_card": None,
+            "pre_times_seen": old_times_seen,
+            "pre_times_correct": old_times_correct,
+            "pre_total_encounters": old_total_encounters,
+            "pre_distinct_contexts": old_distinct_contexts,
+            "pre_clean_exposures": old_clean_exposures,
+            "pre_confirmed_at": old_confirmed_at.isoformat() if old_confirmed_at else None,
+            "pre_knowledge_state": "known",
+        },
+    )
+    db.add(log_entry)
+    db.flush()
+
+    return {
+        "lemma_id": lemma_id,
+        "new_state": "known",
+        "next_due": "",
+        "confirmed": True,
+        "clean_exposures": knowledge.clean_exposures,
+        "duplicate": False,
+    }

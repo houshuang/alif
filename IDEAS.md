@@ -16,6 +16,19 @@ Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (n
 
 ---
 
+## 🔵 [OPEN 2026-05-25] Polyglot: actively surface un-confirmed assumed-known words for verification
+
+The scaffold-confirmation engine (branch `sh/polyglot-scaffold-confirmation`, 2026-05-25) now *records* a green collateral exposure of an assumed-known word as verification evidence (`confirmed_at`, `clean_exposures`, no FSRS card). But confirmation is currently **passive** — it only happens when an assumed word incidentally lands in a shown sentence. With ~1,440 cognate-assumed words and a young system, incidental coverage is slow. Follow-up (user picked "active, but secondary"): give generation/selection a *mild* preference for scaffold that includes never-confirmed assumed words (esp. high-frequency), so verifying the assumed pool becomes steady background progress — **never** at the cost of covering genuine retrieval targets.
+
+- Lowest-risk lever: up-weight `confirmed_at IS NULL` + no-card known lemmas in `material_generator._sample_known_words_weighted` (needs confirmation status threaded into `_snapshot_known_pool`'s pool dicts).
+- Optional, higher-risk: a small picker bonus in `sentence_selector._score_candidate` for sentences whose scaffold covers unconfirmed assumed words (watch it doesn't compete with target coverage).
+- Stretch (separate idea): a dedicated "verify what you know" sweep mode that batches high-frequency unconfirmed words into quick comprehensible sentences.
+- Stats follow-up: a weekly time-series ("confirmations / gaps discovered / assumptions corrected") — port Alif's `acquisition_pipeline.flow_history` shape; Polyglot's stats endpoint only has 14-day reviews/pages/new_lemmas today.
+
+See experiment-log 2026-05-25 and `polyglot/CLAUDE.md` Hard Invariant 6.
+
+---
+
 ## 🔵 [OPEN 2026-05-21] Polyglot enrichment verifier may be over-flagging
 
 Round 1 of the Haiku fact-verify pass (PR #114) flagged 5 of 10 backfilled lemmas as `done_flagged`. At least one of those (#685 όλος) is a verifier disagreement about scholarly form (`*solh₂-` vs `*solw-`), where both PIE reconstructions are defensible in current literature. The verifier prompt deliberately errs on "flag when unsure" but may be too aggressive — a 50% flag rate undermines the signal.

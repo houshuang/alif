@@ -65,6 +65,10 @@ _ADDITIVE_COLUMN_DELTAS: list[tuple[str, str, str]] = [
     ("user_lemma_knowledge", "last_failed_at", "DATETIME"),
     ("user_lemma_knowledge", "failure_count", "INTEGER DEFAULT 0"),
     ("user_lemma_knowledge", "first_correct_after_failure_at", "DATETIME"),
+    ("user_lemma_knowledge", "clean_exposures", "INTEGER DEFAULT 0"),
+    ("user_lemma_knowledge", "confirmed_at", "DATETIME"),
+    ("sentence_review_log", "missed_lemma_ids", "JSON"),
+    ("sentence_review_log", "confused_lemma_ids", "JSON"),
 ]
 
 # Indexes that should exist once the columns above are present.
@@ -78,6 +82,7 @@ _ADDITIVE_INDEX_DELTAS: list[tuple[str, str, str, bool]] = [
     ("ix_user_lemma_knowledge_knowledge_origin", "user_lemma_knowledge", "knowledge_origin", False),
     ("ix_user_lemma_knowledge_first_failed_at", "user_lemma_knowledge", "first_failed_at", False),
     ("ix_user_lemma_knowledge_first_correct_after_failure_at", "user_lemma_knowledge", "first_correct_after_failure_at", False),
+    ("ix_user_lemma_knowledge_confirmed_at", "user_lemma_knowledge", "confirmed_at", False),
 ]
 
 

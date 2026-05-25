@@ -210,6 +210,8 @@ export type LanguageStats = {
     cognate_known: number;
     fsrs_known: number;
     assumed_known: number;
+    exposure_confirmed: number;
+    assumed_unconfirmed: number;
     judged_known: number;
     unjudged_known: number;
     lapsed_from_assumed_known: number;
