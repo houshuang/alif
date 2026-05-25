@@ -47,7 +47,16 @@ WORKDIR="${POLYGLOT_BACKEND_DIR:-/opt/alif/polyglot}"
 VENV="${POLYGLOT_PYTHON:-$WORKDIR/.venv/bin/python3}"
 PYTHONPATH_VALUE="${PYTHONPATH:-/opt/limbic}"
 
-LANGUAGE="${POLYGLOT_WARM_LANGUAGE:-el}"
+# Languages processed per run, space-separated. Default Greek only; set
+# POLYGLOT_LANGUAGES="el la" to add Latin once its vocab is seeded.
+#
+# CRITICAL — SQLite single-writer lock: the phases below run SEQUENTIALLY, one
+# language fully before the next, inside this one process. Each phase follows the
+# read→LLM→write discipline (commit between LLM calls), so the write lock is only
+# held briefly. Do NOT add Latin as a second, concurrent cron job — two writers
+# on one polyglot.db (WAL = one writer at a time) would contend and throw
+# "database is locked". Sequential-in-one-process is the lock-safe design.
+LANGUAGES="${POLYGLOT_LANGUAGES:-${POLYGLOT_WARM_LANGUAGE:-el}}"
 # 2026-05-24: session selection now avoids recent sentence repeats and caps
 # textbook fallbacks, so the generated cache needs more depth. ACTIVE_TARGET=5
 # gives each retrieval target enough approved LLM rows for repeated acquisition
@@ -113,38 +122,43 @@ run_phase() {
   return "$status"
 }
 
-echo "[$TIMESTAMP] Polyglot material cron start" >> "$LOG"
+echo "[$TIMESTAMP] Polyglot material cron start (languages: $LANGUAGES)" >> "$LOG"
 
-run_phase "warm_pages_ahead" timeout "$PAGES_TIMEOUT_SECONDS" \
-  "$VENV" scripts/warm_pages_ahead.py \
-  --language "$LANGUAGE" \
-  --buffer "$PAGES_BUFFER" \
-  --max-per-story "$PAGES_MAX_PER_RUN"
+# Sequential per language (lock-safe — see the LANGUAGES comment above).
+for LANGUAGE in $LANGUAGES; do
+  echo "[$TIMESTAMP] === language: $LANGUAGE ===" >> "$LOG"
 
-run_phase "review_existing_sentences" timeout "$REVIEW_EXISTING_TIMEOUT_SECONDS" \
-  "$VENV" scripts/review_existing_sentences.py \
-  --language "$LANGUAGE" \
-  --source llm \
-  --only-unreviewed \
-  --limit "$REVIEW_EXISTING_MAX_SENTENCES" \
-  --batch-size "$REVIEW_EXISTING_BATCH_SIZE"
+  run_phase "$LANGUAGE warm_pages_ahead" timeout "$PAGES_TIMEOUT_SECONDS" \
+    "$VENV" scripts/warm_pages_ahead.py \
+    --language "$LANGUAGE" \
+    --buffer "$PAGES_BUFFER" \
+    --max-per-story "$PAGES_MAX_PER_RUN"
 
-run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
-  "$VENV" scripts/warm_sentence_cache.py \
-  --language "$LANGUAGE" \
-  --max-lemmas "$MAX_LEMMAS" \
-  --sentences-per-target "$SENTENCES_PER_TARGET"
+  run_phase "$LANGUAGE review_existing_sentences" timeout "$REVIEW_EXISTING_TIMEOUT_SECONDS" \
+    "$VENV" scripts/review_existing_sentences.py \
+    --language "$LANGUAGE" \
+    --source llm \
+    --only-unreviewed \
+    --limit "$REVIEW_EXISTING_MAX_SENTENCES" \
+    --batch-size "$REVIEW_EXISTING_BATCH_SIZE"
 
-run_phase "translate_sentences" timeout "$TRANSLATE_TIMEOUT_SECONDS" \
-  "$VENV" scripts/translate_sentences.py \
-  --language "$LANGUAGE" \
-  --max-sentences "$TRANSLATE_MAX_SENTENCES"
+  run_phase "$LANGUAGE warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
+    "$VENV" scripts/warm_sentence_cache.py \
+    --language "$LANGUAGE" \
+    --max-lemmas "$MAX_LEMMAS" \
+    --sentences-per-target "$SENTENCES_PER_TARGET"
 
-run_phase "enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
-  "$VENV" scripts/enrich_lemma_philology.py \
-  --language "$LANGUAGE" \
-  --max-lemmas "$ENRICH_MAX_LEMMAS" \
-  --include-failed
+  run_phase "$LANGUAGE translate_sentences" timeout "$TRANSLATE_TIMEOUT_SECONDS" \
+    "$VENV" scripts/translate_sentences.py \
+    --language "$LANGUAGE" \
+    --max-sentences "$TRANSLATE_MAX_SENTENCES"
+
+  run_phase "$LANGUAGE enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
+    "$VENV" scripts/enrich_lemma_philology.py \
+    --language "$LANGUAGE" \
+    --max-lemmas "$ENRICH_MAX_LEMMAS" \
+    --include-failed
+done
 
 echo "[$TIMESTAMP] Polyglot material cron done" >> "$LOG"
 echo "---" >> "$LOG"
