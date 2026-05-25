@@ -107,6 +107,16 @@ class UserLemmaKnowledge(Base):
     leech_count = Column(Integer, default=0, server_default="0")
     experiment_intro_shown_at = Column(DateTime, nullable=True)
 
+    # Scaffold confirmation. An assumed-known word (knowledge_state='known' with
+    # no FSRS card — bulk-marked / cognate-known) earns verification evidence
+    # when it survives collateral exposure in a shown sentence (green, not
+    # missed). confirmed_at is stamped on the first such exposure; clean_exposures
+    # counts them. This does NOT create an FSRS card — confirmed scaffold stays
+    # out of the review rotation until a future red miss lapses it into
+    # acquisition. See polyglot CLAUDE.md Hard Invariant 6.
+    clean_exposures = Column(Integer, default=0, server_default="0")
+    confirmed_at = Column(DateTime, nullable=True, index=True)
+
     lemma = relationship("Lemma", back_populates="knowledge")
 
 
@@ -205,6 +215,12 @@ class SentenceReviewLog(Base):
     response_ms = Column(Integer, nullable=True)
     review_mode = Column(String(20), default="reading")
     client_review_id = Column(String(50), nullable=True, unique=True, index=True)
+    # Per-word detail persisted in the DB. Previously these lived only in the
+    # interaction JSONL, which ages out — leaving old partial reviews
+    # un-reconstructable (which words were red). Storing them here lets the DB
+    # alone rebuild any review for audit/backfill without the log files.
+    missed_lemma_ids = Column(JSON, nullable=True)
+    confused_lemma_ids = Column(JSON, nullable=True)
 
 
 class ReviewLog(Base):

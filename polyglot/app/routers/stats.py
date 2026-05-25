@@ -520,6 +520,18 @@ def _known_and_judged_progress(
             if ulk.knowledge_state == "known"
             and ulk.fsrs_card_json is None
         ),
+        "exposure_confirmed": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.fsrs_card_json is None
+            and ulk.confirmed_at is not None
+        ),
+        "assumed_unconfirmed": sum(
+            1 for ulk in rows
+            if ulk.knowledge_state == "known"
+            and ulk.fsrs_card_json is None
+            and ulk.confirmed_at is None
+        ),
         "judged_known": len(known_ids & judged_ids),
         "unjudged_known": len(known_ids - judged_ids),
         "lapsed_from_assumed_known": len(lapsed_from_assumed_ids),

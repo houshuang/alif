@@ -496,7 +496,10 @@ def test_learning_lemma_routes_through_fsrs(tmp_db):
         assert result["word_results"][0]["new_state"] in {"learning", "known", "lapsed"}
 
 
-def test_bulk_known_without_card_gets_green_encounter_credit_only(tmp_db):
+def test_green_exposure_confirms_assumed_known_without_card(tmp_db):
+    """Clean green exposure on an assumed-known word records verification
+    evidence (ReviewLog + confirmed_at + clean_exposures) WITHOUT creating an
+    FSRS card — it stays known but is no longer 'unconfirmed'."""
     with tmp_db() as db:
         lemma = _seed_lemma(db, form="known", bare="known")
         db.add(UserLemmaKnowledge(
@@ -513,12 +516,109 @@ def test_bulk_known_without_card_gets_green_encounter_credit_only(tmp_db):
 
     with tmp_db() as db:
         result = submit_sentence_review(db, sentence_id=sid, comprehension_signal="understood")
-        assert result["word_results"] == []
-        assert db.query(ReviewLog).filter_by(lemma_id=lemma_id).all() == []
+        assert result["word_results"][0]["lemma_id"] == lemma_id
+        assert result["word_results"][0]["confirmation"] is True
+        log = db.query(ReviewLog).filter_by(lemma_id=lemma_id).one()
+        assert log.rating == 3
+        assert log.is_acquisition is False
+        assert log.fsrs_log_json.get("scaffold_confirmation") is True
         ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
         assert ulk.knowledge_state == "known"
-        assert ulk.fsrs_card_json is None
+        assert ulk.fsrs_card_json is None          # still NOT in the FSRS rotation
+        assert ulk.confirmed_at is not None
+        assert ulk.clean_exposures == 1
         assert ulk.total_encounters == 3
+
+
+def test_second_green_exposure_bumps_clean_exposures_keeps_confirmed_at(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="known", bare="known")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=None,
+            source="bulk_mark",
+            knowledge_origin="cognate_known",
+        ))
+        s1 = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        s2 = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        db.commit()
+        sid1, sid2, lemma_id = s1.id, s2.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        submit_sentence_review(db, sentence_id=sid1, comprehension_signal="understood")
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        first_confirmed = ulk.confirmed_at
+        assert first_confirmed is not None
+        assert ulk.clean_exposures == 1
+
+    with tmp_db() as db:
+        submit_sentence_review(db, sentence_id=sid2, comprehension_signal="understood")
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.clean_exposures == 2
+        assert ulk.confirmed_at == first_confirmed   # first-confirmation date is sticky
+        assert ulk.fsrs_card_json is None
+
+
+def test_confused_exposure_on_assumed_known_neither_confirms_nor_lapses(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="known", bare="known")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=None,
+            total_encounters=0,
+            source="bulk_mark",
+            knowledge_origin="pre_known",
+        ))
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        submit_sentence_review(
+            db, sentence_id=sid, comprehension_signal="partial",
+            confused_lemma_ids=[lemma_id],
+        )
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "known"
+        assert ulk.confirmed_at is None              # confused ≠ confirmed
+        assert ulk.clean_exposures == 0
+        assert ulk.total_encounters == 1             # but the encounter is counted
+        assert db.query(ReviewLog).filter_by(lemma_id=lemma_id).all() == []
+
+
+def test_undo_restores_scaffold_confirmation(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="known", bare="known")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=None,
+            source="bulk_mark",
+            knowledge_origin="cognate_known",
+        ))
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    crid = "crid-confirm-1"
+    with tmp_db() as db:
+        submit_sentence_review(
+            db, sentence_id=sid, comprehension_signal="understood",
+            client_review_id=crid,
+        )
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.confirmed_at is not None and ulk.clean_exposures == 1
+
+    with tmp_db() as db:
+        out = undo_sentence_review(db, crid)
+        assert out["undone"] is True
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.confirmed_at is None
+        assert ulk.clean_exposures == 0
+        assert ulk.knowledge_state == "known"
+        assert db.query(ReviewLog).filter_by(lemma_id=lemma_id).all() == []
 
 
 def test_missed_bulk_known_without_card_enters_acquisition(tmp_db):

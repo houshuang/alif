@@ -43,7 +43,11 @@ from app.services.acquisition_service import (
     submit_acquisition_review,
 )
 from app.services.canonical_resolution import resolve_canonical_lemma_id
-from app.services.fsrs_service import parse_json_column, submit_review
+from app.services.fsrs_service import (
+    parse_json_column,
+    record_scaffold_confirmation,
+    submit_review,
+)
 from app.services.interaction_logger import log_interaction
 from app.services.leech_service import check_single_word_leech
 from app.services.lemma_quality import FUNCTION_WORD_SETS, is_noncontent_lemma
@@ -298,9 +302,14 @@ def submit_sentence_review(
             and knowledge.knowledge_state == "known"
             and knowledge.fsrs_card_json is None
         ):
-            # Bulk-marked/cognate-known lemmas have no scheduler card yet.
-            # Green exposure stays cheap scaffold credit; a red miss is an
-            # explicit lapse signal and must move the word into acquisition.
+            # Assumed-known scaffold (bulk-marked / cognate-known, no FSRS card).
+            # Every lemma in a shown sentence is evaluated equally (Hard
+            # Invariant FOUNDATIONAL): a red miss is an explicit lapse → the word
+            # restarts acquisition and we fall through to record the rating-1
+            # review; a green/confused exposure is VERIFICATION evidence and is
+            # recorded durably (ReviewLog + confirmed_at) WITHOUT creating an
+            # FSRS card — confirmed scaffold stays out of the review rotation
+            # until a future red lapses it. See Hard Invariant 6.
             if rating == 1:
                 knowledge = start_acquisition(
                     db,
@@ -310,7 +319,39 @@ def submit_sentence_review(
                     restart_known=True,
                 )
                 knowledge_map[effective_lemma_id] = knowledge
+            elif rating >= 3:
+                # Clean green exposure → verification evidence.
+                word_client_id = (
+                    f"{client_review_id}:{effective_lemma_id}"
+                    if client_review_id
+                    else None
+                )
+                conf = record_scaffold_confirmation(
+                    db,
+                    lemma_id=effective_lemma_id,
+                    rating_int=rating,
+                    response_ms=response_ms if credit_type == "primary" else None,
+                    session_id=session_id,
+                    review_mode=review_mode,
+                    comprehension_signal=comprehension_signal,
+                    client_review_id=word_client_id,
+                    sentence_id=sentence_id,
+                    credit_type=credit_type,
+                )
+                if not conf.get("duplicate"):
+                    knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+                    word_results.append({
+                        "lemma_id": effective_lemma_id,
+                        "rating": rating,
+                        "credit_type": credit_type,
+                        "new_state": "known",
+                        "next_due": "",
+                        "confirmation": True,
+                    })
+                continue
             else:
+                # rating == 2 (confused): ambiguous — not a clean confirmation,
+                # not a miss. Count the encounter but don't confirm or lapse.
                 knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
                 continue
 
@@ -392,6 +433,7 @@ def submit_sentence_review(
     _log_sentence_review(
         db, sentence, now, comprehension_signal,
         response_ms, session_id, review_mode, client_review_id,
+        missed_lemma_ids=missed_lemma_ids, confused_lemma_ids=confused_lemma_ids,
     )
 
     db.commit()
@@ -426,6 +468,8 @@ def _log_sentence_review(
     session_id: Optional[str],
     review_mode: str,
     client_review_id: Optional[str],
+    missed_lemma_ids: Optional[list[int]] = None,
+    confused_lemma_ids: Optional[list[int]] = None,
 ) -> None:
     sent_log = SentenceReviewLog(
         sentence_id=sentence.id,
@@ -435,6 +479,8 @@ def _log_sentence_review(
         response_ms=response_ms,
         review_mode=review_mode,
         client_review_id=client_review_id,
+        missed_lemma_ids=missed_lemma_ids or None,
+        confused_lemma_ids=confused_lemma_ids or None,
     )
     db.add(sent_log)
     sentence.times_shown = (sentence.times_shown or 0) + 1
@@ -521,6 +567,14 @@ def undo_sentence_review(
                 ulk.times_correct = fsrs_data.get("pre_times_correct")
             if "pre_total_encounters" in fsrs_data:
                 ulk.total_encounters = fsrs_data.get("pre_total_encounters")
+            if "pre_distinct_contexts" in fsrs_data:
+                ulk.distinct_contexts = fsrs_data.get("pre_distinct_contexts")
+            if "pre_clean_exposures" in fsrs_data:
+                ulk.clean_exposures = fsrs_data.get("pre_clean_exposures")
+            if "pre_confirmed_at" in fsrs_data:
+                ulk.confirmed_at = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_confirmed_at")
+                )
             if "pre_knowledge_state" in fsrs_data:
                 ulk.knowledge_state = fsrs_data.get("pre_knowledge_state")
             if "pre_acquisition_box" in fsrs_data:

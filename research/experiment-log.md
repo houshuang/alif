@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-25: Polyglot — scaffold confirmation (assumed-known → exposure-verified)
+
+Branch `sh/polyglot-scaffold-confirmation`. Polyglot-only change.
+
+**Problem.** Polyglot warm-starts with a large *assumed-known* pool — words marked known via cognate inference or bulk/reading "I know the rest" — that exist to give the sentence generator rich scaffold. Production audit (2026-05-25): of 1,796 "known" Greek words, **1,770 had no FSRS card and 1,764 had `times_seen=0`** — never re-seen after being assumed. Of the 1,441 cognate-known, **0** were ever confirmed; the only 44 that touched the engine got there by being *red-missed*. Root cause: `sentence_review_service` special-cased known/no-card lemmas so a green collateral exposure did `total_encounters += 1; continue` — the verification signal was discarded. An assumption could be *disproved* (red→lapse) but never *confirmed*. This violated the FOUNDATIONAL "every lemma in a shown sentence is evaluated equally" rule and contradicted the whole point of pre-generating likely-known scaffold.
+
+**Change.** Green, non-missed exposure of an assumed-known word now records verification evidence via new `fsrs_service.record_scaffold_confirmation`: a ReviewLog (`scaffold_confirmation: True`) + `clean_exposures`/`times_seen`/`distinct_contexts` bumps + `confirmed_at` stamp on first clean exposure — **no FSRS card**, so confirmed scaffold stays out of the review rotation until a future red lapses it (no-flood intent preserved). Rating split on known/no-card rows: red→`review_lapse` acquisition; clean green (≥3)→confirm; confused (2)→neutral. New ULK columns `clean_exposures`, `confirmed_at`; `SentenceReviewLog` now persists `missed_lemma_ids`/`confused_lemma_ids` so reviews are reconstructable from the DB after the JSONL ages out. Stats `known_summary` gains `exposure_confirmed` / `assumed_unconfirmed`. Active-but-secondary surfacing (prefer un-confirmed scaffold in generation) is a planned follow-up, not in this change. Reverses polyglot CLAUDE.md Hard Invariant 6's "green = cheap encounter credit."
+
+**Backfill.** `scripts/backfill_scaffold_confirmation.py` reconstructs historical clean exposures from interaction JSONL (full detail) + DB `SentenceReviewLog` (`understood` rows + any with stored detail), skipping detail-less partials. Dry-run analysis projected **~290 of 1,767** assumed words confirmable (221 from JSONL + ~72 from DB `understood` not in JSONL), 303 clean exposures. Idempotent (skips rows already `confirmed_at`).
+
+**Expect / verify.** After deploy+backfill: `known_summary.exposure_confirmed` jumps from 0 to ~290; `assumed_unconfirmed` drops correspondingly; the conversion grows over time as reviews accrue. Tests: `tests/test_sentence_review_service.py` (green-confirms, second-exposure-bumps, confused-neutral, red-still-lapses, undo-restores). Full fast suite 306 passed.
+
+---
+
 ## 2026-05-24: Production learning-data repair (no code change)
 
 Full note: [`analysis-2026-05-24-production-learning-data-repair.md`](analysis-2026-05-24-production-learning-data-repair.md)
