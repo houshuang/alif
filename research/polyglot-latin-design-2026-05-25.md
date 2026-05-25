@@ -141,16 +141,29 @@ fallback. Remaining Latin-specific seams: lemmatizer wiring (done), philology er
 taxonomy (Greek-hardcoded), generation function-word/scaffold lists, the vocab
 importer, and the frontend `"ar"|"el"` → `+"la"` generalization.
 
-## 5. Implementation status
+## 5. Implementation status — LIVE in production (2026-05-25, PR #140)
 
-- [x] Cross-language pacing leakage fixed + tested (commit 1).
-- [x] LatinCy wired into `la.py` (primary + simplemma fallback, normalization,
-      enclitics-to-gate), fast + slow tests green (commit 2).
-- [ ] Philology era taxonomy language-keyed (Latin eras).
-- [ ] Latin generation seams (function words, scaffold, validator, gate prompt).
-- [ ] Latin vocab importer (DCC + LLPSI + RA).
-- [ ] Eutropius reading-text import.
-- [ ] Frontend Latin enablement.
+- [x] Cross-language pacing leakage fixed + tested.
+- [x] LatinCy wired into `la.py` (primary + simplemma fallback, normalization).
+- [x] Philology era taxonomy language-keyed (Latin eras).
+- [x] Latin generation seams (function words, scaffold; validator unchanged).
+- [x] Latin vocab importer (LLPSI + Roma Aeterna; DCC optional/unused) + parsers.
+- [x] Unified macron-free display + citation-form canonicalization.
+- [x] Frontend Latin enablement; language-aware cron loop.
+- [x] **Deployed**: PR #140 merged → server on `main`; LatinCy model installed;
+      seeded 1,585 LLPSI assumed-known + 2,518 Roma Aeterna learn-frontier;
+      Eutropius Book I (20 pages) imported + page-1 verified; cron
+      `POLYGLOT_LANGUAGES=el la`; frontend live (Metro cache cleared).
+- [ ] Remaining (see IDEAS.md): Latin `lemma_quality` gate-prompt note
+      (sentence-initial→PROPN, homographs, `miliario` non-reduction); more
+      reading texts; optional per-language leech scoping.
+
+**Deploy gotcha learned:** `systemctl restart alif-expo` keeps Metro's transform
+cache → stale frontend bundle (the Latin Stats screen showed Greek's 145 acquiring
+from a cached pre-fix bundle, though the backend correctly returned 0). Clear
+`/tmp/metro-* /tmp/haste-map-* frontend/node_modules/.cache frontend/.expo` then
+restart + hard-reload. Also: `deploy-polyglot.sh` uses `pip install --no-deps`, so
+the LatinCy model is installed separately.
 
 ## Display + canonicalization policy (decided 2026-05-25, with real data)
 

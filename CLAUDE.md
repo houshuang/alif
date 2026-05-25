@@ -228,10 +228,14 @@ ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . -
 ssh alif "cd /opt/alif/backend && .venv/bin/pip install -e . -q && systemctl restart alif-backend"
 
 # Deploy frontend (Expo dev server is a systemd service)
-ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"
+# NOTE: a bare `systemctl restart alif-expo` keeps Metro's transform cache and can
+# serve a STALE bundle (frontend code changes silently don't appear; symptom seen
+# 2026-05-25 — a screen showed the wrong language's data though source + backend
+# were correct). Clear the Metro cache too, then hard-reload the client:
+ssh alif "cd /opt/alif && git pull && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
 
 # Full deploy (both):
-ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
 
 # Cron wrapper:
 # scripts/deploy.sh links /opt/alif-update-material.sh to deploy/alif-update-material.sh

@@ -163,8 +163,33 @@ polyglot/deploy/deploy-polyglot.sh
 
 The script pushes `main` if needed, pulls `origin/main` in `/opt/alif`, links
 `/opt/polyglot-update-material.sh` to the repo copy under
-`/opt/alif/polyglot/deploy/`, reinstalls `polyglot-backend`, restarts
-`polyglot-backend`, and health-checks port `3002`.
+`/opt/alif/polyglot/deploy/`, reinstalls `polyglot-backend` (with `--no-deps`),
+restarts `polyglot-backend`, and health-checks port `3002`.
+
+**`deploy-polyglot.sh` does NOT install dependencies or extras** (`--no-deps`).
+New runtime deps / per-language NLP models must be installed separately, e.g.
+the Latin model: `ssh alif "cd /opt/alif/polyglot && .venv/bin/pip install spacy
+'https://huggingface.co/latincy/la_core_web_lg/resolve/main/la_core_web_lg-3.9.0-py3-none-any.whl'"`
+(~0.5 GB; use `nohup` + a log — `pip -q` can go quiet long enough to trip the
+SSH idle drop). Confirm with `GET /api/languages` → `provider_available:true`.
+
+### Frontend deploy — clear the Metro cache
+`systemctl restart alif-expo` restarts Metro but **keeps its transform cache**, so
+frontend code changes can keep serving a stale bundle (symptom: a screen shows
+the wrong language's data even though the source + backend are correct). After
+pulling frontend changes:
+`ssh alif "rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo; systemctl restart alif-expo"`,
+then hard-reload the client. (Backend restarts don't have this issue.)
+
+### Seeding Latin on the server (one-time, done 2026-05-25)
+Data files are gitignored, so scp them to `data/vocab/` then run the importer
+(it canonicalizes through LatinCy, so install the model first). Set
+`DATABASE_URL` explicitly to avoid the `.env`-ordering trap that once hit
+`alif.db`. Enable the cron lane with a crontab env line `POLYGLOT_LANGUAGES=el la`
+(the wrapper loops languages sequentially — never add a parallel Latin cron, see
+the wrapper's lock comment). Reading texts are imported via `POST /api/texts/paste`
+(`language_code='la'`); split long texts into pages so the read-flow has
+boundaries (see `import_eutropius_pages.py` approach).
 
 ## Code style — same as Alif
 

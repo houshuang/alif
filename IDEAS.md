@@ -4,35 +4,40 @@
 
 ---
 
-## 🔵 [OPEN 2026-05-25] Polyglot: Latin as a second language (branch `sh/polyglot-latin`)
+## 🟢 [LIVE 2026-05-25] Polyglot: Latin as a second language (PR #140, deployed)
 
-Adding Latin alongside Modern Greek. Learner finished LLPSI Part 1 (Familia
-Romana); goal is to verify which of those ~1,800 words are still known (seed as
-assumed-known → confirm by collateral exposure), grow gradually with low daily
-effort, and read Eutropius. Full design + audits: `research/polyglot-latin-design-2026-05-25.md`.
+Latin alongside Modern Greek. Learner finished LLPSI Part 1 (Familia Romana);
+goal: verify which words are still known (seed as assumed-known → confirm by
+collateral exposure), grow gradually, read Eutropius. Full design + audits +
+production validation: `research/polyglot-latin-design-2026-05-25.md`.
 
-**Shipped on the branch:** language-scoped acquisition pacing aggregates (fixes a
-cross-language cap/recovery coupling found in the audit); LatinCy `la_core_web_lg`
-provider (simplemma fallback) behind the existing lemma-quality safety net;
-language-keyed philology eras (Latin Archaic→Neo-Latin); Latin generation
-function-words/scaffold (validator needed no change — lemmatizer-driven matching
-already handles Latin inflection); `scripts/import_latin_vocab.py` (DCC core +
-LLPSI assumed-known + Roma Aeterna learn-set); frontend `"la"` enablement.
+**Shipped + deployed to prod:** language-scoped acquisition pacing aggregates
+(fixed a cross-language cap/recovery coupling found in the audit); LatinCy
+`la_core_web_lg` provider (simplemma fallback) behind the lemma-quality safety
+net; unified macron-free / canonical display + citation-form canonicalization
+(facere→facio) at import; language-keyed philology eras; Latin generation
+function-words/scaffold (validator unchanged — lemmatizer-driven matching handles
+Latin inflection); `scripts/import_latin_vocab.py` + parsers; frontend `"la"`
+enablement; language-aware cron loop. **Seeded in prod:** 1,585 LLPSI
+assumed-known + 2,518 Roma Aeterna learn-frontier + Eutropius Book I (20 pages);
+cron `POLYGLOT_LANGUAGES=el la`.
 
-**Follow-ups (not yet done):**
-- **Seed the data**: drop DCC/LLPSI/Roma Aeterna files in `polyglot/data/vocab/`
-  (see its README) and run the importer. LLPSI is copyright (local-only).
-- **Eutropius reading text**: import the DCC-annotated Breviarium via paste/PDF
-  intake (`language_code='la'`) as the first reading material.
+**[DONE]** seed data · Eutropius reading text · deploy + LatinCy model install ·
+cron lane enabled.
+
+**Remaining follow-ups:**
 - **LatinCy quality-gate prompt**: add a Latin-specific warning to
   `lemma_quality.py` about the sentence-initial→PROPN failure mode (every
   sentence's first word is capitalized) and homograph flips (malum/malus),
-  mirroring the Greek homograph rule + Arabic feminine-ة CAMeL lesson.
-- **Deploy**: `pip install -e ".[la]"` pulls the LatinCy model (~0.5 GB) on the
-  server; add a Latin cron lane (warm-cache/translate/enrich) once vocab is seeded.
+  mirroring the Greek homograph rule + Arabic feminine-ة CAMeL lesson. Also the
+  observed `miliario`↛`miliarium` non-reduction.
+- **More reading texts**: only Eutropius Book I imported; add Books II–X, Nepos,
+  or Einhard via `/api/texts/paste` (split into pages).
+- **DCC core** (optional): never needed — LLPSI chapter order is the frequency
+  backbone. Drop `data/vocab/dcc_core.tsv` + re-run the importer if wanted.
 - **Leech sweeps** (`check_and_manage_leeches`, `check_leech_reintroductions`)
-  are global across languages — per-lemma-correct but could be language-scoped
-  for a per-language cron. Low priority.
+  are global across languages — per-lemma-correct but could be language-scoped.
+  Low priority.
 
 ## 🧹 [TRIAGE 2026-05-22] Five abandoned 2026-03-21 experiment PRs — evaluated against production data
 
