@@ -24,7 +24,13 @@ dependencies = [
 # off the base install so polyglot stays lean for dev work that doesn't need them.
 el = ["gr-nlp-toolkit>=0.2.0"]
 grc = ["spacy>=3.7.0"]  # OdyCy model loaded at runtime from HuggingFace
-la = ["spacy>=3.7.0"]   # LatinCy model loaded at runtime from HuggingFace
+# LatinCy (Burns 2023): la_core_web_lg pinned to the model wheel so `pip install
+# -e ".[la]"` installs spaCy + the model. ~0.5 GB; the la.py provider falls back
+# to simplemma if the model is absent.
+la = [
+    "spacy>=3.7.0",
+    "la_core_web_lg @ https://huggingface.co/latincy/la_core_web_lg/resolve/main/la_core_web_lg-3.9.0-py3-none-any.whl",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",

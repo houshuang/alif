@@ -626,29 +626,34 @@ def _acquisition_due_lemmas(
     ][:limit]
 
 
-def _dynamic_intro_cap(db: Session) -> int:
+def _dynamic_intro_cap(db: Session, language_code: str | None = None) -> int:
     """Scale intro-card budget by un-introed acquiring backlog.
 
     Base 4, +1 per 15 un-introed acquiring lemmas, capped at 6 — Alif's
     2026-04-27 calibration after sessions filled with 10+ intros became
     unreadable. The hard daily-30 cap in ``start_acquisition`` still gates
     absolute net-new volume; this just spreads the in-session reveals.
+
+    Scoped to ``language_code`` (joins Lemma) so a backlog in one Polyglot
+    language doesn't inflate the in-session intro reveals of another.
     """
-    unintro_count = (
-        db.query(UserLemmaKnowledge)
-        .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
-            (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
-            UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
-        )
-        .count()
+    q = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.knowledge_state == "acquiring",
+        (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+        UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
     )
+    if language_code is not None:
+        q = q.join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id).filter(
+            Lemma.language_code == language_code
+        )
+    unintro_count = q.count()
     return min(INTRO_CARDS_MAX, INTRO_CARDS_BASE + unintro_count // 15)
 
 
 def _build_intro_cards(
     db: Session,
     sentences: list[SentencePayload],
+    language_code: str | None = None,
 ) -> list[IntroCardPayload]:
     """Build first-encounter + rescue intro cards for lemmas in this session.
 
@@ -736,7 +741,7 @@ def _build_intro_cards(
     rescue_ids.sort(key=lambda lid: sentence_order.get(lid, 10**9))
 
     total_budget = INTRO_NEW_CARDS_PER_SESSION
-    rescue_budget = _dynamic_intro_cap(db)
+    rescue_budget = _dynamic_intro_cap(db, language_code)
 
     selected_new = new_ids[:total_budget]
     remaining = max(0, total_budget - len(selected_new))
@@ -851,7 +856,7 @@ def build_session(
         used_sentence_ids.add(payload.sentence_id)
         selected.append(payload)
 
-    intro_cards = _build_intro_cards(db, selected)
+    intro_cards = _build_intro_cards(db, selected, language_code)
     return SessionBundle(
         sentences=selected,
         intro_cards=intro_cards,

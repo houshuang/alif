@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { getLanguageStats, type LanguageStats } from "../lib/polyglot-api";
+import { useLanguage } from "../lib/language-context";
 
 const C = {
   bg: "#0f0f1a",
@@ -51,17 +52,20 @@ export default function PolyglotStats() {
   const [stats, setStats] = useState<LanguageStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { language } = useLanguage();
+  // Polyglot surface (Greek + Latin); Arabic never routes here.
+  const languageCode = language === "la" ? "la" : "el";
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       setLoading(true);
       setError(null);
-      getLanguageStats("el")
+      getLanguageStats(languageCode)
         .then((s) => { if (!cancelled) { setStats(s); setLoading(false); } })
         .catch((e) => { if (!cancelled) { setError(String(e)); setLoading(false); } });
       return () => { cancelled = true; };
-    }, []),
+    }, [languageCode]),
   );
 
   if (loading && !stats) {

@@ -126,7 +126,9 @@ export default function PolyglotReview() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
-  const languageCode = language === "el" ? "el" : "el";
+  // This screen serves the Polyglot surface (Greek + Latin); Arabic never
+  // routes here. Pass the active polyglot language through to the backend.
+  const languageCode = language === "la" ? "la" : "el";
 
   const [bundle, setBundle] = useState<ReviewSessionBundle>({
     sentences: [],
@@ -485,11 +487,7 @@ export default function PolyglotReview() {
   const hasMarks = hasAnyMarks(marks);
   const glossWord = glossWordIdx != null ? sentence.words[glossWordIdx] : null;
   const wordsForContext = [...sentence.words].sort((a, b) => a.position - b.position);
-  const languageName =
-    languageCode === "el" ? "Modern Greek"
-    : languageCode === "grc" ? "Ancient Greek"
-    : languageCode === "la" ? "Latin"
-    : "the target language";
+  const languageName = languageCode === "la" ? "Latin" : "Modern Greek";
   const focusedLemmaId = glossWord?.lemma_id ?? sentence.target_lemma_id ?? null;
   const focusedLemmaForm = glossWord?.lemma_form ?? glossWord?.surface_form ?? null;
 

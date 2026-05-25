@@ -32,6 +32,13 @@ import { renderTokens } from "../lib/polyglot-render-helpers";
 import PolyglotLookupCard from "../lib/polyglot-lookup-card";
 import { POLYGLOT_COLORS } from "../lib/polyglot-design-colors";
 import { POLYGLOT_FONTS } from "../lib/polyglot-design-tokens";
+import { useLanguage } from "../lib/language-context";
+
+// Polyglot surface display names (Arabic never routes to these screens).
+const POLYGLOT_LANGUAGE_NAMES: Record<string, string> = {
+  el: "Modern Greek",
+  la: "Latin",
+};
 
 // Per-page tap-cycle persistence. Red (0) and yellow (1) marks survive
 // page navigation and app reloads so the user keeps the visual record of
@@ -163,8 +170,13 @@ export default function Polyglot() {
   const overridePageRef = useRef<number | null>(null);
   const restoredRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const languageCode = language === "la" ? "la" : "el";
+  const languageName = POLYGLOT_LANGUAGE_NAMES[languageCode] ?? "Reading";
 
-  useEffect(() => { listStories().then(setStories).catch(() => setStories([])); }, []);
+  useEffect(() => {
+    listStories(languageCode).then(setStories).catch(() => setStories([]));
+  }, [languageCode]);
 
   const loadPage = useCallback(async (sid: number, p: number) => {
     setLoading(true);
@@ -335,13 +347,13 @@ export default function Polyglot() {
             <Text style={styles.headerLink}>Stats ›</Text>
           </Pressable>
         </View>
-        <Text style={styles.h1}>Modern Greek</Text>
+        <Text style={styles.h1}>{languageName}</Text>
         <Text style={styles.sub}>Reading — tap unknowns; next-page presumes the rest known.</Text>
         {stories == null ? (
           <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
         ) : stories.length === 0 ? (
           <Text style={styles.empty}>
-            No texts yet. Import a PDF or paste Greek text via the API.
+            No texts yet. Import a PDF or paste {languageName} text via the API.
           </Text>
         ) : (
           <ScrollView>

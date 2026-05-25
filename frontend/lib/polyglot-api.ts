@@ -125,8 +125,9 @@ export async function listLanguages(): Promise<LanguageInfo[]> {
   return get("/api/languages");
 }
 
-export async function listStories(): Promise<StorySummary[]> {
-  return get("/api/texts");
+export async function listStories(languageCode?: string): Promise<StorySummary[]> {
+  const qs = languageCode ? `?language_code=${encodeURIComponent(languageCode)}` : "";
+  return get(`/api/texts${qs}`);
 }
 
 export async function getStory(storyId: number): Promise<StorySummary> {

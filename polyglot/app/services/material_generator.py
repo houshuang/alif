@@ -147,13 +147,39 @@ MAX_AVOID_WORDS = 30
 GENERATION_MIN_CANDIDATES_PER_TARGET = 8
 GENERATION_EXTRA_CANDIDATES_PER_TARGET = 5
 COMMON_SCAFFOLD_SAMPLE_SIZE = 180
-HIGH_UTILITY_SCAFFOLD_WORDS = (
-    "είμαι", "έχω", "κάνω", "βλέπω", "λέω", "δίνω", "παίρνω",
-    "έρχομαι", "μένω", "θέλω", "μπορώ", "γίνομαι", "πηγαίνω",
-    "άνθρωπος", "παιδί", "φίλος", "φίλη", "σπίτι", "μέρα", "νύχτα",
-    "φωνή", "πόρτα", "δρόμος", "χρόνος", "μάτι", "χέρι", "λίγο",
-)
+HIGH_UTILITY_SCAFFOLD_WORDS_BY_LANG: dict[str, tuple[str, ...]] = {
+    "el": (
+        "είμαι", "έχω", "κάνω", "βλέπω", "λέω", "δίνω", "παίρνω",
+        "έρχομαι", "μένω", "θέλω", "μπορώ", "γίνομαι", "πηγαίνω",
+        "άνθρωπος", "παιδί", "φίλος", "φίλη", "σπίτι", "μέρα", "νύχτα",
+        "φωνή", "πόρτα", "δρόμος", "χρόνος", "μάτι", "χέρι", "λίγο",
+    ),
+    # Highest-utility Latin scaffolds: common verbs + concrete nouns + a few
+    # core adjectives, so a generated sentence has natural connective tissue.
+    "la": (
+        "sum", "habeo", "facio", "video", "dico", "do", "possum", "venio",
+        "eo", "fero", "ago", "capio", "puto", "scio",
+        "vir", "puer", "puella", "homo", "femina", "dies", "annus", "tempus",
+        "urbs", "rex", "bellum", "locus", "res", "manus", "pars", "verbum",
+        "magnus", "bonus", "multus", "omnis", "parvus", "novus",
+    ),
+}
 GENERATION_FUNCTION_WORDS = {
+    "la": [
+        # coordinating + subordinating conjunctions / particles
+        "et", "ac", "atque", "que", "sed", "aut", "vel", "nec", "neque",
+        "nam", "enim", "autem", "ergo", "igitur", "tamen", "itaque", "quoque",
+        "si", "nisi", "ut", "ne", "cum", "quia", "quod", "quamquam", "dum",
+        "non", "ne", "num", "an",
+        # prepositions
+        "ad", "ab", "a", "de", "ex", "e", "in", "cum", "sine", "per", "pro",
+        "sub", "super", "ante", "post", "inter", "apud", "contra", "trans",
+        "propter", "ob", "circum",
+        # pronouns / determiners (closed class)
+        "qui", "quae", "quod", "is", "ea", "id", "ille", "illa", "illud",
+        "hic", "haec", "hoc", "ipse", "se", "ego", "tu", "nos", "vos",
+        "meus", "tuus", "suus", "noster", "vester",
+    ],
     "el": [
         "ο", "η", "το", "οι", "τα", "τον", "την", "τους", "τις",
         "του", "της", "των", "ένας", "μια", "ένα", "ενός", "μιας",
@@ -986,10 +1012,12 @@ def _sample_known_words_weighted(
     )
 
 
+def _high_utility_words(language_code: str) -> tuple[str, ...]:
+    return HIGH_UTILITY_SCAFFOLD_WORDS_BY_LANG.get(language_code, ())
+
+
 def _high_utility_scaffold_bares(language_code: str) -> set[str]:
-    if language_code != "el":
-        return set()
-    return {normalize_bare(w, language_code) for w in HIGH_UTILITY_SCAFFOLD_WORDS}
+    return {normalize_bare(w, language_code) for w in _high_utility_words(language_code)}
 
 
 def _ensure_high_utility_scaffold_words(
@@ -1016,7 +1044,7 @@ def _ensure_high_utility_scaffold_words(
 
     ordered_scaffolds: list[str] = []
     seen_bares: set[str] = set()
-    for word in HIGH_UTILITY_SCAFFOLD_WORDS:
+    for word in _high_utility_words(language_code):
         bare = normalize_bare(word, language_code)
         form = available.get(bare)
         if form and bare not in seen_bares:

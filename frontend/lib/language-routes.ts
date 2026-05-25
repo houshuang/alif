@@ -9,19 +9,23 @@
  * for ergonomic consumers) for the same reason.
  */
 
-export type AppLanguage = "ar" | "el";
+export type AppLanguage = "ar" | "el" | "la";
 
-// Single source of truth for "does this URL belong to the Arabic side or the
-// Greek side?". `_layout.tsx` uses it to redirect mismatched routes after a
-// language switch (so the tab bar and active screen never disagree).
+// Single source of truth for "which SURFACE does this URL belong to?".
+// `_layout.tsx` uses it to redirect mismatched routes after a language switch
+// (so the tab bar and active screen never disagree).
 //
 //   /languages                          → shared (the Globe tab)
-//   /polyglot, /polyglot-*, /polyglot/* → "el"   (Greek)
+//   /polyglot, /polyglot-*, /polyglot/* → "el"   (the Polyglot surface)
 //   everything else                     → "ar"   (Arabic)
 //
-// New Greek screens just need to follow the `polyglot-*` filename convention
-// and they inherit isolation automatically. The manifest test fails CI if a
-// new file appears in `app/` that hasn't been explicitly classified.
+// NB: the Polyglot surface is shared by Modern Greek AND Latin — the same
+// polyglot-* screens serve both, disambiguated at runtime by the active
+// language (the screens read it from context and pass language_code to the
+// backend). `routeLanguage` therefore returns the canonical "el" marker for
+// every polyglot route; use `routeMatchesLanguage` to test against the active
+// language. New polyglot screens just follow the `polyglot-*` filename
+// convention and inherit isolation automatically.
 export function routeLanguage(pathname: string): AppLanguage | "shared" {
   if (pathname === "/languages") return "shared";
   if (
@@ -34,9 +38,21 @@ export function routeLanguage(pathname: string): AppLanguage | "shared" {
   return "ar";
 }
 
-// Entry route per language. Greek lands on Review (the first Greek tab) so
-// switching into Greek drops the learner straight into sentence review rather
-// than the Reading screen. Reading is still reachable via its own tab.
+// True when a route's surface matches the active language. A polyglot route
+// ("el" surface) matches BOTH el and la actives; an Arabic route matches ar.
+// "shared" (the Globe tab) matches anything.
+export function routeMatchesLanguage(
+  routeLang: AppLanguage | "shared",
+  active: AppLanguage,
+): boolean {
+  if (routeLang === "shared") return true;
+  if (routeLang === "el") return active === "el" || active === "la";
+  return routeLang === active;
+}
+
+// Entry route per language. Greek and Latin both land on Review (the first
+// Polyglot tab) so switching in drops the learner straight into sentence
+// review. Reading is still reachable via its own tab.
 export function homePathFor(lang: AppLanguage): string {
-  return lang === "el" ? "/polyglot-review" : "/";
+  return lang === "ar" ? "/" : "/polyglot-review";
 }

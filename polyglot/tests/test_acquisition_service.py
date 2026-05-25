@@ -23,9 +23,10 @@ def _seed_lemma(
     bare="βιβλιο",
     canonical=None,
     word_category=None,
+    language_code="el",
 ) -> Lemma:
     lemma = Lemma(
-        language_code="el", lemma_form=form, lemma_bare=bare, source="test",
+        language_code=language_code, lemma_form=form, lemma_bare=bare, source="test",
         canonical_lemma_id=canonical, word_category=word_category,
     )
     db.add(lemma)
@@ -118,7 +119,7 @@ def test_daily_cap_routes_overflow_to_encountered(tmp_db, monkeypatch):
     monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
     monkeypatch.setattr(
         acquisition_service, "_recovery_mode_intro_budget",
-        lambda db, now, today_start: 2,
+        lambda db, now, today_start, language_code=None: 2,
     )
 
     with tmp_db() as db:
@@ -140,7 +141,7 @@ def test_reading_intake_bypasses_daily_cap(tmp_db, monkeypatch):
     monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 1)
     monkeypatch.setattr(
         acquisition_service, "_recovery_mode_intro_budget",
-        lambda db, now, today_start: 0,
+        lambda db, now, today_start, language_code=None: 0,
     )
 
     with tmp_db() as db:
@@ -165,7 +166,7 @@ def test_cap_exempt_intros_dont_consume_budget(tmp_db, monkeypatch):
     monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
     monkeypatch.setattr(
         acquisition_service, "_recovery_mode_intro_budget",
-        lambda db, now, today_start: 2,
+        lambda db, now, today_start, language_code=None: 2,
     )
 
     with tmp_db() as db:
@@ -186,6 +187,45 @@ def test_cap_exempt_intros_dont_consume_budget(tmp_db, monkeypatch):
             .count()
         )
         assert acquiring == 12
+
+
+def test_daily_cap_is_per_language(tmp_db, monkeypatch):
+    """The daily intro cap is scoped per language: exhausting Greek's budget
+    must not block Latin acquisitions. Regression for the cross-language
+    pacing leakage found in the 2026-05-25 Latin audit — UserLemmaKnowledge
+    carries no language_code, so an unscoped count mixed el + la into one cap."""
+    monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
+    monkeypatch.setattr(
+        acquisition_service, "_recovery_mode_intro_budget",
+        lambda db, now, today_start, language_code=None: 2,
+    )
+
+    with tmp_db() as db:
+        # Exhaust the Greek cap (2): third Greek word overflows to encountered.
+        for i in range(3):
+            lemma = _seed_lemma(db, form=f"g{i}", bare=f"g{i}", language_code="el")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="study")
+            db.commit()
+        # Latin starts with a fresh budget despite Greek being exhausted.
+        for i in range(2):
+            lemma = _seed_lemma(db, form=f"l{i}", bare=f"l{i}", language_code="la")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="study")
+            db.commit()
+
+        def _states(lang):
+            return [
+                u.knowledge_state
+                for u in (
+                    db.query(UserLemmaKnowledge)
+                    .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+                    .filter(Lemma.language_code == lang)
+                    .order_by(UserLemmaKnowledge.id)
+                    .all()
+                )
+            ]
+
+        assert _states("el") == ["acquiring", "acquiring", "encountered"]
+        assert _states("la") == ["acquiring", "acquiring"]
 
 
 def test_tier0_first_correct_graduates_immediately(tmp_db):

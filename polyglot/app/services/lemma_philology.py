@@ -101,7 +101,22 @@ class _EnrichTarget:
 
 
 def _gen_prompt(language_code: str, targets: list[_EnrichTarget]) -> str:
+    from app.schemas import era_enum_for
+
     lang = LANG_DISPLAY.get(language_code, language_code)
+    era_list = " / ".join(era_enum_for(language_code))
+    if language_code == "la":
+        orthography_note = (
+            "Latin text in classical orthography; macrons optional but consistent. "
+            "ancient_form holds the attested Old Latin / Proto-Italic parent form "
+            "when known (Latin has no Ancient Greek parent)."
+        )
+    elif language_code == "grc":
+        orthography_note = "Greek text in polytonic throughout."
+    else:
+        orthography_note = (
+            "Greek text uses polytonic for Ancient/Koine/Byzantine, monotonic for Modern."
+        )
     target_block_lines = []
     for t in targets:
         line = (
@@ -153,7 +168,7 @@ ETYMOLOGY (1 object):
 
 DIACHRONY (ordered list, ancient to modern):
 - 2-5 stages tracking meaning shift. Each stage: era (one of
-  Mycenaean / Homeric / Classical / Koine / Byzantine / Modern), form used at
+  {era_list}), form used at
   that era (often the same form but with shifted sense), the meaning then, and
   an optional one-line note for context.
 - Skip eras with no meaningful change — only include a stage when the meaning
@@ -166,9 +181,12 @@ DIACHRONY (ordered list, ancient to modern):
 COGNATES (list, 3-6 entries):
 - Cross-language relatives. Pick high-utility ones for an English speaker.
 - relation enum: "loanword-from-greek" (English took it from Greek),
-  "borrowed-via-latin" (Latin borrowed Greek, then English from Latin),
-  "shared-pie-root" (both languages inherit from PIE), "calque" (semantic
-  parallel, not cognate), "descendant" (Romance from Latin form of Greek).
+  "loanword-from-latin" (English took it from Latin), "borrowed-via-latin"
+  (Greek → Latin → English), "shared-pie-root" (both inherit from PIE),
+  "calque" (semantic parallel, not cognate), "descendant" (a Romance reflex —
+  Italian/Spanish/French — of the Latin word), "cognate" (related form in a
+  sister language). For Latin lemmas, the most useful entries are usually the
+  Romance "descendant" reflexes and the English "loanword-from-latin".
 - gloss_en for non-English forms. Optional note for false-friend warnings or
   semantic drift.
 
@@ -191,10 +209,10 @@ REGISTER (1 object):
 VERSION: always 1.
 
 Style:
-- Greek text uses polytonic for Ancient/Koine/Byzantine, monotonic for Modern.
+- {orthography_note}
 - Translations in plain English, no scholarly markup. Be evocative but
   precise — this surfaces in a learning UI, not a journal article.
-- Be honest about gaps. If you don't know a Mycenaean form, omit that stage.
+- Be honest about gaps. If you don't know the form at an era, omit that stage.
   If you don't know a PIE root, set pie_root to null.
 
 Lemmas:
@@ -202,14 +220,20 @@ Lemmas:
 """
 
 
-def _gen_schema() -> dict:
-    era_enum = ["Mycenaean", "Homeric", "Classical", "Koine", "Byzantine", "Modern"]
+def _gen_schema(language_code: str) -> dict:
+    from app.schemas import era_enum_for
+
+    era_enum = list(era_enum_for(language_code))
+    # Union of Greek- and Latin-relevant relations (constrained-decoding enum;
+    # the prompt steers which apply per language).
     relation_enum = [
         "loanword-from-greek",
+        "loanword-from-latin",
+        "borrowed-via-latin",
         "shared-pie-root",
         "calque",
         "descendant",
-        "borrowed-via-latin",
+        "cognate",
     ]
     formality_enum = ["formal", "neutral", "colloquial", "literary"]
     return {
@@ -345,7 +369,7 @@ def _enrich_batch_call(
     started = time.time()
     structured = _call_llm(
         prompt=prompt,
-        schema=_gen_schema(),
+        schema=_gen_schema(language_code),
         model=ENRICH_MODEL,
         timeout_s=ENRICH_TIMEOUT_S,
         log_context="lemma_enrichment",
@@ -616,7 +640,7 @@ def _self_correct_call(
     started = time.time()
     structured = _call_llm(
         prompt=prompt,
-        schema=_gen_schema(),
+        schema=_gen_schema(language_code),
         model=ENRICH_MODEL,
         timeout_s=ENRICH_TIMEOUT_S,
         log_context="lemma_enrichment_self_correct",

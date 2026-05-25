@@ -4,6 +4,36 @@
 
 ---
 
+## 🔵 [OPEN 2026-05-25] Polyglot: Latin as a second language (branch `sh/polyglot-latin`)
+
+Adding Latin alongside Modern Greek. Learner finished LLPSI Part 1 (Familia
+Romana); goal is to verify which of those ~1,800 words are still known (seed as
+assumed-known → confirm by collateral exposure), grow gradually with low daily
+effort, and read Eutropius. Full design + audits: `research/polyglot-latin-design-2026-05-25.md`.
+
+**Shipped on the branch:** language-scoped acquisition pacing aggregates (fixes a
+cross-language cap/recovery coupling found in the audit); LatinCy `la_core_web_lg`
+provider (simplemma fallback) behind the existing lemma-quality safety net;
+language-keyed philology eras (Latin Archaic→Neo-Latin); Latin generation
+function-words/scaffold (validator needed no change — lemmatizer-driven matching
+already handles Latin inflection); `scripts/import_latin_vocab.py` (DCC core +
+LLPSI assumed-known + Roma Aeterna learn-set); frontend `"la"` enablement.
+
+**Follow-ups (not yet done):**
+- **Seed the data**: drop DCC/LLPSI/Roma Aeterna files in `polyglot/data/vocab/`
+  (see its README) and run the importer. LLPSI is copyright (local-only).
+- **Eutropius reading text**: import the DCC-annotated Breviarium via paste/PDF
+  intake (`language_code='la'`) as the first reading material.
+- **LatinCy quality-gate prompt**: add a Latin-specific warning to
+  `lemma_quality.py` about the sentence-initial→PROPN failure mode (every
+  sentence's first word is capitalized) and homograph flips (malum/malus),
+  mirroring the Greek homograph rule + Arabic feminine-ة CAMeL lesson.
+- **Deploy**: `pip install -e ".[la]"` pulls the LatinCy model (~0.5 GB) on the
+  server; add a Latin cron lane (warm-cache/translate/enrich) once vocab is seeded.
+- **Leech sweeps** (`check_and_manage_leeches`, `check_leech_reintroductions`)
+  are global across languages — per-lemma-correct but could be language-scoped
+  for a per-language cron. Low priority.
+
 ## 🧹 [TRIAGE 2026-05-22] Five abandoned 2026-03-21 experiment PRs — evaluated against production data
 
 Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (not the stale code) against dev logs + production data (44,741 reviews). Full analysis: `research/analysis-2026-05-22-stale-pr-ideas.md`. **Do not re-propose the four below without new data.**

@@ -37,7 +37,9 @@ import {
   LanguageProvider,
   useLanguage,
   routeLanguage,
+  routeMatchesLanguage,
   homePathFor,
+  type AppLanguage,
 } from "../lib/language-context";
 
 export default function Layout() {
@@ -100,23 +102,24 @@ function LayoutInner({ online }: { online: boolean }) {
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState(false);
   const isArabic = language === "ar";
-  const isGreek = language === "el";
+  // Greek and Latin share the Polyglot tab group + polyglot-* screens.
+  const isPolyglot = language === "el" || language === "la";
 
   // href: null = hidden tab. Tab files still exist but don't show in the bar.
   const arHref = (path: string) => (isArabic ? undefined : (null as any));
-  const elHref = (path: string) => (isGreek ? undefined : (null as any));
+  const polyHref = (path: string) => (isPolyglot ? undefined : (null as any));
 
   // Keep the active route in sync with the active language. Without this, a
-  // cold start with stored language "el" briefly resolves URL "/" to the
+  // cold start with a stored polyglot language briefly resolves URL "/" to the
   // Arabic Reading screen (because AsyncStorage hadn't loaded yet when Expo
-  // Router picked the initial route) — leaving Arabic content under a Greek
+  // Router picked the initial route) — leaving Arabic content under a Polyglot
   // tab bar. Also catches web reloads on a route that belongs to the other
-  // language.
+  // surface. A polyglot route matches both el and la actives (routeMatchesLanguage).
   useEffect(() => {
     if (!ready) return;
     const r = routeLanguage(pathname);
     if (r === "shared") return;
-    if (r !== language) {
+    if (!routeMatchesLanguage(r, language)) {
       router.replace(homePathFor(language) as any);
     }
   }, [ready, language, pathname, router]);
@@ -219,7 +222,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen
           name="polyglot-review"
           options={{
-            href: elHref("polyglot-review"),
+            href: polyHref("polyglot-review"),
             title: "Review",
             headerShown: false,
             tabBarLabel: "Review",
@@ -229,7 +232,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen
           name="polyglot"
           options={{
-            href: elHref("polyglot"),
+            href: polyHref("polyglot"),
             title: "Reading",
             headerShown: false,
             tabBarLabel: "Reading",
@@ -239,7 +242,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen
           name="polyglot-stats"
           options={{
-            href: elHref("polyglot-stats"),
+            href: polyHref("polyglot-stats"),
             title: "Modern Greek Stats",
             tabBarLabel: "Stats",
             tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
@@ -334,9 +337,10 @@ function LayoutInner({ online }: { online: boolean }) {
   );
 }
 
-const LANGUAGE_OPTIONS: { code: "ar" | "el"; native: string; name: string }[] = [
+const LANGUAGE_OPTIONS: { code: AppLanguage; native: string; name: string }[] = [
   { code: "ar", native: "العربية", name: "Arabic" },
   { code: "el", native: "Ελληνικά", name: "Greek" },
+  { code: "la", native: "Lingua Latina", name: "Latin" },
 ];
 
 const styles = StyleSheet.create({
