@@ -256,6 +256,13 @@ export type LanguageStats = {
     pages_read: number;
     new_lemmas: number;
   }[];
+  flow_history: {
+    week_start: string;
+    confirmed: number;
+    gaps_discovered: number;
+    graduated: number;
+    new_lemmas: number;
+  }[];
   frequency: {
     source: string;
     total_entries: number;

@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-25: Polyglot — active confirmation surfacing + weekly conversion time-series
+
+Branch `sh/polyglot-confirm-surfacing-flow`. Follow-up to the scaffold-confirmation engine (entry below).
+
+**Surfacing (active-but-secondary).** The engine *records* a green scaffold exposure as confirmation, but confirmation was purely incidental — an assumed word only confirmed if it happened to land in a sentence generated for some other target. With ~1,477 still-unconfirmed words that's slow/random. `material_generator._snapshot_known_pool` now flags `unconfirmed_scaffold` (known / no FSRS card / `confirmed_at IS NULL`); `_sample_known_words_weighted` multiplies those words' inverse-frequency weight by `UNCONFIRMED_SCAFFOLD_BOOST=2.5`, biasing the *remaining* scaffold slots toward un-confirmed words. Mild on purpose — genuine retrieval targets and comprehensibility are unaffected (these are already-known-pool words; the verifier/quality gate still applies).
+
+**Conversion time-series.** Snapshot tiers (`exposure_confirmed` vs `assumed_unconfirmed`) say how many are unconfirmed but not whether that's shrinking. `stats._flow_history` adds 8 weekly buckets of `confirmed` (`confirmed_at`), `gaps_discovered` (`first_failed_at`), `graduated` (`graduated_at`), `new_lemmas` (`introduced_at`) — one query, bucketed in Python by Monday-anchored ISO week. Response key `flow_history`; mirrored in `frontend/lib/polyglot-api.ts`. Ports the shape of Alif's `acquisition_pipeline.flow_history` (Polyglot stats were snapshot-only).
+
+**Expect / verify.** Generation gradually grows `exposure_confirmed` and the weekly `confirmed` series; `assumed_unconfirmed` trends down. Tests: `test_material_generator.py` (unconfirmed flag plumbing + boost tie-break), `test_stats_router.py::test_stats_flow_history_weekly_buckets`. Full fast suite green. These were the two follow-ups flagged in the scaffold-confirmation entry / IDEAS.
+
+---
+
 ## 2026-05-25: Polyglot — scaffold confirmation (assumed-known → exposure-verified)
 
 Branch `sh/polyglot-scaffold-confirmation`. Polyglot-only change.

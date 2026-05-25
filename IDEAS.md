@@ -16,14 +16,15 @@ Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (n
 
 ---
 
-## 🔵 [OPEN 2026-05-25] Polyglot: actively surface un-confirmed assumed-known words for verification
+## 🟢 [PARTIAL 2026-05-25] Polyglot: actively surface un-confirmed assumed-known words for verification
 
-The scaffold-confirmation engine (branch `sh/polyglot-scaffold-confirmation`, 2026-05-25) now *records* a green collateral exposure of an assumed-known word as verification evidence (`confirmed_at`, `clean_exposures`, no FSRS card). But confirmation is currently **passive** — it only happens when an assumed word incidentally lands in a shown sentence. With ~1,440 cognate-assumed words and a young system, incidental coverage is slow. Follow-up (user picked "active, but secondary"): give generation/selection a *mild* preference for scaffold that includes never-confirmed assumed words (esp. high-frequency), so verifying the assumed pool becomes steady background progress — **never** at the cost of covering genuine retrieval targets.
+The scaffold-confirmation engine (PR #138) *records* a green collateral exposure of an assumed-known word as verification evidence (`confirmed_at`, `clean_exposures`, no FSRS card). Confirmation was initially **passive** — only when an assumed word incidentally landed in a shown sentence. With ~1,477 unconfirmed words that's slow. Follow-up (user picked "active, but secondary"): bias generation toward never-confirmed assumed words so verifying the pool becomes steady background progress — **never** at the cost of genuine retrieval targets.
 
-- Lowest-risk lever: up-weight `confirmed_at IS NULL` + no-card known lemmas in `material_generator._sample_known_words_weighted` (needs confirmation status threaded into `_snapshot_known_pool`'s pool dicts).
-- Optional, higher-risk: a small picker bonus in `sentence_selector._score_candidate` for sentences whose scaffold covers unconfirmed assumed words (watch it doesn't compete with target coverage).
-- Stretch (separate idea): a dedicated "verify what you know" sweep mode that batches high-frequency unconfirmed words into quick comprehensible sentences.
-- Stats follow-up: a weekly time-series ("confirmations / gaps discovered / assumptions corrected") — port Alif's `acquisition_pipeline.flow_history` shape; Polyglot's stats endpoint only has 14-day reviews/pages/new_lemmas today.
+- **[DONE 2026-05-25, branch `sh/polyglot-confirm-surfacing-flow`]** Up-weight `confirmed_at IS NULL` + no-card known lemmas in `material_generator._sample_known_words_weighted` (`unconfirmed_scaffold` flag threaded through `_snapshot_known_pool`, `UNCONFIRMED_SCAFFOLD_BOOST=2.5`).
+- **[DONE 2026-05-25, same branch]** Weekly conversion time-series — `stats._flow_history` (8 weeks of confirmed / gaps_discovered / graduated / new_lemmas), response key `flow_history`. Ports Alif's `acquisition_pipeline.flow_history` shape.
+- **[OPEN]** Optional, higher-risk: a small picker bonus in `sentence_selector._score_candidate` for sentences whose scaffold covers unconfirmed assumed words (watch it doesn't compete with target coverage). Deliberately deferred — start with the generation lever and measure via `flow_history` before adding picker pressure.
+- **[OPEN, stretch]** A dedicated "verify what you know" sweep mode that batches high-frequency unconfirmed words into quick comprehensible sentences.
+- **[OPEN, view]** Surface `flow_history` + the `exposure_confirmed`/`assumed_unconfirmed` tiers in the redesigned stats page (mockups pending vote).
 
 See experiment-log 2026-05-25 and `polyglot/CLAUDE.md` Hard Invariant 6.
 

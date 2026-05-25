@@ -104,6 +104,40 @@ def _seed_known_scaffold(db, **kwargs) -> Lemma:
     return lemma
 
 
+def test_snapshot_known_pool_flags_unconfirmed_scaffold(tmp_db):
+    with tmp_db() as db:
+        a = _seed_lemma(db, form="alpha", bare="alpha")          # assumed, no card, unconfirmed
+        _seed_known(db, a.lemma_id, knowledge_origin="cognate_known")
+        b = _seed_lemma(db, form="beta", bare="beta")            # assumed but already confirmed
+        ulk_b = _seed_known(db, b.lemma_id, knowledge_origin="pre_known")
+        ulk_b.confirmed_at = datetime.now(timezone.utc)
+        c = _seed_lemma(db, form="gamma", bare="gamma")          # retrieval-verified (has card)
+        _seed_known(db, c.lemma_id, fsrs_card_json={"due": "2026-01-01"})
+        d = _seed_lemma(db, form="delta", bare="delta")          # acquiring (not known)
+        _seed_acquiring(db, d.lemma_id)
+        db.flush()
+
+        pool = {p["lemma_id"]: p["unconfirmed_scaffold"]
+                for p in mg._snapshot_known_pool(db, "el", set())}
+        assert pool[a.lemma_id] is True
+        assert pool[b.lemma_id] is False
+        assert pool[c.lemma_id] is False
+        assert pool[d.lemma_id] is False
+
+
+def test_sample_weighted_prefers_unconfirmed_scaffold(monkeypatch):
+    monkeypatch.setattr("random.uniform", lambda lo, hi: 1.0)  # kill jitter
+    pool = [
+        {"lemma_id": 1, "lemma_form": "conf", "lemma_bare": "conf", "pos": None,
+         "frequency_rank": None, "unconfirmed_scaffold": False},
+        {"lemma_id": 2, "lemma_form": "unconf", "lemma_bare": "unconf", "pos": None,
+         "frequency_rank": None, "unconfirmed_scaffold": True},
+    ]
+    # equal sentence-coverage; only the unconfirmed boost breaks the tie
+    out = mg._sample_known_words_weighted(pool, {1: 0, 2: 0}, sample_size=1, language_code="el")
+    assert out == ["unconf"]
+
+
 # ─── Pure-function tests for sentence_validator ──────────────────────────────
 
 
