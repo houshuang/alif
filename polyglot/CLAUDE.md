@@ -18,6 +18,16 @@ This is the **second backend** in the `alif/` monorepo. It is *not* Alif. It ser
 
 **Same monorepo, totally separate code.** `backend/` does not import from `polyglot/` and vice versa. The frontend (`frontend/`) talks to *both* — the active backend is chosen by the user's language selection (see `frontend/lib/language-context.tsx`).
 
+## Latin (second Polyglot language, 2026-05-25)
+
+Latin is wired up alongside Modern Greek (branch `sh/polyglot-latin`). Full design + audits: `research/polyglot-latin-design-2026-05-25.md`. Key facts for future sessions:
+
+- **Lemmatizer: LatinCy `la_core_web_lg`** (`app/services/languages/la.py`), simplemma fallback. Install via `pip install -e ".[la]"`. It is **not trusted raw** — same safety net as Greek (`lemma_integrity` + `lemma_quality`). Empirically solid (context disambiguation: cum prep/SCONJ, deponents, -que split) but flips sentence-initial capitals → PROPN, leaves -ne/-ve fused, and flips some homographs. `normalize_bare` folds macrons + v→u + j→i, so the lookup key reconciles with v/j-spelled seed vocab. **Enclitics are NOT suffix-split** (a -ne strip is indistinguishable from 3rd-decl ablatives homine/ordine); the rare fused form is left to the gate.
+- **Seeding: `scripts/import_latin_vocab.py`** — DCC core (frequency backbone) + LLPSI Familia Romana (assumed-known scaffold, `source='llpsi_known'`, no FSRS card) + Roma Aeterna (learn-frontier). Verification rides the existing scaffold-confirmation engine (Hard Invariant 6). Source files live in `data/vocab/` (gitignored; LLPSI/RA are copyright).
+- **Per-language pacing**: the acquisition daily-intro cap, recovery-mode signals, and the dynamic intro-card budget are now **language-scoped** (join Lemma + filter `language_code`). `UserLemmaKnowledge`/`ReviewLog`/`SentenceReviewLog` carry no `language_code` of their own, so any *new* aggregate over them that should be per-language MUST join `Lemma` — otherwise Greek and Latin silently share one budget. Reader library is scoped too (`GET /api/texts?language_code=`).
+- **Philology eras are language-keyed** (`schemas.era_enum_for`): Latin = Archaic/Classical/Late/Medieval/Renaissance/Neo-Latin. Generation function-words/scaffold added for `la`; the deterministic validator needed no Latin path (lemmatizer-driven matching).
+- **Frontend**: `AppLanguage` includes `"la"`; Greek + Latin share the `polyglot-*` screens (the active language is passed as `language_code`); `routeMatchesLanguage` makes a polyglot route match either active.
+
 ## Ground design and code in Alif
 
 **Alif is 100+ days of iteration and daily real-user testing.** Every UI affordance, scheduling constant, gate, review semantic, payload shape, button label, and empty-state copy line in Alif has a history — a bug, a confusion, a feature request, a thing that worked after several that didn't. Polyglot is not a fresh design exercise. It is a port. **Mirror Alif by default. Divergence requires a specific Greek/Latin-driven reason, recorded in the change itself (PR body, CLAUDE.md note, or experiment log).**
