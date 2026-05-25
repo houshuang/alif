@@ -308,14 +308,17 @@ function LayoutInner({ online }: { online: boolean }) {
                   style={styles.pickerRow}
                   onPress={() => {
                     setPickerOpen(false);
-                    if (opt.code !== language) {
-                      setLanguage(opt.code);
-                      router.replace(homePathFor(opt.code) as any);
-                    }
+                    // Only flip the language. The language-sync effect above
+                    // performs the navigation on the next render, after the
+                    // target tab's href has switched from null to active and the
+                    // route is registered. Calling router.replace synchronously
+                    // here raced that href flip — the destination tab (e.g.
+                    // polyglot-review) was still href:null, so expo-router emitted
+                    // a raw REPLACE no navigator could handle.
+                    if (opt.code !== language) setLanguage(opt.code);
                   }}
                 >
                   <Text style={styles.pickerNative}>{opt.native}</Text>
-                  <Text style={styles.pickerName}>{opt.name}</Text>
                   {active ? (
                     <Ionicons name="checkmark" size={18} color={colors.accent} />
                   ) : (
@@ -337,10 +340,10 @@ function LayoutInner({ online }: { online: boolean }) {
   );
 }
 
-const LANGUAGE_OPTIONS: { code: AppLanguage; native: string; name: string }[] = [
-  { code: "ar", native: "العربية", name: "Arabic" },
-  { code: "el", native: "Ελληνικά", name: "Greek" },
-  { code: "la", native: "Lingua Latina", name: "Latin" },
+const LANGUAGE_OPTIONS: { code: AppLanguage; native: string }[] = [
+  { code: "ar", native: "العربية" },
+  { code: "el", native: "Ελληνικά" },
+  { code: "la", native: "Lingua Latina" },
 ];
 
 const styles = StyleSheet.create({
@@ -410,11 +413,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 18,
     fontWeight: "700",
-    minWidth: 78,
-  },
-  pickerName: {
-    color: colors.textSecondary,
-    fontSize: 13,
     flex: 1,
   },
   pickerCheckSpacer: {
