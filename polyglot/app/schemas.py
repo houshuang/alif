@@ -138,8 +138,23 @@ class LemmaCognatesOut(BaseModel):
 # Eras are normalized to a fixed enum so the frontend can color-code stages
 # without per-lemma surprises.
 
-LEMMA_ERA = ("Mycenaean", "Homeric", "Classical", "Koine", "Byzantine", "Modern")
+# Diachrony eras are language-specific: Greek runs Mycenaean→Modern, Latin runs
+# Archaic→Neo-Latin. The enum is enforced at the JSON-schema layer in
+# lemma_philology so the enrichment LLM emits a stage label the frontend can
+# color-code (the PIE/proto root lives in etymology, not as a diachrony stage).
+LEMMA_ERAS_BY_LANG: dict[str, tuple[str, ...]] = {
+    "el": ("Mycenaean", "Homeric", "Classical", "Koine", "Byzantine", "Modern"),
+    "grc": ("Mycenaean", "Homeric", "Classical", "Koine", "Byzantine"),
+    "la": ("Archaic", "Classical", "Late", "Medieval", "Renaissance", "Neo-Latin"),
+}
+# Back-compat default (Modern Greek) for any caller that doesn't pass a language.
+LEMMA_ERA = LEMMA_ERAS_BY_LANG["el"]
 LemmaEra = str  # constrained at JSON-schema layer in lemma_philology._gen_schema
+
+
+def era_enum_for(language_code: str) -> tuple[str, ...]:
+    """Era labels valid for a language's diachrony timeline."""
+    return LEMMA_ERAS_BY_LANG.get(language_code, LEMMA_ERAS_BY_LANG["el"])
 
 
 class LemmaEtymology(BaseModel):
