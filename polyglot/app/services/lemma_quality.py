@@ -269,7 +269,7 @@ def verify_page_mappings(
     any_batch_failed = False
     for chunk_start in range(0, len(interesting), BATCH_SIZE):
         chunk = interesting[chunk_start:chunk_start + BATCH_SIZE]
-        verdicts = _call_claude(chunk, language_name=_LANG_DISPLAY[language_code])
+        verdicts = _call_claude(chunk, language_code)
         if verdicts is None:
             any_batch_failed = True
             log.warning("Page %d: batch %d returned no verdicts (LLM failure?)",
@@ -298,6 +298,56 @@ def verify_page_mappings(
 # ─── Internals ─────────────────────────────────────────────────────────────
 
 _LANG_DISPLAY = {"el": "Modern Greek", "grc": "Ancient Greek", "la": "Latin"}
+
+# Language-specific lemmatizer failure modes the gate must actively look for.
+# Mirrors Alif's CAMeL feminine-ة warning: when the upstream lemmatizer has a
+# known systematic error, name it explicitly so the LLM gate hunts for it
+# instead of rubber-stamping a morphologically-plausible-but-wrong lemma.
+# Keep each block to the failures the language's lemmatizer actually makes —
+# a Greek pitfall leaking into the Latin prompt is noise, and vice versa.
+_LANG_PITFALLS = {
+    "el": (
+        "- Homographs: e.g. χώρα (noun, country) vs χωρώ (verb, to fit) — pick by sentence role.\n"
+        "- All-caps headings often lack accents → the proposed lemma keeps the unaccented form. "
+        "Provide the standard accented citation form if you can identify it."
+    ),
+    "grc": (
+        "- Homographs: same surface, different lemma by sentence role — pick by syntax and meaning.\n"
+        "- Accent-stripped or all-caps forms → provide the standard citation form with accents "
+        "and breathing marks if you can identify it."
+    ),
+    "la": (
+        # LatinCy's documented failure modes (polyglot/CLAUDE.md § Latin).
+        "- Sentence-initial capitalization: every Latin sentence begins with a capital letter, "
+        "and LatinCy frequently mis-tags a capitalized sentence-initial COMMON word as a proper "
+        "noun (PROPN), leaving the inflected/capitalized surface as the lemma. If the first word "
+        "is an ordinary common word (verb, noun, adjective…), give its correct lower-case citation "
+        "form. Keep a proper-name lemma only for genuine names (people, places, peoples).\n"
+        "- Homographs differing by POS or declension: malum (noun, apple/evil) vs malus (adj, bad) "
+        "vs malus (noun, mast/apple-tree); bellum (noun, war) vs bellus (adj, pretty); populus "
+        "(people) vs populus (poplar). Pick by sentence role.\n"
+        "- Unreduced inflections: the lemmatizer sometimes leaves an inflected form as the lemma "
+        "(e.g. miliario instead of miliarium, or an ablative/dative left as-is). If the proposed "
+        "lemma is still inflected, give the citation form.\n"
+        "- Fused enclitics: -ne (question) and -ve (or) are sometimes left attached to the host "
+        "word (estne → sum). The lemma is the base word without the enclitic. (-que is usually "
+        "split correctly.)"
+    ),
+}
+
+# How `correct_lemma` should be spelled per language. Latin diverges: the
+# display policy is one convention — no macrons, u/i orthography, 1sg/nominative
+# citation form (polyglot/CLAUDE.md § Latin) — so the generic "with diacritics"
+# instruction (right for Greek) is actively wrong here.
+_LANG_CITATION_HINT = {
+    "el": "one word, with accents/diacritics",
+    "grc": "one word, with accents and breathing marks",
+    "la": (
+        "one word, standard dictionary citation form — no macrons, u not v, i not j, "
+        "verbs as 1st-person singular present (facio, not facere), nouns/adjectives as "
+        "nominative singular (consul, uita, bonus)"
+    ),
+}
 
 
 def _is_all_caps(surface: str) -> bool:
@@ -360,7 +410,38 @@ def _load_lemmas_for_words(db: Session, words: list[PageWord]) -> dict[int, Lemm
     return {l.lemma_id: l for l in db.query(Lemma).filter(Lemma.lemma_id.in_(ids)).all()}
 
 
-def _call_claude(chunk: list[TokenCheck], language_name: str) -> list[Verdict] | None:
+def _build_prompt(chunk: list[TokenCheck], language_code: str) -> str:
+    """Render the quality-gate prompt for one batch, with the failure-mode
+    warnings and citation-form convention specific to `language_code`."""
+    language_name = _LANG_DISPLAY.get(language_code, language_code)
+    citation_hint = _LANG_CITATION_HINT.get(language_code, "one word, with diacritics")
+    pitfalls = _LANG_PITFALLS.get(language_code, "")
+    items_block = "\n".join(
+        f"[{c.pageword_id}] sentence: «{c.sentence_context}»\n"
+        f"         surface: {c.surface}\n"
+        f"         proposed lemma: {c.proposed_lemma}"
+        + (f"  (gloss: {c.proposed_gloss})" if c.proposed_gloss else "")
+        for c in chunk
+    )
+    return f"""You are a {language_name} lemmatization quality gate. For each token below, the lemmatizer proposed a lemma. Check whether the proposed lemma is correct *in this sentence's context* (not just morphologically plausible).
+
+Rules:
+- verdict "ok": proposed lemma is the correct citation form for this surface in this sentence.
+- verdict "wrong": there's a clearly better citation form. Provide it in `correct_lemma` ({citation_hint}).
+- verdict "unclear": ambiguous or the surface isn't a real {language_name} word (typo, OCR garbage, foreign word, proper name where the lemma is fine as-is). Leave correct_lemma blank.
+
+Common pitfalls:
+{pitfalls}
+- Don't change a lemma just for style; only flag actual errors.
+
+Return one decision per token, keyed by the bracketed id. Skip nothing.
+
+Tokens:
+{items_block}
+"""
+
+
+def _call_claude(chunk: list[TokenCheck], language_code: str) -> list[Verdict] | None:
     """Single structured LLM call covering BATCH_SIZE tokens. Returns None on
     total LLM failure so callers can distinguish failure from empty-result."""
     schema = {
@@ -382,30 +463,7 @@ def _call_claude(chunk: list[TokenCheck], language_name: str) -> list[Verdict] |
         },
         "required": ["decisions"],
     }
-    items_block = "\n".join(
-        f"[{c.pageword_id}] sentence: «{c.sentence_context}»\n"
-        f"         surface: {c.surface}\n"
-        f"         proposed lemma: {c.proposed_lemma}"
-        + (f"  (gloss: {c.proposed_gloss})" if c.proposed_gloss else "")
-        for c in chunk
-    )
-    prompt = f"""You are a {language_name} lemmatization quality gate. For each token below, the lemmatizer proposed a lemma. Check whether the proposed lemma is correct *in this sentence's context* (not just morphologically plausible).
-
-Rules:
-- verdict "ok": proposed lemma is the correct citation form for this surface in this sentence.
-- verdict "wrong": there's a clearly better citation form. Provide it in `correct_lemma` (one word, with accents/diacritics).
-- verdict "unclear": ambiguous or the surface isn't a real {language_name} word (typo, OCR garbage, foreign word, proper name where the lemma is fine as-is). Leave correct_lemma blank.
-
-Common pitfalls:
-- Homographs: e.g. Modern Greek χώρα (noun, country) vs χωρώ (verb, to fit) — pick by sentence role.
-- All-caps headings often lack accents → proposed lemma keeps the unaccented form. Provide the standard accented citation form if you can identify it.
-- Don't change a lemma just for style; only flag actual errors.
-
-Return one decision per token, keyed by the bracketed id. Skip nothing.
-
-Tokens:
-{items_block}
-"""
+    prompt = _build_prompt(chunk, language_code)
     structured = call_structured_json(
         prompt=prompt,
         schema=schema,
