@@ -88,56 +88,76 @@ _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral"
 _HIGH_PRIORITY_SOURCES = {"textbook_scan", "reading_intake", "frequency_core"}
 
 
-def _daily_intro_count(db: Session, today_start: datetime) -> int:
+def _daily_intro_count(db: Session, today_start: datetime, language_code: str | None = None) -> int:
     """Count today's net-new acquisitions for cap purposes.
 
     Excludes sources in ``CAP_EXEMPT_SOURCES`` — those bypass the cap, so they
     must not also consume budget that would block other-source intros.
+
+    Scoped to ``language_code`` (joins Lemma) so the daily intro budget is
+    per-language: studying Latin must not consume Greek's quota and vice versa.
+    ``UserLemmaKnowledge`` carries no ``language_code`` of its own, so the join
+    is the only correct way to scope it.
     """
-    return (
-        db.query(UserLemmaKnowledge)
-        .filter(
-            UserLemmaKnowledge.acquisition_started_at >= today_start,
-            (
-                UserLemmaKnowledge.source.is_(None)
-                | UserLemmaKnowledge.source.notin_(CAP_EXEMPT_SOURCES)
-            ),
-        )
-        .count()
+    q = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.acquisition_started_at >= today_start,
+        (
+            UserLemmaKnowledge.source.is_(None)
+            | UserLemmaKnowledge.source.notin_(CAP_EXEMPT_SOURCES)
+        ),
     )
+    if language_code is not None:
+        q = q.join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id).filter(
+            Lemma.language_code == language_code
+        )
+    return q.count()
 
 
-def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
-    """Return (unreviewed box-1 count, due box-2 count) — recovery-mode signal."""
-    box1_unreviewed = (
-        db.query(UserLemmaKnowledge)
-        .filter(
+def _recovery_backlog_counts(
+    db: Session, now: datetime, language_code: str | None = None
+) -> tuple[int, int]:
+    """Return (unreviewed box-1 count, due box-2 count) — recovery-mode signal.
+
+    Per-language (joins Lemma): a Greek Box-1/2 backlog must not push Latin into
+    recovery mode, and vice versa.
+    """
+    def _scoped(base):
+        if language_code is None:
+            return base
+        return base.join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id).filter(
+            Lemma.language_code == language_code
+        )
+
+    box1_unreviewed = _scoped(
+        db.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 1,
             (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
         )
-        .count()
-    )
-    box2_due = (
-        db.query(UserLemmaKnowledge)
-        .filter(
+    ).count()
+    box2_due = _scoped(
+        db.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 2,
             UserLemmaKnowledge.acquisition_next_due <= now,
         )
-        .count()
-    )
+    ).count()
     return box1_unreviewed, box2_due
 
 
-def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetime) -> int:
+def _recovery_mode_intro_budget(
+    db: Session, now: datetime, today_start: datetime, language_code: str | None = None
+) -> int:
     """Effective daily intro cap under acquisition overload.
 
     Normal load → ``DAILY_INTRO_CAP``. Overload (lots of Box 1/2 debt) → new
     words must be earned by same-day review practice. Below the practice
     floor the budget is 0 entirely; above it scales with accuracy.
+
+    Per-language (``language_code``): overload and same-day practice are measured
+    within the language being studied, so the two languages don't gate each other.
     """
-    box1_unreviewed, box2_due = _recovery_backlog_counts(db, now)
+    box1_unreviewed, box2_due = _recovery_backlog_counts(db, now, language_code)
     overloaded = (
         box1_unreviewed >= RECOVERY_BOX1_UNREVIEWED_LIMIT
         or box2_due >= RECOVERY_BOX2_DUE_LIMIT
@@ -145,11 +165,12 @@ def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetim
     if not overloaded:
         return DAILY_INTRO_CAP
 
-    reviews_today = (
-        db.query(ReviewLog)
-        .filter(ReviewLog.reviewed_at >= today_start)
-        .all()
-    )
+    reviews_q = db.query(ReviewLog).filter(ReviewLog.reviewed_at >= today_start)
+    if language_code is not None:
+        reviews_q = reviews_q.join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id).filter(
+            Lemma.language_code == language_code
+        )
+    reviews_today = reviews_q.all()
     if len(reviews_today) < RECOVERY_MIN_REVIEWS_FOR_ANY_INTRO:
         return 0
 
@@ -260,9 +281,17 @@ def start_acquisition(
 
     cap_hit = False
     if enforce_daily_cap and source not in CAP_EXEMPT_SOURCES:
+        # Scope the daily intro budget to this lemma's language so Greek and
+        # Latin acquisitions don't share (and exhaust) one another's quota.
+        lang_row = (
+            db.query(Lemma.language_code)
+            .filter(Lemma.lemma_id == lemma_id)
+            .first()
+        )
+        language_code = lang_row[0] if lang_row else None
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        intro_count = _daily_intro_count(db, today_start)
-        effective_cap = _recovery_mode_intro_budget(db, now, today_start)
+        intro_count = _daily_intro_count(db, today_start, language_code)
+        effective_cap = _recovery_mode_intro_budget(db, now, today_start, language_code)
         if intro_count >= effective_cap:
             cap_hit = True
             logger.info(
