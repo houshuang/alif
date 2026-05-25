@@ -12,6 +12,7 @@
  * tab-bar visibility updates automatically because _layout.tsx subscribes to
  * the language context.
  */
+import { useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,10 +52,26 @@ export default function Languages() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
 
+  // Navigate only after the language flip has re-rendered _layout's <Tabs>: by
+  // then the destination tab's href has switched from null to active and the
+  // route is registered. Replacing synchronously inside pick() raced that flip
+  // and produced "REPLACE … not handled by any navigator". /languages is a
+  // "shared" route, so _layout's own language-sync redirect skips it — hence
+  // this local deferral.
+  const pendingPath = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingPath.current) {
+      const path = pendingPath.current;
+      pendingPath.current = null;
+      router.replace(path as any);
+    }
+  }, [language, router]);
+
   const pick = (opt: LanguageOption) => {
+    if (opt.code === language) return;
+    // Replace (not push) so the back stack doesn't bounce between languages.
+    pendingPath.current = opt.primaryPath;
     setLanguage(opt.code);
-    // Replace so the back stack doesn't bounce the user between languages
-    router.replace(opt.primaryPath as any);
   };
 
   return (
