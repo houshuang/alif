@@ -59,6 +59,27 @@ Phases run independently and are idempotent:
   acquisition. That is the "which words do I already know?" mechanism.
 
 Function words (per `lemma_quality.FUNCTION_WORD_SETS['la']`) are created as
-mappable lemmas but never enrolled as scaffold targets.
+mappable lemmas but never enrolled as scaffold targets. The importer
+canonicalizes citation forms through LatinCy (infinitive `facere` → lemma
+`facio`) so seeded lemmas match reading-time lemmatization — install the LatinCy
+model first (`pip install -e ".[la]"`) or pass `--no-canonicalize`.
+
+## Regenerate the TSVs from source
+
+These were produced by committed parsers (run them if you re-download the source):
+
+```bash
+.venv/bin/python scripts/parse_llpsi_pdf.py \
+    --pdf ~/Downloads/Lingua-Latina-Vocabulary.pdf --out data/vocab/llpsi_fr.tsv
+.venv/bin/python scripts/parse_roma_aeterna_apkg.py \
+    --apkg ~/Downloads/Lingua_Latina_II_-_Roma_Aeterna_Latin_to_English.apkg \
+    --out data/vocab/roma_aeterna.tsv
+```
+
+Reading texts (e.g. `eutropius_book1.txt`) are imported via `POST /api/texts/paste`
+(`language_code='la'`); split long texts into one page per section.
+
+**Production was seeded from these on 2026-05-25** (1,585 LLPSI assumed-known,
+2,518 Roma Aeterna learn-frontier, Eutropius Book I).
 
 This directory's source files are gitignored; only this README is tracked.

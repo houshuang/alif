@@ -8,8 +8,12 @@
 #
 #     45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
 #
-# One pass per run, in order:
-#   1. warm_pages_ahead for Modern Greek (primary)
+# One pass per run: the 5 phases below run for EACH language in
+# POLYGLOT_LANGUAGES (default "el"; "el la" adds Latin), sequentially — one
+# language fully before the next, in this single process (lock-safe; see the
+# LANGUAGES comment below). Phase descriptions say "Modern Greek" but apply to
+# whichever language the loop is on. In order:
+#   1. warm_pages_ahead
 #      — keeps the next N (default 5) unread pages of every active story
 #        already through the quality gate, so the user never waits when
 #        flipping pages. Runs first because freshly verified pages are the
