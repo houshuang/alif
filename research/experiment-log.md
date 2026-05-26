@@ -4,6 +4,59 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-26: Polyglot Latin — display orthography flipped to LLPSI / OUP convention (`u/v` distinguished, `i/j` NOT)
+
+**Background.** Latin shipped 2026-05-25 with display = `_normalize_latin(form)` (lowercase, macron-stripped, `v→u`, `j→i`) — chosen because LatinCy emits u-spelled lemmas and we wanted a single consistent rendering across LLPSI/RA/DCC/LatinCy. The 2026-05-26 LLPSI Coverage Reader landed and read as `In capitulō primō Mārcī pensum est. Quid est in pensō? In pensō sunt multa uocabula …` — classical-archaeology Latin, not reader Latin. User chose to flip.
+
+**Convention.** After a small audit (Wikipedia "Latin phonology and orthography" + 2010 Textkit survey of 251 readers + checking LLPSI/RA TSVs): the **dominant modern convention is `u/v` distinguished but `i/j` NOT** (`vir`, `vocabulum`, `iuvenis`, `Iulius`, `ius`, `iam` — NOT `juvenis`/`Julius`/`jus`/`jam`). That's what LLPSI itself uses; the j-spelling is older 19th-century. Picked via `AskUserQuestion` after presenting both options with mock previews.
+
+**Lookup vs display split (load-bearing).** `lemma_bare` (the matching key) stays u-folded forever via `_normalize_latin` — that's the universal collapse so v-spelled seed lemmas and LatinCy's u-spelled output hit the same key. `lemma_form` (the display) is now v-spelled.
+
+**Heuristic** (`_to_modern_reading_orthography` in `polyglot/app/services/languages/la.py`): one-rule transformer `u → v` when word-initial-before-vowel OR intervocalic, with `qu`/`gu`/`su` digraph exceptions (`aqua`, `lingua`, `suadeo`), conservative on post-consonant `u` (stays vocalic). Two-pass iteration to fixpoint so `uiuo → viuo → vivo` works (first pass flips word-initial `u`; second pass sees the now-vocalic middle `i` and flips the second `u`). Does NOT touch `i` (no j-transformation). Test coverage in `polyglot/tests/test_la_provider.py` covers the textbook cases (`uir/uocabulum/iuuenis/cauere/nouus/iuvat/aqua/lingua/suadeo`) plus the post-consonant non-transforms (`puer/puella/culpa/multus`) plus capitalization preservation.
+
+**Migration (`polyglot/scripts/migrate_latin_lemma_orthography.py`)**: per-source policy — LLPSI/RA lemmas take the TSV display verbatim (TSVs are natively v-spelled); reading-intake/quality-gate/DCC lemmas go through the heuristic. Dry-run by default; `--apply` to commit. Dry-run on prod snapshot showed 420 lemmas to update out of 3,866 Latin lemmas (368 from RA TSV, 159 from LLPSI TSV, 24 from heuristic — sources: 11 reading-intake/quality-gate, 13 frequency-core-DCC, 12 LLPSI-stale).
+
+**Going-forward gates updated**: `polyglot/app/services/lemma_integrity.py::_CITATION_RULES['la']` now states the new convention with explicit examples (so the LLM citation auditor doesn't "fix" new lemmas back to u-spelling); `polyglot/scripts/import_latin_vocab.py::_canonical` returns `(display, bare)` and persists the split (was `lemma_form == lemma_bare` since launch); `polyglot/scripts/generate_llpsi_coverage_texts.py` prompt updated with explicit negative examples (the prior chapter-1 macron failure on the 2026-05-26 morning run was the proximate trigger).
+
+**Regenerated** the LLPSI Coverage Reader (`research/polyglot-llpsi-coverage-2026-05-26.{md,json}`) with the corrected prompt under Codex `gpt-5.5`. Spot-check chapter 1: `Marcus, Quintus, et Iulia in Tusculo sunt; Tusculum est oppidum Romanum. Roma quoque oppidum est, sed Roma magna est et Tusculum parvum. In imperio Romano multae provinciae sunt …`. Zero macrons, zero j-spelled words across 35 chapters / ~5,200 words verified.
+
+**Also fixed in this PR's session (deployed before merge):**
+- Manually enriched the 7 Latin acquiring lemmas (`excidium, exiguus, latrocinor, incrementum, fere, ullus, exordium`) — they were tapped at 06:51–06:53 UTC right after the 06:45 cron, so the 09:45 cron would have caught them anyway, but the user reported empty lookup cards. Investigation showed Latin enrichment cron is working correctly; this is a 3-hour cadence gap, not a bug. Audit: `research/polyglot-latin-philology-and-translation-audit-2026-05-26.md`.
+
+**Deferred (not in this PR).** (1) `Kal.` / `Non.` / `Id.` abbreviation splitter that orphans Latin date fragments mid-sentence (already tracked in commit `c8b557db`). (2) Lazy enrichment on first lookup-card view (would close the cron-cadence gap; not a regression). (3) The Alif Codex hybrid migration (separate session, see `research/alif-codex-migration-plan-2026-05-26.md`).
+
+**How to verify.** After merge + deploy + migration run on prod:
+- `sqlite3 /opt/alif/polyglot/polyglot.db "SELECT lemma_form FROM lemmas WHERE language_code='la' AND lemma_bare IN ('uir','uocabulum','iuuenis');"` → `vir`, `vocabulum`, `iuvenis`.
+- Open the LLPSI Coverage Reader, page 1 → reads `Marcus est ...` style (no macrons, no `uocabulum`).
+- Tap `vir` in the reader → lookup card shows `vir` (not `uir`).
+- `pytest polyglot/tests/test_la_provider.py polyglot/tests/test_import_latin_vocab.py` → 56 passed.
+
+---
+
+## 2026-05-26: Codex `gpt-5.5` vs Claude Sonnet on Alif Arabic sentence-gen (A/B, deferred migration)
+
+**Question.** Earlier testing found Codex worse than Claude on Arabic. With `gpt-5.5` is the gap closed enough to migrate Alif's audit pipelines (currently `claude_haiku`) to Codex CLI, matching polyglot's production default? Generation pipelines would stay on Claude (Arabic naturalness is the load-bearing user-facing axis).
+
+**Method.** Wrote `backend/scripts/eval_codex_vs_claude_sentence_gen.py` — calls both CLIs as subprocesses with the *same* prompt + system_prompt (inlined verbatim from `backend/app/services/llm.py:generate_sentences_batch`), 8 targets (beginner → advanced, including a Form X verb and a multi-word compound preposition), 5 candidates per provider. Self-contained — no Alif venv import (arm64/x86_64 mismatch made that path painful).
+
+**Findings.** Codex is **comparable but not equal** — 3.6× faster (253s vs 906s total) but slightly weaker on Arabic naturalness and semantic coherence under vocab constraint:
+
+- **Grammar**: Claude 0 errors / 40; Codex 1 / 40 (`الَّتِي` after indefinite — relative-pronoun definiteness violation).
+- **Vocab compliance** (use only listed content words): Claude ~85% (breaks constraint for fluency — uses `قِلَّة`, `صُعُوبَة`, `إِيجَاد`, etc.); Codex ~95%.
+- **Semantic coherence**: Claude 40 / 40; Codex 37 / 40 — produces things like "despite a car" and "new library, and the door is very small" when forced to compose under tight vocab.
+- **Style variety**: Claude reaches for classical particles (`إِنَّ`, `كَأَنَّ`) and varies starters; Codex defaults to VSO + adverbial opener, more uniform within a batch.
+
+Both are fully vocalized with correct i'rab, both honor the no-copula rule, both handle idafa and `أَنَّ` + acc subject + nom predicate cleanly. Tashkeel quality is indistinguishable.
+
+**Decision.** User picked hybrid migration. Audit pipelines (quality gate, mapping verification, reranker, disambiguation, tagging) move to Codex; sentence-generation + story-generation stay on Claude; lemma enrichment runs its own A/B first (Latin philology complaint hints at a possible prompt issue, not a provider issue). Execution deferred to a dedicated session — Latin issues (orthography migration, philology quality, translation correctness) are user-impacting *now* and take priority. Plan documented in `research/alif-codex-migration-plan-2026-05-26.md`. Full A/B output in `research/codex-vs-claude-sentence-gen-2026-05-26.md`.
+
+**Followups.**
+- Run a 10-lemma A/B on Latin philology enrichment before flipping that pipeline.
+- Cost-log compatibility check: does `limbic.cerebellum.cost_log` already understand Codex calls? (Polyglot uses Codex against the same cost DB, so probably yes.)
+- Combined Codex CLI quota: Alif sentence-gen + Alif audit + polyglot audit all hitting the same Max plan — confirm rate-limit headroom before flipping.
+
+---
+
 ## 2026-05-26: Polyglot — reader Reveal is per-sentence interleaved + asymmetric footer (PR #152, deployed)
 
 Branch `sh/polyglot-reader-reveal-interleaved`. Backend + frontend. Deployed to prod (`polyglot-backend` restart + `alif-expo` Metro-cache-clear restart).
