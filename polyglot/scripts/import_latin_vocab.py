@@ -83,18 +83,35 @@ def _norm(form: str) -> str:
     return _provider.normalize_bare(form)
 
 
-def _bare(form: str) -> str:
-    """Canonical lemma key. With the lemmatizer on, runs the citation form
-    through LatinCy (facere→facio, capere→capio) so it matches reading-time
-    lemmas; falls back to plain normalization on any failure or when off."""
+def _canonical(form: str) -> tuple[str, str]:
+    """Return (display_form, lemma_bare) for a citation form.
+
+    - ``display_form``: modern reading orthography (u/v distinguished, no i/j,
+      no macrons) — what the learner sees on lookup cards and the reading screen.
+    - ``lemma_bare``: u-folded, macron-stripped lookup key — what matching is
+      done against (so v-spelled seed lemmas and LatinCy's u-spelled output
+      collapse to the same key).
+
+    With ``_USE_LEMMATIZER`` on, both come from LatinCy: the citation form is
+    canonicalised (``facere`` → ``facio``, ``capere`` → ``capio``) so seed
+    verbs match reading-time lemmas, and ``lemmatize`` already returns the
+    display form v-transformed and the bare key u-folded. With it off (tests),
+    display is the input form macron-stripped and v-transformed; bare is the
+    u-folded key. Returns ``("", "")`` on empty input."""
+    if not form:
+        return "", ""
     if _USE_LEMMATIZER:
         try:
             cand = _provider.lemmatize(form)
             if cand.lemma_bare:
-                return cand.lemma_bare
+                return cand.lemma, cand.lemma_bare
         except Exception:
             pass
-    return _norm(form)
+    import unicodedata
+    from app.services.languages.la import _to_modern_reading_orthography
+    macron_stripped = "".join(c for c in unicodedata.normalize("NFD", form)
+                              if unicodedata.category(c) != "Mn")
+    return _to_modern_reading_orthography(macron_stripped), _norm(form)
 
 
 def _function_words() -> set[str]:
@@ -167,8 +184,8 @@ def parse_vocab_file(path: Path) -> list[VocabRow]:
                 v = raw[idx].strip()
                 return v or None
 
-            lemma_form = cell("lemma")
-            if not lemma_form:
+            raw_lemma = cell("lemma")
+            if not raw_lemma:
                 continue
             order += 1
             rank_val = cell("rank")
@@ -177,11 +194,11 @@ def parse_vocab_file(path: Path) -> list[VocabRow]:
                 rank = int(rank_val) if rank_val is not None else order
             except ValueError:
                 rank = order  # frequency-group label, not numeric → use order
-            bare = _bare(lemma_form)
+            display, bare = _canonical(raw_lemma)
             if not bare:
                 continue
             rows.append(VocabRow(
-                lemma_form=lemma_form,
+                lemma_form=display,
                 lemma_bare=bare,
                 gloss_en=cell("gloss"),
                 pos=cell("pos"),
@@ -219,9 +236,11 @@ def _get_or_create_lemma(db: Session, row: VocabRow, source: str) -> Lemma:
         return existing
     lemma = Lemma(
         language_code=LANG,
-        # Latin display policy: display form IS the normalized key (lowercase,
-        # macron-free, v→u, j→i) so every source renders identically.
-        lemma_form=row.lemma_bare,
+        # Latin display policy (2026-05-26): modern reading orthography (u/v
+        # distinguished, no i/j, no macrons) for display; lookup key
+        # (lemma_bare) stays u-folded so v-spelled seed and LatinCy's u-spelled
+        # reading-time lemma collapse to the same key.
+        lemma_form=row.lemma_form,
         lemma_bare=row.lemma_bare,
         gloss_en=row.gloss_en,
         pos=row.pos,
@@ -284,7 +303,7 @@ def phase_frequency(db: Session, path: Path, source: str) -> int:
             source=source,
             rank=row.rank or (inserted + 1),
             lemma_key=row.lemma_bare,
-            display_form=row.lemma_bare,
+            display_form=row.lemma_form,
             gloss_en=row.gloss_en,
             pos=row.pos,
         ))

@@ -169,3 +169,27 @@ def test_csv_alternate_headers(tmp_db, tmp_path):
         rows = imp.parse_vocab_file(csvf)
         bares = {r.lemma_bare for r in rows}
         assert bares == {"iulius", "uita"}  # macrons stripped, j→i, v→u
+
+
+def test_llpsi_preserves_v_display_form(tmp_db, tmp_path):
+    """LLPSI TSV ships v-spelled lemmas (`vir`, `vocabulum`, `iuvenis`).
+    Display form must keep the v but stay i-spelled (no `j`); lookup key folds
+    to u-spelled (u/i) for matching. This is the 2026-05-26 orthography flip
+    — pre-flip the importer stored lemma_form == lemma_bare (both u-folded),
+    so `vir` rendered as `uir` on the lookup card. Post-flip, lemma_form
+    follows LLPSI / OUP intermediate convention (u/v distinguished, i/j not)."""
+    llpsi = _write(tmp_path / "llpsi_fr.tsv",
+                   "lemma\tgloss\tchapter\n"
+                   "vir\tman\t2\n"
+                   "vocabulum\tword\t1\n"
+                   "iuvenis\tyoung man\t31\n")
+    with tmp_db() as db:
+        _add_latin(db)
+        imp.phase_llpsi(db, llpsi)
+
+        vir = db.query(Lemma).filter(Lemma.lemma_bare == "uir").one()
+        assert vir.lemma_form == "vir"
+        voc = db.query(Lemma).filter(Lemma.lemma_bare == "uocabulum").one()
+        assert voc.lemma_form == "vocabulum"
+        juv = db.query(Lemma).filter(Lemma.lemma_bare == "iuuenis").one()
+        assert juv.lemma_form == "iuvenis"  # NOT juvenis — convention is i/j not distinguished

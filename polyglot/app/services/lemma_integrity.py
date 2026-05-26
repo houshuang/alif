@@ -77,10 +77,15 @@ _CITATION_RULES = {
 - Nouns: nominative singular. e.g. πλεονάσματος → πλεόνασμα, εκδηλώσεις → εκδήλωση.
 - Adjectives: nominative singular masculine, positive degree.
   e.g. ευρύτερο → ευρύς, συστηματική → συστηματικός.""",
-    "la": """- Use standard dictionary headword orthography: NO macrons, v written u,
-  j written i (e.g. uita not vīta, iudicium not jūdicium, aluus not alvus).
+    "la": """- Modern reading orthography: NO macrons. Distinguish consonantal `v` from
+  vocalic `u` (vita not vīta or uita; vir not uir; volo not uolo; vocabulum not
+  uocabulum), but keep `i` for BOTH vocalic and consonantal positions — NO `j`
+  (iudicium not jūdicium; iuvenis not juvenis; Iulius not Julius; ius not jus;
+  iam not jam; maior not major). This is the LLPSI / Roma Aeterna / OUP
+  intermediate convention. Digraph exceptions: `qu`, `gu`, `su` before a vowel
+  keep the `u` (aqua, lingua, suadeo, suavis).
 - Verbs: 1st person singular present indicative active (-o); deponents in -or
-  (e.g. fecit → facio, amaui → amo, locutus → loquor, ferre/tulit → fero).
+  (e.g. fecit → facio, amavi → amo, locutus → loquor, ferre/tulit → fero).
 - Nouns: nominative singular (e.g. consulis → consul, miliario → miliarium,
   rerum → res, itinere → iter).
 - Adjectives: nominative singular masculine, positive degree
