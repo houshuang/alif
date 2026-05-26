@@ -16,15 +16,17 @@
  *      is instant. Legacy / un-harvested pages fall back to a single whole-
  *      page LLM call shown as one trailing block. No `Hide` — pick Reveal or
  *      Know all, not both.
- *   4. **Prev · Know all · Reveal** (pre-reveal) → **Prev · Next · [spacer]**
- *      (post-reveal). Both Know all and Next submit the page sweep: marks
- *      become misses, every untapped content word is presumed known. The
- *      empty post-reveal right slot is intentional — a double-tap of Reveal
- *      can't accidentally land on Next, because Next sits in the middle, not
- *      where Reveal was. Sweep is idempotent on `pr:<story>:<page>` so re-
- *      advancing never double-counts; going back restores the exact red/
- *      yellow marks and editing them updates the server live. Last page's
- *      middle button is "Finish".
+ *   4. **Prev · [middle] · Reveal** (pre-reveal) → **Prev · Next · [spacer]**
+ *      (post-reveal). The middle button is "Know all" on fresh pages (commits
+ *      the green sweep), "Next →" on already-advanced pages with no mark
+ *      edits (pure navigation), and "Update" on already-advanced pages whose
+ *      marks have been edited during this visit (per-tap markWord already
+ *      pushed the changes; the label signals acknowledgment). Last page's
+ *      middle button is "Finish ✓". The empty post-reveal right slot is
+ *      intentional — a double-tap of Reveal can't accidentally land on Next,
+ *      because Next sits in the middle, not where Reveal was. Sweep is
+ *      idempotent on `pr:<story>:<page>` so re-advancing never double-counts;
+ *      revisit + unchanged marks skip the queue write entirely.
  *   5. **Lazy** — pages are tokenized + LLM-verified on first view; the reader
  *      prefetches the next page so that work happens while you read.
  *
@@ -99,6 +101,59 @@ async function saveCyclePositions(
   } catch {
     // ignore — non-critical persistence
   }
+}
+
+// Per-story max-advanced-page tracker. Lets the reader distinguish a fresh
+// page (never advanced past) from a revisit (Prev'd back to it, or re-opened
+// the book at an earlier page). Pre-reveal button label depends on it:
+//   - fresh:    "Know all"  → asks for the green-sweep commit
+//   - revisit:  "Next →" / "Update" → page already swept; mark edits go via
+//               per-tap markWord, advance is navigation.
+// Cheap to maintain (single int per story) and works retroactively because we
+// bump on every advance; existing pre-feature data starts surfacing the right
+// labels as soon as the user next advances.
+const MAX_ADVANCED_STORAGE_PREFIX = "@polyglot:maxAdvanced";
+const maxAdvancedStorageKey = (sid: number) =>
+  `${MAX_ADVANCED_STORAGE_PREFIX}:${sid}`;
+
+async function loadMaxAdvanced(sid: number): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(maxAdvancedStorageKey(sid));
+    if (!raw) return 0;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function bumpMaxAdvanced(sid: number, pn: number): Promise<void> {
+  try {
+    const current = await loadMaxAdvanced(sid);
+    if (pn > current) {
+      await AsyncStorage.setItem(maxAdvancedStorageKey(sid), String(pn));
+    }
+  } catch {
+    // ignore — non-critical persistence
+  }
+}
+
+// Two mark sets are equal when the (lemma_id → position) maps agree, treating
+// missing-or-2 ("clear") as identical. Used to detect whether the user edited
+// any mark during this visit to a revisited page.
+function marksEqual(
+  a: Record<number, number>,
+  b: Record<number, number>,
+): boolean {
+  const keep = (v: number) => v === 0 || v === 1;
+  const aFilt = Object.entries(a).filter(([, v]) => keep(v));
+  const bFilt = Object.entries(b).filter(([, v]) => keep(v));
+  if (aFilt.length !== bFilt.length) return false;
+  const aMap = new Map(aFilt.map(([k, v]) => [k, v]));
+  for (const [k, v] of bFilt) {
+    if (aMap.get(k) !== v) return false;
+  }
+  return true;
 }
 
 // Reading-cursor persistence. The lemma-detail screen is a hidden sibling tab,
@@ -202,6 +257,15 @@ export default function Polyglot() {
   // reads the freshest marks regardless of closure staleness.
   const cyclePositionsRef = useRef(cyclePositions);
   useEffect(() => { cyclePositionsRef.current = cyclePositions; }, [cyclePositions]);
+  // Per-page mark baseline (positions loaded from AsyncStorage when the page
+  // mounts). Used to detect whether the user has *edited* marks during this
+  // visit — drives the "Update" button label on revisited pages.
+  const initialPositionsRef = useRef<Record<number, number>>({});
+  // Per-story highest page number the user has ever advanced past. Drives the
+  // fresh-vs-revisited button-label split: pages with `pageNumber <= maxAdvanced`
+  // have already been swept, so the middle button is "Next →" or "Update", not
+  // "Know all". Loaded on story open and bumped on each successful advance.
+  const [maxAdvanced, setMaxAdvanced] = useState(0);
   // Reading-cursor machinery (see CURSOR_STORAGE_KEY). scrollYRef tracks the
   // live scroll offset; pendingScrollYRef carries a to-be-restored offset until
   // the ScrollView has laid out; pendingRestoreRef/overridePageRef drive the
@@ -233,8 +297,9 @@ export default function Polyglot() {
       setStoryId(null);
       setPageData(null);
       setSelected(null);
-      setShowTranslation(false);
-      setTranslations({});
+      setRevealed(false);
+      setSentenceTranslations({});
+      setPageFallbackEn({});
       pageCacheRef.current = {};
       translationReqRef.current = new Set();
     }
@@ -286,7 +351,13 @@ export default function Polyglot() {
     setGlossByLemma({});
     setRevealed(false);
     setCyclePositions({});
-    loadCyclePositions(sid, p).then(setCyclePositions);
+    initialPositionsRef.current = {};
+    loadCyclePositions(sid, p).then((loaded) => {
+      // Snapshot the baseline BEFORE setting React state so the comparison key
+      // for "user edited marks during this visit" is exact, not racy.
+      initialPositionsRef.current = loaded;
+      setCyclePositions(loaded);
+    });
 
     const applyData = (data: PageView) => {
       pageCacheRef.current[data.page_number] = data;
@@ -338,6 +409,10 @@ export default function Polyglot() {
     setSentenceTranslations({});
     setPageFallbackEn({});
     setStoryId(sid);
+    // Surface the persisted max-advanced page so the very first render of any
+    // page can show the correct fresh-vs-revisit label. 0 (no record yet) means
+    // every page in this story is fresh until proven otherwise.
+    loadMaxAdvanced(sid).then(setMaxAdvanced);
   }, []);
 
   useEffect(() => {
@@ -506,7 +581,26 @@ export default function Polyglot() {
   const handleAdvance = useCallback(() => {
     if (!pageData || !storyId || loading) return;
     const pn = pageData.page_number;
-    submitPageReview(storyId, pn);
+    // Bump max-advanced BEFORE submit so a re-render mid-flush already labels
+    // this page as "revisited" — relevant if the user immediately Prev's back.
+    if (pn > maxAdvanced) {
+      setMaxAdvanced(pn);
+      bumpMaxAdvanced(storyId, pn).catch(() => {});
+    }
+    // Revisits where marks haven't changed skip the queue write entirely — the
+    // server has already applied this page (deterministic `pr:<sid>:<pn>` id,
+    // dedupes server-side), and mark edits on revisits flow live via handleTap.
+    // Skipping the no-op enqueue avoids cluttering the offline queue. Fresh
+    // pages and revisits with edited marks still submit (server dedupes the
+    // second-case anyway, but consistency over cleverness).
+    const isRevisit = pn <= maxAdvanced;
+    const marksUnchanged = isRevisit && marksEqual(
+      cyclePositionsRef.current,
+      initialPositionsRef.current,
+    );
+    if (!marksUnchanged) {
+      submitPageReview(storyId, pn);
+    }
     if (pn >= pageData.total_pages) {
       goToLibrary();
       return;
@@ -515,7 +609,7 @@ export default function Polyglot() {
     if (pageCacheRef.current[next] || netStatus.isOnline) {
       loadPage(storyId, next);
     }
-  }, [pageData, storyId, loading, submitPageReview, goToLibrary, loadPage]);
+  }, [pageData, storyId, loading, maxAdvanced, submitPageReview, goToLibrary, loadPage]);
 
   const handlePrevPage = useCallback(() => {
     if (!pageData || !storyId || loading) return;
@@ -580,6 +674,12 @@ export default function Polyglot() {
   // ─── Page view ───────────────────────────────────────────────────────
   const atFirstPage = pageData ? pageData.page_number <= 1 : true;
   const atLastPage = pageData ? pageData.page_number >= pageData.total_pages : false;
+  // Revisit detection: pages at or below the persisted max already had their
+  // green sweep applied. Mark-change detection compares current React state to
+  // the on-mount baseline (initialPositionsRef). Drives the middle-button label
+  // pre-reveal so "Know all" only shows on fresh pages.
+  const isRevisit = pageData ? pageData.page_number <= maxAdvanced : false;
+  const marksChanged = isRevisit && !marksEqual(cyclePositions, initialPositionsRef.current);
   const pn = pageData?.page_number;
   const sentenceEn = pn != null ? sentenceTranslations[pn] : undefined;
   const fallbackEn = pn != null ? pageFallbackEn[pn] : undefined;
@@ -744,9 +844,18 @@ export default function Polyglot() {
           disabled={!pageData || loading}
         >
           <Text style={styles.navBtnPrimaryText}>
-            {revealed
-              ? (atLastPage ? "Finish ✓" : "Next →")
-              : (atLastPage ? "Finish ✓" : "Know all")}
+            {atLastPage
+              ? "Finish ✓"
+              : revealed
+                ? "Next →"
+                // Pre-reveal middle-button label depends on whether the page
+                // is fresh or a revisit. Fresh: "Know all" (asks for the green
+                // sweep). Revisit + unchanged marks: "Next →" (sweep already
+                // ran; this is navigation). Revisit + edited marks: "Update"
+                // (per-tap markWord already pushed; signal acknowledgment).
+                : isRevisit
+                  ? (marksChanged ? "Update" : "Next →")
+                  : "Know all"}
           </Text>
         </Pressable>
         {revealed ? (
