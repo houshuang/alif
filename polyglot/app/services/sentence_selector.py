@@ -106,6 +106,14 @@ RECENT_SENTENCE_PENALTY = 0.25
 # material catches up, but they should not dominate a review session. Keep the
 # cap deliberately small: a short session may still show one fallback; normal
 # sessions show at most two.
+#
+# **Hard rule (user feedback 2026-05-26):** textbook sentences are NEVER
+# served for `acquiring` (Box 1/2/3) lemmas, regardless of this cap. Book
+# prose is syntactically and lexically beyond early-learning comprehensibility
+# — using it to practice a just-tapped-red word ruins the experience. Acquiring
+# lemmas wait for an LLM sentence or get skipped from the session. The cap
+# below still gates textbook fallbacks for FSRS-carded lemmas where the word
+# is already well-learned.
 TEXTBOOK_FALLBACK_SOURCES = frozenset({"textbook"})
 TEXTBOOK_FALLBACK_MAX_PER_SESSION = 2
 
@@ -806,13 +814,16 @@ def build_session(
     textbook_fallback_limit = _textbook_fallback_limit(limit)
     textbook_fallback_count = 0
 
-    def _pick_for_session(lemma_id: int) -> Optional[SentencePayload]:
+    def _pick_for_session(
+        lemma_id: int, *, allow_textbook: bool
+    ) -> Optional[SentencePayload]:
         nonlocal textbook_fallback_count
-        exclude_sources = (
-            set(TEXTBOOK_FALLBACK_SOURCES)
-            if textbook_fallback_count >= textbook_fallback_limit
-            else None
-        )
+        # Acquiring lemmas never get textbook fallbacks (see TEXTBOOK_FALLBACK_
+        # SOURCES docstring). FSRS-carded lemmas can, up to the session cap.
+        if not allow_textbook or textbook_fallback_count >= textbook_fallback_limit:
+            exclude_sources: Optional[set[str]] = set(TEXTBOOK_FALLBACK_SOURCES)
+        else:
+            exclude_sources = None
         payload = pick_sentence_for_lemma(
             db,
             lemma_id=lemma_id,
@@ -828,7 +839,9 @@ def build_session(
     for ulk, lemma in acquiring:
         if len(selected) >= limit:
             break
-        payload = _pick_for_session(lemma.lemma_id)
+        # Acquiring = no textbook fallback. Skip the lemma if no LLM sentence
+        # exists yet; the warm cache will eventually catch up.
+        payload = _pick_for_session(lemma.lemma_id, allow_textbook=False)
         if payload is None:
             skipped_due.append(SkippedDueLemma(
                 lemma_id=lemma.lemma_id,
@@ -845,7 +858,7 @@ def build_session(
     for ulk, lemma, _due in fsrs:
         if len(selected) >= limit:
             break
-        payload = _pick_for_session(lemma.lemma_id)
+        payload = _pick_for_session(lemma.lemma_id, allow_textbook=True)
         if payload is None:
             skipped_due.append(SkippedDueLemma(
                 lemma_id=lemma.lemma_id,
