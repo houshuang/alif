@@ -85,12 +85,25 @@ export type PageView = {
   tokens: TokenView[];
 };
 
+export type SentenceTranslation = {
+  /** Matches TokenView.sentence_index — group tokens by this to render pairs. */
+  sentence_index_in_page: number;
+  /** Null when the LLM call failed for this sentence; the row stays untranslated. */
+  translation_en: string | null;
+};
+
 export type PageTranslation = {
   story_id: number;
   page_number: number;
-  /** Full-page English. null = LLM failed, retry; "" = blank/punctuation page. */
+  /** Full-page English. null = LLM failed, retry; "" = blank/punctuation page.
+   *  When `sentences` is non-empty this is the concatenation of those, kept for
+   *  backward compat. The reader's Reveal renders `sentences` directly. */
   translation_en: string | null;
   generated: boolean;
+  /** One entry per harvested Sentence row, keyed by sentence_index_in_page.
+   *  Empty for legacy / un-harvested pages — Reveal then falls back to the
+   *  page-level translation_en above. */
+  sentences: SentenceTranslation[];
 };
 
 export type MarkState = "known" | "unknown" | "encountered" | "ignore" | "clear";

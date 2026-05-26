@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Polyglot reader — final reveal design</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Polyglot tokens (frontend/lib/polyglot-design-colors.ts) */
+  :root {
+    --bg:        #fafaf8;
+    --surface:   #ffffff;
+    --muted:     #f3f1ec;
+    --ink:       #1a1a1a;
+    --ink-mute:  #6b6b6b;
+    --ink-light: #9b9b9b;
+    --border:    #ececec;
+    --border-strong: #d4c8b0;
+    --accent:    #2c5f8d;
+    --red:       #c95f6f;
+    --yellow:    #d4a06b;
+    --serif:     "EB Garamond", "Georgia", serif;
+    --sans:      "Inter", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--muted); color: var(--ink); font-family: var(--sans); }
+  body { padding: 28px 16px 80px; line-height: 1.4; }
+
+  header { max-width: 1100px; margin: 0 auto 22px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+  header h1 { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 4px; letter-spacing: 0.2px; }
+  header .sub { color: var(--ink-mute); font-size: 13px; max-width: 70ch; }
+  header .meta { color: var(--ink-light); font-size: 12px; margin-top: 6px; }
+
+  .controls { display: flex; gap: 10px; align-items: center; }
+  .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .seg button { background: none; border: none; padding: 7px 14px; font: 500 13px var(--sans); color: var(--ink-mute); border-radius: 6px; cursor: pointer; }
+  .seg button.on { background: var(--ink); color: var(--surface); }
+
+  .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ===== Phone ===== */
+  .phone { background: var(--bg); border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
+           display: flex; flex-direction: column; min-height: 720px; box-shadow: 0 4px 18px rgba(0,0,0,0.05); }
+  .phone .head { padding: 16px 22px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .phone .head .pn { font-size: 11px; letter-spacing: 0.9px; color: var(--ink-light); text-transform: uppercase; }
+  .phone .head .ti { font-family: var(--serif); font-size: 18px; margin-top: 2px; color: var(--ink); }
+  .phone .head .marks { margin-top: 8px; font-size: 11px; color: var(--ink-mute); display: flex; gap: 14px; }
+  .phone .head .marks .pill { display: inline-flex; align-items: center; gap: 5px; }
+  .phone .head .marks .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .phone .head .marks .red  { background: rgba(201,95,111,0.32); border-bottom: 1.5px solid var(--red); }
+  .phone .head .marks .yel  { background: rgba(212,160,107,0.36); border-bottom: 1.5px solid var(--yellow); }
+  .phone .head .counts { margin-top: 6px; font: 500 11px var(--sans); color: var(--ink-light); letter-spacing: 0.3px; }
+  .phone .head .counts b { color: var(--ink-mute); font-weight: 600; }
+
+  .phone .body { flex: 1; padding: 24px 24px 16px; overflow-y: auto; }
+  .phone .foot { border-top: 1px solid var(--border); background: var(--surface); padding: 12px 16px; display: flex; gap: 10px; }
+  .phone .foot button { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 11px; font: 500 13px var(--sans); color: var(--ink); cursor: pointer; }
+  .phone .foot button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); flex: 1.3; }
+  .phone .foot button.primary.revealed { background: var(--accent); border-color: var(--accent); }
+  .phone .foot button.next { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+  .phone .foot button.next:hover { background: #214b6f; }
+
+  /* ===== Reader text ===== */
+  .reader { font-family: var(--serif); font-size: 21px; line-height: 1.6; color: var(--ink); }
+  .sent { display: block; margin-bottom: 6px; }
+  .reader .w {
+    padding: 1px 2px 2px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    border-bottom: 1.5px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .reader .w:hover { background: var(--muted); }
+  .reader .w.red    { background: rgba(201,95,111,0.20); border-bottom-color: var(--red); }
+  .reader .w.yellow { background: rgba(212,160,107,0.24); border-bottom-color: var(--yellow); }
+
+  /* ===== Interleaved English (Reveal active) ===== */
+  .en {
+    display: none;
+    font-family: var(--serif); font-style: italic; font-size: 15.5px;
+    color: var(--ink-mute); line-height: 1.5;
+    margin: 4px 0 14px;
+    padding-left: 14px;
+    border-left: 2px solid var(--border-strong);
+  }
+  .phone.revealed .en { display: block; animation: fadeIn 0.22s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+  /* ===== Side panel: notes/spec ===== */
+  .notes { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px; align-self: stretch; }
+  .notes h2 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0 0 6px; }
+  .notes h3 { font-family: var(--sans); font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--accent); letter-spacing: 0.8px; margin: 18px 0 6px; }
+  .notes p, .notes li { font-size: 14px; line-height: 1.55; }
+  .notes p { margin: 0 0 8px; }
+  .notes ul { margin: 4px 0 0; padding-left: 20px; }
+  .notes li { margin-bottom: 4px; }
+  .notes code { font: 12px ui-monospace, Menlo, monospace; background: var(--muted); padding: 1px 5px; border-radius: 3px; }
+  .notes .step { display: grid; grid-template-columns: 22px 1fr; gap: 10px; margin: 6px 0; align-items: baseline; }
+  .notes .step .n { font: 600 13px var(--sans); color: var(--accent); background: var(--muted); border-radius: 11px; text-align: center; padding: 1px 0; }
+  .notes .legend { display: flex; gap: 18px; margin: 6px 0 0; }
+  .notes .legend span { font-size: 13px; }
+  .notes hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Polyglot reader — final reveal design</h1>
+    <div class="sub">Foreign text only by default. Tap words to mark red (no idea) or yellow (recognize). When stuck, hit <strong>Reveal</strong> to interleave the English under each sentence. <strong>Next</strong> records every word — marked words as misses, everything else as known — and advances.</div>
+    <div class="meta">Source: Eutropius, <em>Breviarium ab urbe condita</em> I.1 (story #2 p.1, prod) · Greek p. 14, story #1 local. English glosses are mine.</div>
+  </div>
+  <div class="controls">
+    <div class="seg" id="lang-seg">
+      <button data-lang="la" class="on">Latin</button>
+      <button data-lang="el">Greek</button>
+    </div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- ========== Phone ========== -->
+  <div class="phone" id="phone">
+    <div class="head">
+      <div class="pn" id="pn">PAGE 1 of 20</div>
+      <div class="ti" id="ti">Eutropius — Breviarium</div>
+      <div class="marks">
+        <span class="pill"><span class="swatch red"></span> no idea</span>
+        <span class="pill"><span class="swatch yel"></span> recognize</span>
+      </div>
+      <div class="counts" id="counts">3 red · 4 yellow · 73 known when you tap Next</div>
+    </div>
+    <div class="body">
+      <div class="reader" id="reader"></div>
+    </div>
+    <div class="foot">
+      <button id="prev-btn">← Prev</button>
+      <button class="primary" id="reveal-btn">Reveal</button>
+      <button class="next" id="next-btn">Next →</button>
+    </div>
+  </div>
+
+  <!-- ========== Notes ========== -->
+  <div class="notes">
+    <h2>The flow</h2>
+
+    <div class="step"><div class="n">1</div><div><strong>See foreign text only.</strong> No English on screen. The reader tries the sentence under its own steam.</div></div>
+    <div class="step"><div class="n">2</div><div><strong>Tap words.</strong> Each tap cycles <span style="border-bottom: 1.5px solid var(--red); padding-bottom:1px;">red</span> → <span style="border-bottom: 1.5px solid var(--yellow); padding-bottom:1px;">yellow</span> → unmark. Same tap-cycle as sentence-review. Each tap is a server <code>POST /api/words/mark</code> live.</div></div>
+    <div class="step"><div class="n">3</div><div><strong>Reveal (optional).</strong> Slides the English under each foreign sentence, italic, indented. Toggle off to go back to immersion. No commit yet — this is purely viewing.</div></div>
+    <div class="step"><div class="n">4</div><div><strong>Next.</strong> Page sweep fires: marked words count as misses (red = unknown, yellow = encountered); every unmarked word in the page counts as <em>known</em> at FSRS rating 3. Idempotent per page via <code>client_review_id = pr:&lt;story&gt;:&lt;n&gt;</code>. Advances.</div></div>
+    <div class="step"><div class="n">5</div><div><strong>Prev.</strong> Re-reads the previous page. Per-word marks restore from cache; you can edit them and the server updates live. The sweep does not re-fire (same client_review_id).</div></div>
+
+    <hr>
+
+    <h3>What changes vs. PR #149</h3>
+    <ul>
+      <li><strong>"Show English" button → "Reveal".</strong> Pure rename.</li>
+      <li><strong>Reveal layout</strong> swaps from full-page English block (mode A) to <strong>sentence-by-sentence interleaved</strong> (mode B). This is the substantive change.</li>
+      <li><strong>Backend prerequisite:</strong> sentence-level English doesn't exist yet — only page-level <code>pages.translation_en</code>. Need a new <code>sentences.translation_en</code> populated by the same lazy call. (See "implementation" below.)</li>
+      <li>Tap-to-mark, Prev / Next, idempotent sweep, page cache: <em>already shipped in PR #149.</em> No change.</li>
+    </ul>
+
+    <h3>Implementation: where the sentence English comes from</h3>
+    <p>The cleanest path is one extra column on <code>sentences</code>, populated lazily by extending <code>ensure_page_translation</code> to return per-sentence pairs in a single LLM call (JSON list of <code>{sentence_id, en}</code>). Same write-lock-safe pattern as the page version. Frontend reads <code>page.sentences[].translation_en</code> instead of <code>page.translation_en</code>.</p>
+    <p>Cost of choosing this over splitting the page-level string client-side: one extra column, one JSON-schema constrained prompt. Cost of <em>not</em> choosing it: silent misalignment when a Latin sentence breaks into two English sentences (or vice versa) — common with periodic Latin and very real with Eutropius's chapter 1 above.</p>
+  </div>
+
+</div>
+
+<script>
+/* ---------- Content (authentic, from polyglot.db) ---------- */
+
+const PASSAGES = {
+  la: {
+    title: "Eutropius — Breviarium",
+    page:  "PAGE 1 of 20",
+    sentences: [
+      {
+        toks: [
+          { t: "Romanum " }, { t: "imperium" }, { t: ", " },
+          { t: "quo " }, { t: "neque " }, { t: "ab " }, { t: "exordio " },
+          { t: "ullum " }, { t: "fere " }, { t: "minus " },
+          { t: "neque " }, { t: "incrementis ", mark: "yellow" },
+          { t: "toto " }, { t: "orbe " }, { t: "amplius " },
+          { t: "humana " }, { t: "potest " }, { t: "memoria " }, { t: "recordari" }, { t: ", " },
+          { t: "a " }, { t: "Romulo " }, { t: "exordium " }, { t: "habet" }, { t: ", " },
+          { t: "qui " }, { t: "Reae " }, { t: "Silviae" }, { t: ", " },
+          { t: "Vestalis ", mark: "yellow" }, { t: "virginis" }, { t: ", " },
+          { t: "filius " }, { t: "et" }, { t: ", " },
+          { t: "quantum " }, { t: "putatus " }, { t: "est" }, { t: ", " },
+          { t: "Martis " }, { t: "cum " }, { t: "Remo " }, { t: "fratre " },
+          { t: "uno " }, { t: "partu", mark: "red" }, { t: " editus " }, { t: "est" }, { t: "." }
+        ],
+        en: "The Roman empire — than which human memory can recall scarcely any smaller at its beginning, nor any greater in its growth across the whole world — has its origin from Romulus, son of Rhea Silvia, a Vestal Virgin, and (so it was thought) of Mars, born in a single birth with his brother Remus."
+      },
+      {
+        toks: [
+          { t: "Is " }, { t: "cum " }, { t: "inter " }, { t: "pastores " },
+          { t: "latrocinaretur", mark: "red" }, { t: ", " },
+          { t: "decem " }, { t: "et " }, { t: "octo " }, { t: "annos " }, { t: "natus " },
+          { t: "urbem " }, { t: "exiguam " },
+          { t: "in " }, { t: "Palatino " }, { t: "monte " }, { t: "constituit " },
+          { t: "XI " }, { t: "Kal. " }, { t: "Maias" }, { t: ", " },
+          { t: "Olympiadis ", mark: "yellow" }, { t: "sextae " }, { t: "anno " }, { t: "tertio" }, { t: ", " },
+          { t: "post " }, { t: "Troiae " }, { t: "excidium" }, { t: ", " },
+          { t: "ut " }, { t: "qui " }, { t: "plurimum " }, { t: "minimumque " }, { t: "tradunt" }, { t: ", " },
+          { t: "anno " }, { t: "trecentesimo " }, { t: "nonagesimo " }, { t: "quarto" }, { t: "." }
+        ],
+        en: "While he was raiding among the shepherds, at eighteen years old he founded a small city on the Palatine Hill on the 11th day before the Kalends of May, in the third year of the sixth Olympiad — the 394th year after the fall of Troy, by the largest and smallest reckonings."
+      }
+    ]
+  },
+  el: {
+    title: "Ιστορία του Αρχαίου Κόσμου",
+    page:  "PAGE 14 of 298",
+    sentences: [
+      {
+        toks: [
+          { t: "Η " }, { t: "δομή " }, { t: "της " }, { t: "κοινωνίας " },
+          { t: "των " }, { t: "λαών " }, { t: "που " }, { t: "κατοίκησαν " },
+          { t: "στην " }, { t: "περιοχή " },
+          { t: "μετά " }, { t: "από " }, { t: "τους " }, { t: "Σουμέριους " },
+          { t: "ήταν " }, { t: "αποτέλεσμα " },
+          { t: "της " }, { t: "οργάνωσης " }, { t: "ενός " }, { t: "κράτους " },
+          { t: "με " }, { t: "θεοκρατικό", mark: "yellow" }, { t: " χαρακτήρα" }, { t: "." }
+        ],
+        en: "The social structure of the peoples who inhabited the region after the Sumerians was the result of organising a state with a theocratic character."
+      },
+      {
+        toks: [
+          { t: "Ο " }, { t: "ανώτατος " }, { t: "άρχοντας" }, { t: ", " },
+          { t: "ο " }, { t: "βασιλιάς" }, { t: ", " },
+          { t: "θεωρούνταν", mark: "red" }, { t: " θεός " },
+          { t: "ή " }, { t: "προσωποποίηση " }, { t: "του " }, { t: "θεού " },
+          { t: "και " }, { t: "η " }, { t: "θρησκεία " },
+          { t: "ασκούσε " }, { t: "τεράστια " }, { t: "επίδραση " },
+          { t: "στις " }, { t: "εκδηλώσεις " }, { t: "της " }, { t: "ζωής" }, { t: "." }
+        ],
+        en: "The supreme ruler — the king — was considered a god, or the personification of the god, and religion exerted enormous influence on the expressions of daily life."
+      },
+      {
+        toks: [
+          { t: "Οι " }, { t: "ευγενείς" }, { t: ", " },
+          { t: "δηλαδή " }, { t: "η " }, { t: "ανώτερη " },
+          { t: "αυλική", mark: "yellow" }, { t: " υπαλληλία " },
+          { t: "και " }, { t: "οι " }, { t: "ιερείς" }, { t: ", " },
+          { t: "αποτελούσαν " }, { t: "ιδιαίτερη " }, { t: "τάξη" }, { t: "." }
+        ],
+        en: "The nobles — that is, the senior court officialdom and the priests — formed a distinct class of their own."
+      }
+    ]
+  }
+};
+
+const CYCLE = ["", "red", "yellow"]; // tap cycle: untouched → red → yellow → untouched
+let state = { lang: "la", marks: {}, revealed: false };
+
+/* ---------- Render ---------- */
+
+function renderReader() {
+  const p = PASSAGES[state.lang];
+  document.getElementById("ti").textContent = p.title;
+  document.getElementById("pn").textContent = p.page;
+
+  const reader = document.getElementById("reader");
+  reader.innerHTML = p.sentences.map((s, si) => {
+    const words = s.toks.map((tok, ti) => {
+      // Only render word tokens (alphabetic) as taggable; punctuation passes through.
+      const isWord = /\p{L}/u.test(tok.t);
+      if (!isWord) return tok.t;
+      const key = `${state.lang}-${si}-${ti}`;
+      const m = state.marks[key] ?? tok.mark ?? "";
+      const cls = m ? `w ${m}` : "w";
+      return `<span class="${cls}" data-key="${key}">${tok.t}</span>`;
+    }).join("");
+    return `<span class="sent">${words}<div class="en">${s.en}</div></span>`;
+  }).join("");
+
+  updateCounts();
+}
+
+function updateCounts() {
+  const p = PASSAGES[state.lang];
+  let red = 0, yel = 0, total = 0;
+  p.sentences.forEach((s, si) => {
+    s.toks.forEach((tok, ti) => {
+      if (!/\p{L}/u.test(tok.t)) return;
+      total++;
+      const key = `${state.lang}-${si}-${ti}`;
+      const m = state.marks[key] ?? tok.mark ?? "";
+      if (m === "red") red++;
+      else if (m === "yellow") yel++;
+    });
+  });
+  const known = total - red - yel;
+  document.getElementById("counts").innerHTML =
+    `<b>${red}</b> red · <b>${yel}</b> yellow · <b>${known}</b> swept as known on Next`;
+}
+
+/* ---------- Interactions ---------- */
+
+document.getElementById("lang-seg").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-lang]");
+  if (!btn) return;
+  document.querySelectorAll("#lang-seg button").forEach(b => b.classList.remove("on"));
+  btn.classList.add("on");
+  state.lang = btn.dataset.lang;
+  state.marks = {};   // marks are per language for this demo
+  state.revealed = false;
+  document.getElementById("phone").classList.remove("revealed");
+  document.getElementById("reveal-btn").classList.remove("revealed");
+  document.getElementById("reveal-btn").textContent = "Reveal";
+  renderReader();
+});
+
+document.getElementById("reader").addEventListener("click", e => {
+  const w = e.target.closest(".w");
+  if (!w) return;
+  const key = w.dataset.key;
+  const cur = state.marks[key] ?? (() => {
+    // pick up the seeded mark from the data so taps cycle from there
+    const [, si, ti] = key.split("-");
+    return PASSAGES[state.lang].sentences[+si].toks[+ti].mark ?? "";
+  })();
+  const idx = CYCLE.indexOf(cur);
+  const next = CYCLE[(idx + 1) % CYCLE.length];
+  state.marks[key] = next;
+  w.classList.remove("red", "yellow");
+  if (next) w.classList.add(next);
+  updateCounts();
+});
+
+const revealBtn = document.getElementById("reveal-btn");
+revealBtn.addEventListener("click", () => {
+  state.revealed = !state.revealed;
+  document.getElementById("phone").classList.toggle("revealed", state.revealed);
+  revealBtn.classList.toggle("revealed", state.revealed);
+  revealBtn.textContent = state.revealed ? "Hide" : "Reveal";
+});
+
+document.getElementById("next-btn").addEventListener("click", () => {
+  // visual ack only — the real reader fires the sweep then advances.
+  const p = PASSAGES[state.lang];
+  let red = 0, yel = 0, total = 0;
+  p.sentences.forEach((s, si) => s.toks.forEach((tok, ti) => {
+    if (!/\p{L}/u.test(tok.t)) return;
+    total++;
+    const m = state.marks[`${state.lang}-${si}-${ti}`] ?? tok.mark ?? "";
+    if (m === "red") red++; else if (m === "yellow") yel++;
+  }));
+  const known = total - red - yel;
+  alert(`Sweep recorded:\n${red} unknown · ${yel} encountered · ${known} known\n\n(Real reader advances to next page.)`);
+});
+
+document.getElementById("prev-btn").addEventListener("click", () => {
+  alert("Prev: re-reads the previous page. Marks restore from cache. Sweep does not re-fire.");
+});
+
+renderReader();
+</script>
+</body>
+</html>

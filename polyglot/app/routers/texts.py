@@ -115,12 +115,13 @@ def get_page_translation(story_id: int, page_number: int, db: Session = Depends(
     result = reading_intake.ensure_page_translation(db, story_id, page_number)
     if result is None:
         raise HTTPException(status_code=404, detail="Page not found")
-    translation_en, generated = result
+    translation_en, generated, sentences = result
     return PageTranslation(
         story_id=story_id,
         page_number=page_number,
         translation_en=translation_en,
         generated=generated,
+        sentences=sentences,
     )
 
 
