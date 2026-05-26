@@ -14,10 +14,14 @@
 # LANGUAGES comment below). Phase descriptions say "Modern Greek" but apply to
 # whichever language the loop is on. In order:
 #   1. warm_pages_ahead
-#      — keeps the next N (default 5) unread pages of every active story
+#      — keeps the next N (default 10) unread pages of every active story
 #        already through the quality gate, so the user never waits when
 #        flipping pages. Runs first because freshly verified pages are the
 #        source of new lemmas that the sentence cache then needs to cover.
+#        Buffer was 5 until 2026-05-26; bumped to 10 because heavy-reading
+#        Latin sessions outpaced the 3h cron cadence (user advancing >5 pages
+#        between cron passes). Frontend also prefetches 5 pages ahead so the
+#        client bridges any in-session gap.
 #   2. review_existing_sentences for Modern Greek
 #      — backfills the sentence quality gate for legacy LLM-generated rows and
 #        retires rows that are unnatural or mistranslated.
@@ -73,9 +77,9 @@ export POLYGLOT_ACTIVE_TARGET="${POLYGLOT_ACTIVE_TARGET:-5}"
 # 64 lemmas / BATCH_WORD_SIZE=4 = 16 Sonnet+verify+quality batches. Give the
 # phase 45 minutes so slow LLM calls don't truncate an otherwise healthy pass.
 TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-2700}"
-PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
-PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
-PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
+PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-10}"
+PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-10}"
+PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1800}"
 REVIEW_EXISTING_MAX_SENTENCES="${POLYGLOT_REVIEW_EXISTING_MAX_SENTENCES:-80}"
 REVIEW_EXISTING_BATCH_SIZE="${POLYGLOT_REVIEW_EXISTING_BATCH_SIZE:-10}"
 REVIEW_EXISTING_TIMEOUT_SECONDS="${POLYGLOT_REVIEW_EXISTING_TIMEOUT_SECONDS:-900}"
