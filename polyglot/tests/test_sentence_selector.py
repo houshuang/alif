@@ -542,8 +542,11 @@ def test_session_picks_one_sentence_per_due_lemma(tmp_db):
         b = _seed_lemma(db, form="κόσμος")
         _seed_acquiring(db, a.lemma_id, box=1)
         _seed_acquiring(db, b.lemma_id, box=1)
-        sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A")
-        sb = _seed_sentence(db, lemma_surfaces=[(b.lemma_id, "κόσμος")], text="B")
+        # Use source="llm": acquiring lemmas no longer accept textbook
+        # fallback (2026-05-26), and this test is about per-lemma picking,
+        # not source policy.
+        sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A", source="llm")
+        sb = _seed_sentence(db, lemma_surfaces=[(b.lemma_id, "κόσμος")], text="B", source="llm")
         db.commit()
         bundle = build_session(db, language_code="el", limit=10)
         assert len(bundle.sentences) == 2
@@ -557,7 +560,7 @@ def test_session_skips_lemmas_without_eligible_sentences(tmp_db):
         b = _seed_lemma(db, form="κόσμος")  # no sentence → skipped
         _seed_acquiring(db, a.lemma_id)
         _seed_acquiring(db, b.lemma_id)
-        sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A")
+        sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A", source="llm")
         db.commit()
         bundle = build_session(db, language_code="el", limit=10)
         assert len(bundle.sentences) == 1
@@ -589,6 +592,7 @@ def test_session_dedupes_sentences(tmp_db):
             db,
             lemma_surfaces=[(a.lemma_id, "λόγος"), (b.lemma_id, "κόσμος")],
             text="λόγος κόσμος",
+            source="llm",
         )
         db.commit()
         bundle = build_session(db, language_code="el", limit=10)
@@ -636,10 +640,12 @@ def test_session_skips_recently_shown_sentence_instead_of_repeating(tmp_db):
 
 
 def test_session_caps_textbook_fallbacks(tmp_db):
+    """Textbook fallback applies only to FSRS-carded lemmas (2026-05-26).
+    Cap caps how many of those a single session serves."""
     with tmp_db() as db:
         for i in range(5):
             lemma = _seed_lemma(db, form=f"λ{i}", bare=f"λ{i}")
-            _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
+            _seed_known(db, lemma.lemma_id, state="learning")
             _seed_sentence(
                 db,
                 lemma_surfaces=[(lemma.lemma_id, f"λ{i}")],
@@ -655,10 +661,12 @@ def test_session_caps_textbook_fallbacks(tmp_db):
 
 
 def test_session_textbook_cap_does_not_block_generated_material(tmp_db):
+    """Generated (LLM) sentences for FSRS-due lemmas are served beyond the
+    textbook cap; the cap only counts textbook fallbacks."""
     with tmp_db() as db:
         for i in range(3):
             lemma = _seed_lemma(db, form=f"β{i}", bare=f"β{i}")
-            _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
+            _seed_known(db, lemma.lemma_id, state="learning")
             _seed_sentence(
                 db,
                 lemma_surfaces=[(lemma.lemma_id, f"β{i}")],
@@ -666,7 +674,7 @@ def test_session_textbook_cap_does_not_block_generated_material(tmp_db):
                 source="textbook",
             )
         generated = _seed_lemma(db, form="λόγος")
-        _seed_acquiring(db, generated.lemma_id, box=1, due_offset_s=-100)
+        _seed_known(db, generated.lemma_id, state="learning")
         llm = _seed_sentence(
             db,
             lemma_surfaces=[(generated.lemma_id, "λόγος")],
@@ -740,7 +748,10 @@ def test_endpoint_session_returns_bundle(tmp_db):
     with tmp_db() as db:
         a = _seed_lemma(db, form="λόγος")
         _seed_acquiring(db, a.lemma_id, box=1)
-        _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")])
+        # source="llm" because acquiring lemmas no longer accept textbook
+        # fallback (2026-05-26). The endpoint test asserts the bundle shape,
+        # not the source policy.
+        _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], source="llm")
         db.commit()
 
     client = _http_client(tmp_db)
@@ -963,3 +974,99 @@ def test_recently_shown_sentence_penalty_prefers_fresher_generated_context(tmp_d
         assert result.llm_candidate_count == 2
         assert result.selected_recently_shown is False
         assert db.query(Sentence).filter_by(id=recent_best_scaffold.id).one()
+
+
+# ─── 2026-05-26 user feedback: no textbook fallback for acquiring lemmas ─────
+#
+# Book sentences are too complex for early learning. The picker must serve
+# them only for FSRS-carded lemmas, never for `acquiring` rows — even if no
+# LLM material exists yet, skipping the lemma is preferable. See
+# feedback_no_book_sentences_for_acquiring.md.
+
+
+def test_acquiring_lemma_never_gets_textbook_fallback(tmp_db):
+    """Acquiring lemma with ONLY a textbook sentence available → skipped, not served."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, target.lemma_id, box=1)
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(target.lemma_id, "λόγος")],
+            text="ο λόγος (textbook)",
+            source="textbook",
+        )
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 0
+        # The lemma should be in skipped_due, not silently dropped.
+        assert any(
+            s.lemma_id == target.lemma_id and s.queue == "acquisition"
+            for s in bundle.skipped_due_lemmas
+        )
+
+
+def test_fsrs_lemma_still_gets_textbook_fallback(tmp_db):
+    """FSRS-carded lemma with only a textbook sentence available → served
+    (subject to the global TEXTBOOK_FALLBACK_MAX_PER_SESSION cap)."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        _seed_known(db, target.lemma_id, state="learning")
+        sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(target.lemma_id, "λόγος")],
+            text="ο λόγος (textbook)",
+            source="textbook",
+        )
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 1
+        assert bundle.sentences[0].sentence_id == sent.id
+
+
+def test_mixed_session_acquiring_skipped_fsrs_served(tmp_db):
+    """In one session, an acquiring lemma with only textbook source is skipped
+    while an FSRS-due lemma with the same textbook-only constraint is served."""
+    with tmp_db() as db:
+        acquiring_target = _seed_lemma(db, form="λόγος")
+        fsrs_target = _seed_lemma(db, form="κόσμος")
+        _seed_acquiring(db, acquiring_target.lemma_id, box=1)
+        _seed_known(db, fsrs_target.lemma_id, state="learning")
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(acquiring_target.lemma_id, "λόγος")],
+            text="acq textbook",
+            source="textbook",
+        )
+        fsrs_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(fsrs_target.lemma_id, "κόσμος")],
+            text="fsrs textbook",
+            source="textbook",
+        )
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        served_ids = {s.sentence_id for s in bundle.sentences}
+        assert served_ids == {fsrs_sent.id}
+        # The acquiring lemma should land in skipped_due.
+        assert any(
+            s.lemma_id == acquiring_target.lemma_id and s.queue == "acquisition"
+            for s in bundle.skipped_due_lemmas
+        )
+
+
+def test_acquiring_lemma_with_llm_sentence_still_works(tmp_db):
+    """Sanity: acquiring with an LLM-source sentence available IS served,
+    so the fix doesn't accidentally starve the normal acquisition flow."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, target.lemma_id, box=1)
+        sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(target.lemma_id, "λόγος")],
+            text="ο λόγος (llm)",
+            source="llm",
+        )
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 1
+        assert bundle.sentences[0].sentence_id == sent.id
