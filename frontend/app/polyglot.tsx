@@ -156,22 +156,19 @@ function marksEqual(
   return true;
 }
 
-// Reading-cursor persistence. The lemma-detail screen is a hidden sibling tab,
-// not a stacked route, so navigating into it tears this reader down; on return
-// React rebuilds it fresh and the mount effect would otherwise reload the
-// story's first content page — losing your page, scroll, and open lookup card.
-// We stash that cursor and restore it on remount. Recency-gated (CURSOR_TTL_MS)
-// so a genuine cold start long afterwards still opens on the story list rather
-// than hijacking straight into the last page read.
+// Reading-cursor persistence. Two roles: (a) survive a lemma-detail round-trip
+// — that screen is a hidden sibling tab, not a stacked route, so navigating into
+// it tears the reader down and React rebuilds it fresh on return; (b) serve as
+// a bookmark across app reloads, so reopening the app lands you back on the
+// page you were reading. Cleared on an explicit "back to library" tap
+// (see goToLibrary) — that's the only way to genuinely reset to the story list.
 const CURSOR_STORAGE_KEY = "@polyglot:readingCursor";
-const CURSOR_TTL_MS = 15 * 60 * 1000;
 
 type ReadingCursor = {
   storyId: number;
   pageNumber: number;
   scrollY: number;
   selectedPosition: number | null; // token position of the open lookup-card word
-  savedAt: number;
 };
 
 // Reading palette. We treat the page as a book, not a flashcard surface:
@@ -428,9 +425,11 @@ export default function Polyglot() {
     loadPage(storyId, page);
   }, [storyId, loadPage, stories]);
 
-  // Restore the last reading position after a remount. Only auto-resumes when
-  // the cursor is fresh (the detail round-trip is seconds) and we're still on
-  // the story list — a stale cursor from a previous day leaves you on the list.
+  // Restore the last reading position after a remount. Serves both a
+  // lemma-detail round-trip and a full app reload — the cursor is only cleared
+  // when the user explicitly returns to the library (goToLibrary). The
+  // stories.some() guard prevents a cursor from one language hijacking when
+  // the user has switched language since.
   useEffect(() => {
     if (restoredRef.current) return;
     if (stories == null) return;   // wait for the story list to resolve
@@ -442,7 +441,6 @@ export default function Polyglot() {
         if (!raw) return;
         const cur: ReadingCursor = JSON.parse(raw);
         if (cur?.storyId == null) return;
-        if (Date.now() - (cur.savedAt ?? 0) > CURSOR_TTL_MS) return;
         if (!stories.some((s) => s.id === cur.storyId)) return;
         pendingRestoreRef.current = cur;
         overridePageRef.current = cur.pageNumber;
@@ -464,7 +462,6 @@ export default function Polyglot() {
       pageNumber,
       scrollY: scrollYRef.current,
       selectedPosition: selected?.position ?? null,
-      savedAt: Date.now(),
     };
     AsyncStorage.setItem(CURSOR_STORAGE_KEY, JSON.stringify(cursor)).catch(() => {});
   }, [storyId, pageNumber, selected]);
