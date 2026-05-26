@@ -7,8 +7,21 @@ from app.models import (
     PageWord, Story, FrequencyEntry, ContentFlag,
 )
 from app.services.lemma_integrity import (
-    apply_citation_fix, merge_lemma_into, retire_noise_lemma,
+    apply_citation_fix, merge_lemma_into, retire_noise_lemma, judge_prompt,
 )
+
+
+def test_judge_prompt_uses_language_specific_citation_rules():
+    """The citation-repair prompt must feed Latin rules to Latin audits and
+    Greek rules to Greek audits — not Greek morphology to every language."""
+    items = [{"index": 0, "form": "x", "gloss": "y"}]
+    la = judge_prompt("la", items)
+    assert "no macrons" in la.lower() or "macron" in la.lower()
+    assert "facio" in la              # Latin verb example
+    assert "εξελίσσομαι" not in la    # no Greek leakage
+    el = judge_prompt("el", items)
+    assert "εξελίσσομαι" in el
+    assert "facio" not in el
 
 
 def _lemma(db, form, bare, **kw):

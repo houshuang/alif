@@ -67,9 +67,41 @@ VALID_POS = {
 }
 
 
+# Per-language citation-form rules + worked examples. The lemmatizer's failure
+# modes and the correct citation form are language-specific, so feeding Greek
+# rules to a Latin audit (or vice versa) misleads the model. Add a block here
+# when wiring a new language; falls back to a generic rule otherwise.
+_CITATION_RULES = {
+    "el": """- Verbs: 1st person singular present (active -ω; deponent/passive-only -ομαι/-άμαι).
+  e.g. εξελίχθηκαν → εξελίσσομαι, στηριζόταν → στηρίζομαι, οργανώθηκαν → οργανώνω.
+- Nouns: nominative singular. e.g. πλεονάσματος → πλεόνασμα, εκδηλώσεις → εκδήλωση.
+- Adjectives: nominative singular masculine, positive degree.
+  e.g. ευρύτερο → ευρύς, συστηματική → συστηματικός.""",
+    "la": """- Use standard dictionary headword orthography: NO macrons, v written u,
+  j written i (e.g. uita not vīta, iudicium not jūdicium, aluus not alvus).
+- Verbs: 1st person singular present indicative active (-o); deponents in -or
+  (e.g. fecit → facio, amaui → amo, locutus → loquor, ferre/tulit → fero).
+- Nouns: nominative singular (e.g. consulis → consul, miliario → miliarium,
+  rerum → res, itinere → iter).
+- Adjectives: nominative singular masculine, positive degree
+  (e.g. maiorem → magnus, fortiora → fortis, altissimus → altus).
+- A sentence-initial capitalised common word is NOT a proper noun — give its
+  lowercase citation form (e.g. Romani → romanus only if the demonym; Bellum → bellum).""",
+    "grc": """- Verbs: 1st person singular present indicative active (-ω; deponent -ομαι).
+- Nouns: nominative singular (e.g. λόγου → λόγος, πόλεως → πόλις).
+- Adjectives: nominative singular masculine, positive degree.""",
+}
+_GENERIC_CITATION_RULES = (
+    "- Verbs: 1st person singular present (or the language's standard headword).\n"
+    "- Nouns: nominative singular.\n"
+    "- Adjectives: nominative singular masculine, positive degree."
+)
+
+
 def judge_prompt(language: str, items: list[dict]) -> str:
     """``items`` = ``[{"index": int, "form": str, "gloss": str}]``."""
     lang = LANG_NAME.get(language, language)
+    rules = _CITATION_RULES.get(language, _GENERIC_CITATION_RULES)
     lines = []
     for it in items:
         g = f"  (current gloss: {it['gloss']})" if it.get("gloss") else ""
@@ -97,11 +129,7 @@ For each entry decide a `status`:
   inferable from the gloss put it in `citation`, otherwise leave it blank.
 
 Citation-form rules for {lang}:
-- Verbs: 1st person singular present (active -ω; deponent/passive-only -ομαι/-άμαι).
-  e.g. εξελίχθηκαν → εξελίσσομαι, στηριζόταν → στηρίζομαι, οργανώθηκαν → οργανώνω.
-- Nouns: nominative singular. e.g. πλεονάσματος → πλεόνασμα, εκδηλώσεις → εκδήλωση.
-- Adjectives: nominative singular masculine, positive degree.
-  e.g. ευρύτερο → ευρύς, συστηματική → συστηματικός.
+{rules}
 
 Also return `pos` (one of: noun, verb, adjective, adverb, pronoun, preposition,
 conjunction, article, particle, numeral, proper_noun, other) and `gloss` — an
