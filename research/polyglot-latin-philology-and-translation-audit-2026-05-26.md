@@ -1,5 +1,61 @@
 # Polyglot Latin — philology + translation complaint audit (2026-05-26)
 
+> **EPILOGUE (2026-05-26, same day, ~2 hours later).** This audit's broad
+> conclusions held but it had two blind spots. A follow-up investigation +
+> PR #157 shipped three code fixes plus a one-shot data repair. See
+> `research/experiment-log.md` entry "Polyglot Latin — three lookup-card
+> quality fixes from the audit follow-up (PR #157, deployed)" for the full
+> write-up.
+>
+> **What the audit got wrong:**
+> 1. **The "3-word translation no comma" complaint is a *gloss*, not a
+>    sentence translation.** This audit's tiny-translation probe ran only
+>    against `sentences.translation_en` for Eutropius (`tiny <30 n=0`) and
+>    missed `lemmas.gloss_en`. Two of the 7 acquiring lemmas the user
+>    tapped had run-on multi-sense glosses from the Roma Aeterna seed
+>    import: `excidium → "demolition setting of the sun"`,
+>    `exordium → "beginning introduction foundation"`. Both appear on
+>    Eutropius p.1 (`Troiae excidium`, `ab exordio`), so on Reveal the
+>    user saw the bare gloss next to the Latin and read it as a "3-word
+>    translation." Root cause: `parse_roma_aeterna_apkg.py` HTML stripper
+>    collapsed `<div>sense1</div><div>sense2</div>` to one space.
+> 2. **The enrichment quality check skipped one bad quote.** Of the 7
+>    manually-enriched lemmas, `fere` came back with a 734-char Caesar
+>    passage whose `translation_en` was
+>    `"[Context: the passage contains 'omnibus fere annis' illustrating
+>    fere with quantities]"` — meta-comment, not translation. The Haiku
+>    verifier explicitly skips quotes (2026-05-21 spec) so this slipped
+>    through silently. This audit noted only "the enrichment landed" and
+>    did not inspect quote content quality.
+>
+> **What changed (PR #157, merged + deployed):**
+> 1. `parse_roma_aeterna_apkg.py` — block-level tags emit `"; "`
+>    separator. Prevents recurrence.
+> 2. `lemma_philology.py` — QUOTES prompt bans meta-commentary;
+>    `_strip_meta_commentary_quotes` post-check runs on both main and
+>    self-correct paths.
+> 3. `reading_intake._split_into_sentences` — Latin-aware, protects
+>    `Kal.`/`Non.`/`Id.`/`a.d.` (subsumes the `Kal.` followup tracked in
+>    commit `c8b557db`).
+> 4. `scripts/repair_runon_glosses.py` — new one-shot data-repair tool
+>    (LLM-judged, audit + apply, mirrors `regloss_lemmas.py` shape).
+>
+> **Data fix on prod:** 32 run-on Latin glosses repaired (including the
+> two acquiring-lemma cases). `fere` re-enriched — 3/3 quotes now clean
+> translations. Backup at `/opt/alif-backups/polyglot_pre_runon_
+> 20260526_125523.db`. Logged to `ActivityLog` as
+> `gloss_runon_repair_applied`.
+>
+> **Lesson preserved in IDEAS.md + CLAUDE.md:** when investigating a
+> "translation" complaint, check both `sentences.translation_en` AND
+> `lemmas.gloss_en` — both render on the lookup card and the user may
+> not distinguish them.
+>
+> The original audit body below is preserved unchanged for the historical
+> record.
+
+---
+
 Investigation triggered by two user reports during the 2026-05-26 Eutropius
 reading session:
 1. "the new words did not generate any good philology notes"
