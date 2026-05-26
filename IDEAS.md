@@ -4,6 +4,64 @@
 
 ---
 
+## 🟢 [LIVE 2026-05-26 — PR #158 + #159] Alif hybrid Codex provider for audit + enrichment
+
+Audit + enrichment pipelines flipped from Claude Haiku CLI to Codex `gpt-5.5`
+CLI. Generation (Sonnet sentence-gen, Opus story-gen) stays on Claude. Default
+is Codex; `ALIF_AUDIT_PROVIDER=claude` is the global escape hatch. Server has
+`CODEX_HOME=/opt/alif/.codex` in `/opt/alif/.env`; verified routing live with
+a `codex_cli/gpt-5.5` analytics row in `llm_calls_2026-05-26.jsonl`.
+
+The flip was justified by two A/Bs run today
+(`research/codex-vs-claude-{sentence-gen,enrichment-arabic}-2026-05-26.md`):
+on the audit + enrichment surface Codex was strictly better — canonical Arabic
+pattern names 9/9 vs Haiku 5/9, fact-checked cultural notes 10/10 vs 3/10,
+full diacritization (Haiku drops indicative mood vowels), 1.7× faster. On
+sentence generation Codex was weaker on Arabic naturalness under vocab
+constraint (37/40 semantic coherence vs Claude's 40/40), so generation
+explicitly stays on Claude. The Latin philology complaint that originally
+triggered this investigation was prompt+parser bugs (closed by PR #157), not
+a provider issue.
+
+Auto-flipped via the `claude_haiku` alias routing in `generate_completion`:
+all ~20 audit + enrichment call sites (`lemma_enrichment`, `pattern_enrichment`,
+`flag_evaluator`, `book_import_service`, `grammar_tagger`, `frequency_core_intake`,
+`import_quality`, `passage_generator`, `quran_service`). Plus one explicit
+migration: `lemma_vocalization.vocalize_batch` was bypassing
+`generate_completion` via direct `claude_code.generate_structured` — rewired
+to go through the routing.
+
+**Follow-ups (not done):**
+- **Per-task provider override.** Today's escape hatch is global —
+  `ALIF_AUDIT_PROVIDER=claude` reverts every audit/enrichment site at once. If
+  Codex regresses on one specific task (e.g. flag classification), we'd want
+  to revert just that task without losing Codex on the other 19. Idea: per-
+  `task_type` overrides via env (`ALIF_TASK_<TASK>_PROVIDER=claude`) or a
+  small config dict consulted by `_audit_provider(task_type)`. Don't build
+  until a real regression demands it — premature config.
+- **Vocalization-specific A/B.** The lemma_vocalization migration was
+  blessed-by-association — the enrichment A/B showed Codex more faithful to
+  full diacritization (the Achilles' heel of Haiku), and vocalization IS
+  diacritization. But a dedicated 20-lemma A/B (claude vs codex on
+  unvocalized lemmas, validated against the existing `validate_proposal`
+  letter-match check) would close the loop. Cheap.
+- **Limbic Codex adapter.** Codex calls don't enter
+  `limbic.cerebellum.cost_log` (no adapter today). Codex is free under the
+  user's subscription, so cost isn't the issue — it's volume analytics. A
+  thin adapter writing `script="codex-cli"` rows would unify the dashboards
+  with Claude CLI's existing rows. Polyglot has the same gap; build once,
+  use twice.
+- **Forms field completeness audit.** The A/B noted Codex tends to fill
+  more nominal fields (`plural`, `dual`, `sound_m_plural`) than Haiku, which
+  is more conservative per the "only include fields you are confident about"
+  sub-rule. Mostly a Codex win — more useful for learners — but if Codex
+  starts fabricating duals/plurals that don't exist for a particular noun
+  class, the more-conservative Haiku behavior was actually safer. Monitor
+  forms_json quality over the first month and flag if Codex is hallucinating
+  rare forms.
+
+---
+
 ## ✅ [DONE 2026-05-25] Polyglot: redesign the reader to mirror sentence-review
 
 The reader (`frontend/app/polyglot.tsx`) is polyglot's *primary* UX but lacked
