@@ -86,8 +86,8 @@ def _norm(form: str) -> str:
 def _canonical(form: str) -> tuple[str, str]:
     """Return (display_form, lemma_bare) for a citation form.
 
-    - ``display_form``: modern reading orthography (v/j, no macrons) — what the
-      learner sees on lookup cards and the reading screen.
+    - ``display_form``: modern reading orthography (u/v distinguished, no i/j,
+      no macrons) — what the learner sees on lookup cards and the reading screen.
     - ``lemma_bare``: u-folded, macron-stripped lookup key — what matching is
       done against (so v-spelled seed lemmas and LatinCy's u-spelled output
       collapse to the same key).
@@ -95,9 +95,9 @@ def _canonical(form: str) -> tuple[str, str]:
     With ``_USE_LEMMATIZER`` on, both come from LatinCy: the citation form is
     canonicalised (``facere`` → ``facio``, ``capere`` → ``capio``) so seed
     verbs match reading-time lemmas, and ``lemmatize`` already returns the
-    display form in v/j and the bare key u-folded. With it off (tests), display
-    is the input form macron-stripped and v/j-transformed; bare is the u-folded
-    key. Returns ``("", "")`` on empty input."""
+    display form v-transformed and the bare key u-folded. With it off (tests),
+    display is the input form macron-stripped and v-transformed; bare is the
+    u-folded key. Returns ``("", "")`` on empty input."""
     if not form:
         return "", ""
     if _USE_LEMMATIZER:
@@ -236,9 +236,10 @@ def _get_or_create_lemma(db: Session, row: VocabRow, source: str) -> Lemma:
         return existing
     lemma = Lemma(
         language_code=LANG,
-        # Latin display policy (2026-05-26): modern reading orthography (v/j,
-        # no macrons) for display; lookup key (lemma_bare) stays u-folded so
-        # the v/j seed and LatinCy's u-spelled reading-time lemma collapse.
+        # Latin display policy (2026-05-26): modern reading orthography (u/v
+        # distinguished, no i/j, no macrons) for display; lookup key
+        # (lemma_bare) stays u-folded so v-spelled seed and LatinCy's u-spelled
+        # reading-time lemma collapse to the same key.
         lemma_form=row.lemma_form,
         lemma_bare=row.lemma_bare,
         gloss_en=row.gloss_en,

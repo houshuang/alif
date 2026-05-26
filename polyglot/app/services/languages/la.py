@@ -22,14 +22,16 @@ failure modes simplemma had for Greek, so it sits behind the same safety net
     ``ordine``, ``ratione``), which it would mangle, and ``-ue`` collides with
     ``-que``. The rare fused ``estne``/``-ve`` form is left to the LLM gate,
     exactly as Greek leaves σε-crasis to it.
-  - **u/i orthography**: LatinCy emits lemmas in classical u/i form (``uenio``,
-    ``uir``). ``normalize_bare`` folds v→u and j→i for the lookup key, so seed
-    vocab, LatinCy output, and modern v/j-spelled text all collapse to one key.
-    The DISPLAY form, however, is modern reading orthography (v/j) since
-    2026-05-26: ``_to_modern_reading_orthography`` flips LatinCy's u/i output to
-    v/j on the way out. Seed lemmas bypass the heuristic at the importer (they
-    carry their v/j spelling from the TSV directly); reading-intake novel lemmas
-    rely on the heuristic.
+  - **u/v orthography (display) vs u-folded (lookup)**: LatinCy emits lemmas
+    in classical u/i form (``uenio``, ``uir``). ``normalize_bare`` folds v→u
+    and j→i for the lookup key, so seed vocab, LatinCy output, and modern
+    v-spelled text all collapse to one key. The DISPLAY form, however, is
+    modern reading orthography (distinguish u/v but NOT i/j — the LLPSI / OUP
+    intermediate convention) since 2026-05-26: ``_to_modern_reading_orthography``
+    flips LatinCy's u output to v on the way out (does NOT touch i — see the
+    rule docstring). Seed lemmas bypass the heuristic at the importer (LLPSI
+    and Roma Aeterna TSVs carry their v-spelling natively); reading-intake
+    novel lemmas rely on the heuristic.
 
 simplemma (lang='la') is the graceful fallback when the LatinCy model isn't
 installed — it keeps read-and-mark working, just without POS/morph or context
@@ -60,11 +62,11 @@ def _normalize_latin(form: str) -> str:
     """Strip macrons, fold j→i and v→u (classical orthographic convention).
 
     This is the LOOKUP KEY — deliberately convention-agnostic. It matches
-    LatinCy's lemma orthography (u/i), so a v/j-spelled seed lemma, a macron-
-    bearing Roma Aeterna entry, and a LatinCy-emitted lemma all collapse to the
-    same key. This MUST NOT change when the display convention changes (it's
-    been u-folded since 2026-05-25 and stays that way regardless of which way
-    the display flips).
+    LatinCy's lemma orthography (u/i), so a v-spelled seed lemma, a macron-
+    bearing Roma Aeterna entry, and a LatinCy-emitted lemma all collapse to
+    the same key. This MUST NOT change when the display convention changes
+    (it's been u-folded since 2026-05-25 and stays that way regardless of
+    which way the display flips — currently u/v distinguished, no i/j).
     """
     decomposed = unicodedata.normalize("NFD", form)
     no_marks = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
@@ -280,12 +282,13 @@ class LatinProvider:
 
     def lemmatize(self, surface: str, context: str | None = None) -> LemmaCandidate:
         # Latin display policy (2026-05-26): display form is modern reading
-        # orthography (v/j), the lookup key (`lemma_bare`) stays u-folded.
-        # `_to_modern_reading_orthography` flips LatinCy's u-spelled output
-        # (uir/uocabulum/iuuenis) to vir/vocabulum/iuvenis for storage; matching
-        # never breaks because `_normalize_latin` collapses both back to the
-        # same key. Seed lemmas (LLPSI / Roma Aeterna) bypass this transformer
-        # at the importer (they're natively v/j-spelled) — see import_latin_vocab.
+        # orthography (u/v distinguished, NO i/j), the lookup key
+        # (`lemma_bare`) stays u-folded. `_to_modern_reading_orthography`
+        # flips LatinCy's u-spelled output (uir/uocabulum/iuuenis) to
+        # vir/vocabulum/iuvenis for storage; matching never breaks because
+        # `_normalize_latin` collapses both back to the same key. Seed lemmas
+        # (LLPSI / Roma Aeterna) bypass this transformer at the importer
+        # (they're natively v-spelled) — see import_latin_vocab.
         try:
             lemma, pos, _ = self._analyze_token(surface, context)
             display = _to_modern_reading_orthography(lemma)

@@ -69,8 +69,8 @@ def _macron_strip(form: str) -> str:
 
 def load_tsv_display_map(path: Path) -> dict[str, str]:
     """``{lemma_bare: display_form}`` from a vocab TSV. Display = TSV `lemma`
-    column with macrons stripped (everything else preserved, including v/j
-    spelling). When the TSV has both an inflected `velle` and the canonical
+    column with macrons stripped (everything else preserved, including the
+    v-spelling). When the TSV has both an inflected `velle` and the canonical
     `volo` for the same bare, the LAST entry wins — TSVs are sorted with
     canonical citations later for some lists. Idempotent."""
     out: dict[str, str] = {}
@@ -141,7 +141,7 @@ def plan_changes(
 
 def summarize(plans: list[PlannedChange]) -> str:
     if not plans:
-        return "No changes — every lemma_form already matches its expected v/j display."
+        return "No changes — every lemma_form already matches its expected v-display."
     by_source = Counter((p.source or "(none)", p.decided_by) for p in plans)
     lines = [
         f"Planned changes: {len(plans)} of {len(plans)} lemmas to update.",
@@ -238,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         log_activity(
             db,
             event_type="latin_lemma_orthography_migrated",
-            summary=f"Latin lemma_form migrated to modern v/j orthography ({n} updates)",
+            summary=f"Latin lemma_form migrated to modern u/v orthography ({n} updates)",
             detail={
                 "updated": n,
                 "by_source": {f"{p.source or 'none'}/{p.decided_by}":

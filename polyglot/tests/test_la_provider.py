@@ -16,7 +16,7 @@ def test_normalize_bare_strips_macrons_and_folds_j_v():
     assert p.normalize_bare("Jūlius") == "iulius"
     assert p.normalize_bare("amō") == "amo"
     assert p.normalize_bare("VĒNĪ") == "ueni"
-    # v→u/j→i reconcile a v/j-spelled seed lemma with LatinCy's u/i output
+    # v→u/j→i reconcile a v-spelled seed lemma with LatinCy's u/i output
     assert p.normalize_bare("venio") == p.normalize_bare("uenio")
 
 
@@ -78,7 +78,7 @@ def test_modern_reading_orthography(src, want):
 
 def test_lemmatize_splits_display_and_lookup_key(monkeypatch):
     """Reading-intake path: simplemma (or LatinCy) returns a u-spelled lemma.
-    The candidate must carry the v/j display form AND the u-folded lookup key,
+    The candidate must carry the v-spelled display form AND the u-folded lookup key,
     so DB writes get the modern-reading spelling while matching still works.
 
     Direct stub on simplemma — the real Latin table doesn't reduce many forms
@@ -117,7 +117,7 @@ def test_lemmatize_falls_back_to_simplemma_without_model(monkeypatch):
     for Latin (it mangles e.g. puella→puellus), which is exactly why LatinCy is
     the primary — here we only assert the fallback path runs and carries no POS.
     For `puella` specifically, display and bare happen to be equal (no consonantal
-    u/i positions), but in general they can differ now (2026-05-26 v/j flip)."""
+    u positions), but in general they can differ now (2026-05-26 u/v flip)."""
     p = LatinProvider()
 
     def _raise():
