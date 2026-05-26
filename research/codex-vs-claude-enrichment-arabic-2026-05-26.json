@@ -1,0 +1,875 @@
+{
+  "lemmas": [
+    {
+      "lemma_id": 408,
+      "lemma_ar": "قَالَ",
+      "lemma_ar_bare": "قال",
+      "pos": "verb",
+      "gloss_en": "to say",
+      "root": "ق.و.ل",
+      "root_meaning": "to say, to speak",
+      "kind": "verb_I_hollow"
+    },
+    {
+      "lemma_id": 385,
+      "lemma_ar": "كَانَ",
+      "lemma_ar_bare": "كان",
+      "pos": "verb",
+      "gloss_en": "to be",
+      "root": "ك.و.ن",
+      "root_meaning": "to be, to exist, to become",
+      "kind": "verb_I_hollow"
+    },
+    {
+      "lemma_id": 3081,
+      "lemma_ar": "قَدَّمَ",
+      "lemma_ar_bare": "قدم",
+      "pos": "verb",
+      "gloss_en": "to submit, to present",
+      "root": "ق.د.م",
+      "root_meaning": "to advance, to precede",
+      "kind": "verb_II"
+    },
+    {
+      "lemma_id": 2942,
+      "lemma_ar": "جَادَلَ",
+      "lemma_ar_bare": "جادل",
+      "pos": "verb",
+      "gloss_en": "to argue",
+      "root": "ج.د.ل",
+      "root_meaning": "to twist, to argue, to dispute",
+      "kind": "verb_III"
+    },
+    {
+      "lemma_id": 3082,
+      "lemma_ar": "أَخْبَرَ",
+      "lemma_ar_bare": "أخبر",
+      "pos": "verb",
+      "gloss_en": "to inform, to tell",
+      "root": "خ.ب.ر",
+      "root_meaning": "to know, to be informed",
+      "kind": "verb_IV"
+    },
+    {
+      "lemma_id": 3022,
+      "lemma_ar": "اعْتَرَفَ",
+      "lemma_ar_bare": "اعترف",
+      "pos": "verb",
+      "gloss_en": "to confess",
+      "root": "ع.ر.ف",
+      "root_meaning": "to know, to recognize",
+      "kind": "verb_VIII"
+    },
+    {
+      "lemma_id": 3008,
+      "lemma_ar": "اسْتَعْمَلَ",
+      "lemma_ar_bare": "استعمل",
+      "pos": "verb",
+      "gloss_en": "to use",
+      "root": "ع.م.ل",
+      "root_meaning": "to do, to work, to make",
+      "kind": "verb_X"
+    },
+    {
+      "lemma_id": 2674,
+      "lemma_ar": "جِرَاحَة",
+      "lemma_ar_bare": "جراحة",
+      "pos": "noun",
+      "gloss_en": "surgery",
+      "root": "ج.ر.ح",
+      "root_meaning": "to wound, to injure",
+      "kind": "noun_fi'aala"
+    },
+    {
+      "lemma_id": 2531,
+      "lemma_ar": "مَدَنِيّ",
+      "lemma_ar_bare": "مدني",
+      "pos": "adjective",
+      "gloss_en": "civil",
+      "root": "م.د.ن",
+      "root_meaning": "city, civilization",
+      "kind": "adj_nisba"
+    },
+    {
+      "lemma_id": 314,
+      "lemma_ar": "سِينِمَا",
+      "lemma_ar_bare": "سينما",
+      "pos": "noun",
+      "gloss_en": "cinema",
+      "root": null,
+      "root_meaning": null,
+      "kind": "loanword"
+    }
+  ],
+  "providers": {
+    "claude_haiku": {
+      "model": "claude-haiku-4-5-20251001",
+      "cli": "claude"
+    },
+    "codex": {
+      "model": "gpt-5.5",
+      "cli": "codex",
+      "reasoning_effort": "medium"
+    }
+  },
+  "calls": {
+    "roots": {
+      "prompt_chars": 790,
+      "claude_haiku": {
+        "elapsed_s": 24.3,
+        "parsed": {
+          "roots": [
+            {
+              "lemma_id": 408,
+              "root": "ق.و.ل"
+            },
+            {
+              "lemma_id": 385,
+              "root": "ك.و.ن"
+            },
+            {
+              "lemma_id": 3081,
+              "root": "ق.د.م"
+            },
+            {
+              "lemma_id": 2942,
+              "root": "ج.د.ل"
+            },
+            {
+              "lemma_id": 3082,
+              "root": "خ.ب.ر"
+            },
+            {
+              "lemma_id": 3022,
+              "root": "ع.ر.ف"
+            },
+            {
+              "lemma_id": 3008,
+              "root": "ع.م.ل"
+            },
+            {
+              "lemma_id": 2674,
+              "root": "ج.ر.ح"
+            },
+            {
+              "lemma_id": 2531,
+              "root": "م.د.ن"
+            },
+            {
+              "lemma_id": 314,
+              "root": null
+            }
+          ]
+        },
+        "raw_preview": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":22495,\"duration_api_ms\":22444,\"ttft_ms\":16975,\"num_turns\":3,\"result\":\"Perfect! I've extracted the consonantal roots for all 10 Arabic words and provided them in the required structured format. The analysis correctly identifies:\\n\\n- **Hollow verbs** (قَالَ, كَانَ) where the و surfaces as ا\\n- **Derived forms** (قَدَّمَ Form II, جَادَلَ Form III, اعْتَرَفَ Form VIII, اسْتَعْمَلَ Form X) by extracting the underlying base root\\n- **Regular triliterals** for nouns and adjectives (جِرَاحَة, مَدَنِيّ)\\n- **Borrowed words** (سِينِمَا) with no native Arabic root structure\",\"stop_reason\":\"end_turn\",\"session_id\":\"dfef5aa5-d259-4937-89b4-6f5c2e7a4bb9\",\"total_cost_usd\":0.11191155,\"usage\":{\"input_tokens\":28,\"cache_creation_input_tokens\":67881,\"cache_read_input_tokens\":132723,\"output_tokens\":2752,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":67881,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[{\"input_tokens\":8,\"output_tokens\":211,\"cache_read_input_tokens\":67465,\"cache_creation_input_tokens\":416,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":416},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":28,\"outputTokens\":2752,\"cacheReadInputTokens\":132723,\"cacheCreationInputTokens\":67881,\"webSearchRequests\":0,\"costUSD\":0.11191155,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"structured_output\":{\"roots\":[{\"lemma_id\":408,\"root\":\"ق.و.ل\"},{\"lemma_id\":385,\"root\":\"ك.و.ن\"},{\"lemma_id\":3081,\"root\":\"ق.د.م\"},{\"lemma_id\":2942,\"root\":\"ج.د.ل\"},{\"lemma_id\":3082,\"root\":\"خ.ب.ر\"},{\"lemma_id\":3022,\"root\":\"ع.ر.ف\"},{\"lemma_id\":3008,\"root\":\"ع.م.ل\"},{\"lemma_id\":2674,\"root\":\"ج.ر.ح\"},{\"lemma_id\":2531,\"root\":\"م.د.ن\"},{\"lemma_id\":314,\"root\":null}]},\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"uuid\":\"1d94157b-4ab4-4fa9-9301-7c69b4cda244\"}\n"
+      },
+      "codex": {
+        "elapsed_s": 9.4,
+        "parsed": {
+          "roots": [
+            {
+              "lemma_id": 408,
+              "root": "ق.و.ل"
+            },
+            {
+              "lemma_id": 385,
+              "root": "ك.و.ن"
+            },
+            {
+              "lemma_id": 3081,
+              "root": "ق.د.م"
+            },
+            {
+              "lemma_id": 2942,
+              "root": "ج.د.ل"
+            },
+            {
+              "lemma_id": 3082,
+              "root": "خ.ب.ر"
+            },
+            {
+              "lemma_id": 3022,
+              "root": "ع.ر.ف"
+            },
+            {
+              "lemma_id": 3008,
+              "root": "ع.م.ل"
+            },
+            {
+              "lemma_id": 2674,
+              "root": "ج.ر.ح"
+            },
+            {
+              "lemma_id": 2531,
+              "root": "م.د.ن"
+            },
+            {
+              "lemma_id": 314,
+              "root": null
+            }
+          ]
+        },
+        "raw_preview": "{\"roots\":[{\"lemma_id\":408,\"root\":\"ق.و.ل\"},{\"lemma_id\":385,\"root\":\"ك.و.ن\"},{\"lemma_id\":3081,\"root\":\"ق.د.م\"},{\"lemma_id\":2942,\"root\":\"ج.د.ل\"},{\"lemma_id\":3082,\"root\":\"خ.ب.ر\"},{\"lemma_id\":3022,\"root\":\"ع.ر.ف\"},{\"lemma_id\":3008,\"root\":\"ع.م.ل\"},{\"lemma_id\":2674,\"root\":\"ج.ر.ح\"},{\"lemma_id\":2531,\"root\":\"م.د.ن\"},{\"lemma_id\":314,\"root\":null}]}"
+      }
+    },
+    "forms": {
+      "prompt_chars": 840,
+      "claude_haiku": {
+        "elapsed_s": 52.1,
+        "parsed": {
+          "words": [
+            {
+              "lemma_id": 408,
+              "forms": {
+                "present": "يَقُول",
+                "past_3fs": "قَالَتْ",
+                "past_3p": "قَالُوا",
+                "past_1s": "قُلْتُ",
+                "past_3fp": "قُلْنَ",
+                "present_3fp": "يَقُلْنَ",
+                "present_3mp": "يَقُولُون",
+                "masdar": "قَوْل",
+                "active_participle": "قَائِل",
+                "passive_participle": "مَقُول",
+                "imperative": "قُلْ",
+                "verb_form": "I"
+              }
+            },
+            {
+              "lemma_id": 385,
+              "forms": {
+                "present": "يَكُون",
+                "past_3fs": "كَانَتْ",
+                "past_3p": "كَانُوا",
+                "past_1s": "كُنْتُ",
+                "past_3fp": "كُنَّ",
+                "present_3fp": "يَكُنَّ",
+                "present_3mp": "يَكُونُون",
+                "masdar": "كَوْن",
+                "active_participle": "كَائِن",
+                "passive_participle": "مَكُون",
+                "imperative": "كُنْ",
+                "verb_form": "I"
+              }
+            },
+            {
+              "lemma_id": 3081,
+              "forms": {
+                "present": "يُقَدِّم",
+                "past_3fs": "قَدَّمَتْ",
+                "past_3p": "قَدَّمُوا",
+                "past_1s": "قَدَّمْتُ",
+                "past_3fp": "قَدَّمْنَ",
+                "present_3fp": "يُقَدِّمْنَ",
+                "present_3mp": "يُقَدِّمُون",
+                "masdar": "تَقْدِيم",
+                "active_participle": "مُقَدِّم",
+                "passive_participle": "مُقَدَّم",
+                "imperative": "قَدِّمْ",
+                "verb_form": "II"
+              }
+            },
+            {
+              "lemma_id": 2942,
+              "forms": {
+                "present": "يُجَادِل",
+                "past_3fs": "جَادَلَتْ",
+                "past_3p": "جَادَلُوا",
+                "past_1s": "جَادَلْتُ",
+                "past_3fp": "جَادَلْنَ",
+                "present_3fp": "يُجَادِلْنَ",
+                "present_3mp": "يُجَادِلُون",
+                "masdar": "جِدَال",
+                "active_participle": "مُجَادِل",
+                "passive_participle": "مُجَادَل",
+                "imperative": "جَادِلْ",
+                "verb_form": "III"
+              }
+            },
+            {
+              "lemma_id": 3082,
+              "forms": {
+                "present": "يُخْبِر",
+                "past_3fs": "أَخْبَرَتْ",
+                "past_3p": "أَخْبَرُوا",
+                "past_1s": "أَخْبَرْتُ",
+                "past_3fp": "أَخْبَرْنَ",
+                "present_3fp": "يُخْبِرْنَ",
+                "present_3mp": "يُخْبِرُون",
+                "masdar": "إِخْبَار",
+                "active_participle": "مُخْبِر",
+                "passive_participle": "مُخْبَر",
+                "imperative": "أَخْبِرْ",
+                "verb_form": "IV"
+              }
+            },
+            {
+              "lemma_id": 3022,
+              "forms": {
+                "present": "يَعْتَرِف",
+                "past_3fs": "اعْتَرَفَتْ",
+                "past_3p": "اعْتَرَفُوا",
+                "past_1s": "اعْتَرَفْتُ",
+                "past_3fp": "اعْتَرَفْنَ",
+                "present_3fp": "يَعْتَرِفْنَ",
+                "present_3mp": "يَعْتَرِفُون",
+                "masdar": "اعْتِرَاف",
+                "active_participle": "مُعْتَرِف",
+                "passive_participle": "مُعْتَرَف",
+                "imperative": "اعْتَرِفْ",
+                "verb_form": "VIII"
+              }
+            },
+            {
+              "lemma_id": 3008,
+              "forms": {
+                "present": "يَسْتَعْمِل",
+                "past_3fs": "اسْتَعْمَلَتْ",
+                "past_3p": "اسْتَعْمَلُوا",
+                "past_1s": "اسْتَعْمَلْتُ",
+                "past_3fp": "اسْتَعْمَلْنَ",
+                "present_3fp": "يَسْتَعْمِلْنَ",
+                "present_3mp": "يَسْتَعْمِلُون",
+                "masdar": "اسْتِعْمَال",
+                "active_participle": "مُسْتَعْمِل",
+                "passive_participle": "مُسْتَعْمَل",
+                "imperative": "اسْتَعْمِلْ",
+                "verb_form": "X"
+              }
+            },
+            {
+              "lemma_id": 2674,
+              "forms": {
+                "gender": "f",
+                "sound_f_plural": "جِرَاحَات"
+              }
+            },
+            {
+              "lemma_id": 2531,
+              "forms": {
+                "feminine": "مَدَنِيَّة",
+                "sound_m_plural": "مَدَنِيُّون",
+                "sound_f_plural": "مَدَنِيَّات"
+              }
+            },
+            {
+              "lemma_id": 314,
+              "forms": {
+                "gender": "f",
+                "sound_f_plural": "سِينِمَات"
+              }
+            }
+          ]
+        },
+        "raw_preview": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":50104,\"duration_api_ms\":50038,\"ttft_ms\":26691,\"num_turns\":3,\"result\":\"Done! I've provided the morphological forms for all 10 Arabic words in the required structured format. The data includes:\\n\\n- **7 verbs** with complete conjugations including all tense forms, participles, masdar, imperative, and verb form numbers\\n- **3 nouns/adjectives** with gender, plural forms, and sound plural variants where applicable\\n\\nKey highlights:\\n- **Weak verbs** (قَالَ, كَانَ): stem changes properly marked (قُلْتُ, كُنْتُ for 1st person)\\n- **Derived forms**: Verbs II, III, IV, VIII, and X with their characteristic vowel patterns\\n- **Noun plurals**: Both broken and sound feminine plurals included\\n- **Adjective**: مَدَنِيّ with feminine form and both sound plural variants\\n\\nAll Arabic text includes full diacritical marks as requested.\",\"stop_reason\":\"end_turn\",\"session_id\":\"608ea6fd-74c6-4c00-9b5b-a522b65a3965\",\"total_cost_usd\":0.15317635000000002,\"usage\":{\"input_tokens\":28,\"cache_creation_input_tokens\":76513,\"cache_read_input_tokens\":138571,\"output_tokens\":8730,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":76513,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[{\"input_tokens\":8,\"output_tokens\":271,\"cache_read_input_tokens\":72349,\"cache_creation_input_tokens\":4164,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":4164},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":28,\"outputTokens\":8730,\"cacheReadInputTokens\":138571,\"cacheCreationInputTokens\":76513,\"webSearchRequests\":0,\"costUSD\":0.15317635000000002,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"structured_output\":{\"words\":[{\"lemma_id\":408,\"forms\":{\"present\":\"يَقُول\",\"past_3fs\":\"قَالَتْ\",\"past_3p\":\"قَالُوا\",\"past_1s\":\"قُلْتُ\",\"past_3fp\":\"قُلْنَ\",\"present_3fp\":\"يَقُلْنَ\",\"present_3mp\":\"يَقُولُون\",\"masdar\":\"قَوْل\",\"active_participle\":\"قَائِل\",\"passive_participle\":\"مَقُول\",\"imperative\":\"قُلْ\",\"verb_form\":\"I\"}},{\"lemma_id\":385,\"forms\":{\"present\":\"يَكُون\",\"past_3fs\":\"كَانَتْ\",\"past_3p\":\"كَانُوا\",\"past_1s\":\"كُنْتُ\",\"past_3fp\":\"كُنَّ\",\"present_3fp\":\"يَكُنَّ\",\"present_3mp\":\"يَكُونُون\",\"masdar\":\"كَوْن\",\"active_participle\":\"كَائِن\",\"passive_participle\":\"مَكُون\",\"imperative\":\"كُنْ\",\"verb_form\":\"I\"}},{\"lemma_id\":3081,\"forms\":{\"present\":\"يُقَدِّم\",\"past_3fs\":\"قَدَّمَتْ\",\"past_3p\":\"قَدَّمُوا\",\"past_1s\":\"قَدَّمْتُ\",\"past_3fp\":\"قَدَّمْنَ\",\"present_3fp\":\"يُقَدِّمْنَ\",\"present_3mp\":\"يُقَدِّمُون\",\"masdar\":\"تَقْدِيم\",\"active_participle\":\"مُقَدِّم\",\"passive_participle\":\"مُقَدَّم\",\"imperative\":\"قَدِّمْ\",\"verb_form\":\"II\"}},{\"lemma_id\":2942,\"forms\":{\"present\":\"يُجَادِل\",\"past_3fs\":\"جَادَلَتْ\",\"past_3p\":\"جَادَلُوا\",\"past_1s\":\"جَادَلْتُ\",\"past_3fp\":\"جَادَلْنَ\",\"present_3fp\":\"يُجَادِلْنَ\",\"present_3mp\":\"يُجَادِلُون\",\"masdar\":\"جِدَال\",\"active_participle\":\"مُجَادِل\",\"passive_participle\":\"مُجَادَل\",\"imperative\":\"جَادِلْ\",\"verb_form\":\"III\"}},{\"lemma_id\":3082,\"forms\":{\"present\":\"يُخْبِر\",\"past_3fs\":\"أَخْبَرَتْ\",\"past_3p\":\"أَخْبَرُوا\",\"past_1s\":\"أَخْبَرْتُ\",\"past_3fp\":\"أَخْبَرْنَ\",\"present_3fp\":\"يُخْبِرْنَ\",\"present_3mp\":\"يُخْبِرُون\",\"masdar\":\"إِخْبَار\",\"active_participle\":\"مُخْبِر\",\"passive_participle\":\"مُخْبَر\",\"imperative\":\"أَخْبِرْ\",\"verb_form\":\"IV\"}},{\"lemma_id\":3022,\"forms\":{\"present\":\"يَعْتَرِف\",\"past_3fs\":\"اعْتَرَفَتْ\",\"past_3p\":\"اعْتَرَفُوا\",\"past_1s\":\"اعْتَرَفْتُ\",\"past_3fp\":\"اعْتَرَفْنَ\",\"present_3fp\":\"يَعْتَرِفْنَ\",\"present_3mp\":\"يَعْتَرِفُون\",\"masdar\":\"اعْتِرَاف\",\"active_participle\":\"مُعْتَرِف\",\"passive_participle\":\"مُعْتَرَف\",\"imperative\":\"اعْتَرِفْ\",\"verb_form\":\"VIII\"}},{\"lemma_id\":3008,\"forms\":{\"present\":\"يَسْتَعْمِل\",\"past_3fs\":\"اسْتَعْمَلَتْ\",\"past_3p\":\"اسْتَعْمَلُوا\",\"past_1s\":\"اسْتَعْمَلْتُ\",\"past_3fp\":\"اسْتَعْمَلْنَ\",\"present_3fp\":\"يَسْتَعْمِلْنَ\",\"present_3mp\":\"يَسْتَعْمِلُون\",\"masdar\":\"اسْتِعْمَال\",\"act"
+      },
+      "codex": {
+        "elapsed_s": 36.1,
+        "parsed": {
+          "words": [
+            {
+              "lemma_id": 408,
+              "forms": {
+                "active_participle": "قَائِل",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "قُلْ",
+                "masdar": "قَوْل",
+                "passive_participle": "مَقُول",
+                "past_1s": "قُلْتُ",
+                "past_3fp": "قُلْنَ",
+                "past_3fs": "قَالَتْ",
+                "past_3p": "قَالُوا",
+                "plural": null,
+                "present": "يَقُولُ",
+                "present_3fp": "يَقُلْنَ",
+                "present_3mp": "يَقُولُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "I"
+              }
+            },
+            {
+              "lemma_id": 385,
+              "forms": {
+                "active_participle": "كَائِن",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "كُنْ",
+                "masdar": "كَوْن",
+                "passive_participle": "مَكُون",
+                "past_1s": "كُنْتُ",
+                "past_3fp": "كُنَّ",
+                "past_3fs": "كَانَتْ",
+                "past_3p": "كَانُوا",
+                "plural": null,
+                "present": "يَكُونُ",
+                "present_3fp": "يَكُنَّ",
+                "present_3mp": "يَكُونُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "I"
+              }
+            },
+            {
+              "lemma_id": 3081,
+              "forms": {
+                "active_participle": "مُقَدِّم",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "قَدِّمْ",
+                "masdar": "تَقْدِيم",
+                "passive_participle": "مُقَدَّم",
+                "past_1s": "قَدَّمْتُ",
+                "past_3fp": "قَدَّمْنَ",
+                "past_3fs": "قَدَّمَتْ",
+                "past_3p": "قَدَّمُوا",
+                "plural": null,
+                "present": "يُقَدِّمُ",
+                "present_3fp": "يُقَدِّمْنَ",
+                "present_3mp": "يُقَدِّمُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "II"
+              }
+            },
+            {
+              "lemma_id": 2942,
+              "forms": {
+                "active_participle": "مُجَادِل",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "جَادِلْ",
+                "masdar": "جِدَال",
+                "passive_participle": "مُجَادَل",
+                "past_1s": "جَادَلْتُ",
+                "past_3fp": "جَادَلْنَ",
+                "past_3fs": "جَادَلَتْ",
+                "past_3p": "جَادَلُوا",
+                "plural": null,
+                "present": "يُجَادِلُ",
+                "present_3fp": "يُجَادِلْنَ",
+                "present_3mp": "يُجَادِلُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "III"
+              }
+            },
+            {
+              "lemma_id": 3082,
+              "forms": {
+                "active_participle": "مُخْبِر",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "أَخْبِرْ",
+                "masdar": "إِخْبَار",
+                "passive_participle": "مُخْبَر",
+                "past_1s": "أَخْبَرْتُ",
+                "past_3fp": "أَخْبَرْنَ",
+                "past_3fs": "أَخْبَرَتْ",
+                "past_3p": "أَخْبَرُوا",
+                "plural": null,
+                "present": "يُخْبِرُ",
+                "present_3fp": "يُخْبِرْنَ",
+                "present_3mp": "يُخْبِرُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "IV"
+              }
+            },
+            {
+              "lemma_id": 3022,
+              "forms": {
+                "active_participle": "مُعْتَرِف",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "اعْتَرِفْ",
+                "masdar": "اعْتِرَاف",
+                "passive_participle": "مُعْتَرَف",
+                "past_1s": "اعْتَرَفْتُ",
+                "past_3fp": "اعْتَرَفْنَ",
+                "past_3fs": "اعْتَرَفَتْ",
+                "past_3p": "اعْتَرَفُوا",
+                "plural": null,
+                "present": "يَعْتَرِفُ",
+                "present_3fp": "يَعْتَرِفْنَ",
+                "present_3mp": "يَعْتَرِفُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "VIII"
+              }
+            },
+            {
+              "lemma_id": 3008,
+              "forms": {
+                "active_participle": "مُسْتَعْمِل",
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": null,
+                "imperative": "اسْتَعْمِلْ",
+                "masdar": "اسْتِعْمَال",
+                "passive_participle": "مُسْتَعْمَل",
+                "past_1s": "اسْتَعْمَلْتُ",
+                "past_3fp": "اسْتَعْمَلْنَ",
+                "past_3fs": "اسْتَعْمَلَتْ",
+                "past_3p": "اسْتَعْمَلُوا",
+                "plural": null,
+                "present": "يَسْتَعْمِلُ",
+                "present_3fp": "يَسْتَعْمِلْنَ",
+                "present_3mp": "يَسْتَعْمِلُونَ",
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": "X"
+              }
+            },
+            {
+              "lemma_id": 2674,
+              "forms": {
+                "active_participle": null,
+                "dual": "جِرَاحَتَانِ",
+                "elative": null,
+                "feminine": null,
+                "gender": "f",
+                "imperative": null,
+                "masdar": null,
+                "passive_participle": null,
+                "past_1s": null,
+                "past_3fp": null,
+                "past_3fs": null,
+                "past_3p": null,
+                "plural": "جِرَاحَات",
+                "present": null,
+                "present_3fp": null,
+                "present_3mp": null,
+                "sound_f_plural": "جِرَاحَات",
+                "sound_m_plural": null,
+                "verb_form": null
+              }
+            },
+            {
+              "lemma_id": 2531,
+              "forms": {
+                "active_participle": null,
+                "dual": null,
+                "elative": null,
+                "feminine": "مَدَنِيَّة",
+                "gender": null,
+                "imperative": null,
+                "masdar": null,
+                "passive_participle": null,
+                "past_1s": null,
+                "past_3fp": null,
+                "past_3fs": null,
+                "past_3p": null,
+                "plural": "مَدَنِيُّونَ",
+                "present": null,
+                "present_3fp": null,
+                "present_3mp": null,
+                "sound_f_plural": "مَدَنِيَّات",
+                "sound_m_plural": "مَدَنِيُّونَ",
+                "verb_form": null
+              }
+            },
+            {
+              "lemma_id": 314,
+              "forms": {
+                "active_participle": null,
+                "dual": null,
+                "elative": null,
+                "feminine": null,
+                "gender": "f",
+                "imperative": null,
+                "masdar": null,
+                "passive_participle": null,
+                "past_1s": null,
+                "past_3fp": null,
+                "past_3fs": null,
+                "past_3p": null,
+                "plural": null,
+                "present": null,
+                "present_3fp": null,
+                "present_3mp": null,
+                "sound_f_plural": null,
+                "sound_m_plural": null,
+                "verb_form": null
+              }
+            }
+          ]
+        },
+        "raw_preview": "{\"words\":[{\"lemma_id\":408,\"forms\":{\"active_participle\":\"قَائِل\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"قُلْ\",\"masdar\":\"قَوْل\",\"passive_participle\":\"مَقُول\",\"past_1s\":\"قُلْتُ\",\"past_3fp\":\"قُلْنَ\",\"past_3fs\":\"قَالَتْ\",\"past_3p\":\"قَالُوا\",\"plural\":null,\"present\":\"يَقُولُ\",\"present_3fp\":\"يَقُلْنَ\",\"present_3mp\":\"يَقُولُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"I\"}},{\"lemma_id\":385,\"forms\":{\"active_participle\":\"كَائِن\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"كُنْ\",\"masdar\":\"كَوْن\",\"passive_participle\":\"مَكُون\",\"past_1s\":\"كُنْتُ\",\"past_3fp\":\"كُنَّ\",\"past_3fs\":\"كَانَتْ\",\"past_3p\":\"كَانُوا\",\"plural\":null,\"present\":\"يَكُونُ\",\"present_3fp\":\"يَكُنَّ\",\"present_3mp\":\"يَكُونُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"I\"}},{\"lemma_id\":3081,\"forms\":{\"active_participle\":\"مُقَدِّم\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"قَدِّمْ\",\"masdar\":\"تَقْدِيم\",\"passive_participle\":\"مُقَدَّم\",\"past_1s\":\"قَدَّمْتُ\",\"past_3fp\":\"قَدَّمْنَ\",\"past_3fs\":\"قَدَّمَتْ\",\"past_3p\":\"قَدَّمُوا\",\"plural\":null,\"present\":\"يُقَدِّمُ\",\"present_3fp\":\"يُقَدِّمْنَ\",\"present_3mp\":\"يُقَدِّمُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"II\"}},{\"lemma_id\":2942,\"forms\":{\"active_participle\":\"مُجَادِل\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"جَادِلْ\",\"masdar\":\"جِدَال\",\"passive_participle\":\"مُجَادَل\",\"past_1s\":\"جَادَلْتُ\",\"past_3fp\":\"جَادَلْنَ\",\"past_3fs\":\"جَادَلَتْ\",\"past_3p\":\"جَادَلُوا\",\"plural\":null,\"present\":\"يُجَادِلُ\",\"present_3fp\":\"يُجَادِلْنَ\",\"present_3mp\":\"يُجَادِلُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"III\"}},{\"lemma_id\":3082,\"forms\":{\"active_participle\":\"مُخْبِر\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"أَخْبِرْ\",\"masdar\":\"إِخْبَار\",\"passive_participle\":\"مُخْبَر\",\"past_1s\":\"أَخْبَرْتُ\",\"past_3fp\":\"أَخْبَرْنَ\",\"past_3fs\":\"أَخْبَرَتْ\",\"past_3p\":\"أَخْبَرُوا\",\"plural\":null,\"present\":\"يُخْبِرُ\",\"present_3fp\":\"يُخْبِرْنَ\",\"present_3mp\":\"يُخْبِرُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"IV\"}},{\"lemma_id\":3022,\"forms\":{\"active_participle\":\"مُعْتَرِف\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"اعْتَرِفْ\",\"masdar\":\"اعْتِرَاف\",\"passive_participle\":\"مُعْتَرَف\",\"past_1s\":\"اعْتَرَفْتُ\",\"past_3fp\":\"اعْتَرَفْنَ\",\"past_3fs\":\"اعْتَرَفَتْ\",\"past_3p\":\"اعْتَرَفُوا\",\"plural\":null,\"present\":\"يَعْتَرِفُ\",\"present_3fp\":\"يَعْتَرِفْنَ\",\"present_3mp\":\"يَعْتَرِفُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"VIII\"}},{\"lemma_id\":3008,\"forms\":{\"active_participle\":\"مُسْتَعْمِل\",\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":null,\"imperative\":\"اسْتَعْمِلْ\",\"masdar\":\"اسْتِعْمَال\",\"passive_participle\":\"مُسْتَعْمَل\",\"past_1s\":\"اسْتَعْمَلْتُ\",\"past_3fp\":\"اسْتَعْمَلْنَ\",\"past_3fs\":\"اسْتَعْمَلَتْ\",\"past_3p\":\"اسْتَعْمَلُوا\",\"plural\":null,\"present\":\"يَسْتَعْمِلُ\",\"present_3fp\":\"يَسْتَعْمِلْنَ\",\"present_3mp\":\"يَسْتَعْمِلُونَ\",\"sound_f_plural\":null,\"sound_m_plural\":null,\"verb_form\":\"X\"}},{\"lemma_id\":2674,\"forms\":{\"active_participle\":null,\"dual\":\"جِرَاحَتَانِ\",\"elative\":null,\"feminine\":null,\"gender\":\"f\",\"imperative\":null,\"masdar\":null,\"passive_participle\":null,\"past_1s\":null,\"past_3fp\":null,\"past_3fs\":null,\"past_3p\":null,\"plural\":\"جِرَاحَات\",\"present\":null,\"present_3fp\":null,\"present_3mp\":null,\"sound_f_plural\":\"جِرَاحَات\",\"sound_m_plural\":null,\"verb_form\":null}},{\"lemma_id\":2531,\"forms\":{\"active_participle\":null,\"dual\":null,\"elative\":null,\"feminine\":\"مَدَنِيَّة\",\"gender\":null,\"imperative\":null,\"masdar\":null,\"passive_participle\":null,\"past_1s\":null,\"past_3fp\":null,\"past_3fs\":null,\"past_3p\":null,\"plural\":\"مَدَنِيُّونَ\",\"present\":null,\"present_3fp\":null,\"present_3mp\":null,\"sound_f_plural\":\"مَدَنِيَّات\",\"sound_m_plural\":\"مَدَنِيُّونَ\",\"verb_form\":null}},{\"lemma_id\":314,\"forms\":{\"active_participle\":null,\"dual\":null,\"elative\":null,\"feminine\":null,\"gender\":\"f\",\"imperative\":null,\"masdar\":null,\"passive_participle\":null,\"past_1s\":n"
+      }
+    },
+    "etymology": {
+      "prompt_chars": 1422,
+      "claude_haiku": {
+        "elapsed_s": 38.3,
+        "parsed": {
+          "words": [
+            {
+              "lemma_id": 408,
+              "etymology": {
+                "root_meaning": "to say, to speak",
+                "pattern": "fa'ala",
+                "pattern_meaning": "simple past third person masculine singular action",
+                "derivation": "ق.و.ل (root: to say) + فَعَلَ pattern = قَالَ (he said)",
+                "semantic_field": "speech, communication, utterance, expression",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 385,
+              "etymology": {
+                "root_meaning": "to be, to exist, to become",
+                "pattern": "fa'ala",
+                "pattern_meaning": "simple past third person masculine singular of copular/existential verb",
+                "derivation": "ك.و.ن (root: to be, to exist) + فَعَلَ pattern = كَانَ (he was)",
+                "semantic_field": "existence, being, state, becoming",
+                "related_loanwords": [],
+                "cultural_note": "Primary existential/copular verb in Arabic, fundamental to sentence structure"
+              }
+            },
+            {
+              "lemma_id": 3081,
+              "etymology": {
+                "root_meaning": "to advance, to precede",
+                "pattern": "fa''ala",
+                "pattern_meaning": "intensified or causative action verb",
+                "derivation": "ق.د.م (root: to advance) + فَعَّلَ pattern (doubled second radical) = قَدَّمَ (he presented, submitted)",
+                "semantic_field": "advancement, presentation, precedence, submission",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 2942,
+              "etymology": {
+                "root_meaning": "to twist, to argue, to dispute",
+                "pattern": "fa'ala with medial alif",
+                "pattern_meaning": "reciprocal or iterative action",
+                "derivation": "ج.د.ل (root: to argue) + فَاعَلَ pattern = جَادَلَ (he argued, disputed)",
+                "semantic_field": "argument, dispute, debate, contention",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3082,
+              "etymology": {
+                "root_meaning": "to know, to be informed",
+                "pattern": "af'ala",
+                "pattern_meaning": "causative action — to cause knowledge",
+                "derivation": "خ.ب.ر (root: to know) + أَفْعَلَ pattern (causative prefix) = أَخْبَرَ (he informed)",
+                "semantic_field": "information, knowledge, news, telling",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3022,
+              "etymology": {
+                "root_meaning": "to know, to recognize",
+                "pattern": "if'tala",
+                "pattern_meaning": "reflexive or acknowledging action",
+                "derivation": "ع.ر.ف (root: to know) + اِفْتَعَلَ pattern (reflexive) = اِعْتَرَفَ (he confessed, acknowledged)",
+                "semantic_field": "confession, acknowledgment, recognition, admission",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3008,
+              "etymology": {
+                "root_meaning": "to do, to work, to make",
+                "pattern": "istif'ala",
+                "pattern_meaning": "causative request — to request or cause someone to do something",
+                "derivation": "ع.م.ل (root: to work) + اسْتَفْعَلَ pattern (causative prefix) = اسْتَعْمَلَ (he used, employed)",
+                "semantic_field": "work, usage, employment, action, application",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 2674,
+              "etymology": {
+                "root_meaning": "to wound, to injure",
+                "pattern": "fi'ala (noun pattern)",
+                "pattern_meaning": "craft, profession, or practice noun derived from an action root",
+                "derivation": "ج.ر.ح (root: to wound) + فِعَالَة pattern = جِرَاحَة (surgery — the practice of medical wounding/cutting)",
+                "semantic_field": "medicine, surgery, wound treatment, surgical practice",
+                "related_loanwords": [],
+                "cultural_note": "From the same root as جَرْح (wound), the noun جِرَاحَة elevated the action to a healing profession"
+              }
+            },
+            {
+              "lemma_id": 2531,
+              "etymology": {
+                "root_meaning": "city, civilization",
+                "pattern": "fa'ali (relational adjective)",
+                "pattern_meaning": "pertaining to or characteristic of the noun root",
+                "derivation": "م.د.ن (root: city, civilization, via مَدِينَة) + relational adjective = مَدَنِي (civil, pertaining to civilization)",
+                "semantic_field": "civilization, city, civil affairs, urban society",
+                "related_loanwords": [],
+                "cultural_note": "Derives from مَدِينَة (madina = city), linking urban civilization to civic life"
+              }
+            },
+            {
+              "lemma_id": 314,
+              "etymology": {
+                "derivation": "From Greek κινηματογράφος (kinematographos, from kinema 'motion' + grapho 'to write'), borrowed via European languages (English cinema, French cinéma)",
+                "semantic_field": "film, movies, motion pictures, entertainment",
+                "related_loanwords": [
+                  "cinema (English)",
+                  "cinéma (French)",
+                  "kino (Russian/German)"
+                ],
+                "cultural_note": "Borrowed in the early 20th century with the introduction of film technology to the Arab world"
+              }
+            }
+          ]
+        },
+        "raw_preview": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"api_error_status\":null,\"duration_ms\":33883,\"duration_api_ms\":33800,\"ttft_ms\":17118,\"num_turns\":2,\"result\":\"**Etymology generation complete.** I've created structured etymology data for all 10 words following Arabic morphological principles:\\n\\n**Key insights applied:**\\n\\n`★ Insight ─────────────────────────────────────`\\n• **Native roots → patterns**: Words 1–9 all derive from consonantal roots combined with standard morphological patterns (fa'ala, fa''ala, if'tala, etc.). Each pattern carries semantic weight: fa''ala adds intensity/causation; if'tala marks reflexive action; istif'ala marks requesting/causing.\\n• **Root-meaning discipline**: The derivations trace how each root's core meaning (ع.م.ل = \\\"to work\\\") transforms via pattern into the target meaning (استعمل = \\\"to use\\\"). This respects the critical rule: NEVER invent a foreign origin for native roots.\\n• **Loanword handling**: Only سينما (cinema) is borrowed, and only because the meaning itself is a borrowed modern concept from film technology. The derivation traces the Greek → European → Arabic path.\\n`─────────────────────────────────────────────────`\\n\\nAll 10 words now have complete etymology objects with semantic fields and cultural context where relevant. The data supports language learners in understanding word origins at the root and pattern levels.\",\"stop_reason\":\"end_turn\",\"session_id\":\"b10e9e5b-abe6-4c18-9b20-7aa6ec2c9d12\",\"total_cost_usd\":0.1714755,\"usage\":{\"input_tokens\":18,\"cache_creation_input_tokens\":119034,\"cache_read_input_tokens\":0,\"output_tokens\":4533,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":119034,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[{\"input_tokens\":8,\"output_tokens\":788,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":70209,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":70209},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":18,\"outputTokens\":4533,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":119034,\"webSearchRequests\":0,\"costUSD\":0.1714755,\"contextWindow\":200000,\"maxOutputTokens\":32000}},\"permission_denials\":[],\"structured_output\":{\"words\":[{\"lemma_id\":408,\"etymology\":{\"root_meaning\":\"to say, to speak\",\"pattern\":\"fa'ala\",\"pattern_meaning\":\"simple past third person masculine singular action\",\"derivation\":\"ق.و.ل (root: to say) + فَعَلَ pattern = قَالَ (he said)\",\"semantic_field\":\"speech, communication, utterance, expression\",\"related_loanwords\":[]}},{\"lemma_id\":385,\"etymology\":{\"root_meaning\":\"to be, to exist, to become\",\"pattern\":\"fa'ala\",\"pattern_meaning\":\"simple past third person masculine singular of copular/existential verb\",\"derivation\":\"ك.و.ن (root: to be, to exist) + فَعَلَ pattern = كَانَ (he was)\",\"semantic_field\":\"existence, being, state, becoming\",\"related_loanwords\":[],\"cultural_note\":\"Primary existential/copular verb in Arabic, fundamental to sentence structure\"}},{\"lemma_id\":3081,\"etymology\":{\"root_meaning\":\"to advance, to precede\",\"pattern\":\"fa''ala\",\"pattern_meaning\":\"intensified or causative action verb\",\"derivation\":\"ق.د.م (root: to advance) + فَعَّلَ pattern (doubled second radical) = قَدَّمَ (he presented, submitted)\",\"semantic_field\":\"advancement, presentation, precedence, submission\",\"related_loanwords\":[]}},{\"lemma_id\":2942,\"etymology\":{\"root_meaning\":\"to twist, to argue, to dispute\",\"pattern\":\"fa'ala with medial alif\",\"pattern_meaning\":\"reciprocal or iterative action\",\"derivation\":\"ج.د.ل (root: to argue) + فَاعَلَ pattern = جَادَلَ (he argued, disputed)\",\"semantic_field\":\"argument, dispute, debate, contention\",\"related_loanwords\":[]}},{\"lemma_id\":3082,\"etymology\":{\"root_meaning\":\"to know, to be informed\",\"pattern\":\"af'ala\",\"pattern_meaning\":\"causative action — to cause knowledge\",\"derivation\":\"خ.ب.ر (root: to know) + أَفْعَلَ pattern (causative prefix) = "
+      },
+      "codex": {
+        "elapsed_s": 21.1,
+        "parsed": {
+          "words": [
+            {
+              "lemma_id": 408,
+              "etymology": {
+                "root_meaning": "to say, speak",
+                "pattern": "fa'ala",
+                "pattern_meaning": "basic verbal action",
+                "derivation": "qāla = basic action of speaking = to say",
+                "semantic_field": "speech, reporting, expression",
+                "cultural_note": "A very common Form I hollow verb whose middle root consonant wāw appears as long ā in the past stem.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 385,
+              "etymology": {
+                "root_meaning": "to be, exist",
+                "pattern": "fa'ala",
+                "pattern_meaning": "basic verbal state or action",
+                "derivation": "kāna = basic state of existing/being = to be",
+                "semantic_field": "existence, state, becoming",
+                "cultural_note": "A central Form I hollow verb used both for existence and as an auxiliary in tense and aspect constructions.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3081,
+              "etymology": {
+                "root_meaning": "to advance, precede",
+                "pattern": "fa''ala",
+                "pattern_meaning": "causative or intensive action",
+                "derivation": "qaddama = cause to go forward = present, submit, put forward",
+                "semantic_field": "presentation, offering, precedence",
+                "cultural_note": "The doubled middle consonant in Form II gives the sense of making something advance or placing it before someone.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 2942,
+              "etymology": {
+                "root_meaning": "to twist, dispute",
+                "pattern": "fā'ala",
+                "pattern_meaning": "interactive or reciprocal action",
+                "derivation": "jādala = engage another in disputing = to argue",
+                "semantic_field": "debate, dispute, reasoning",
+                "cultural_note": "The root's older sense of twisting is metaphorically extended to verbal contest, as in turning arguments back and forth.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3082,
+              "etymology": {
+                "root_meaning": "to know, be informed",
+                "pattern": "af'ala",
+                "pattern_meaning": "causative action",
+                "derivation": "akhbara = cause someone to know news/information = to inform, tell",
+                "semantic_field": "news, information, communication",
+                "cultural_note": "Related to khabar, 'news' or 'report', a key term in Arabic grammar and transmission literature.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3022,
+              "etymology": {
+                "root_meaning": "to know, recognize",
+                "pattern": "ifta'ala",
+                "pattern_meaning": "reflexive or acquired action",
+                "derivation": "i'tarafa = come to recognize/admit something oneself = to confess",
+                "semantic_field": "recognition, admission, testimony",
+                "cultural_note": "The Form VIII pattern often marks an inward or self-involving action, fitting the sense of acknowledging a fact.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 3008,
+              "etymology": {
+                "root_meaning": "to do, work, make",
+                "pattern": "istaf'ala",
+                "pattern_meaning": "seeking, causing, or treating as an action",
+                "derivation": "ista'mala = put something to work = to use",
+                "semantic_field": "work, utility, practice",
+                "cultural_note": "From the same root as 'amal, 'work' or 'deed'; the Form X verb developed the practical sense of employing something for a purpose.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 2674,
+              "etymology": {
+                "root_meaning": "to wound, injure",
+                "pattern": "fi'āla",
+                "pattern_meaning": "practice, profession, or act related to the root",
+                "derivation": "jirāḥa = the practice of treating wounds by cutting = surgery",
+                "semantic_field": "medicine, wounds, treatment",
+                "cultural_note": "The meaning developed naturally from wounds and cutting to the medical art of operative treatment.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 2531,
+              "etymology": {
+                "root_meaning": "city, civilization",
+                "pattern": "fa'alī",
+                "pattern_meaning": "relational adjective",
+                "derivation": "madanī = related to the city/civic order = civil",
+                "semantic_field": "city, citizenship, society",
+                "cultural_note": "Contrasts with military or rural contexts; the same root is connected with madīna, 'city'.",
+                "related_loanwords": []
+              }
+            },
+            {
+              "lemma_id": 314,
+              "etymology": {
+                "root_meaning": null,
+                "pattern": null,
+                "pattern_meaning": null,
+                "derivation": "From French 'cinéma', shortened from 'cinématographe' (motion-picture apparatus), ultimately from Greek roots meaning movement and writing/recording.",
+                "semantic_field": "film, entertainment, theaters",
+                "cultural_note": "Entered modern Arabic with European film technology and culture in the late nineteenth and early twentieth centuries.",
+                "related_loanwords": [
+                  "cinema",
+                  "ciné",
+                  "cine",
+                  "cinematography"
+                ]
+              }
+            }
+          ]
+        },
+        "raw_preview": "{\"words\":[{\"lemma_id\":408,\"etymology\":{\"root_meaning\":\"to say, speak\",\"pattern\":\"fa'ala\",\"pattern_meaning\":\"basic verbal action\",\"derivation\":\"qāla = basic action of speaking = to say\",\"semantic_field\":\"speech, reporting, expression\",\"cultural_note\":\"A very common Form I hollow verb whose middle root consonant wāw appears as long ā in the past stem.\",\"related_loanwords\":[]}},{\"lemma_id\":385,\"etymology\":{\"root_meaning\":\"to be, exist\",\"pattern\":\"fa'ala\",\"pattern_meaning\":\"basic verbal state or action\",\"derivation\":\"kāna = basic state of existing/being = to be\",\"semantic_field\":\"existence, state, becoming\",\"cultural_note\":\"A central Form I hollow verb used both for existence and as an auxiliary in tense and aspect constructions.\",\"related_loanwords\":[]}},{\"lemma_id\":3081,\"etymology\":{\"root_meaning\":\"to advance, precede\",\"pattern\":\"fa''ala\",\"pattern_meaning\":\"causative or intensive action\",\"derivation\":\"qaddama = cause to go forward = present, submit, put forward\",\"semantic_field\":\"presentation, offering, precedence\",\"cultural_note\":\"The doubled middle consonant in Form II gives the sense of making something advance or placing it before someone.\",\"related_loanwords\":[]}},{\"lemma_id\":2942,\"etymology\":{\"root_meaning\":\"to twist, dispute\",\"pattern\":\"fā'ala\",\"pattern_meaning\":\"interactive or reciprocal action\",\"derivation\":\"jādala = engage another in disputing = to argue\",\"semantic_field\":\"debate, dispute, reasoning\",\"cultural_note\":\"The root's older sense of twisting is metaphorically extended to verbal contest, as in turning arguments back and forth.\",\"related_loanwords\":[]}},{\"lemma_id\":3082,\"etymology\":{\"root_meaning\":\"to know, be informed\",\"pattern\":\"af'ala\",\"pattern_meaning\":\"causative action\",\"derivation\":\"akhbara = cause someone to know news/information = to inform, tell\",\"semantic_field\":\"news, information, communication\",\"cultural_note\":\"Related to khabar, 'news' or 'report', a key term in Arabic grammar and transmission literature.\",\"related_loanwords\":[]}},{\"lemma_id\":3022,\"etymology\":{\"root_meaning\":\"to know, recognize\",\"pattern\":\"ifta'ala\",\"pattern_meaning\":\"reflexive or acquired action\",\"derivation\":\"i'tarafa = come to recognize/admit something oneself = to confess\",\"semantic_field\":\"recognition, admission, testimony\",\"cultural_note\":\"The Form VIII pattern often marks an inward or self-involving action, fitting the sense of acknowledging a fact.\",\"related_loanwords\":[]}},{\"lemma_id\":3008,\"etymology\":{\"root_meaning\":\"to do, work, make\",\"pattern\":\"istaf'ala\",\"pattern_meaning\":\"seeking, causing, or treating as an action\",\"derivation\":\"ista'mala = put something to work = to use\",\"semantic_field\":\"work, utility, practice\",\"cultural_note\":\"From the same root as 'amal, 'work' or 'deed'; the Form X verb developed the practical sense of employing something for a purpose.\",\"related_loanwords\":[]}},{\"lemma_id\":2674,\"etymology\":{\"root_meaning\":\"to wound, injure\",\"pattern\":\"fi'āla\",\"pattern_meaning\":\"practice, profession, or act related to the root\",\"derivation\":\"jirāḥa = the practice of treating wounds by cutting = surgery\",\"semantic_field\":\"medicine, wounds, treatment\",\"cultural_note\":\"The meaning developed naturally from wounds and cutting to the medical art of operative treatment.\",\"related_loanwords\":[]}},{\"lemma_id\":2531,\"etymology\":{\"root_meaning\":\"city, civilization\",\"pattern\":\"fa'alī\",\"pattern_meaning\":\"relational adjective\",\"derivation\":\"madanī = related to the city/civic order = civil\",\"semantic_field\":\"city, citizenship, society\",\"cultural_note\":\"Contrasts with military or rural contexts; the same root is connected with madīna, 'city'.\",\"related_loanwords\":[]}},{\"lemma_id\":314,\"etymology\":{\"root_meaning\":null,\"pattern\":null,\"pattern_meaning\":null,\"derivation\":\"From French 'cinéma', shortened from 'cinématographe' (motion-picture apparatus), ultimately from Greek roots meaning movement and writing/recording.\",\"semantic_field\":\"film, entertainment, theaters\",\"cultural_note\":\"Entered modern Arabic with European film technolo"
+      }
+    }
+  }
+}
