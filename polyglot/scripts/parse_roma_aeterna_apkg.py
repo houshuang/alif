@@ -25,16 +25,27 @@ import unicodedata
 import zipfile
 from pathlib import Path
 
-TAG = re.compile(r"<[^>]+>")
+INLINE_TAG = re.compile(r"<[^>]+>")
+# Block-level tags separate distinct senses ("<div>demolition</div>
+# <div>setting of the sun</div>"). Without a separator they collapse into a
+# nonsense noun phrase ("demolition setting of the sun"). Emit "; " so the
+# downstream TSV preserves multi-sense entries as semicolon-separated like
+# the rest of the seed lists (LLPSI: "hut; cottage").
+BLOCK_TAG = re.compile(r"</?(?:div|br|p|li|ol|ul|tr|td|h[1-6])\b[^>]*>", re.IGNORECASE)
 WS = re.compile(r"\s+")
 WORD = re.compile(r"[A-Za-zĀāĒēĪīŌōŪūȲȳÆæŒœ\-]+")
 
 
 def _clean(s: str) -> str:
-    s = TAG.sub(" ", s)
+    s = BLOCK_TAG.sub("; ", s)
+    s = INLINE_TAG.sub(" ", s)
     s = html.unescape(s).replace("\xa0", " ")
     s = unicodedata.normalize("NFKC", s)
-    return WS.sub(" ", s).strip()
+    s = WS.sub(" ", s).strip()
+    # Collapse "; ;" → "; " and strip leading/trailing separators.
+    s = re.sub(r"(?:\s*;\s*)+", "; ", s).strip()
+    s = s.strip("; ").strip()
+    return s
 
 
 def parse(apkg: Path) -> list[tuple[str, str]]:

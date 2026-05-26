@@ -58,11 +58,40 @@ BATCH_GLOSS_ENABLED = _os.environ.get("POLYGLOT_BATCH_GLOSS", "1") == "1"
 LEMMA_REPAIR_ENABLED = _os.environ.get("POLYGLOT_LEMMA_REPAIR", "0") == "1"
 
 
-def _split_into_sentences(text: str) -> list[str]:
+# Latin abbreviations that end in "." but never terminate a sentence in
+# practice. Adding them here protects the cheap splitter from cutting common
+# date phrases like "ante diem XI Kal. Maias" mid-clause. Eutropius I.1 hit
+# this on 2026-05-26 — sentence #1409 ended with "Kal." and #1410 began with
+# the orphan "Maias, ...".
+#
+# Calendar terms (Kal./Non./Id./a.d.) are the proven offenders; the praenomen
+# abbreviations are also common in classical prose ("L. Pisone, A. Gabinio
+# consulibus") but more risky to protect because a single-letter "M." can
+# appear in other contexts too — held back until we see a real failure.
+_LATIN_NON_BOUNDARY_ABBREVS: tuple[str, ...] = (
+    "Kal.",   # Kalendae — 1st of the month
+    "Non.",   # Nonae    — 5th or 7th
+    "Id.",    # Idus     — 13th or 15th
+    "a.d.",   # ante diem
+)
+
+
+def _split_into_sentences(text: str, language_code: str = "el") -> list[str]:
     """Cheap splitter: ·;.!?\\n plus Greek question mark ;. Keeps delimiters
-    out — we only need sentence_index for grouping in the UI."""
-    parts = re.split(r"(?<=[.!?·;\n])\s+", text.strip())
-    return [p for p in parts if p.strip()]
+    out — we only need sentence_index for grouping in the UI.
+
+    Latin-aware: pre-protects calendar abbreviations so common date phrases
+    like "XI Kal. Maias" don't get cut mid-clause. We swap the abbreviation's
+    "." for a NUL sentinel before splitting, then restore it on each part so
+    the visible text is unchanged. NUL is safe as a sentinel because Page text
+    has already been normalized by `body_clean.normalize_pdf_artifacts`,
+    which strips control characters."""
+    protected = text
+    if language_code == "la":
+        for ab in _LATIN_NON_BOUNDARY_ABBREVS:
+            protected = protected.replace(ab, ab.replace(".", "\x00"))
+    parts = re.split(r"(?<=[.!?·;\n])\s+", protected.strip())
+    return [p.replace("\x00", ".") for p in parts if p.strip()]
 
 
 def _lookup_lemma(db: Session, language_code: str, lemma_bare: str) -> Lemma | None:
@@ -211,7 +240,7 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     )
 
     # Phase 1: pure compute
-    sentences = _split_into_sentences(source_text)
+    sentences = _split_into_sentences(source_text, language_code)
     tokens_with_meta: list[tuple[int, Token, int]] = []  # (sentence_idx, token, global_pos)
     global_pos = 0
     for s_idx, sentence in enumerate(sentences):
