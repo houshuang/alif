@@ -292,9 +292,9 @@ def due(
 
 
 @router.get("/stats")
-def stats(db: Session = Depends(get_db)) -> dict:
-    """Pipeline stats: acquisition boxes + due counts."""
-    return get_acquisition_stats(db)
+def stats(language_code: str | None = None, db: Session = Depends(get_db)) -> dict:
+    """Pipeline stats: acquisition boxes + due counts, optionally per-language."""
+    return get_acquisition_stats(db, language_code=language_code)
 
 
 class SentenceReviewRequest(BaseModel):

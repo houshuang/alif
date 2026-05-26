@@ -379,8 +379,9 @@ export async function submitReview(
   });
 }
 
-export async function getReviewStats(): Promise<AcquisitionStats> {
-  return get("/api/reviews/stats");
+export async function getReviewStats(languageCode?: string): Promise<AcquisitionStats> {
+  const q = languageCode ? `?language_code=${encodeURIComponent(languageCode)}` : "";
+  return get(`/api/reviews/stats${q}`);
 }
 
 // ─── Chat + reports ───────────────────────────────────────────────────────

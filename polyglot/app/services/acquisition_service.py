@@ -658,14 +658,22 @@ def get_acquisition_due(
     ]
 
 
-def get_acquisition_stats(db: Session) -> dict:
-    """Summary stats for the acquisition pipeline."""
-    acquiring_rows = (
+def get_acquisition_stats(db: Session, language_code: str | None = None) -> dict:
+    """Summary stats for the acquisition pipeline.
+
+    ``language_code`` scopes the counts to one language. UserLemmaKnowledge has
+    no language of its own, so the Lemma join + filter is mandatory — without it
+    Greek and Latin share one pipeline count (per CLAUDE.md "Per-language
+    pacing"). Defaults to all languages for backward compatibility.
+    """
+    q = (
         db.query(UserLemmaKnowledge, Lemma)
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
-        .all()
     )
+    if language_code:
+        q = q.filter(Lemma.language_code == language_code)
+    acquiring_rows = q.all()
     acquiring = [
         ulk
         for ulk, lemma in acquiring_rows

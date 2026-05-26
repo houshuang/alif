@@ -243,7 +243,13 @@ function LayoutInner({ online }: { online: boolean }) {
           name="polyglot-stats"
           options={{
             href: polyHref("polyglot-stats"),
-            title: "Modern Greek Stats",
+            // headerShown:false to match the other polyglot screens — the stats
+            // screen renders its own language-aware header (eyebrow + native
+            // name). The previous static "Modern Greek Stats" title leaked Greek
+            // into the Latin header. `title` now only feeds the web document
+            // title, so keep it language-neutral.
+            title: "Stats",
+            headerShown: false,
             tabBarLabel: "Stats",
             tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}

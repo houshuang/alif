@@ -203,8 +203,28 @@ export default function Polyglot() {
   const languageCode = language === "la" ? "la" : "el";
   const languageName = POLYGLOT_LANGUAGE_NAMES[languageCode] ?? "Reading";
 
+  // Tracks the language whose story list is loaded, so we only RESET reading
+  // state on an actual switch (not on first mount, where the cursor-restore
+  // effect below should still be able to resume the last book).
+  const loadedLangRef = useRef(languageCode);
   useEffect(() => {
     listStories(languageCode).then(setStories).catch(() => setStories([]));
+    if (loadedLangRef.current !== languageCode) {
+      loadedLangRef.current = languageCode;
+      // Switching languages can't continue a book in the other language — drop
+      // back to the (freshly reloaded) story list AND clear every per-story /
+      // per-page cache. pageCacheRef and translations are keyed by integer page
+      // number, which collides across languages (Greek page 5 vs Latin page 5);
+      // without this clear, advancing in the new language could surface the
+      // previous language's prefetched tokens or English translation.
+      setStoryId(null);
+      setPageData(null);
+      setSelected(null);
+      setShowTranslation(false);
+      setTranslations({});
+      pageCacheRef.current = {};
+      translationReqRef.current = new Set();
+    }
   }, [languageCode]);
 
   // Background-prefetch a page into the cache (no spinner, best-effort). Used
