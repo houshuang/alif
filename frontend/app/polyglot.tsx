@@ -164,6 +164,13 @@ function marksEqual(
 // (see goToLibrary) — that's the only way to genuinely reset to the story list.
 const CURSOR_STORAGE_KEY = "@polyglot:readingCursor";
 
+// How many pages ahead to background-prefetch on each page view. The backend
+// tokenizes a page on first request (4 LLM passes ~ 40-90s for a cold Latin
+// page); each prefetch fires concurrently and lets the server work through
+// the queue while the user reads. 5 matches the cron's warm_pages_ahead
+// buffer so an in-session gap between cron runs (3h) stays covered.
+const PREFETCH_AHEAD = 5;
+
 type ReadingCursor = {
   storyId: number;
   pageNumber: number;
@@ -375,9 +382,19 @@ export default function Polyglot() {
       }
       setPageData(data);
       setPageNumber(data.page_number);
-      // Warm the next page (so Next is instant) and this page's translation
-      // (so "Show English" is instant).
-      if (data.page_number < data.total_pages) prefetchPage(sid, data.page_number + 1);
+      // Warm the next several pages (so Next stays instant even when the user
+      // outpaces a single-page lookahead) and this page's translation (so
+      // "Show English" is instant). Cold tokenization of a new Latin page can
+      // take 40-90s of LLM work; the cron's warm_pages_ahead pre-warms a
+      // 5-page buffer every 3h, so the client prefetch only needs to bridge
+      // the in-session gap between cron runs. PREFETCH_AHEAD requests fire
+      // concurrently from the client; the server serializes the SQLite writes,
+      // so this looks like queue depth, not parallel CPU load.
+      for (let i = 1; i <= PREFETCH_AHEAD; i++) {
+        const next = data.page_number + i;
+        if (next > data.total_pages) break;
+        prefetchPage(sid, next);
+      }
       fetchTranslation(sid, data.page_number);
     };
 
