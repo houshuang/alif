@@ -38,21 +38,39 @@ def _reset_cli_state(monkeypatch):
 
 @patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_default_provider_keeps_claude_cli(mock_claude, mock_codex):
-    """Without ALIF_AUDIT_PROVIDER, claude_haiku still goes to Claude CLI."""
-    mock_claude.return_value = {"ok": True}
+def test_default_provider_is_codex(mock_claude, mock_codex):
+    """Without ALIF_AUDIT_PROVIDER, claude_haiku now routes through Codex.
+
+    Default flipped 2026-05-26 after the two A/Bs landed (sentence-gen +
+    enrichment). Claude CLI remains the fallback under failover.
+    """
+    mock_codex.return_value = {"ok": "from codex"}
 
     result = generate_completion("hi", model_override="claude_haiku")
 
-    assert result == {"ok": True}
+    assert result == {"ok": "from codex"}
+    mock_codex.assert_called_once()
+    mock_claude.assert_not_called()
+
+
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
+@patch("app.services.llm._generate_via_claude_cli")
+def test_explicit_claude_opt_out(mock_claude, mock_codex, monkeypatch):
+    """ALIF_AUDIT_PROVIDER=claude is the escape hatch — Codex must be skipped."""
+    monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "claude")
+    mock_claude.return_value = {"ok": "from claude"}
+
+    result = generate_completion("hi", model_override="claude_haiku")
+
+    assert result == {"ok": "from claude"}
     mock_claude.assert_called_once()
     mock_codex.assert_not_called()
 
 
 @patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_codex_provider_routes_haiku_through_codex(mock_claude, mock_codex, monkeypatch):
-    """ALIF_AUDIT_PROVIDER=codex sends claude_haiku to Codex (not Claude CLI)."""
+def test_explicit_codex_routes_through_codex(mock_claude, mock_codex, monkeypatch):
+    """ALIF_AUDIT_PROVIDER=codex matches the new default — Codex first."""
     monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "codex")
     mock_codex.return_value = {"ok": "from codex"}
 
@@ -65,14 +83,11 @@ def test_codex_provider_routes_haiku_through_codex(mock_claude, mock_codex, monk
 
 @patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_codex_provider_leaves_sonnet_on_claude(mock_claude, mock_codex, monkeypatch):
-    """Sonnet (generation) must stay on Claude even when ALIF_AUDIT_PROVIDER=codex.
-
-    The 2026-05-26 sentence-gen A/B showed Codex weaker on Arabic naturalness
-    under vocab constraint, so we explicitly do NOT route generation through
-    Codex regardless of the env setting.
+def test_default_leaves_sonnet_on_claude(mock_claude, mock_codex):
+    """Sonnet (generation) must stay on Claude even though Codex is now default
+    for haiku. The 2026-05-26 sentence-gen A/B showed Codex weaker on Arabic
+    naturalness under vocab constraint, so generation is explicitly excluded.
     """
-    monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "codex")
     mock_claude.return_value = {"sentences": []}
 
     generate_completion("sentence prompt", model_override="claude_sonnet")
@@ -84,9 +99,8 @@ def test_codex_provider_leaves_sonnet_on_claude(mock_claude, mock_codex, monkeyp
 
 @patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_codex_provider_routes_default_haiku(mock_claude, mock_codex, monkeypatch):
-    """When no model_override is given, the implicit claude_haiku still routes through Codex."""
-    monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "codex")
+def test_default_routes_implicit_haiku(mock_claude, mock_codex):
+    """When no model_override is given, the implicit claude_haiku routes through Codex."""
     mock_codex.return_value = {"ok": "from codex"}
 
     generate_completion("hi")
@@ -97,15 +111,16 @@ def test_codex_provider_routes_default_haiku(mock_claude, mock_codex, monkeypatc
 
 @patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_invalid_env_value_falls_back_to_claude(mock_claude, mock_codex, monkeypatch):
-    """ALIF_AUDIT_PROVIDER=garbage should not silently route through Codex."""
+def test_invalid_env_value_falls_back_to_codex_default(mock_claude, mock_codex, monkeypatch):
+    """ALIF_AUDIT_PROVIDER=garbage should fall back to the codex default (not
+    silently break to Claude — would invert the post-A/B intent)."""
     monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "anthropic-via-zapier")
-    mock_claude.return_value = {"ok": True}
+    mock_codex.return_value = {"ok": "from codex"}
 
     generate_completion("hi", model_override="claude_haiku")
 
-    mock_claude.assert_called_once()
-    mock_codex.assert_not_called()
+    mock_codex.assert_called_once()
+    mock_claude.assert_not_called()
 
 
 # ─── Failover chain ────────────────────────────────────────────────────────
