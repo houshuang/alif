@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from app.services import reading_intake
 from app.services.acquisition_service import submit_acquisition_review
-from app.models import Story, Page, PageWord, Lemma, UserLemmaKnowledge
+from app.models import Story, Page, PageWord, Lemma, Sentence, UserLemmaKnowledge
 
 
 def test_paste_creates_story_and_single_page(tmp_db):
@@ -516,9 +516,10 @@ def test_ensure_page_translation_generates_then_caches(tmp_db, monkeypatch):
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
         sid = story.id
 
-        text, generated = reading_intake.ensure_page_translation(db, sid, 1)
+        text, generated, sentences = reading_intake.ensure_page_translation(db, sid, 1)
         assert generated is True
         assert text == "book house"
+        assert sentences == []  # legacy path — no harvested Sentence rows
         assert calls["n"] == 1
         # Persisted on the Page row.
         page = db.query(Page).filter(Page.story_id == sid, Page.page_number == 1).first()
@@ -527,9 +528,10 @@ def test_ensure_page_translation_generates_then_caches(tmp_db, monkeypatch):
 
     # A fresh session serves from cache — no second LLM call.
     with tmp_db() as db:
-        text2, generated2 = reading_intake.ensure_page_translation(db, sid, 1)
+        text2, generated2, sentences2 = reading_intake.ensure_page_translation(db, sid, 1)
         assert text2 == "book house"
         assert generated2 is False
+        assert sentences2 == []
         assert calls["n"] == 1
 
 
@@ -537,9 +539,10 @@ def test_ensure_page_translation_llm_failure_leaves_null_for_retry(tmp_db, monke
     monkeypatch.setattr(reading_intake, "_translate_page_text", lambda lc, t: None)
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
-        text, generated = reading_intake.ensure_page_translation(db, story.id, 1)
+        text, generated, sentences = reading_intake.ensure_page_translation(db, story.id, 1)
         assert text is None
         assert generated is False
+        assert sentences == []
         page = db.query(Page).filter(Page.story_id == story.id).first()
         assert page.translation_en is None  # not cached → retried next reveal
 
@@ -551,9 +554,10 @@ def test_ensure_page_translation_blank_page_caches_empty_without_llm(tmp_db, mon
     monkeypatch.setattr(reading_intake, "_translate_page_text", boom)
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="123 — 456 ...")
-        text, generated = reading_intake.ensure_page_translation(db, story.id, 1)
+        text, generated, sentences = reading_intake.ensure_page_translation(db, story.id, 1)
         assert text == ""
         assert generated is False
+        assert sentences == []
         page = db.query(Page).filter(Page.story_id == story.id).first()
         assert page.translation_en == ""
         assert page.translated_at is not None
@@ -563,3 +567,75 @@ def test_ensure_page_translation_missing_page_returns_none(tmp_db):
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
         assert reading_intake.ensure_page_translation(db, story.id, 99) is None
+
+
+def test_ensure_page_translation_returns_per_sentence_when_harvested(tmp_db, monkeypatch):
+    """Modern path — page has harvested Sentence rows. Reveal interleaves per
+    sentence, so the endpoint returns one entry per row keyed by
+    sentence_index_in_page; the page-level translation_en is the concatenation."""
+
+    def boom_page(lc, t):  # legacy whole-page LLM call must not fire
+        raise AssertionError("Per-sentence path must not call the page translator")
+
+    monkeypatch.setattr(reading_intake, "_translate_page_text", boom_page)
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        sid = story.id
+        page = db.query(Page).filter(Page.story_id == sid).first()
+        page_id = page.id
+        # Two harvested sentences on the page, one already translated, one NULL.
+        db.add_all([
+            Sentence(
+                language_code="el", text="Το βιβλίο.",
+                translation_en="The book.", source="textbook",
+                story_id=sid, page_id=page_id, sentence_index_in_page=0,
+                is_active=True,
+            ),
+            Sentence(
+                language_code="el", text="Το σπίτι.",
+                translation_en=None, source="textbook",
+                story_id=sid, page_id=page_id, sentence_index_in_page=1,
+                is_active=True,
+            ),
+        ])
+        db.commit()
+
+        # Lazy batch translator: fills the second sentence only.
+        def fake_batch(language_code, items):
+            assert language_code == "el"
+            ids = {it["id"] for it in items}
+            return {item_id: "The house." for item_id in ids}
+
+        from app.services import material_generator
+        monkeypatch.setattr(material_generator, "translate_sentences_batch", fake_batch)
+
+        text, generated, sentences = reading_intake.ensure_page_translation(db, sid, 1)
+        assert generated is True
+        assert sentences == [
+            {"sentence_index_in_page": 0, "translation_en": "The book."},
+            {"sentence_index_in_page": 1, "translation_en": "The house."},
+        ]
+        assert text == "The book. The house."
+        # NULL was filled in place; page-level cache mirrors the join.
+        rows = (
+            db.query(Sentence)
+            .filter(Sentence.page_id == page_id)
+            .order_by(Sentence.sentence_index_in_page)
+            .all()
+        )
+        assert [r.translation_en for r in rows] == ["The book.", "The house."]
+        fresh_page = db.query(Page).filter(Page.id == page_id).first()
+        assert fresh_page.translation_en == "The book. The house."
+
+    # Second call serves from the row cache — batch translator must not fire.
+    with tmp_db() as db:
+        from app.services import material_generator
+        monkeypatch.setattr(
+            material_generator, "translate_sentences_batch",
+            lambda lc, items: (_ for _ in ()).throw(AssertionError("re-fetch should be cached")),
+        )
+        text2, generated2, sentences2 = reading_intake.ensure_page_translation(db, sid, 1)
+        assert generated2 is False
+        assert text2 == "The book. The house."
+        assert [s["translation_en"] for s in sentences2] == ["The book.", "The house."]

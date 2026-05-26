@@ -92,14 +92,27 @@ class PageView(BaseModel):
     tokens: list[TokenView]
 
 
+class SentenceTranslation(BaseModel):
+    # Index within the page — matches TokenView.sentence_index, so the frontend
+    # can interleave each foreign sentence with its English under the same key.
+    sentence_index_in_page: int
+    translation_en: str | None
+
+
 class PageTranslation(BaseModel):
     story_id: int
     page_number: int
     # Full-page English translation. Null only when the LLM call failed and the
     # client should retry; empty string for a blank/punctuation-only page.
+    # When ``sentences`` is non-empty this is the concatenation of those (kept
+    # for backward compat); the reader's Reveal renders ``sentences`` directly.
     translation_en: str | None
     # True when this request generated it (vs. served from cache).
     generated: bool = False
+    # Per-sentence English keyed by sentence_index_in_page. Empty when the page
+    # has no harvested Sentence rows (legacy / un-harvested pages fall back to
+    # the page-level translation_en above).
+    sentences: list[SentenceTranslation] = []
 
 
 # ─── Marking ───────────────────────────────────────────────────────────────

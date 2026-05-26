@@ -31,7 +31,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, Story, Page, PageWord, PageReviewLog, UserLemmaKnowledge
+from app.models import Lemma, Sentence, Story, Page, PageWord, PageReviewLog, UserLemmaKnowledge
 from app.services import body_clean as body_clean_svc
 from app.services import lemma_gloss
 from app.services import pdf_extract
@@ -411,16 +411,23 @@ def _translate_page_text(language_code: str, text: str) -> str | None:
 
 def ensure_page_translation(
     db: Session, story_id: int, page_number: int,
-) -> tuple[str | None, bool] | None:
-    """Return ``(translation_en, generated)`` for a page, generating + caching
-    it on first request. ``generated`` is True only when this call produced it.
+) -> tuple[str | None, bool, list[dict]] | None:
+    """Return ``(translation_en, generated, sentences)`` for a page.
+
+    The reader's Reveal now interleaves *per-sentence* English under each
+    foreign sentence, so the modern path returns one entry per harvested
+    ``Sentence`` row on the page (keyed by ``sentence_index_in_page``).
+    ``translation_en`` is kept as a backward-compat concatenation of those.
+
+    For pages without harvested ``Sentence`` rows (legacy / un-harvested),
+    falls back to one whole-page LLM call cached on ``Page.translation_en``.
 
     Returns ``None`` when the page doesn't exist (caller → 404).
 
-    Lock discipline: the page text is read first, the (slow) LLM call runs with
-    NO dirty session state, and only then is the result written in a short
-    transaction — the SQLite write lock is never held across the LLM call
-    (CLAUDE.md rule #10). Idempotent: a cached translation short-circuits.
+    Lock discipline: rows are read, the (slow) LLM call runs with NO dirty
+    session state, and only then are results written in a short transaction —
+    the SQLite write lock is never held across the LLM call (CLAUDE.md #10).
+    Idempotent: cached translations short-circuit.
     """
     page = (
         db.query(Page)
@@ -429,8 +436,22 @@ def ensure_page_translation(
     )
     if page is None:
         return None
+
+    sentence_rows = (
+        db.query(Sentence)
+        .filter(Sentence.page_id == page.id)
+        .order_by(Sentence.sentence_index_in_page)
+        .all()
+    )
+
+    if sentence_rows:
+        return _ensure_page_sentence_translations(db, page, sentence_rows)
+
+    # Legacy fallback: no harvested sentences on this page (pre-harvest imports
+    # or pages whose sentences were rejected). One whole-page LLM call, cached
+    # on Page.translation_en.
     if page.translation_en is not None and page.translation_en.strip():
-        return page.translation_en, False
+        return page.translation_en, False, []
 
     page_id = page.id
     raw_source = page.body_clean if (page.body_clean and page.body_clean.strip()) else page.body_src
@@ -441,12 +462,12 @@ def ensure_page_translation(
         page.translation_en = ""
         page.translated_at = datetime.now(timezone.utc)
         db.commit()
-        return "", False
+        return "", False, []
 
     # Slow work — no DB writes pending while this runs.
     english = _translate_page_text(page.story.language_code, source_text)
     if not english or not english.strip():
-        return None, False  # leave NULL → retried on next reveal
+        return None, False, []  # leave NULL → retried on next reveal
 
     fresh = db.get(Page, page_id)
     if fresh is None:
@@ -454,7 +475,66 @@ def ensure_page_translation(
     fresh.translation_en = english.strip()
     fresh.translated_at = datetime.now(timezone.utc)
     db.commit()
-    return fresh.translation_en, True
+    return fresh.translation_en, True, []
+
+
+def _ensure_page_sentence_translations(
+    db: Session, page: Page, rows: list[Sentence],
+) -> tuple[str | None, bool, list[dict]]:
+    """Fill any NULL ``translation_en`` on the given sentence rows via one
+    batched LLM call, then return ``(page_translation, generated, sentences)``
+    where ``page_translation`` is the join of per-sentence English (for
+    backward-compat callers) and ``sentences`` is one item per row.
+    """
+    needs = [
+        {"id": s.id, "text": s.text}
+        for s in rows
+        if not (s.translation_en and s.translation_en.strip()) and s.text
+    ]
+
+    generated = False
+    if needs:
+        # Slow work — no DB writes pending while this runs (rows were loaded
+        # read-only above, no pending session state).
+        from app.services.material_generator import translate_sentences_batch
+
+        translations = translate_sentences_batch(page.story.language_code, needs)
+        if translations:
+            for sid, english in translations.items():
+                (
+                    db.query(Sentence)
+                    .filter(Sentence.id == sid)
+                    .update({"translation_en": english})
+                )
+            db.commit()
+            for s in rows:
+                if s.id in translations:
+                    s.translation_en = translations[s.id]
+            generated = True
+
+    sentences_out = [
+        {
+            "sentence_index_in_page": s.sentence_index_in_page,
+            "translation_en": (
+                s.translation_en.strip()
+                if s.translation_en and s.translation_en.strip()
+                else None
+            ),
+        }
+        for s in rows
+    ]
+    joined = " ".join(
+        s["translation_en"] for s in sentences_out if s["translation_en"]
+    ).strip()
+
+    # Maintain Page.translation_en as the concatenation, so the legacy field
+    # stays useful for any caller that doesn't yet read sentences[].
+    if joined and page.translation_en != joined:
+        page.translation_en = joined
+        page.translated_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return (joined or None), generated, sentences_out
 
 
 def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:

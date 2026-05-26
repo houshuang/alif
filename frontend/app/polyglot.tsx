@@ -3,22 +3,28 @@
  * Same screen for every polyglot language; the active one is passed as
  * `language_code`.
  *
- * UX model (redesigned to mirror sentence-review, 2026-05-25):
+ * UX model (mirror of sentence-review, 2026-05-26):
  *   1. **Story list** — pick a text.
  *   2. **Reading view** — book typography, every word the same warm ink.
  *      Tap a content word to cycle red ("no idea") → yellow ("recognize") →
  *      clear; the gloss / lookup card appears for the tapped word. Each tap
  *      updates server state live (best-effort online).
- *   3. **Show English** — flip to reveal a full-page English translation below
- *      the foreign text (the page-scale analogue of a review card's "Show
- *      Translation"). Lazy + cached server-side; prefetched on page load.
- *   4. **Prev / Next** — read in both directions. Advancing a page is the
- *      "submit": a one-time green comprehension sweep over every untapped word
- *      (deterministic id ⇒ re-advancing never double-counts). The advance is
- *      optimistic — the submit flushes in the background while the next page
- *      (prefetched while you read) appears immediately. Going back restores the
- *      exact red/yellow marks you made on that page; changing them updates the
- *      server live. The last page's button is "Finish".
+ *   3. **Reveal** — one-way; drops the per-sentence English directly under each
+ *      foreign sentence (interleaved EB Garamond italic). Source rows are the
+ *      harvested `Sentence` rows for the page; NULL `translation_en` is lazy-
+ *      filled in one batched LLM call. Prefetched on page load so the reveal
+ *      is instant. Legacy / un-harvested pages fall back to a single whole-
+ *      page LLM call shown as one trailing block. No `Hide` — pick Reveal or
+ *      Know all, not both.
+ *   4. **Prev · Know all · Reveal** (pre-reveal) → **Prev · Next · [spacer]**
+ *      (post-reveal). Both Know all and Next submit the page sweep: marks
+ *      become misses, every untapped content word is presumed known. The
+ *      empty post-reveal right slot is intentional — a double-tap of Reveal
+ *      can't accidentally land on Next, because Next sits in the middle, not
+ *      where Reveal was. Sweep is idempotent on `pr:<story>:<page>` so re-
+ *      advancing never double-counts; going back restores the exact red/
+ *      yellow marks and editing them updates the server live. Last page's
+ *      middle button is "Finish".
  *   5. **Lazy** — pages are tokenized + LLM-verified on first view; the reader
  *      prefetches the next page so that work happens while you read.
  *
@@ -166,11 +172,18 @@ export default function Polyglot() {
   // word.
   const [cyclePositions, setCyclePositions] = useState<Record<number, number>>({});
   const [glossByLemma, setGlossByLemma] = useState<Record<number, string | null>>({});
-  // Page-level English translations, keyed by page_number, for the "Show
-  // English" reveal. Fetched lazily + cached server-side; the reader prefetches
-  // the current page's translation on load so the flip is instant.
-  const [translations, setTranslations] = useState<Record<number, string>>({});
-  const [showTranslation, setShowTranslation] = useState(false);
+  // English translations keyed by page_number → sentence_index_in_page → english.
+  // Sentence-aligned so Reveal can interleave each English under its foreign
+  // sentence (mirrors the sentence-review card's two-stage reveal but scaled to
+  // a page). Fetched lazily + cached server-side; the reader prefetches on page
+  // load so Reveal is instant. The page-level fallback string (for legacy pages
+  // with no harvested sentence rows) lives in pageFallbackEn.
+  const [sentenceTranslations, setSentenceTranslations] = useState<Record<number, Record<number, string | null>>>({});
+  const [pageFallbackEn, setPageFallbackEn] = useState<Record<number, string>>({});
+  // One-way reveal — mirrors polyglot-review.tsx's one-way "Show Translation".
+  // Forcing a deliberate choice between Know all and Reveal pre-commit (then
+  // Next post-reveal) prevents the double-tap-and-skip-the-English foot-gun.
+  const [revealed, setRevealed] = useState(false);
   // Lazy-fetched lemma detail (with enrichment) for the currently-tapped
   // word. The lookup card renders the head row immediately from `selected`
   // (already loaded as part of the page); enrichment streams in here when
@@ -220,16 +233,29 @@ export default function Polyglot() {
 
   // Fetch + cache a page's English translation. Idempotent via translationReqRef
   // (page numbers fetched-or-in-flight); a failed call (null) is removed from
-  // the set so a later reveal retries.
+  // the set so a later reveal retries. Populates both the per-sentence map
+  // (modern path — interleaved Reveal) and the page-level fallback (legacy /
+  // un-harvested pages).
   const fetchTranslation = useCallback((sid: number, p: number) => {
     if (translationReqRef.current.has(p)) return;
     translationReqRef.current.add(p);
     getPageTranslation(sid, p)
       .then((t) => {
-        if (t.translation_en != null) {
-          setTranslations((prev) => ({ ...prev, [p]: t.translation_en as string }));
-        } else {
+        const gotSomething =
+          (t.sentences && t.sentences.length > 0) ||
+          (t.translation_en != null && t.translation_en !== "");
+        if (!gotSomething && t.translation_en == null) {
+          // null translation_en + empty sentences ⇒ LLM failed; retry later.
           translationReqRef.current.delete(p);
+          return;
+        }
+        if (t.sentences && t.sentences.length > 0) {
+          const byIdx: Record<number, string | null> = {};
+          for (const s of t.sentences) byIdx[s.sentence_index_in_page] = s.translation_en;
+          setSentenceTranslations((prev) => ({ ...prev, [p]: byIdx }));
+        }
+        if (t.translation_en != null) {
+          setPageFallbackEn((prev) => ({ ...prev, [p]: t.translation_en as string }));
         }
       })
       .catch(() => { translationReqRef.current.delete(p); });
@@ -238,7 +264,7 @@ export default function Polyglot() {
   const loadPage = useCallback(async (sid: number, p: number) => {
     setSelected(null);
     setGlossByLemma({});
-    setShowTranslation(false);
+    setRevealed(false);
     setCyclePositions({});
     loadCyclePositions(sid, p).then(setCyclePositions);
 
@@ -289,7 +315,8 @@ export default function Polyglot() {
   const openStory = useCallback((sid: number) => {
     pageCacheRef.current = {};
     translationReqRef.current = new Set();
-    setTranslations({});
+    setSentenceTranslations({});
+    setPageFallbackEn({});
     setStoryId(sid);
   }, []);
 
@@ -407,10 +434,11 @@ export default function Polyglot() {
     }
   }, [cyclePositions, storyId, pageNumber]);
 
-  // Reveal / hide the full-page English translation. Kicks the lazy fetch on
-  // first reveal (idempotent — usually already prefetched on page load).
-  const handleToggleTranslation = useCallback(() => {
-    setShowTranslation((v) => !v);
+  // Reveal the per-sentence English. One-way until Next/Prev moves the page —
+  // mirrors polyglot-review.tsx's one-way "Show Translation" reveal. Kicks the
+  // lazy fetch on first reveal (idempotent — usually already prefetched).
+  const handleReveal = useCallback(() => {
+    setRevealed(true);
     if (storyId != null) fetchTranslation(storyId, pageNumber);
   }, [storyId, pageNumber, fetchTranslation]);
 
@@ -532,7 +560,24 @@ export default function Polyglot() {
   // ─── Page view ───────────────────────────────────────────────────────
   const atFirstPage = pageData ? pageData.page_number <= 1 : true;
   const atLastPage = pageData ? pageData.page_number >= pageData.total_pages : false;
-  const translation = pageData ? translations[pageData.page_number] : undefined;
+  const pn = pageData?.page_number;
+  const sentenceEn = pn != null ? sentenceTranslations[pn] : undefined;
+  const fallbackEn = pn != null ? pageFallbackEn[pn] : undefined;
+
+  // Group renderable tokens by sentence_index so we can render each sentence
+  // as its own <Text> block and interleave the English under it when revealed.
+  // Headings are filtered first (same rule as before — meta-text, not prose).
+  const sentenceGroups: { sentenceIdx: number; tokens: TokenView[] }[] = (() => {
+    if (!pageData) return [];
+    const out: { sentenceIdx: number; tokens: TokenView[] }[] = [];
+    for (const t of pageData.tokens) {
+      if (t.is_heading) continue;
+      const last = out[out.length - 1];
+      if (last && last.sentenceIdx === t.sentence_index) last.tokens.push(t);
+      else out.push({ sentenceIdx: t.sentence_index, tokens: [t] });
+    }
+    return out;
+  })();
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
@@ -566,52 +611,62 @@ export default function Polyglot() {
           }}
         >
           <View style={styles.column}>
-            <Text style={styles.greekText} selectable={false}>
-              {renderTokens(
-                // Headings (chapter/section titles, running page headers
-                // injected by the PDF extractor) are meta-text; drop them
-                // entirely before computing spacing so the body reads as
-                // continuous prose.
-                pageData.tokens.filter((t) => !t.is_heading),
-              ).map((span, i) => {
-                const lemmaId = span.token.lemma_id;
-                const cyclePos = lemmaId != null ? cyclePositions[lemmaId] : undefined;
-                const cycleStyle =
-                  cyclePos === 0 ? styles.tokenCycleRed
-                  : cyclePos === 1 ? styles.tokenCycleYellow
-                  : undefined;
-                const isSelected =
-                  selected != null && selected.position === span.token.position;
-                const tokenStyle = cycleStyle ?? (isSelected ? styles.tokenSelected : styles.token);
-                return (
-                  <Text key={i} style={tokenStyle}>
-                    {span.leadingSpace}
-                    <Text
-                      onPress={
-                        !span.isPunctuation && span.token.lemma_id
-                          ? () => handleTap(span.token)
-                          : undefined
-                      }
-                    >
-                      {span.surface}
-                    </Text>
+            {/* One <Text> block per sentence — lets us drop the English under
+                each one when revealed (interleaved sentence pairs, the design
+                we landed on after the design-review mock 2026-05-26). Soft-
+                hyphens never cross sentence boundaries, so per-sentence
+                renderTokens is safe. */}
+            {sentenceGroups.map((group) => {
+              const spans = renderTokens(group.tokens);
+              const en = sentenceEn ? sentenceEn[group.sentenceIdx] : undefined;
+              return (
+                <View key={group.sentenceIdx} style={styles.sentenceBlock}>
+                  <Text style={styles.greekText} selectable={false}>
+                    {spans.map((span, i) => {
+                      const lemmaId = span.token.lemma_id;
+                      const cyclePos = lemmaId != null ? cyclePositions[lemmaId] : undefined;
+                      const cycleStyle =
+                        cyclePos === 0 ? styles.tokenCycleRed
+                        : cyclePos === 1 ? styles.tokenCycleYellow
+                        : undefined;
+                      const isSelected =
+                        selected != null && selected.position === span.token.position;
+                      const tokenStyle = cycleStyle ?? (isSelected ? styles.tokenSelected : styles.token);
+                      return (
+                        <Text key={i} style={tokenStyle}>
+                          {span.leadingSpace}
+                          <Text
+                            onPress={
+                              !span.isPunctuation && span.token.lemma_id
+                                ? () => handleTap(span.token)
+                                : undefined
+                            }
+                          >
+                            {span.surface}
+                          </Text>
+                        </Text>
+                      );
+                    })}
                   </Text>
-                );
-              })}
-            </Text>
+                  {revealed && en && (
+                    <Text style={styles.sentenceEnText}>{en}</Text>
+                  )}
+                </View>
+              );
+            })}
 
-            {/* English reveal — the page-scale "Show Translation". Sits below
-                the foreign text and scrolls with it (facing-page feel), mirroring
-                the review card's answer section. */}
-            {showTranslation && (
+            {/* Page-level fallback shown only when no per-sentence English came
+                back (legacy / un-harvested pages) — same layout as before the
+                redesign so old corpora still get a usable reveal. */}
+            {revealed && !sentenceEn && (
               <View style={styles.translationBlock}>
                 <View style={styles.translationDivider} />
-                {translation === undefined ? (
+                {fallbackEn === undefined ? (
                   <ActivityIndicator color={C.accent} style={{ alignSelf: "flex-start" }} />
-                ) : translation === "" ? (
+                ) : fallbackEn === "" ? (
                   <Text style={styles.translationEmpty}>No translatable text on this page.</Text>
                 ) : (
-                  <Text style={styles.translationText}>{translation}</Text>
+                  <Text style={styles.translationText}>{fallbackEn}</Text>
                 )}
               </View>
             )}
@@ -649,9 +704,12 @@ export default function Polyglot() {
         );
       })()}
 
-      {/* Page nav — Prev · Show English · Next/Finish. Mirrors the review
-          card's bottom action row; the reveal is a toggle (the reader is
-          re-readable, unlike a consumed review card). */}
+      {/* Page nav. Pre-reveal: [Prev] [Know all] [Reveal] — the reader either
+          commits to knowing the page (Know all sweeps marks + advances) or
+          asks for help (Reveal shows interleaved English). Post-reveal: the
+          right slot is intentionally an empty spacer so a double-tap on Reveal
+          can't accidentally tap Next where Reveal used to be — Next sits in
+          the middle instead. Mirrors polyglot-review.tsx's spacer pattern. */}
       <View style={styles.pageNav}>
         <Pressable
           style={[styles.navBtnGhost, (atFirstPage || loading) && styles.navBtnDisabled]}
@@ -661,23 +719,27 @@ export default function Polyglot() {
           <Text style={styles.navBtnGhostText}>‹ Prev</Text>
         </Pressable>
         <Pressable
-          style={[styles.navBtnGhost, styles.navBtnWide]}
-          onPress={handleToggleTranslation}
-          disabled={!pageData}
-        >
-          <Text style={styles.navBtnGhostText}>
-            {showTranslation ? "Hide English" : "Show English"}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.navBtnPrimary, loading && styles.navBtnDisabled]}
+          style={[styles.navBtnPrimary, (!pageData || loading) && styles.navBtnDisabled]}
           onPress={handleAdvance}
           disabled={!pageData || loading}
         >
           <Text style={styles.navBtnPrimaryText}>
-            {atLastPage ? "Finish ✓" : "Next →"}
+            {revealed
+              ? (atLastPage ? "Finish ✓" : "Next →")
+              : (atLastPage ? "Finish ✓" : "Know all")}
           </Text>
         </Pressable>
+        {revealed ? (
+          <View style={styles.navBtnSpacer} />
+        ) : (
+          <Pressable
+            style={[styles.navBtnPrimary, !pageData && styles.navBtnDisabled]}
+            onPress={handleReveal}
+            disabled={!pageData}
+          >
+            <Text style={styles.navBtnPrimaryText}>Reveal</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -763,9 +825,27 @@ const styles = StyleSheet.create({
     textDecorationColor: C.cycleYellow,
   },
 
-  // English reveal — muted ink below a short hairline rule, mirroring the
-  // review card's answer section. Same serif so the two languages read as one
-  // facing-page spread.
+  // One block per sentence, so Reveal can drop the English under each
+  // foreign sentence. Vertical spacing is part of the prose rhythm — too
+  // little and the English merges with the next foreign sentence; too much
+  // and the page reads as a list. 6px above the English, 14px between
+  // sentence blocks lands right.
+  sentenceBlock: { marginBottom: 14 },
+  sentenceEnText: {
+    fontSize: BODY_FONT_SIZE - 5,
+    lineHeight: BODY_LINE_HEIGHT - 6,
+    color: C.inkMuted,
+    fontFamily: SERIF,
+    fontStyle: "italic",
+    marginTop: 6,
+    paddingLeft: 14,
+    borderLeftWidth: 2,
+    borderLeftColor: C.border,
+  },
+
+  // Legacy page-level fallback (un-harvested pages) — muted ink below a
+  // short hairline rule. Same as the pre-redesign behaviour so old corpora
+  // still render usably.
   translationBlock: { marginTop: 28 },
   translationDivider: { height: 1, width: 56, backgroundColor: C.border, marginBottom: 18 },
   translationText: {
@@ -787,8 +867,11 @@ const styles = StyleSheet.create({
                  alignItems: "center", justifyContent: "center" },
   navBtnGhostText: { color: C.accent, fontSize: 14, fontWeight: "600", letterSpacing: 0.2 },
   navBtnWide: { flex: 1 },
-  navBtnPrimary: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
+  navBtnPrimary: { flex: 1, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
                    backgroundColor: C.accent, alignItems: "center", justifyContent: "center" },
+  // Empty right slot post-reveal — same width Reveal occupied, intentionally
+  // unpressable so a double-tap of Reveal can't land on Next.
+  navBtnSpacer: { flex: 1 },
   navBtnDisabled: { opacity: 0.4 },
   navBtnPrimaryText: { color: "#14121a", fontSize: 15, fontWeight: "700", letterSpacing: 0.4 },
 });
