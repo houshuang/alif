@@ -56,7 +56,15 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app import database
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import (
+    Lemma,
+    Page,
+    PageWord,
+    Sentence,
+    SentenceWord,
+    Story,
+    UserLemmaKnowledge,
+)
 from app.services.canonical_resolution import (
     resolve_canonical_lemma_id,
     resolve_canonical_via_map,
@@ -1064,6 +1072,64 @@ def _ensure_high_utility_scaffold_words(
     return result[:sample_size]
 
 
+def _observed_surfaces_for_lemmas(
+    db: Session,
+    language_code: str,
+    lemma_ids: set[int],
+) -> dict[str, int]:
+    """Surface forms the user has already encountered, mapped to their lemma.
+
+    Returns ``{normalize_bare(surface): lemma_id}`` for every ``PageWord`` row
+    (post-quality-gate) and verified ``SentenceWord`` row in ``language_code``
+    whose ``lemma_id`` is in ``lemma_ids``. Used to supplement the validator's
+    known-bare set and ``lemma_lookup``.
+
+    The run-time lemmatizer alone is not enough on Latin: LatinCy mis-classifies
+    common inflections (e.g. ``sagittam`` → ``sagitto`` rather than ``sagitta``),
+    so the validator's ``_lemmatize_to_bare`` returns a key that isn't in any
+    engaged-pool set even though the user's vocabulary clearly contains the
+    parent lemma. Page-word rows are written post-quality-gate (deterministic
+    ground truth) and verified sentence-word rows are post-LLM-verifier — both
+    reliable indices of real surface → lemma mappings for the engaged
+    vocabulary. Same structural pattern as Alif's ``forms_json`` per-lemma
+    inflection map; just data-driven from observed reading instead of
+    pre-stored at lemma-creation time. First-seen wins on duplicate surfaces —
+    canonical resolution at write-time means variant drift here would be
+    benign.
+    """
+    if not lemma_ids:
+        return {}
+    out: dict[str, int] = {}
+    page_rows = (
+        db.query(PageWord.surface_form, PageWord.lemma_id)
+        .join(Page, Page.id == PageWord.page_id)
+        .join(Story, Story.id == Page.story_id)
+        .filter(Story.language_code == language_code)
+        .filter(PageWord.lemma_id.in_(lemma_ids))
+        .filter(PageWord.surface_form.isnot(None))
+        .all()
+    )
+    for surface, lid in page_rows:
+        sb = normalize_bare(surface or "", language_code)
+        if sb:
+            out.setdefault(sb, lid)
+    sentence_rows = (
+        db.query(SentenceWord.surface_form, SentenceWord.lemma_id)
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
+        .filter(Sentence.language_code == language_code)
+        .filter(Sentence.is_active.is_(True))
+        .filter(Sentence.mappings_verified_at.isnot(None))
+        .filter(SentenceWord.lemma_id.in_(lemma_ids))
+        .filter(SentenceWord.surface_form.isnot(None))
+        .all()
+    )
+    for surface, lid in sentence_rows:
+        sb = normalize_bare(surface or "", language_code)
+        if sb:
+            out.setdefault(sb, lid)
+    return out
+
+
 def _known_pool_bare_forms(pool: list[dict], language_code: str) -> set[str]:
     bares: set[str] = set()
     for item in pool:
@@ -1176,6 +1242,18 @@ def batch_generate_material(
             db, language_code, exclude_lemma_ids={t.lemma_id for t in targets}
         )
         sentence_counts = _content_sentence_counts(db, language_code)
+        # Surface forms the user has actually encountered (PageWord rows post
+        # quality-gate + verified SentenceWord rows). Mirror of Alif's
+        # forms_json approach — the validator can't trust run-time
+        # lemmatization alone on Latin (LatinCy mis-classifies inflections
+        # like sagittam → sagitto). See _observed_surfaces_for_lemmas.
+        observed_pool_ids = (
+            {item["lemma_id"] for item in known_pool}
+            | {t.lemma_id for t in targets}
+        )
+        observed_surfaces = _observed_surfaces_for_lemmas(
+            db, language_code, observed_pool_ids,
+        )
     finally:
         db.close()
 
@@ -1186,6 +1264,9 @@ def batch_generate_material(
         language_code,
     )
     known_bare_forms = _known_pool_bare_forms(known_pool, language_code)
+    for surface_bare, lid in observed_surfaces.items():
+        known_bare_forms.add(surface_bare)
+        lemma_lookup.setdefault(surface_bare, lid)
     avoid_words = _compute_avoid_words(known_pool, sentence_counts, language_code)
     generation_candidates_per_target = max(
         sentences_per_target + GENERATION_EXTRA_CANDIDATES_PER_TARGET,
