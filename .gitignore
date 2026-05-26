@@ -81,3 +81,4 @@ linear-import.csv
 backend/data/*_checkpoint.json
 backend/data/step4c_*.json
 backend/data/kalila_dove.*
+frontend/node_modules
