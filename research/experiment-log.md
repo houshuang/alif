@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-26: Polyglot — reader Reveal is per-sentence interleaved + asymmetric footer (PR #152, deployed)
+
+Branch `sh/polyglot-reader-reveal-interleaved`. Backend + frontend. Deployed to prod (`polyglot-backend` restart + `alif-expo` Metro-cache-clear restart).
+
+**Behaviour.** Reveal in the reader used to swap the whole page to English on a toggle. After verifying I knew (or didn't know) a specific Latin clause I had to mentally re-locate the matching segment in the English, then flip back to keep reading — an n×2 context switch on a 65-word Eutropius period. Now each foreign sentence renders as its own block and Reveal drops its English directly underneath in italic muted EB Garamond. Source rows are the existing harvested `Sentence.translation_en` (cron-filled; `ensure_page_translation` lazy-fills any NULL on first Reveal via one batched `translate_sentences_batch` call). Smoke test on Eutropius I.1: `GET /api/texts/2/pages/1/translation` returns 3 sentences, all pre-filled, `generated:false` — no LLM call needed at reveal time.
+
+**Footer.** Pre-reveal: `[Prev] [Know all] [Reveal]`. Post-reveal: `[Prev] [Next] [empty spacer]`. Reveal is **one-way** (mirrors `polyglot-review.tsx` PR #131; the toggle from PR #149 was the wrong choice for an action that commits the page on Next). The empty right slot is intentional — a double-tap of Reveal can't land on Next because Next sits in the middle, not on the right. Know all and Next both call the same `apply_page_review` sweep; the label difference makes the no-help vs verified-then-advance commitment explicit.
+
+**Process.** Design was sketched first in `research/reader-translation-modes-2026-05-26.html` (three side-by-side reveal patterns over authentic Eutropius + Greek passages); user picked B (interleaved) over A (page flip) and C (tap-to-peek) and refined the button layout in two follow-up turns. Mock stays in `research/` as the record of why we picked what we picked.
+
+**Side issue spotted.** Cron's sentence splitter treats `Kal.` as a sentence end (Eutropius I.1: "...Kalends." + "of May, in the third year..."). Harmless to the reader UX, but worth tightening in `sentence_harvest.py` — add Latin abbreviation exceptions. Logged in IDEAS.md.
+
+---
+
 ## 2026-05-26: Polyglot — language-switch correctness across shared screens
 
 Branch `sh/polyglot-language-switch`. User report: "When I switch I always get the Greek sentence review, the stats and reader is Latin, but the header of the stats is Greek."

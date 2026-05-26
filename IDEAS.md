@@ -32,10 +32,21 @@ See `polyglot/CLAUDE.md` Hard Invariant 6 § "Reader UX redesign (2026-05-25)".
   warms pages ahead — generate `translation_en` for those pages too) so the
   first "Show English" is instant even without the client prefetch. Bounded cost
   (only buffer pages). Deferred to keep this change client-prefetch-only.
-- **[OPEN]** Sentence-aligned translation (English interleaved under each
-  sentence) instead of a whole-page block — better for close reading, but needs
-  reliable per-sentence alignment (PageWord `sentence_index` exists; harvested
-  `Sentence.translation_en` is cron-filled and excludes page-boundary fragments).
+- **[DONE 2026-05-26 — PR #152]** Sentence-aligned translation (English
+  interleaved under each sentence) replaces the whole-page block. Reveal is now
+  per-sentence; source is harvested `Sentence.translation_en` (cron-filled,
+  with `ensure_page_translation` lazy-filling any NULL on first Reveal in one
+  batched call). Reveal is one-way; footer mirrors polyglot-review.tsx's
+  asymmetric spacer pattern (`[Prev] [Know all] [Reveal]` → `[Prev] [Next]
+  [empty]`) so a double-tap can't skip the English.
+
+  Side issue spotted in prod (not blocking — pre-existing data): the cron's
+  sentence splitter occasionally treats "Kal." as end-of-sentence (Eutropius I.1
+  page 1 → "...Palatine Hill on the eleventh day before the Kalends." + "of
+  May, in the third year..."). Harmless to the reader (the gap is just where
+  one English unit ends and the next begins under the next foreign sentence)
+  but worth tightening when we revisit `sentence_harvest.py` — add Latin
+  abbreviation exceptions (`Kal.`, `Id.`, `Non.`) to the boundary detector.
 
 ## 🟢 [LIVE 2026-05-25] Polyglot: Latin as a second language (PR #140, deployed)
 
