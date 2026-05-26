@@ -4,6 +4,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-26: Codex `gpt-5.5` vs Claude Haiku on Alif Arabic enrichment (A/B, deferred follow-up resolved)
+
+**Question.** Follow-up to the 2026-05-26 hybrid-migration A/B (`codex-vs-claude-sentence-gen-2026-05-26.md`). The plan flips Alif's audit pipelines from Claude Haiku to Codex `gpt-5.5`, but enrichment was singled out for its own A/B before flipping — the Latin philology user complaint hinted at a possible prompt-vs-provider issue with enrichment specifically. PR #157 closed the Latin philology side as prompt + parser bugs; this A/B closes the Arabic side.
+
+**Method.** `research/eval_codex_vs_claude_enrichment_arabic.py` — self-contained, mirrors the Alif sentence-gen A/B shape. Calls all three production enrichment passes (`roots`, `forms`, `etymology`) through each CLI with the verbatim-inlined prompts + JSON schemas from `backend/app/services/lemma_enrichment.py`. 10 Arabic lemmas covering verb forms I/II/III/IV/VIII/X (two hollow), a `fi'āla` noun, a nisba adjective, and a loanword (`سِينِمَا`) — deliberately morphologically diverse, not frequency-sampled. Providers: `claude-haiku-4-5-20251001` via Claude CLI, `gpt-5.5` via Codex CLI at `model_reasoning_effort="medium"`.
+
+**Findings.** Codex meaningfully **outperforms** Claude Haiku on Arabic enrichment, concentrated in exactly the dimensions the Latin philology complaint had highlighted:
+
+- **Speed**: 66.6s vs 114.7s (1.7×). Codex wins on every call.
+- **Roots (10/10 tie)**: both nail every root incl. correct `null` for the loanword.
+- **Hollow-verb morphology (the prompt's only "CRITICAL" warning)**: both pass — `قُلْتُ`/`كُنْتُ` for past_1s, `يَقُلْنَ`/`يَكُنَّ` for present_3fp. The CRITICAL warning works.
+- **Diacritization (Codex win)**: prompt says "Always include full diacritics on Arabic text". Claude systematically drops the final indicative mood vowel (`يَقُول` not `يَقُولُ`); Codex includes it.
+- **Pattern naming — wazn convention (Codex win, clear)**: this is the philological detail equivalent to Latin's pattern naming complaint. Claude gets 4 of 9 wrong: `if'tala` instead of `ifta'ala` (Form VIII), `istif'ala` instead of `istaf'ala` (Form X), `fi'ala` instead of `fi'āla` (the prompt's own example!), `fa'ali` instead of `fa'alī` (nisba). Codex matches the canonical form 9/9. These aren't stylistic differences — `fi'ala` (no long ā) is a different noun pattern entirely.
+- **Cultural notes (Codex win)**: Claude fills 3 of 10; Codex fills 10 of 10. All 20 cultural notes across both providers were fact-checked — all correct. Codex's notes are pedagogically valuable ("Form VIII pattern often marks an inward or self-involving action"; "Form II's doubled middle consonant gives the sense of making something advance"). This is exactly the lookup-card surface area learners read.
+- **Loanword path**: both correctly take the foreign-origin etymology branch for سِينِمَا. Codex's trace (`French cinéma < cinématographe < Greek roots`) is slightly more historically accurate.
+- **Stylistic differences (both fine)**: Claude's derivation format is more scaffolded with Arabic script at each step; Codex's matches the prompt's `maktab = place of writing = office/desk` example more literally. `related_loanwords` has one case where Claude's list is more specific (distinct languages with attribution).
+
+**Decision.** Enrichment flips to Codex along with the audit pipelines. The migration scope simplifies — only generation (sentence-gen + story-gen) stays on Claude. Full writeup + scorecard + lemma-by-lemma side-by-sides in `research/codex-vs-claude-enrichment-arabic-2026-05-26.md`; raw outputs in `codex-vs-claude-enrichment-arabic-2026-05-26.json`. The migration plan doc has been updated.
+
+**Followups.**
+- Cost-log compatibility — does `limbic.cerebellum.cost_log` log Codex calls when invoked from Alif? Polyglot already routes through it, so probably yes. Confirm during implementation.
+- Combined Codex quota — Alif sentence-gen stays on Claude, but Alif audit + Alif enrichment + polyglot audit will all hit one Max plan. Polyglot's cron does 64 lemmas/run every ~3h; Alif's volume is higher. Confirm headroom.
+- Neither of these needs another A/B.
+
+---
+
 ## 2026-05-26: Polyglot Latin — three lookup-card quality fixes from the audit follow-up (PR #157, deployed)
 
 **Background.** Earlier today's audit (`research/polyglot-latin-philology-and-translation-audit-2026-05-26.md`) concluded the user's "no good philology notes" complaint was a 3-hour cron-cadence gap (manual enrich fixed it) and the "3-word translation no comma" complaint had no Eutropius match. A follow-up investigation found the audit had two blind spots, and surfaced three code-fixable issues plus one operational data fix.

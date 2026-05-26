@@ -38,12 +38,21 @@ Generation pipelines (**stay on Claude**):
 - `generate_sentence` / `generate_sentences_batch` (`claude_sonnet`)
 - Story generation (`opus` via `claude_code.py`)
 
-Test-first pipeline (**run A/B before flipping**):
+Test-first pipeline (**A/B done 2026-05-26 — flips with the audit pipelines**):
 
-- Lemma enrichment (root/pattern/grammar notes). Accuracy-sensitive,
+- ~~Lemma enrichment (root/pattern/grammar notes). Accuracy-sensitive,
   user complained about Latin philology quality 2026-05-26 — symptom
   may have a prompt cause, not a provider cause. Run the philology A/B
-  before flipping.
+  before flipping.~~ **A/B run on 10 morphologically-diverse Arabic
+  lemmas (see `codex-vs-claude-enrichment-arabic-2026-05-26.md`): Codex
+  `gpt-5.5` outperforms Claude Haiku on Arabic enrichment.** Pattern
+  naming canonical 9/9 (Claude 5/9 — `if'tala` vs `ifta'ala`, etc.);
+  cultural notes filled 10/10 vs 3/10, all fact-checked correct;
+  diacritization complete (Claude drops indicative mood vowels);
+  hollow-verb morphology both pass the critical past_1s test (قُلْتُ
+  not قَالْتُ). The Latin philology complaint was indeed prompt+parser
+  (closed by PR #157), not a provider issue. **Enrichment flips with
+  the audit pipelines — no separate decision needed.**
 
 ## Implementation shape (when the time comes)
 
@@ -77,14 +86,14 @@ period before flipping the production default.
   same cost DB)? If yes, Alif gets it for free. If no, add a Codex-aware
   log entry.
 - **Codex quota / rate limits**: polyglot's cron does 64 lemmas/run at
-  ~3h intervals. Alif's cron volume is higher (sentence-gen + audit). Need
-  to confirm Codex CLI rate limits handle the combined Alif + polyglot
-  load. Failure modes are the same as Claude CLI quota (cooldown +
-  failover), but the limit threshold matters.
-- **Enrichment A/B**: design a small enrichment-quality A/B (claude_haiku
-  vs codex on 10 representative Latin lemmas) before flipping that
-  pipeline. The user's earlier philology complaint should be investigated
-  as part of this — could be a prompt issue rather than a provider issue.
+  ~3h intervals. Alif's cron volume is higher (sentence-gen + audit + now
+  enrichment). Need to confirm Codex CLI rate limits handle the combined
+  Alif + polyglot load. Failure modes are the same as Claude CLI quota
+  (cooldown + failover), but the limit threshold matters.
+- ~~**Enrichment A/B**~~ **RESOLVED 2026-05-26.** Codex wins on Arabic
+  enrichment (pattern naming canonical 9/9, cultural notes 10/10 all
+  correct, full diacritization). Enrichment flips with the audit
+  pipelines. See `codex-vs-claude-enrichment-arabic-2026-05-26.md`.
 
 ## Rejected alternatives
 

@@ -5,12 +5,25 @@ All text generation routes through Claude CLI (`claude -p`), free with Max plan:
   - Quality gate, enrichment, tagging, flags: claude_haiku
   - Story generation: opus (via claude_code.py)
 
+Hybrid Codex provider (2026-05-26): when ``ALIF_AUDIT_PROVIDER=codex`` is set,
+the ``claude_haiku`` alias routes through Codex `gpt-5.5` first, then falls
+back to Claude CLI, then to the API chain. ``claude_sonnet`` (generation)
+remains on Claude unconditionally — the A/B in
+``research/codex-vs-claude-sentence-gen-2026-05-26.md`` showed Codex weaker
+on Arabic naturalness under vocab constraint. Enrichment + audit calls
+(``research/codex-vs-claude-enrichment-arabic-2026-05-26.md``) flipped
+because Codex got canonical Arabic pattern names 9/9 (Haiku 5/9), provided
+fact-checked cultural notes 10/10 (Haiku 3/10), and ran 1.7× faster. See
+``research/alif-codex-migration-plan-2026-05-26.md`` for the full scope
+decision.
+
 API fallback (when CLI unavailable, e.g. network issues):
   GPT-5.2 → Claude Haiku API
 
 Gemini is used ONLY for vision/OCR tasks (separate code path in ocr_service.py).
 
 Claude CLI requires `claude` installed and authenticated (`claude setup-token`).
+Codex CLI requires `codex` installed and authenticated (`codex auth`).
 """
 
 import json
@@ -172,6 +185,74 @@ def claude_cli_temporarily_disabled() -> bool:
     return time.time() < _CLAUDE_CLI_DISABLED_UNTIL
 
 
+_VALID_AUDIT_PROVIDERS = ("claude", "codex")
+
+
+def _audit_provider() -> str:
+    """Read ``ALIF_AUDIT_PROVIDER`` env var (default ``claude``).
+
+    When set to ``codex``, ``claude_haiku`` calls (audit + enrichment) try
+    Codex `gpt-5.5` first then fall back to Claude CLI. ``claude_sonnet``
+    (generation) is never routed through Codex regardless of this setting —
+    the 2026-05-26 A/B confirmed Codex is weaker on Arabic naturalness under
+    vocab constraint.
+    """
+    raw = (os.environ.get("ALIF_AUDIT_PROVIDER") or "claude").strip().lower()
+    return raw if raw in _VALID_AUDIT_PROVIDERS else "claude"
+
+
+def _generate_via_codex_cli_with_logging(
+    *,
+    prompt: str,
+    system_prompt: str,
+    json_mode: bool,
+    json_schema: dict | None,
+    timeout: int,
+    task_type: str | None,
+) -> dict[str, Any]:
+    """Codex CLI wrapper that handles cool-down + analytics logging.
+
+    Raises LLMError on any failure (so the caller can fall back to Claude CLI).
+    Codex is free under the user's subscription; we do not enter the limbic
+    cost-log (no Codex adapter today).
+    """
+    from app.services.codex_cli import (
+        CodexCLIError,
+        codex_cli_temporarily_disabled,
+        codex_cli_disabled_reason,
+        generate_via_codex_cli,
+        mark_codex_cli_unavailable_from_error,
+    )
+
+    if codex_cli_temporarily_disabled():
+        raise LLMError(f"codex CLI temporarily disabled: {codex_cli_disabled_reason()}")
+
+    start = time.time()
+    try:
+        result = generate_via_codex_cli(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            json_mode=json_mode,
+            json_schema=json_schema,
+            timeout=timeout,
+        )
+    except CodexCLIError as exc:
+        elapsed = time.time() - start
+        mark_codex_cli_unavailable_from_error(exc)
+        _log_call(
+            settings.log_dir, "codex_cli/gpt-5.5", False, elapsed,
+            error=str(exc)[:200], prompt_length=len(prompt), task_type=task_type,
+        )
+        raise LLMError(str(exc)) from exc
+
+    elapsed = time.time() - start
+    _log_call(
+        settings.log_dir, "codex_cli/gpt-5.5", True, elapsed,
+        prompt_length=len(prompt), task_type=task_type,
+    )
+    return result
+
+
 def _generate_via_claude_cli(
     prompt: str,
     system_prompt: str,
@@ -308,6 +389,25 @@ def generate_completion(
 
     # When no model_override specified, try Claude CLI (haiku) first — it's free
     cli_model = model_override if model_override in CLAUDE_CLI_MODELS else (None if model_override else "claude_haiku")
+
+    # Hybrid Codex routing (2026-05-26 migration). When ALIF_AUDIT_PROVIDER=codex
+    # AND the call targets claude_haiku (audit + enrichment), try Codex first
+    # before Claude CLI. Sonnet (generation) is never routed through Codex.
+    # On Codex LLMError we fall through to the Claude CLI block below; that
+    # block honors cli_only=True (no fall-through to the API chain).
+    if cli_model == "claude_haiku" and _audit_provider() == "codex":
+        try:
+            return _generate_via_codex_cli_with_logging(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                json_mode=json_mode,
+                json_schema=json_schema,
+                timeout=timeout,
+                task_type=task_type,
+            )
+        except LLMError:
+            pass
+
     if cli_model and cli_model in CLAUDE_CLI_MODELS:
         if claude_cli_temporarily_disabled():
             if cli_only:
