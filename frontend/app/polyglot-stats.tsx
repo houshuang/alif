@@ -19,6 +19,7 @@ import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getLanguageStats, type LanguageStats } from "../lib/polyglot-api";
 import { useLanguage } from "../lib/language-context";
 import { POLYGLOT_COLORS as P } from "../lib/polyglot-design-colors";
@@ -46,6 +47,7 @@ export default function PolyglotStats() {
   const [stats, setStats] = useState<LanguageStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   // This screen only mounts for polyglot languages; pass the active one
   // straight through so any future language works without a code change.
@@ -95,7 +97,10 @@ export default function PolyglotStats() {
   const native = NATIVE_NAME[code] ?? LANGUAGE_NAMES[code] ?? code;
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.content}>
+    <ScrollView
+      style={s.screen}
+      contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
+    >
       <Text style={s.eyebrow}>
         {(LANGUAGE_NAMES[code] ?? code).toUpperCase()} · WHAT YOU KNOW, BY HOW IT WAS PROVEN
       </Text>

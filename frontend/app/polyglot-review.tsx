@@ -74,6 +74,11 @@ import {
   type SessionSlot,
 } from "../lib/polyglot-review-helpers";
 import { renderTokens } from "../lib/polyglot-render-helpers";
+import {
+  isReviewSnapshotValid,
+  reviewSnapshotKey,
+  type ReviewSnapshot,
+} from "../lib/polyglot-review-snapshot";
 import ActionMenu from "../lib/review/ActionMenu";
 
 // 2026-05-21 round 2: Renaissance Folio palette — picked + iterated through
@@ -99,28 +104,14 @@ const C = {
 
 type CardState = "front" | "back";
 
-// In-flight session snapshot. The lemma-detail screen is a hidden sibling tab
-// (no <Stack> anywhere — see polyglot/CLAUDE.md), so opening it tears this
+// In-flight session snapshot: pure types + key + validator live in
+// ../lib/polyglot-review-snapshot. The lemma-detail screen is a hidden sibling
+// tab (no <Stack> anywhere — see polyglot/CLAUDE.md), so opening it tears this
 // screen down; on return React rebuilds it and the mount would otherwise
 // loadSession() a *fresh* server-generated session, dropping the learner's
 // place — sentence, reveal state, and word marks. We snapshot the whole session
-// and rehydrate it on remount. Recency-gated so a genuine cold start still pulls
-// a new session. `marks` is flattened to arrays because Set isn't JSON-safe.
-const REVIEW_SNAPSHOT_KEY = "@polyglot:reviewSnapshot";
-const REVIEW_SNAPSHOT_TTL_MS = 15 * 60 * 1000;
-
-type ReviewSnapshot = {
-  bundle: ReviewSessionBundle;
-  slots: SessionSlot[];
-  stats: AcquisitionStats | null;
-  index: number;
-  cardState: CardState;
-  marks: { missed: number[]; confused: number[] };
-  glossWordIdx: number | null;
-  sessionId: string;
-  shownIntroLemmaIds: number[];
-  savedAt: number;
-};
+// and rehydrate it on remount. The key is per-language and the snapshot is
+// tagged with its language so Greek↔Latin can't cross-pollinate.
 
 export default function PolyglotReview() {
   const router = useRouter();
@@ -156,7 +147,12 @@ export default function PolyglotReview() {
   // re-firing the same card on a prefetch reload before the server's ack has
   // propagated. Mirrors Alif's `alreadyShownIntroLemmaIds` parameter.
   const shownIntroLemmaIdsRef = useRef<Set<number>>(new Set());
-  const restoredRef = useRef(false);
+  // The language whose session is currently in state. Starts null (nothing
+  // loaded). Set only once fresh/rehydrated data for a language has landed, so
+  // it doubles as the guard that (a) triggers a reload when the active language
+  // changes and (b) blocks persistSnapshot from writing the previous language's
+  // session under the new language's key mid-switch.
+  const loadedLanguageRef = useRef<string | null>(null);
 
   const currentSlot: SessionSlot | undefined = slots[index];
   const currentSentence: SentencePayload | undefined =
@@ -174,7 +170,7 @@ export default function PolyglotReview() {
     try {
       const [next, s] = await Promise.all([
         getReviewSession(languageCode, 15),
-        getReviewStats(),
+        getReviewStats(languageCode),
       ]);
       sessionIdRef.current = generateSessionId();
       const nextSlots = buildInterleavedSlots(
@@ -190,10 +186,11 @@ export default function PolyglotReview() {
       setMarks(emptyMarks());
       setGlossWordIdx(null);
       shownAtRef.current = Date.now();
+      loadedLanguageRef.current = languageCode;
       // An empty fresh session means any prior snapshot is spent — drop it so a
       // later remount doesn't rehydrate an already-finished session.
       if (nextSlots.length === 0) {
-        AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
+        AsyncStorage.removeItem(reviewSnapshotKey(languageCode)).catch(() => {});
       }
     } catch (e: any) {
       setError(e?.message ?? "Failed to load review session");
@@ -202,50 +199,57 @@ export default function PolyglotReview() {
     }
   }, [languageCode]);
 
-  // On mount, rehydrate an in-flight session if one was snapshotted recently
-  // (the lemma-detail round-trip remounts this screen — see persistSnapshot);
-  // otherwise pull a fresh session from the server.
-  useEffect(() => {
-    if (restoredRef.current) return;
-    restoredRef.current = true;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(REVIEW_SNAPSHOT_KEY);
-        if (raw) {
-          const snap: ReviewSnapshot = JSON.parse(raw);
-          if (
-            snap &&
-            Date.now() - (snap.savedAt ?? 0) <= REVIEW_SNAPSHOT_TTL_MS &&
-            snap.slots?.length
-          ) {
-            setBundle(snap.bundle);
-            setSlots(snap.slots);
-            setStats(snap.stats);
-            setIndex(snap.index);
-            setCardState(snap.cardState);
-            setMarks({
-              missed: new Set(snap.marks?.missed ?? []),
-              confused: new Set(snap.marks?.confused ?? []),
-            });
-            setGlossWordIdx(snap.glossWordIdx);
-            sessionIdRef.current = snap.sessionId;
-            shownIntroLemmaIdsRef.current = new Set(snap.shownIntroLemmaIds ?? []);
-            // Restart the response-time clock on resume. Deliberate: response_ms
-            // is analytics-only (no scheduling impact), and the alternative —
-            // restoring the original shownAt — would fold the (often multi-minute)
-            // philology-reading detour into response_ms, polluting fast/slow
-            // signals far worse than under-counting pre-detour time does.
-            shownAtRef.current = Date.now();
-            setLoading(false);
-            return;
-          }
+  // Rehydrate an in-flight session for the active language if one was
+  // snapshotted recently (the lemma-detail round-trip remounts this screen —
+  // see persistSnapshot); otherwise pull a fresh session from the server. The
+  // snapshot must match the active language on both the key and the embedded
+  // tag, so a Greek snapshot never rehydrates under Latin.
+  const restoreOrLoad = useCallback(async () => {
+    setLoading(true);
+    try {
+      const raw = await AsyncStorage.getItem(reviewSnapshotKey(languageCode));
+      if (raw) {
+        const snap: ReviewSnapshot = JSON.parse(raw);
+        if (isReviewSnapshotValid(snap, languageCode)) {
+          setBundle(snap.bundle);
+          setSlots(snap.slots);
+          setStats(snap.stats);
+          setIndex(snap.index);
+          setCardState(snap.cardState);
+          setMarks({
+            missed: new Set(snap.marks?.missed ?? []),
+            confused: new Set(snap.marks?.confused ?? []),
+          });
+          setGlossWordIdx(snap.glossWordIdx);
+          sessionIdRef.current = snap.sessionId;
+          shownIntroLemmaIdsRef.current = new Set(snap.shownIntroLemmaIds ?? []);
+          // Restart the response-time clock on resume. Deliberate: response_ms
+          // is analytics-only (no scheduling impact), and the alternative —
+          // restoring the original shownAt — would fold the (often multi-minute)
+          // philology-reading detour into response_ms, polluting fast/slow
+          // signals far worse than under-counting pre-detour time does.
+          shownAtRef.current = Date.now();
+          loadedLanguageRef.current = languageCode;
+          setLoading(false);
+          return;
         }
-      } catch {
-        // ignore — fall through to a fresh session
       }
-      void loadSession();
-    })();
-  }, [loadSession]);
+    } catch {
+      // ignore — fall through to a fresh session
+    }
+    void loadSession();
+  }, [languageCode, loadSession]);
+
+  // Load (or rehydrate) a session whenever the active language changes — and on
+  // first mount. Switching Greek↔Latin (which leaves this screen mounted, since
+  // both share the polyglot tabs) must pull the new language's session instead
+  // of keeping the previous one on screen. The ref guard makes this a no-op for
+  // unrelated re-renders, and `loadedLanguageRef` only catches up once new data
+  // has actually landed (set inside restoreOrLoad / loadSession).
+  useEffect(() => {
+    if (loadedLanguageRef.current === languageCode) return;
+    void restoreOrLoad();
+  }, [languageCode, restoreOrLoad]);
 
   // Snapshot the in-flight session so the mount effect can rehydrate it after a
   // remount. Fires on any session-state change, and again with the freshest
@@ -253,7 +257,14 @@ export default function PolyglotReview() {
   // no session yet.
   const persistSnapshot = useCallback(() => {
     if (slots.length === 0) return;
+    // Don't write while a language switch is in flight: state still holds the
+    // previous language's session until restoreOrLoad/loadSession lands, and
+    // loadedLanguageRef only equals languageCode once that fresh data is in
+    // state. Without this guard the switch render would write the old session
+    // under the new language's key (tagged with the wrong language).
+    if (loadedLanguageRef.current !== languageCode) return;
     const snap: ReviewSnapshot = {
+      language: languageCode,
       bundle,
       slots,
       stats,
@@ -265,8 +276,8 @@ export default function PolyglotReview() {
       shownIntroLemmaIds: Array.from(shownIntroLemmaIdsRef.current),
       savedAt: Date.now(),
     };
-    AsyncStorage.setItem(REVIEW_SNAPSHOT_KEY, JSON.stringify(snap)).catch(() => {});
-  }, [bundle, slots, stats, index, cardState, marks, glossWordIdx]);
+    AsyncStorage.setItem(reviewSnapshotKey(languageCode), JSON.stringify(snap)).catch(() => {});
+  }, [bundle, slots, stats, index, cardState, marks, glossWordIdx, languageCode]);
 
   useEffect(() => { persistSnapshot(); }, [persistSnapshot]);
 
@@ -331,7 +342,7 @@ export default function PolyglotReview() {
       // clear, a failed/interrupted reload would leave the snapshot pointing at
       // the just-submitted card, and a remount could rehydrate and let the user
       // re-submit it (a fresh client_review_id bypasses backend idempotency).
-      AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
+      AsyncStorage.removeItem(reviewSnapshotKey(languageCode)).catch(() => {});
       void loadSession();
     } else {
       setIndex(index + 1);
@@ -340,7 +351,7 @@ export default function PolyglotReview() {
       setGlossWordIdx(null);
       shownAtRef.current = Date.now();
     }
-  }, [index, slots.length, loadSession]);
+  }, [index, slots.length, loadSession, languageCode]);
 
   const handleSubmit = useCallback(async (signal: ComprehensionSignal) => {
     if (!currentSentence || submitting) return;
@@ -376,9 +387,9 @@ export default function PolyglotReview() {
   // the new session is empty; a non-empty one is re-persisted by the snapshot
   // effect. Mirrors Alif's "Refresh session" overflow action (index.tsx).
   const handleRefreshSession = useCallback(() => {
-    AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
+    AsyncStorage.removeItem(reviewSnapshotKey(languageCode)).catch(() => {});
     void loadSession();
-  }, [loadSession]);
+  }, [loadSession, languageCode]);
 
   const handleBackToReader = useCallback(() => {
     if (router.canGoBack()) router.back();

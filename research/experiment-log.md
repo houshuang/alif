@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-26: Polyglot — language-switch correctness across shared screens
+
+Branch `sh/polyglot-language-switch`. User report: "When I switch I always get the Greek sentence review, the stats and reader is Latin, but the header of the stats is Greek."
+
+**Root cause.** Greek and Latin share the same `polyglot-*` screens (they're disambiguated at runtime via `language_code`). Switching language leaves those screens *mounted* — every screen reads `language` from context, but **stateful caches and static config did not react** to the new value. Four independent leaks, all the same shape:
+
+1. **Review screen always showed Greek.** A one-shot `restoredRef` mount guard blocked any reload when language flipped; the `@polyglot:reviewSnapshot` AsyncStorage key was language-blind, so even a remount would rehydrate Greek under Latin.
+2. **Stats header said "Modern Greek Stats" under Latin.** The static `title: "Modern Greek Stats"` on the `<Tabs.Screen>` rendered into the native header bar and was never updated; the screen body re-fetched correctly via `useFocusEffect`.
+3. **Reader could read a Greek book under a Latin header** (latent): `storyId`, `pageData`, and the per-page-number `pageCacheRef` / `translations` caches were not reset on switch — and page numbers collide across languages (Greek p.5 vs Latin p.5).
+4. **Review empty-state pipeline counts mixed languages.** `get_acquisition_stats(db)` aggregated all languages — exactly what polyglot/CLAUDE.md "Per-language pacing" warns against (`UserLemmaKnowledge` has no `language_code`, so any aggregate over it must `JOIN Lemma` and filter).
+
+**Fixes.**
+
+- **Review screen** (`frontend/app/polyglot-review.tsx`): replaced `restoredRef` with `loadedLanguageRef`. A language change triggers `restoreOrLoad` → rehydrate that language's snapshot if fresh, else `loadSession`. Snapshots are now **per-language keyed** (`@polyglot:reviewSnapshot:{lang}`) AND **language-tagged** in the payload; `persistSnapshot` is gated on `loadedLanguageRef === languageCode` so a mid-switch render can't write the stale session under the new key. Bonus: switching back resumes each language's in-flight session. `getReviewStats` now also takes `languageCode`.
+- **Stats screen header** (`frontend/app/_layout.tsx` + `polyglot-stats.tsx`): `headerShown: false` to match the other polyglot screens — the screen renders its own language-aware header (eyebrow + native name). Added `useSafeAreaInsets` to keep the eyebrow clear of the iOS notch.
+- **Reader** (`frontend/app/polyglot.tsx`): on language change, reset `storyId`/`pageData`/`selected`/`showTranslation`/`translations` AND clear `pageCacheRef`/`translationReqRef`, dropping back to the (freshly reloaded) story list.
+- **Backend** (`polyglot/app/services/acquisition_service.py` + `routers/reviews.py`): `get_acquisition_stats(db, language_code=None)` joins `Lemma` and filters when set; `/api/reviews/stats?language_code=` plumbs through.
+
+**Regression tests.** The snapshot helpers were extracted to a pure module (`frontend/lib/polyglot-review-snapshot.ts`) so they're unit-testable without React/AsyncStorage. New tests:
+
+- `frontend/lib/__tests__/polyglot-review-snapshot.test.ts` — pins per-language key + language-tag validation (cross-language reject, expired reject, empty-slots reject, TTL boundary, missing-tag legacy reject).
+- `frontend/lib/__tests__/polyglot-layout-guard.test.ts` — text-level scan of `_layout.tsx`: asserts `polyglot-stats` has `headerShown: false` and no `polyglot-*` `<Tabs.Screen>` carries a language-specific `title:` ("Greek"/"Latin"/etc.).
+- `polyglot/tests/test_acquisition_service.py::test_acquisition_stats_scoped_by_language` — pins the service-level filter.
+- `polyglot/tests/test_reviews_router.py::test_stats_scoped_by_language_code` — pins the HTTP-level `/api/reviews/stats?language_code=` plumbing.
+
+**Results.** Frontend `tsc --noEmit` clean; 152 Jest tests pass (13 new). Backend focused suite (acquisition/reviews-router/sentence-review/canonical-resolution): 81 passed. Full polyglot suite expected green; pre-existing slow NLP-model tests deselected.
+
+---
+
 ## 2026-05-25: Polyglot — stats page rebuilt as the "Ledger" reading-engine dashboard
 
 Branch `sh/polyglot-stats-ledger`. Frontend-only (`frontend/app/polyglot-stats.tsx`).

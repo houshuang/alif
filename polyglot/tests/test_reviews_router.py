@@ -35,9 +35,9 @@ def _cleanup():
     app.dependency_overrides.clear()
 
 
-def _seed_lemma(db, *, form="βιβλίο", bare="βιβλιο", canonical=None) -> Lemma:
+def _seed_lemma(db, *, form="βιβλίο", bare="βιβλιο", canonical=None, language_code="el") -> Lemma:
     lemma = Lemma(
-        language_code="el", lemma_form=form, lemma_bare=bare, source="test",
+        language_code=language_code, lemma_form=form, lemma_bare=bare, source="test",
         canonical_lemma_id=canonical,
     )
     db.add(lemma)
@@ -241,6 +241,42 @@ def test_stats_reflects_acquisition_distribution(tmp_db):
         assert s["box_1"] == 2
         assert s["box_2"] == 1
         assert s["box_3"] == 1
+    finally:
+        _cleanup()
+
+
+def test_stats_scoped_by_language_code(tmp_db):
+    """`/api/reviews/stats?language_code=` filters the acquisition pipeline by
+    language. Regression for the 2026-05-25 review-screen empty-state leak:
+    without this filter, the Box 1/2/3 counts shown in Latin mode included
+    Greek's acquisition pipeline (UserLemmaKnowledge carries no language)."""
+    client, factory = _client(tmp_db)
+    try:
+        now = datetime.now(timezone.utc)
+        with factory() as db:
+            for code, form in [("el", "ελ1"), ("el", "ελ2"), ("la", "la1")]:
+                lemma = _seed_lemma(db, form=form, bare=form, language_code=code)
+                db.add(UserLemmaKnowledge(
+                    lemma_id=lemma.lemma_id, knowledge_state="acquiring",
+                    acquisition_box=1, acquisition_next_due=now,
+                    acquisition_started_at=now, entered_acquiring_at=now,
+                    source="test",
+                ))
+            db.commit()
+
+        # No filter: combined count (back-compat).
+        r = client.get("/api/reviews/stats")
+        assert r.status_code == 200
+        assert r.json()["total_acquiring"] == 3
+
+        # Per-language: scoped counts.
+        r_el = client.get("/api/reviews/stats?language_code=el")
+        assert r_el.status_code == 200
+        assert r_el.json()["total_acquiring"] == 2
+
+        r_la = client.get("/api/reviews/stats?language_code=la")
+        assert r_la.status_code == 200
+        assert r_la.json()["total_acquiring"] == 1
     finally:
         _cleanup()
 

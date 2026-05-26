@@ -553,6 +553,28 @@ def test_acquisition_stats(tmp_db):
         assert stats["due_now"] == 3
 
 
+def test_acquisition_stats_scoped_by_language(tmp_db):
+    """Per-language scoping: Greek and Latin must not share one pipeline count.
+    UserLemmaKnowledge has no language column, so the count relies on the
+    Lemma join + language_code filter."""
+    with tmp_db() as db:
+        now = datetime.now(timezone.utc)
+        specs = [("el", "ελ1"), ("el", "ελ2"), ("la", "la1")]
+        for code, form in specs:
+            lemma = _seed_lemma(db, form=form, bare=form, language_code=code)
+            db.add(UserLemmaKnowledge(
+                lemma_id=lemma.lemma_id, knowledge_state="acquiring",
+                acquisition_box=1, acquisition_next_due=now,
+                acquisition_started_at=now, entered_acquiring_at=now,
+                source="test",
+            ))
+        db.commit()
+
+        assert get_acquisition_stats(db)["total_acquiring"] == 3
+        assert get_acquisition_stats(db, language_code="el")["total_acquiring"] == 2
+        assert get_acquisition_stats(db, language_code="la")["total_acquiring"] == 1
+
+
 def test_falls_back_to_fsrs_for_non_acquiring(tmp_db):
     """If submit_acquisition_review is called for a learning-state ULK, it
     must delegate to FSRS rather than mutate the box. Defensive bug-net."""
