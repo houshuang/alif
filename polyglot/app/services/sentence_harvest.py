@@ -142,10 +142,22 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
     """Create Sentence + SentenceWord rows from a page's PageWord rows.
 
     Returns the number of Sentence rows created/refreshed (0 if already
-    harvested or page not verified). Idempotent unless `force=True`, in which
-    case existing rows for the page are updated in place and stale rows are
-    deactivated. Sentence ids are never deleted because review logs reference
-    them directly.
+    harvested-with-matching-text or page not verified). Idempotent: re-running
+    against an unchanged page is a true no-op.
+
+    Drift detection (2026-05-26): on a non-force call, the existing Sentence
+    rows for the page are compared against the text that would be reconstructed
+    from current PageWord rows. If any sentence's text differs (or the set of
+    surviving sentence indices differs), the page is treated as if `force=True`
+    — rows refresh in place, SentenceWord rows are rewritten, and
+    ``translation_en`` is nulled where the text changed so the lazy translation
+    fetch re-fills it. This catches the silent-stale-translation pattern that
+    happens when a Story is reseeded with new content but its old Sentence rows
+    were orphaned past the cascade (no Page→Sentence cascade by design, see the
+    module docstring on FK preservation).
+
+    Force semantics: ``force=True`` always rewrites; pass it from backfill paths
+    that want a refresh regardless of drift.
 
     Pre-conditions:
         - Page must have `mappings_verified_at` set (quality gate passed).
@@ -164,26 +176,6 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
         )
         return 0
 
-    existing_by_idx: dict[int, Sentence] = {}
-    if force:
-        existing_sentences = (
-            db.query(Sentence).filter(Sentence.page_id == page.id).all()
-        )
-        existing_by_idx = {
-            sentence.sentence_index_in_page: sentence
-            for sentence in existing_sentences
-            if sentence.sentence_index_in_page is not None
-        }
-        for sentence in existing_sentences:
-            sentence.is_active = False
-            sentence.mappings_verified_at = None
-    else:
-        existing = (
-            db.query(Sentence).filter(Sentence.page_id == page.id).count()
-        )
-        if existing > 0:
-            return 0
-
     page_words = (
         db.query(PageWord)
         .filter(PageWord.page_id == page.id)
@@ -199,6 +191,51 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
     by_idx: dict[int, list[PageWord]] = {}
     for w in page_words:
         by_idx.setdefault(w.sentence_index, []).append(w)
+
+    current_text_by_idx: dict[int, str] = {}
+    for s_idx, words in by_idx.items():
+        if s_idx in heading_indices or s_idx in boundary_indices:
+            continue
+        if not any(w.lemma_id is not None for w in words):
+            continue
+        text = _reconstruct_sentence_text(words)
+        if text:
+            current_text_by_idx[s_idx] = text
+
+    existing_sentences = (
+        db.query(Sentence).filter(Sentence.page_id == page.id).all()
+    )
+    existing_by_idx: dict[int, Sentence] = {
+        sentence.sentence_index_in_page: sentence
+        for sentence in existing_sentences
+        if sentence.sentence_index_in_page is not None
+    }
+
+    if not force and existing_sentences:
+        existing_text_by_idx = {
+            idx: sentence.text
+            for idx, sentence in existing_by_idx.items()
+            if sentence.is_active
+        }
+        if existing_text_by_idx == current_text_by_idx:
+            return 0
+        drift_indices = sorted(
+            idx for idx in set(existing_text_by_idx) | set(current_text_by_idx)
+            if existing_text_by_idx.get(idx) != current_text_by_idx.get(idx)
+        )
+        log.warning(
+            "Sentence drift on page %d (story %d): %d existing vs %d current, "
+            "indices %s — refreshing in place",
+            page.id, page.story_id,
+            len(existing_text_by_idx), len(current_text_by_idx),
+            drift_indices[:6],
+        )
+        force = True
+
+    if force:
+        for sentence in existing_sentences:
+            sentence.is_active = False
+            sentence.mappings_verified_at = None
 
     lemma_ids = {w.lemma_id for w in page_words if w.lemma_id is not None}
     canonical_map = _canonical_map_for(db, lemma_ids)

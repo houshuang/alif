@@ -206,8 +206,7 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     transaction. Mirrors Alif's lock-discipline pattern.
     """
     if page.processed_at and not force:
-        if page.mappings_verified_at is None:
-            _run_quality_gate_and_harvest(db, page)
+        _run_quality_gate_and_harvest(db, page)
         return page
 
     provider: NLPProvider = get_provider(page.story.language_code)
@@ -354,19 +353,28 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
         except Exception as e:
             log.warning("Lemma citation repair failed for page %d: %s", page.id, e)
 
-    # Quality gate: LLM-in-context verification of lemma assignments. Gated
-    # by POLYGLOT_QUALITY_GATE=1 — for the MVP we want users to opt in once
-    # they trust their prompt tuning. Runs synchronously to keep the model
-    # of "page is verified by the time you see it" simple.
-    if not force:
-        _run_quality_gate_and_harvest(db, page)
+    # Quality gate (only re-runs when not yet verified) + sentence harvest.
+    # The harvest's drift detector refreshes stale Sentence rows when the
+    # page text changed since the last harvest — so reprocessed pages
+    # (force=True from a backfill, or a re-seeded Story whose Sentence rows
+    # outlived their original Page) don't keep serving stale translations.
+    _run_quality_gate_and_harvest(db, page, skip_quality_gate=force)
 
     return page
 
 
-def _run_quality_gate_and_harvest(db: Session, page: Page) -> None:
-    """Retry the idempotent quality gate, then harvest once mappings are verified."""
-    if lemma_quality.QUALITY_GATE_ENABLED and page.mappings_verified_at is None:
+def _run_quality_gate_and_harvest(
+    db: Session, page: Page, *, skip_quality_gate: bool = False,
+) -> None:
+    """Retry the idempotent quality gate (unless caller is a forced reprocess
+    that re-verifies out-of-band), then harvest sentences. Both steps are
+    idempotent — the gate skips if already verified; the harvest no-ops when
+    existing rows match current PageWords and refreshes them on drift."""
+    if (
+        not skip_quality_gate
+        and lemma_quality.QUALITY_GATE_ENABLED
+        and page.mappings_verified_at is None
+    ):
         try:
             lemma_quality.verify_page_mappings(db, page)
             db.refresh(page)

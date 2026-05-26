@@ -129,6 +129,105 @@ def test_harvest_is_idempotent(tmp_db):
         assert db.query(Sentence).filter(Sentence.page_id == page.id).count() == 1
 
 
+def test_harvest_refreshes_on_text_drift(tmp_db):
+    """When PageWord rows are rewritten to different text (e.g. a Story
+    reseeded with new prose, or a re-import after an orthography change),
+    a non-force harvest call must refresh the existing Sentence rows in
+    place rather than serving the stale text alongside its now-mis-aligned
+    translation. Regression for the 2026-05-26 LLPSI Coverage Reader bug
+    where Reveal showed sentence 4's English under sentence 3's Latin."""
+    with tmp_db() as db:
+        story, page = _seed_story(db)
+        old_lemma = _add_lemma(db, "παλιό", "παλιο")
+        _add_word(db, page, 0, "Παλιό", 0, old_lemma)
+        _add_word(db, page, 1, ".", 0)
+        db.commit()
+
+        assert harvest_page_sentences(db, page) == 1
+        sentence = db.query(Sentence).filter(Sentence.page_id == page.id).one()
+        original_id = sentence.id
+        sentence.translation_en = "Old translation."
+        db.commit()
+
+        # Page rewritten: same sidx 0 now has different prose. The Sentence row
+        # stays attached to the page (no cascade, by FK-preservation policy).
+        db.query(PageWord).filter(PageWord.page_id == page.id).delete()
+        new_lemma = _add_lemma(db, "καινούριο", "καινουριο")
+        _add_word(db, page, 0, "Καινούριο", 0, new_lemma)
+        _add_word(db, page, 1, ".", 0)
+        db.commit()
+
+        refreshed = harvest_page_sentences(db, page)
+        assert refreshed == 1
+
+        sentences = db.query(Sentence).filter(Sentence.page_id == page.id).all()
+        assert len(sentences) == 1
+        assert sentences[0].id == original_id, "FK-preserving refresh"
+        assert sentences[0].text == "Καινούριο."
+        assert sentences[0].translation_en is None, "stale translation nulled"
+        assert sentences[0].is_active is True
+
+
+def test_harvest_no_op_when_text_unchanged(tmp_db):
+    """Drift-detection must not refresh when the existing rows already match
+    current PageWord reconstruction — otherwise every page view rewrites
+    SentenceWord rows and nulls translations for no reason."""
+    with tmp_db() as db:
+        story, page = _seed_story(db)
+        lemma = _add_lemma(db, "βιβλίο", "βιβλιο")
+        _add_word(db, page, 0, "Βιβλίο", 0, lemma)
+        _add_word(db, page, 1, ".", 0)
+        db.commit()
+
+        assert harvest_page_sentences(db, page) == 1
+        sentence = db.query(Sentence).filter(Sentence.page_id == page.id).one()
+        sentence.translation_en = "Book."
+        db.commit()
+
+        # Second call — same PageWord rows, same reconstructed text. No-op.
+        assert harvest_page_sentences(db, page) == 0
+        sentence = db.query(Sentence).filter(Sentence.page_id == page.id).one()
+        assert sentence.translation_en == "Book.", "translation preserved"
+
+
+def test_harvest_drift_deactivates_removed_sentences(tmp_db):
+    """If the reseeded page has fewer sentences than before, the surplus
+    indices are deactivated (not deleted — review logs may FK them)."""
+    with tmp_db() as db:
+        story, page = _seed_story(db)
+        l_a = _add_lemma(db, "ένα", "ενα")
+        l_b = _add_lemma(db, "δύο", "δυο")
+        _add_word(db, page, 0, "Ένα", 0, l_a)
+        _add_word(db, page, 1, ".", 0)
+        _add_word(db, page, 2, "Δύο", 1, l_b)
+        _add_word(db, page, 3, ".", 1)
+        db.commit()
+
+        assert harvest_page_sentences(db, page) == 2
+        assert (
+            db.query(Sentence)
+            .filter(Sentence.page_id == page.id, Sentence.is_active == True)  # noqa: E712
+            .count() == 2
+        )
+
+        # Reseed with a single-sentence page; sidx 1 should drop.
+        db.query(PageWord).filter(PageWord.page_id == page.id).delete()
+        l_c = _add_lemma(db, "τρία", "τρια")
+        _add_word(db, page, 0, "Τρία", 0, l_c)
+        _add_word(db, page, 1, ".", 0)
+        db.commit()
+
+        assert harvest_page_sentences(db, page) == 1
+        rows = db.query(Sentence).filter(Sentence.page_id == page.id).order_by(
+            Sentence.sentence_index_in_page
+        ).all()
+        assert len(rows) == 2  # both ids preserved
+        active = [r for r in rows if r.is_active]
+        assert len(active) == 1
+        assert active[0].sentence_index_in_page == 0
+        assert active[0].text == "Τρία."
+
+
 def test_harvest_force_replays(tmp_db):
     with tmp_db() as db:
         story, page = _seed_story(db)
