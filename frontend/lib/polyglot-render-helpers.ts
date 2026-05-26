@@ -143,7 +143,14 @@ export function renderTokens(tokens: readonly TokenView[]): RenderedSpan[] {
     }
 
     const isPunct = t.is_punctuation;
-    const attaches = ATTACHING_PUNCT.has(surface) || isPunct;
+    // Opening punctuation (`"`, `(`, `«`, …) keeps its leading space — it
+    // bonds to the *next* word via `previousWasOpening` below, not to the
+    // previous one. Without this guard, `respondet:` + `"` would render as
+    // `respondet:"` and the whole dialog reads as one mashed run-on. Closing
+    // and attaching punctuation (`.`, `,`, `:`, `)`, `»`, …) keep the no-space
+    // attach to the previous word as before.
+    const attaches =
+      ATTACHING_PUNCT.has(surface) || (isPunct && !OPENING_PUNCT.has(surface));
     const leadingSpace =
       out.length === 0 || attaches || previousWasOpening || previousHadDroppedHyphen
         ? ""

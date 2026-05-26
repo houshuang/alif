@@ -76,6 +76,65 @@ _LATIN_NON_BOUNDARY_ABBREVS: tuple[str, ...] = (
 )
 
 
+# Sentinels used to hide terminal punctuation from the splitter when that
+# punctuation is *inside* a dialog quote. All control chars; safe to inject
+# because `body_clean.normalize_pdf_artifacts` already strips them from source.
+_QUOTE_INNER_PROTECT = str.maketrans({
+    ".": "\x01", "!": "\x02", "?": "\x03", ";": "\x04", "·": "\x05",
+})
+_QUOTE_INNER_RESTORE = str.maketrans({
+    "\x00": ".",  # _LATIN_NON_BOUNDARY_ABBREVS
+    "\x01": ".", "\x02": "!", "\x03": "?", "\x04": ";", "\x05": "·",
+})
+_QUOTE_INNER_TERMINAL_SET = "\x01\x02\x03\x04\x05"
+# A close-quote that ended on a real terminal is itself an outer-sentence
+# boundary in dialog-attribution prose (`...?" Marcus respondet:`). We mark
+# such closes with this sentinel and add it to the splitter's lookbehind set
+# so the cut lands AFTER the close-quote rather than after the next clause.
+_DIALOG_CLOSE_BOUNDARY = "\x06"
+
+# Quote pairs we recognize for dialog protection. Curly first because LLPSI
+# and most modern Latin/Greek editions use them; ASCII as fallback; guillemets
+# for French- or German-style typesetting. Apostrophes (' / ') intentionally
+# excluded — they collide with possessives and contractions.
+_QUOTE_PAIRS: tuple[tuple[str, str], ...] = (
+    ("“", "”"),  # " "
+    ('"', '"'),
+    ("«", "»"),  # « »
+)
+
+
+def _protect_quoted_dialog(text: str) -> str:
+    """Hide sentence-terminal punctuation inside paired quotes so the cheap
+    regex splitter doesn't cut mid-dialog. When the quoted content itself
+    ended on a terminal (the quote held a complete utterance), append a
+    `_DIALOG_CLOSE_BOUNDARY` sentinel after the close-quote so the splitter
+    treats the dialog close as the outer sentence boundary instead of cutting
+    after the next narration clause.
+
+    `interrogat: "Cur eum verberas? Cur puer probus non es?" Marcus respondet:`
+    correctly splits between the close-quote and `Marcus`; the bare metalinguistic
+    `"Marcus"` mention (no internal terminal) is left as-is so the surrounding
+    sentence isn't split at the closing quote.
+    """
+    protected = text
+    for open_q, close_q in _QUOTE_PAIRS:
+        pattern = re.compile(
+            re.escape(open_q) + r"([^" + re.escape(close_q) + r"]*?)" + re.escape(close_q)
+        )
+
+        def _replace(m: re.Match, oq: str = open_q, cq: str = close_q) -> str:
+            inner_protected = m.group(1).translate(_QUOTE_INNER_PROTECT)
+            ends_on_terminal = bool(
+                re.search(r"[" + _QUOTE_INNER_TERMINAL_SET + r"]\s*$", inner_protected)
+            )
+            tail = _DIALOG_CLOSE_BOUNDARY if ends_on_terminal else ""
+            return oq + inner_protected + cq + tail
+
+        protected = pattern.sub(_replace, protected)
+    return protected
+
+
 def _split_into_sentences(text: str, language_code: str = "el") -> list[str]:
     """Cheap splitter: ·;.!?\\n plus Greek question mark ;. Keeps delimiters
     out — we only need sentence_index for grouping in the UI.
@@ -85,13 +144,30 @@ def _split_into_sentences(text: str, language_code: str = "el") -> list[str]:
     "." for a NUL sentinel before splitting, then restore it on each part so
     the visible text is unchanged. NUL is safe as a sentinel because Page text
     has already been normalized by `body_clean.normalize_pdf_artifacts`,
-    which strips control characters."""
+    which strips control characters.
+
+    Quote-aware: inside paired curly / ASCII / guillemet quotes, terminal
+    punctuation is sentinelized so a quoted question like "Cur eum verberas?"
+    isn't cut mid-dialog. When a closing quote ended on a terminal (the quote
+    held a complete utterance), the close itself becomes the outer-sentence
+    boundary — so `"...?" Marcus respondet:` splits between the close-quote
+    and the new clause, not after the verb of speech. Bare metalinguistic
+    `"Marcus"` mentions (no inner terminal) don't trigger the close-boundary
+    so the surrounding sentence stays whole.
+    """
     protected = text
     if language_code == "la":
         for ab in _LATIN_NON_BOUNDARY_ABBREVS:
             protected = protected.replace(ab, ab.replace(".", "\x00"))
-    parts = re.split(r"(?<=[.!?·;\n])\s+", protected.strip())
-    return [p.replace("\x00", ".") for p in parts if p.strip()]
+    protected = _protect_quoted_dialog(protected)
+    parts = re.split(
+        r"(?<=[.!?·;\n" + _DIALOG_CLOSE_BOUNDARY + r"])\s+",
+        protected.strip(),
+    )
+    return [
+        p.translate(_QUOTE_INNER_RESTORE).replace(_DIALOG_CLOSE_BOUNDARY, "")
+        for p in parts if p.strip()
+    ]
 
 
 def _lookup_lemma(db: Session, language_code: str, lemma_bare: str) -> Lemma | None:

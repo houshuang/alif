@@ -61,6 +61,58 @@ def test_split_into_sentences_greek_unaffected_by_latin_protection():
     assert parts == ["Λέει Kal.", "Επιστρέφει."]
 
 
+def test_split_into_sentences_protects_terminals_inside_curly_quotes():
+    # LLPSI page 3 actual prose: a quoted question with two `?` inside should
+    # be one outer sentence (with the embedded dialog) — not three. The 2026-05-26
+    # Reveal bug split this at every interior terminal and `;`.
+    text = (
+        "Aemilia venit irata et Marcum interrogat: "
+        "“Cur eum verberas? Cur puer probus non es?” "
+        "Marcus respondet: “Quia Quintus me videt et ridet; "
+        "neque laetus sum.” Iulia, quae hic est, cantat;"
+    )
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert parts == [
+        "Aemilia venit irata et Marcum interrogat: "
+        "“Cur eum verberas? Cur puer probus non es?”",
+        "Marcus respondet: “Quia Quintus me videt et ridet; "
+        "neque laetus sum.”",
+        "Iulia, quae hic est, cantat;",
+    ]
+
+
+def test_split_into_sentences_metalinguistic_quote_does_not_split():
+    # `verbum "Marcus" videt` — the bare mention has no inner terminal, so
+    # the closing quote must NOT introduce a sentence break.
+    text = "Iulius in pagina verbum “Marcus” videt et interrogat."
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert parts == [
+        "Iulius in pagina verbum “Marcus” videt et interrogat."
+    ]
+
+
+def test_split_into_sentences_handles_ascii_and_guillemet_quotes():
+    # Same dialog-attribution rule for ASCII "..." (older PDFs / pasted text)
+    # and «...» (German/French editions).
+    ascii_text = 'Dixit: "Quid agis?" Respondit: "Bene."'
+    assert reading_intake._split_into_sentences(ascii_text, language_code="la") == [
+        'Dixit: "Quid agis?"',
+        'Respondit: "Bene."',
+    ]
+    guill = "Dixit: «Quid agis?» Respondit: «Bene.»"
+    assert reading_intake._split_into_sentences(guill, language_code="la") == [
+        "Dixit: «Quid agis?»",
+        "Respondit: «Bene.»",
+    ]
+
+
+def test_split_into_sentences_unquoted_text_unaffected_by_dialog_rule():
+    # The dialog rule must not regress plain prose — no quotes anywhere.
+    text = "Marcus venit. Quintus plorat. Iulia cantat."
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert parts == ["Marcus venit.", "Quintus plorat.", "Iulia cantat."]
+
+
 def test_paste_creates_story_and_single_page(tmp_db):
     with tmp_db() as db:
         story = reading_intake.import_paste(
