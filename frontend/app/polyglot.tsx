@@ -680,6 +680,12 @@ export default function Polyglot() {
   // pre-reveal so "Know all" only shows on fresh pages.
   const isRevisit = pageData ? pageData.page_number <= maxAdvanced : false;
   const marksChanged = isRevisit && !marksEqual(cyclePositions, initialPositionsRef.current);
+  // Any red (cycle pos 0) or yellow (cycle pos 1) tap means the learner has
+  // already expressed partial knowledge. Pre-reveal on a fresh page, the
+  // middle button should soften from the "I know everything" claim of
+  // "Know all" to plain navigation. Position 2 (clear) and undefined both
+  // mean "no tap" and don't count.
+  const hasTaps = Object.values(cyclePositions).some((p) => p === 0 || p === 1);
   const pn = pageData?.page_number;
   const sentenceEn = pn != null ? sentenceTranslations[pn] : undefined;
   const fallbackEn = pn != null ? pageFallbackEn[pn] : undefined;
@@ -848,14 +854,21 @@ export default function Polyglot() {
               ? "Finish ✓"
               : revealed
                 ? "Next →"
-                // Pre-reveal middle-button label depends on whether the page
-                // is fresh or a revisit. Fresh: "Know all" (asks for the green
-                // sweep). Revisit + unchanged marks: "Next →" (sweep already
-                // ran; this is navigation). Revisit + edited marks: "Update"
-                // (per-tap markWord already pushed; signal acknowledgment).
+                // Pre-reveal middle-button label depends on three signals.
+                // Revisit + edited marks: "Update" — per-tap markWord already
+                // pushed; this is the acknowledgment.
+                // Revisit + unchanged marks: "Next →" — sweep already ran; just
+                // navigation.
+                // Fresh + any red/yellow tap: "Next →" — the no-help "Know all"
+                // claim no longer applies once the learner has flagged unknown
+                // words; the button is plain navigation that still submits the
+                // page sweep.
+                // Fresh + no taps: "Know all" — the deliberate no-help commit.
                 : isRevisit
                   ? (marksChanged ? "Update" : "Next →")
-                  : "Know all"}
+                  : hasTaps
+                    ? "Next →"
+                    : "Know all"}
           </Text>
         </Pressable>
         {revealed ? (
