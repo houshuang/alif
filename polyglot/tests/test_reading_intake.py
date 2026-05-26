@@ -10,6 +10,57 @@ from app.services.acquisition_service import submit_acquisition_review
 from app.models import Story, Page, PageWord, Lemma, Sentence, UserLemmaKnowledge
 
 
+def test_split_into_sentences_default_greek_punctuation():
+    # The cheap splitter handles . ! ? ; (Greek question mark) and ·.
+    parts = reading_intake._split_into_sentences(
+        "Καλημέρα. Τι κάνεις; Μια χαρά!"
+    )
+    assert parts == ["Καλημέρα.", "Τι κάνεις;", "Μια χαρά!"]
+
+
+def test_split_into_sentences_latin_kal_does_not_break_mid_clause():
+    # The 2026-05-26 Eutropius I.1 bug: "ante diem XI Kal. Maias" was cut at
+    # "Kal." so the following date words became an orphan sentence.
+    text = (
+        "Urbs Romana condita est ante diem XI Kal. Maias, "
+        "Olympiadis sextae anno tertio."
+    )
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert parts == [
+        "Urbs Romana condita est ante diem XI Kal. Maias, "
+        "Olympiadis sextae anno tertio."
+    ]
+
+
+def test_split_into_sentences_latin_all_calendar_abbrevs_protected():
+    # Each of the four protected abbreviations would otherwise break the
+    # sentence at its own dot. Surround each with full month names so this
+    # tests only the abbreviation rule, not month-name follow-on edge cases.
+    text = (
+        "Caesar venit a.d. III Februarias et Non. Apriles "
+        "et Id. Maias et Kal. Iunias dixit."
+    )
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert len(parts) == 1
+    # Visible text unchanged after restore — dots come back.
+    assert parts[0] == text
+
+
+def test_split_into_sentences_latin_real_terminal_still_splits():
+    # The Latin protection must not break real sentence boundaries.
+    text = "Romulus urbem condidit. Postea bellum gessit."
+    parts = reading_intake._split_into_sentences(text, language_code="la")
+    assert parts == ["Romulus urbem condidit.", "Postea bellum gessit."]
+
+
+def test_split_into_sentences_greek_unaffected_by_latin_protection():
+    # "Kal." appears as a name in some Greek text — protection must NOT apply
+    # for non-Latin languages.
+    text = "Λέει Kal. Επιστρέφει."
+    parts = reading_intake._split_into_sentences(text, language_code="el")
+    assert parts == ["Λέει Kal.", "Επιστρέφει."]
+
+
 def test_paste_creates_story_and_single_page(tmp_db):
     with tmp_db() as db:
         story = reading_intake.import_paste(

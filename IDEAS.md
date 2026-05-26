@@ -46,7 +46,61 @@ See `polyglot/CLAUDE.md` Hard Invariant 6 § "Reader UX redesign (2026-05-25)".
   May, in the third year..."). Harmless to the reader (the gap is just where
   one English unit ends and the next begins under the next foreign sentence)
   but worth tightening when we revisit `sentence_harvest.py` — add Latin
-  abbreviation exceptions (`Kal.`, `Id.`, `Non.`) to the boundary detector.
+  abbreviation exceptions (`Kal.`, `Id.`, `Non.`, `a.d.`) to the boundary
+  detector.
+
+## ✅ [DONE 2026-05-26 — PR #157] Polyglot Latin: three lookup-card quality fixes from the philology+translation audit
+
+Audit: `research/polyglot-latin-philology-and-translation-audit-2026-05-26.md`
+(philology = cron-cadence gap, translation = no Eutropius match). A follow-up
+investigation surfaced what the user actually saw — the "translation is just
+three words with no comma" complaint maps onto the *gloss* of an acquiring
+lemma (e.g. `excidium → "demolition setting of the sun"`,
+`exordium → "beginning introduction foundation"`), shown on the lookup card
+because the enrichment had not yet run (the cron-cadence gap from the audit).
+Three fixable code paths:
+
+1. **Roma Aeterna gloss parser concatenates senses without a separator.**
+   `polyglot/scripts/parse_roma_aeterna_apkg.py` line 34 replaces every HTML
+   tag with one space, so `<div>demolition</div><div>setting of the sun</div>`
+   becomes `"demolition setting of the sun"`. The TSV at
+   `data/vocab/roma_aeterna.tsv` is the artifact (source .apkg is offline);
+   `frequency_entries` + `lemmas.gloss_en` are propagated verbatim by
+   `scripts/import_latin_vocab.py` (no comma stripping happens at import).
+   Affected rows on prod: ~30–80 acquiring/learning lemmas with obviously
+   run-on senses (spot examples: `excidium`, `exordium`, `administer`,
+   `aeneus`, `anxius`, `finitimus`). Fix the parser so block-level tags
+   (`<div>`, `<br>`, `<p>`, `<li>`) emit `"; "` rather than `" "`; that
+   prevents re-occurrence on any future reparse. To repair existing DB rows,
+   run a one-shot pass (extend `scripts/regloss_lemmas.py` or add a sibling)
+   that detects "multi-word, comma-less, not starting with `to `/`I `/`the `,
+   no `(` `)` `1.` `2.`" and re-glosses via Codex/Claude — scoped to studied
+   lemmas first (acquiring/learning/lapsed, plus the nearest frequency
+   neighbors). This is a different bug class from the 2026-05-26 wrong-meaning
+   regloss (`regloss_lemmas.py`); that one trusted the form and fixed wrong
+   meanings, this one trusts each sense and re-inserts comma separators.
+
+2. **Lemma-philology QUOTES prompt allows meta-commentary translations.** Of
+   the 7 acquiring lemmas manually enriched in the audit, `fere` came back
+   with one 734-char Caesar passage whose `translation_en` was
+   `"[Context: the passage contains 'omnibus fere annis' illustrating fere
+   with quantities]"` — a meta-comment, not a translation. Per the 2026-05-21
+   user spec, the Haiku verifier skips quotes (memory hooks, mild inaccuracy
+   fine), so this can't be caught downstream. Tighten the QUOTES block in
+   `polyglot/app/services/lemma_philology.py` (around line 193) with: "the
+   `translation_en` field MUST be a faithful English rendering of `text`. Do
+   NOT use meta-commentary like `[Context: ...]`, `[This passage illustrates
+   ...]`, or `[The line shows ...]`. If a quote doesn't fit in ≤25 words,
+   choose a shorter quote." Optional belt-and-braces: a structural post-check
+   that rejects translations starting with `[`.
+
+3. **`Kal.` / `Non.` / `Id.` / `a.d.` abbreviation splitter** — see the
+   sibling note above, already tracked.
+
+**Data-side companion (not a code fix):** the 7 manually-enriched acquiring
+lemmas show 3/7 with zero collocations (`excidium`, `exiguus`, `latrocinor`)
+vs 4-5 for the others. Could be verifier-stripped or genuinely sparse; worth
+a spot-check on the next batch but not blocking.
 
 ## 🟢 [LIVE 2026-05-25] Polyglot: Latin as a second language (PR #140, deployed)
 

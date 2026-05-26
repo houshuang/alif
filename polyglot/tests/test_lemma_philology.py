@@ -517,6 +517,66 @@ def test_batch_enrich_skips_when_lock_held(tmp_db, fake_claude):
     assert fake_claude["calls"] == []
 
 
+def test_strip_meta_commentary_quote_with_bracketed_context_note():
+    """A quote whose translation_en is "[Context: ...]" must be dropped by
+    the structural post-check before LemmaEnrichment validation. Caught in
+    production 2026-05-26 (`fere` got a 734-char Caesar passage with
+    "[Context: the passage contains 'omnibus fere annis' illustrating fere
+    with quantities]" instead of a translation)."""
+    payload = _good_payload("fere")
+    payload["quotes"].append({
+        "text": "Long Caesar passage that has many things and goes on...",
+        "source": "Caesar, BG 1.6-7",
+        "era": "Classical",
+        "translation_en": "[Context: the passage contains 'omnibus fere annis' "
+                          "illustrating fere with quantities]",
+    })
+    lp._strip_meta_commentary_quotes(payload, "fere")
+    assert len(payload["quotes"]) == 1
+    assert payload["quotes"][0]["translation_en"] == "my heart"
+
+
+def test_strip_meta_commentary_quote_phrasing_variants():
+    """Meta-commentary takes several forms — bracketed prefixes, "this
+    passage illustrates X", "the line shows Y". All must be stripped."""
+    payload = _good_payload("test")
+    payload["quotes"] = [
+        {"text": "real Latin", "source": "X", "era": "Classical",
+         "translation_en": "a real translation"},
+        {"text": "y", "source": "X", "era": "Classical",
+         "translation_en": "[This passage illustrates the usage]"},
+        {"text": "z", "source": "X", "era": "Classical",
+         "translation_en": "The line shows how the word is used in context."},
+        {"text": "w", "source": "X", "era": "Classical",
+         "translation_en": "This passage contains the target word."},
+    ]
+    lp._strip_meta_commentary_quotes(payload, "test")
+    kept = [q["translation_en"] for q in payload["quotes"]]
+    assert kept == ["a real translation"]
+
+
+def test_strip_meta_commentary_keeps_genuine_translations_with_brackets():
+    """Genuine translations containing brackets (e.g. translator's gloss
+    inside the rendering, "[probably] the king") must NOT be stripped — the
+    rule fires on prefix, not on any bracket appearance."""
+    payload = _good_payload("rex")
+    payload["quotes"] = [
+        {"text": "rex", "source": "X", "era": "Classical",
+         "translation_en": "the king [Roman ruler]"},
+        {"text": "rex est", "source": "X", "era": "Classical",
+         "translation_en": "he is [the] king"},
+    ]
+    lp._strip_meta_commentary_quotes(payload, "rex")
+    assert len(payload["quotes"]) == 2
+
+
+def test_strip_meta_commentary_empty_or_missing_quotes_safe():
+    """Defensive: missing or non-list quotes field must not raise."""
+    lp._strip_meta_commentary_quotes({"quotes": []}, "x")  # empty
+    lp._strip_meta_commentary_quotes({}, "x")              # missing
+    lp._strip_meta_commentary_quotes({"quotes": None}, "x")  # null
+
+
 def test_fixture_round_trip_matches_pydantic_shape():
     """The real-world enrichment fixture from the POC must parse cleanly into
     LemmaEnrichment. Guard against silent drift between the prompt's JSON

@@ -195,6 +195,11 @@ QUOTES (list, 1-3 entries):
   eras. Translations to English.
 - Source must be specific enough to locate: "Homer, Iliad 1.5", "Plato,
   Republic 484a", "John 1:1", "Cavafy, Ithaca". Avoid bare attributions.
+- `translation_en` MUST be a faithful English rendering of `text`. Do NOT
+  emit meta-commentary like `[Context: ...]`, `[This passage illustrates ...]`,
+  `[The line shows ...]`, or any other bracketed editorial note in place of
+  a translation. If a quote cannot be translated cleanly within ≤25 words,
+  choose a shorter quote instead — never substitute a meta-comment.
 - Skip if no good attestation exists.
 
 REGISTER (1 object):
@@ -392,6 +397,7 @@ def _enrich_batch_call(
         payload = item.get("enrichment")
         if not isinstance(form, str) or not isinstance(payload, dict):
             continue
+        _strip_meta_commentary_quotes(payload, form)
         try:
             parsed[form] = LemmaEnrichment.model_validate(payload)
         except Exception as e:
@@ -406,6 +412,57 @@ def _enrich_batch_call(
         "model": ENRICH_MODEL,
     })
     return parsed
+
+
+# Deterministic post-check: the QUOTES prompt is fact-skipped by the verifier
+# (2026-05-21 spec — quotes/cognates/register are memory hooks where mild
+# inaccuracy is acceptable), so a quote whose `translation_en` is a bracketed
+# editorial note ("[Context: ...]") or a meta-description ("This passage
+# illustrates X") slips through silently. The prompt now bans this explicitly,
+# but defense in depth: strip such quotes here too, before the row is written.
+# Caught in production 2026-05-26: `fere` quote 1 was a 734-char Caesar passage
+# whose translation was "[Context: the passage contains 'omnibus fere annis'
+# illustrating fere with quantities]". The audit doc lives at
+# research/polyglot-latin-philology-and-translation-audit-2026-05-26.md.
+_META_PREFIX = ("[", "(context", "(this passage", "(the line")
+_META_PHRASES = (
+    "illustrating",
+    "illustrates",
+    "this passage shows",
+    "this passage contains",
+    "this line shows",
+    "this quote",
+    "the line shows",
+    "the passage contains",
+    "[context",
+)
+
+
+def _is_meta_commentary(translation: str) -> bool:
+    t = (translation or "").strip().lower()
+    if not t:
+        return False
+    if t.startswith(_META_PREFIX):
+        return True
+    return any(p in t for p in _META_PHRASES)
+
+
+def _strip_meta_commentary_quotes(payload: dict, form: str) -> None:
+    """Remove quote entries whose translation_en is meta-commentary."""
+    quotes = payload.get("quotes")
+    if not isinstance(quotes, list):
+        return
+    kept: list[dict] = []
+    for q in quotes:
+        if not isinstance(q, dict):
+            continue
+        tr = q.get("translation_en")
+        if isinstance(tr, str) and _is_meta_commentary(tr):
+            log.info("quote_meta_commentary_stripped lemma_form=%s text=%r tr=%r",
+                     form, (q.get("text") or "")[:80], tr[:120])
+            continue
+        kept.append(q)
+    payload["quotes"] = kept
 
 
 # ─── Fact-verification pass (Haiku) ────────────────────────────────────────
@@ -663,6 +720,7 @@ def _self_correct_call(
         e = item.get("enrichment")
         if not isinstance(e, dict):
             continue
+        _strip_meta_commentary_quotes(e, target.lemma_form)
         try:
             corrected = LemmaEnrichment.model_validate(e)
         except Exception as ex:
