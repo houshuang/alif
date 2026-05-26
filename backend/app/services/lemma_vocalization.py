@@ -134,16 +134,23 @@ def vocalize_batch(batch: list[Lemma], timeout: int = 180) -> dict[int, str]:
     Returns {lemma_id: vocalized_ar} for entries the LLM produced.
     Caller is responsible for validating the result against the original
     letter sequence — use `validate_proposal()` below.
+
+    Routes through ``generate_completion`` (not ``claude_code`` directly) so
+    the Haiku-tier audit-provider routing applies — Codex by default since
+    2026-05-26. See ``research/codex-vs-claude-enrichment-arabic-2026-05-26.md``
+    — Codex was strictly more faithful to full diacritization than Claude
+    Haiku, which is precisely what vocalization needs.
     """
-    from app.services.claude_code import generate_structured
+    from app.services.llm import generate_completion
 
     prompt = _build_prompt(batch)
-    result = generate_structured(
+    result = generate_completion(
         prompt=prompt,
         system_prompt=_SYSTEM,
         json_schema=_SCHEMA,
-        model="haiku",
+        model_override="claude_haiku",
         timeout=timeout,
+        task_type="lemma_vocalization",
     )
     return {entry["lemma_id"]: entry["vocalized_ar"] for entry in result.get("vocalized", [])}
 

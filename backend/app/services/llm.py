@@ -5,17 +5,16 @@ All text generation routes through Claude CLI (`claude -p`), free with Max plan:
   - Quality gate, enrichment, tagging, flags: claude_haiku
   - Story generation: opus (via claude_code.py)
 
-Hybrid Codex provider (2026-05-26): when ``ALIF_AUDIT_PROVIDER=codex`` is set,
-the ``claude_haiku`` alias routes through Codex `gpt-5.5` first, then falls
-back to Claude CLI, then to the API chain. ``claude_sonnet`` (generation)
-remains on Claude unconditionally — the A/B in
-``research/codex-vs-claude-sentence-gen-2026-05-26.md`` showed Codex weaker
-on Arabic naturalness under vocab constraint. Enrichment + audit calls
-(``research/codex-vs-claude-enrichment-arabic-2026-05-26.md``) flipped
+Hybrid Codex provider (default since 2026-05-26): the ``claude_haiku`` alias
+routes through Codex `gpt-5.5` first, then falls back to Claude CLI, then to
+the API chain. ``claude_sonnet`` (generation) remains on Claude unconditionally
+— the A/B in ``research/codex-vs-claude-sentence-gen-2026-05-26.md`` showed
+Codex weaker on Arabic naturalness under vocab constraint. Enrichment + audit
+calls (``research/codex-vs-claude-enrichment-arabic-2026-05-26.md``) flipped
 because Codex got canonical Arabic pattern names 9/9 (Haiku 5/9), provided
 fact-checked cultural notes 10/10 (Haiku 3/10), and ran 1.7× faster. See
 ``research/alif-codex-migration-plan-2026-05-26.md`` for the full scope
-decision.
+decision. Set ``ALIF_AUDIT_PROVIDER=claude`` to opt out (escape hatch).
 
 API fallback (when CLI unavailable, e.g. network issues):
   GPT-5.2 → Claude Haiku API
@@ -189,16 +188,20 @@ _VALID_AUDIT_PROVIDERS = ("claude", "codex")
 
 
 def _audit_provider() -> str:
-    """Read ``ALIF_AUDIT_PROVIDER`` env var (default ``claude``).
+    """Read ``ALIF_AUDIT_PROVIDER`` env var (default ``codex``).
 
-    When set to ``codex``, ``claude_haiku`` calls (audit + enrichment) try
-    Codex `gpt-5.5` first then fall back to Claude CLI. ``claude_sonnet``
-    (generation) is never routed through Codex regardless of this setting —
-    the 2026-05-26 A/B confirmed Codex is weaker on Arabic naturalness under
-    vocab constraint.
+    Default flipped 2026-05-26 after the two A/Bs landed (sentence-gen +
+    enrichment, see module docstring). ``claude_haiku`` calls (audit +
+    enrichment) try Codex `gpt-5.5` first then fall back to Claude CLI.
+    ``claude_sonnet`` (generation) is never routed through Codex regardless
+    of this setting — the sentence-gen A/B confirmed Codex is weaker on
+    Arabic naturalness under vocab constraint.
+
+    Set ``ALIF_AUDIT_PROVIDER=claude`` to opt out (escape hatch if Codex
+    breaks or the user wants to A/B again on production traffic).
     """
-    raw = (os.environ.get("ALIF_AUDIT_PROVIDER") or "claude").strip().lower()
-    return raw if raw in _VALID_AUDIT_PROVIDERS else "claude"
+    raw = (os.environ.get("ALIF_AUDIT_PROVIDER") or "codex").strip().lower()
+    return raw if raw in _VALID_AUDIT_PROVIDERS else "codex"
 
 
 def _generate_via_codex_cli_with_logging(

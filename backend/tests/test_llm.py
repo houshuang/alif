@@ -22,25 +22,35 @@ from app.services.llm import (
 )
 
 
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_generate_completion_uses_claude_cli_by_default(mock_cli):
-    """Default (no model_override) should try Claude CLI haiku first."""
-    mock_cli.return_value = {"result": "ok"}
+def test_generate_completion_routes_haiku_to_codex_by_default(mock_claude, mock_codex):
+    """Default (no model_override) routes haiku-tier calls through Codex.
+
+    Default flipped 2026-05-26 after the two A/Bs landed; see
+    research/codex-vs-claude-{sentence-gen,enrichment-arabic}-2026-05-26.md.
+    Claude CLI remains the failover when Codex fails. Routing tests live in
+    test_codex_routing.py.
+    """
+    mock_codex.return_value = {"result": "ok"}
 
     result = generate_completion("test prompt", system_prompt="be helpful")
 
     assert result == {"result": "ok"}
-    mock_cli.assert_called_once()
-    assert mock_cli.call_args.kwargs["model"] == "haiku"
+    mock_codex.assert_called_once()
+    mock_claude.assert_not_called()
 
 
 @patch("app.services.llm.litellm.completion")
 @patch("app.services.llm._get_api_key")
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_fallback_to_api_when_cli_fails(mock_cli, mock_key, mock_completion):
-    """Should fall back to API chain when Claude CLI fails."""
+def test_fallback_to_api_when_cli_fails(mock_cli, mock_codex, mock_key, mock_completion):
+    """Should fall back to API chain when both CLIs fail (Codex is now default
+    for haiku-tier; Claude CLI is the second CLI choice)."""
     from app.services.llm import LLMError
-    mock_cli.side_effect = LLMError("CLI not available")
+    mock_codex.side_effect = LLMError("Codex CLI unavailable")
+    mock_cli.side_effect = LLMError("Claude CLI not available")
     mock_key.return_value = "fake-key"
 
     mock_response = MagicMock()
@@ -83,8 +93,16 @@ def test_claude_quota_error_skips_future_cli_calls(mock_cli, mock_key, mock_comp
     assert mock_completion.call_count == 2
 
 
-def test_cli_only_respects_claude_quota_cooldown():
-    """cli_only callers fail fast instead of repeatedly shelling out to exhausted Claude."""
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
+def test_cli_only_respects_claude_quota_cooldown(mock_codex):
+    """cli_only callers fail fast instead of repeatedly shelling out to exhausted CLIs.
+
+    With Codex as the default haiku-tier provider, cli_only=True must still
+    raise AllProvidersFailed when Codex fails AND Claude CLI is in cool-down
+    — never silently fall through to the API chain.
+    """
+    from app.services.llm import LLMError
+    mock_codex.side_effect = LLMError("Codex CLI unavailable")
     llm_module._CLAUDE_CLI_DISABLED_UNTIL = time.time() + 60
     llm_module._CLAUDE_CLI_DISABLED_REASON = "claude exited 1: usage limit"
     try:
@@ -97,11 +115,13 @@ def test_cli_only_respects_claude_quota_cooldown():
 
 @patch("app.services.llm.litellm.completion")
 @patch("app.services.llm._get_api_key")
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
 @patch("app.services.llm._generate_via_claude_cli")
-def test_all_providers_fail_raises(mock_cli, mock_key, mock_completion):
-    """Should raise AllProvidersFailed when all providers fail."""
+def test_all_providers_fail_raises(mock_cli, mock_codex, mock_key, mock_completion):
+    """Should raise AllProvidersFailed when every provider in the chain fails."""
     from app.services.llm import LLMError
-    mock_cli.side_effect = LLMError("CLI not available")
+    mock_codex.side_effect = LLMError("Codex CLI unavailable")
+    mock_cli.side_effect = LLMError("Claude CLI not available")
     mock_key.return_value = "fake-key"
     mock_completion.side_effect = Exception("down")
 

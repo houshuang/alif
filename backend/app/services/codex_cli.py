@@ -16,11 +16,11 @@ This module is the Codex side of that flip. It mirrors polyglot's
 
 Wiring
 ------
-`generate_via_codex_cli` is called from `llm.generate_completion` when
-``ALIF_AUDIT_PROVIDER=codex`` is set AND the call targets the ``claude_haiku``
-alias. ``claude_sonnet`` (generation) is never routed through Codex. On Codex
-failure the caller falls back to Claude CLI then to the API chain (see
-`llm.generate_completion`).
+`generate_via_codex_cli` is called from `llm.generate_completion` whenever
+the call targets the ``claude_haiku`` alias (the default since 2026-05-26;
+opt out with ``ALIF_AUDIT_PROVIDER=claude``). ``claude_sonnet`` (generation)
+is never routed through Codex. On Codex failure the caller falls back to
+Claude CLI then to the API chain (see `llm.generate_completion`).
 
 Cost logging note
 -----------------
