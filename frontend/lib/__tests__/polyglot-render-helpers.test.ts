@@ -57,6 +57,35 @@ describe("renderTokens — punctuation spacing", () => {
     expect(joined([tok("«"), tok("έπος"), tok("»"), tok("του")]))
       .toBe("«έπος» του");
   });
+
+  it("curly opening quote gets a leading space after a colon (dialog start)", () => {
+    // The 2026-05-26 LLPSI page-3 typography bug: `respondet:"Quia` rendered
+    // as one mashed run because the opening quote inherited isPunct=true from
+    // the tokenizer and `attaches` swallowed its leading space.
+    expect(joined([
+      tok("respondet"),
+      tok(":"),
+      tok("“", { is_punctuation: true }),
+      tok("Quia"),
+      tok("plorat"),
+      tok(".", { is_punctuation: true }),
+      tok("”", { is_punctuation: true }),
+    ])).toBe("respondet: “Quia plorat.”");
+  });
+
+  it("metalinguistic quote in mid-sentence keeps spaces on both sides", () => {
+    // `verbum "Marcus" videt` was rendering as `verbum"Marcus"videt` — both
+    // the opening AND closing quotes were tokenized as punctuation and the
+    // surrounding word boundaries were collapsed.
+    expect(joined([
+      tok("verbum"),
+      tok("“", { is_punctuation: true }),
+      tok("Marcus"),
+      tok("”", { is_punctuation: true }),
+      tok("videt"),
+    ])).toBe("verbum “Marcus” videt");
+  });
+
 });
 
 describe("renderTokens — soft-hyphen joining", () => {
