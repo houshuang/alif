@@ -28,8 +28,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.models import Lemma, Root, Sentence, UserLemmaKnowledge
+from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.llm import (
     RootShowcaseSentenceResult,
     generate_root_showcase_sentences,
