@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-27: Polyglot — three Greek participle/verbal-adjective lemmas linked to verb canonicals
+
+**Context.** Daily polyglot warm-cache log surfaced 13 Greek lemmas where sentence generation kept failing. Audit showed 10 were correctly-lemmatized base forms failing for vocab-scaffold or `same_lemma` reasons (expected); 3 were mis-shaped as standalone lemmas when they are inflections of an existing verb canonical: `στρωμένος` (passive participle, "spread") → `στρώνω`, `σπασμένος` (passive participle, "broken") → `σπάζω`, `σπαρτός` (verbal adjective in `-τός`, "sown") → `σπέρνω`. With no `canonical_lemma_id` set, each carried its own ULK box state and accumulated sentences keyed to the participle surface — so a session due on "the verb to break" would never pull the user's 15 existing `σπασμένο` sentences, and the warm cache kept asking the LLM for fresh `σπασμένος`-target sentences which the validator killed.
+
+**Fix.** One-off script `polyglot/scripts/cleanup_participle_variants.py` (mirrors Alif's `cleanup_clitic_leftovers.py` Phase B pattern). Per pair: migrate the variant's `UserLemmaKnowledge` to the canonical (reassign or merge), repoint `sentence_words.lemma_id` + `page_words.lemma_id` + `review_log.lemma_id` + `sentences.target_lemma_id`, then `SET canonical_lemma_id` on the variant. Sentence/page-word repointing matters because `material_generator._observed_surfaces_for_lemmas` reads those tables directly without canonical resolution — after the fix, `σπασμένο`/`στρωμένο`/`σπαρτά` are recognized inflections of the verb canonicals in the validator's known-bare set (PR #165 augmentation), so future sentence generation accepts them.
+
+**Result.** 38 sentences re-targeted (22 to `στρώνω`, 15 to `σπάζω`, 1 to `σπέρνω`), 5 review_log rows repointed, 3 ULKs migrated preserving box state and accuracy stats. DB backup at `/opt/alif-backups/polyglot_pre_participle_fix_20260527_110713.db`. Activity log entry `participle_variants_linked`.
+
+**Open.** σπαρτός is a verbal-adjective in `-τός` — dictionaries sometimes treat these as standalone adjective lemmas; this audit chose to canonicalize it to the verb because the user's SRS goal is the verb, not the adjectival use. If LatinCy/simplemma-style imports produce more `-τός` forms in the future, decide consistently then.
+
+---
+
 ## 2026-05-27: Confusion capture — ground truth for what user actually confuses with what
 
 **Question.** User reports that real-life word confusions don't match what algorithmic clustering surfaces (root-share, surface-prefix, gloss-keyword overlap). Without observed signal on _which word was the user thinking of when they failed_, any cluster-aware scheduling is theater — it will target the wrong pairs. Empirical observation pass: how many of the user's reported confusions did our existing similarity heuristics surface?
