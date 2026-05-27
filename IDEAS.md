@@ -4,6 +4,21 @@
 
 ---
 
+## 🟢 [LIVE 2026-05-27 — PR #167] Confusion capture: ground-truth what user actually confuses with what
+
+User observed that real confusions don't match algorithmic clusters (same-root, gloss-keyword overlap, surface-prefix). Algorithm-driven cluster-aware features would target the wrong pairs. Built a passive capture layer: on yellow ("did not recognize") taps, a small collapsed "Confused with another word?" link below WordInfoCard expands into 5 similar/phonetic candidate chips + a free-text input. Each capture stored to new `confusion_captures` table with explicit `capture_method` ('suggested_pick' | 'free_text') and `candidates_shown_json` (so later analysis can answer "did the algorithm guess right?"). No scheduling change yet — pure data collection. Migration `f8a9b0c1d234`. Tests `TestConfusionCapture` in `test_sentence_review.py`.
+
+After ~50+ captures, an ad-hoc Claude analysis pass will: (a) compute capture rate among yellow taps, (b) compute `suggested_pick` vs `free_text` ratio (algorithm-precision proxy), (c) batch-resolve free-text entries against the lemma DB to compute candidate-hit rate (% of confusions where the actual word was in `candidates_shown_json`). Low candidate-hit rate empirically confirms the user's claim and unlocks replacement strategies. High candidate-hit rate means current similarity heuristics are mostly OK and the issue is elsewhere (e.g., user attention / context cues).
+
+**Downstream ideas (pre-data, not yet decided):**
+- Contrastive pairing in `sentence_selector`: if A and B are observed-confused often, schedule them together with ≥5 cards between.
+- Cluster-aware intro: when introducing a new word that has a stuck observed-confusion partner, show a comparison-card variant of the intro.
+- Interference-weighted leech detection: drop or extend cooldown for words that re-fail specifically alongside their confusion partner.
+
+All three are speculative until the data lands.
+
+---
+
 ## 🟢 [LIVE 2026-05-26 — PR #158 + #159] Alif hybrid Codex provider for audit + enrichment
 
 Audit + enrichment pipelines flipped from Claude Haiku CLI to Codex `gpt-5.5`
