@@ -27,6 +27,8 @@ interface WordInfoCardProps {
   hasNext?: boolean;
   surfaceTranslit?: string | null;
   confusionData?: ConfusionAnalysis | null;
+  onPickConfusion?: (lemmaId: number) => void;
+  pickedConfusionLemmaId?: number | null;
 }
 
 function stemWord(w: string): string {
@@ -165,6 +167,8 @@ export default function WordInfoCard({
   hasNext = false,
   surfaceTranslit,
   confusionData,
+  onPickConfusion,
+  pickedConfusionLemmaId,
 }: WordInfoCardProps) {
   const hasFocus = !!surfaceForm && (markState !== null || !!result || loading);
   const showNav = hasPrev || hasNext;
@@ -246,7 +250,17 @@ export default function WordInfoCard({
         <GrammarParticleView info={particleInfo} />
       ) : (
         <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} nestedScrollEnabled>
-          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} onNavigateToRoot={onNavigateToRoot} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
+          <RevealedView
+            result={result}
+            surfaceForm={surfaceForm}
+            onNavigateToDetail={onNavigateToDetail}
+            onNavigateToPattern={onNavigateToPattern}
+            onNavigateToRoot={onNavigateToRoot}
+            surfaceTranslit={surfaceTranslit}
+            confusionData={markState === "did_not_recognize" ? confusionData : null}
+            onPickConfusion={markState === "did_not_recognize" ? onPickConfusion : undefined}
+            pickedConfusionLemmaId={markState === "did_not_recognize" ? pickedConfusionLemmaId ?? null : null}
+          />
         </ScrollView>
       )}
     </Animated.View>
@@ -286,6 +300,8 @@ function RevealedView({
   onNavigateToRoot,
   surfaceTranslit,
   confusionData,
+  onPickConfusion,
+  pickedConfusionLemmaId,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
@@ -294,6 +310,8 @@ function RevealedView({
   onNavigateToRoot?: (rootId: number) => void;
   surfaceTranslit?: string | null;
   confusionData?: ConfusionAnalysis | null;
+  onPickConfusion?: (lemmaId: number) => void;
+  pickedConfusionLemmaId?: number | null;
 }) {
   if (!result) return null;
 
@@ -392,6 +410,9 @@ function RevealedView({
           <View style={styles.confusionHeader}>
             <Ionicons name="eye-outline" size={14} color={colors.confused} />
             <Text style={styles.confusionTitle}>Easily confused</Text>
+            {onPickConfusion && (
+              <Text style={styles.pickHint}>tap one if that's what you thought</Text>
+            )}
           </View>
           {similarWords.slice(0, 6).map((sw) => {
             const diffSet = new Set(sw.diff_positions.map(d => d.pos));
@@ -400,29 +421,48 @@ function RevealedView({
               ? `has ${sw.diff_positions.slice(0, 2).map(d => d.similar).join(", ")} not ${sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}`
               : null;
             const hint = sw.match_reason ? `${sw.match_reason}${formHint}` : diffHint;
-            return (
-              <View key={sw.lemma_id} style={styles.confusionItem}>
-                <View style={styles.confusionItemRow}>
-                  <HighlightedArabic
-                    text={sw.lemma_ar}
-                    diffPositions={diffSet}
-                    highlightColor={colors.confused}
-                    fontSize={26}
-                  />
-                  <View style={styles.confusionTextCol}>
-                    <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
-                    {hint && (
-                      <Text style={styles.confusionHint} numberOfLines={1}>
-                        {hint}
-                      </Text>
-                    )}
-                  </View>
-                  {sw.rasm_distance === 0 && (
-                    <View style={styles.dotsPill}>
-                      <Text style={styles.dotsPillText}>dots only</Text>
-                    </View>
+            const picked = pickedConfusionLemmaId === sw.lemma_id;
+            const itemContent = (
+              <View style={[styles.confusionItemRow, picked && styles.confusionItemRowPicked]}>
+                {picked && (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.confused} />
+                )}
+                <HighlightedArabic
+                  text={sw.lemma_ar}
+                  diffPositions={diffSet}
+                  highlightColor={colors.confused}
+                  fontSize={26}
+                />
+                <View style={styles.confusionTextCol}>
+                  <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+                  {hint && (
+                    <Text style={styles.confusionHint} numberOfLines={1}>
+                      {hint}
+                    </Text>
                   )}
                 </View>
+                {sw.rasm_distance === 0 && (
+                  <View style={styles.dotsPill}>
+                    <Text style={styles.dotsPillText}>dots only</Text>
+                  </View>
+                )}
+              </View>
+            );
+            return onPickConfusion ? (
+              <Pressable
+                key={sw.lemma_id}
+                onPress={() => onPickConfusion(sw.lemma_id)}
+                style={({ pressed }) => [
+                  styles.confusionItem,
+                  picked && styles.confusionItemPicked,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                {itemContent}
+              </Pressable>
+            ) : (
+              <View key={sw.lemma_id} style={styles.confusionItem}>
+                {itemContent}
               </View>
             );
           })}
@@ -435,18 +475,38 @@ function RevealedView({
           <View style={styles.confusionHeader}>
             <Ionicons name="ear-outline" size={14} color="#8e44ad" />
             <Text style={[styles.confusionTitle, { color: "#8e44ad" }]}>Sounds similar</Text>
+            {onPickConfusion && (
+              <Text style={styles.pickHint}>tap one if that's what you thought</Text>
+            )}
           </View>
-          {phoneticSimilar.slice(0, 3).map((pw) => (
-            <View key={pw.lemma_id} style={styles.phoneticItem}>
-              <Text style={styles.phoneticAr}>{pw.lemma_ar}</Text>
-              <Text style={styles.confusionGloss} numberOfLines={1}>{pw.gloss_en ?? "?"}</Text>
-              {pw.confused_pairs.length > 0 && (
-                <View style={styles.phoneticPairsPill}>
-                  <Text style={styles.phoneticPairsText}>{pw.confused_pairs.join(" ")}</Text>
-                </View>
-              )}
-            </View>
-          ))}
+          {phoneticSimilar.slice(0, 3).map((pw) => {
+            const picked = pickedConfusionLemmaId === pw.lemma_id;
+            const itemContent = (
+              <View style={[styles.phoneticItem, picked && styles.phoneticItemPicked]}>
+                {picked && (
+                  <Ionicons name="checkmark-circle" size={18} color="#8e44ad" />
+                )}
+                <Text style={styles.phoneticAr}>{pw.lemma_ar}</Text>
+                <Text style={styles.confusionGloss} numberOfLines={1}>{pw.gloss_en ?? "?"}</Text>
+                {pw.confused_pairs.length > 0 && (
+                  <View style={styles.phoneticPairsPill}>
+                    <Text style={styles.phoneticPairsText}>{pw.confused_pairs.join(" ")}</Text>
+                  </View>
+                )}
+              </View>
+            );
+            return onPickConfusion ? (
+              <Pressable
+                key={pw.lemma_id}
+                onPress={() => onPickConfusion(pw.lemma_id)}
+                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+              >
+                {itemContent}
+              </Pressable>
+            ) : (
+              <View key={pw.lemma_id}>{itemContent}</View>
+            );
+          })}
         </View>
       )}
 
@@ -1011,10 +1071,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(243, 156, 18, 0.12)",
   },
+  confusionItemPicked: {
+    backgroundColor: "rgba(243, 156, 18, 0.18)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
+    borderBottomWidth: 0,
+  },
   confusionItemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  confusionItemRowPicked: {
+    gap: 8,
+  },
+  pickHint: {
+    marginLeft: "auto",
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontStyle: "italic",
   },
   confusionTextCol: {
     flex: 1,
@@ -1056,6 +1133,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  phoneticItemPicked: {
+    backgroundColor: "rgba(142, 68, 173, 0.18)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
   },
   phoneticAr: {
     fontFamily: fontFamily.arabic,
