@@ -20,6 +20,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-26: Polyglot reader — cursor persistence, 5-page prefetch, validator surface map (3 PRs)
+
+**Context.** Latin reading session surfaced three orthogonal problems in the polyglot reader:
+
+1. Reloading the app dropped you back on a story's first content page instead of where you were reading. The reading cursor in `frontend/app/polyglot.tsx` already persisted to AsyncStorage, but the restore path had a 15-minute TTL (`CURSOR_TTL_MS`) originally scoped to surviving a lemma-detail round-trip — not a full app reload.
+2. Clicking Next on a Latin page hung 40-90s while the backend cold-tokenized (4 LLM passes: body_clean → batch_gloss → citation repair → quality gate). The `warm_pages_ahead` cron buffer was 5, frontend prefetch was +1, so a fast-clicking reader outpaced both layers between cron passes.
+3. The sentence cache was producing far fewer Latin sentences than the user's incoming-vocab rate. 92 acquiring Latin lemmas had <5 LLM sentences each. Inspecting the gen_validation_failed pipeline events showed the deterministic validator rejecting candidates with target-word inflections like `sagittam` for target `sagitta` (`target_missing` + `unknown_words: ['sagittam']`).
+
+**Changes.**
+
+- **PR #163** — drop `CURSOR_TTL_MS` from the polyglot reader cursor. Restore is now unconditional except for an explicit "back to library" tap (`goToLibrary` already clears the cursor). The `stories.some(...)` guard still blocks cross-language restore (a Latin cursor won't auto-resume when Greek is active).
+- **PR #164** — frontend `PREFETCH_AHEAD=5` (was 1) in `polyglot.tsx`; cron `POLYGLOT_PAGES_AHEAD_BUFFER` + `POLYGLOT_PAGES_AHEAD_MAX_PER_RUN` 5→10 with phase timeout 1200→1800s. Concurrent client prefetches serialize at the SQLite write lock (queue depth, not parallel CPU). Together: client-side bridges the in-session gap between cron passes; cron covers cross-session catch-up.
+- **PR #165** — `_observed_surfaces_for_lemmas(db, language_code, lemma_ids)` collects every `(surface_form, lemma_id)` mapping from `PageWord` (post-quality-gate) and verified `SentenceWord` rows for the engaged-vocab lemma set, then augments `known_bare_forms` and `lemma_lookup` in `batch_generate_material`. Same structural pattern as Alif's `forms_json` per-lemma inflection map, but data-driven from observed reading instead of pre-stored at lemma-creation time.
+
+**Why the validator fix matters more than it looks.** The deterministic validator was doing the right thing — lemmatize each token, compare base lemma to base lemma. The bottleneck was LatinCy: it mis-classifies common inflections (`sagittam` → `sagitto` rather than `sagitta`, treating an accusative as a verb form). Without an algorithmic Latin morphological generator, the validator had no way to recognize that `sagittam` belonged to a known lemma. PageWord/SentenceWord rows already held the quality-gate-corrected mapping; the augmentation just plugs that authoritative-but-unused signal into the validator. **The PR notes that the same mechanism helps Greek** — Greek's `_el_surface_bares_for_lemma` inflection generator was missing common verb forms (`μιλάει`, `κρατάει`, `ακούω`) and comparative `πιο`; the observed-surface map covers those without further work. Generic fix, Latin-shaped problem.
+
+**Why polyglot didn't have this from day one.** The original design assumed simplemma + LLM quality gate would catch lemmatization errors at *page-tokenization* time, so `PageWord.lemma_id` was set correctly. But the validator at generation time was still calling a fresh `_lemmatize_to_bare` and getting the same wrong answer the page tokenizer had been fixed for. The PageWord-derived map is the deterministic ground truth that was sitting in the database unused at validation. Worth a follow-up: add an algorithmic Latin inflection generator (1st/2nd/3rd/4th/5th declensions + conjugations) for cold-start coverage on lemmas the user hasn't read yet. Untracked in IDEAS.
+
+**Result.**
+
+- Latin gap lemmas: 92 → 7 (one manual `warm_sentence_cache --max-lemmas 100` pass on the new validator covered 32 of 36 reachable lemmas in 15 min, generating 92 sentences; the remaining 7 will be picked up by the next 18:45 cron).
+- Total active+verified Latin LLM sentences: 545.
+- Validator acceptance verified against prod DB: 2,313 unique Latin surface mappings now in the augmented lookup, including `sagittam→6575`, `arcum→6576`, `sagittas→6575`, `rex→9076`.
+
+**How to verify.** Reading session reload → resumes on the last page (PR #163). Clicking through Latin pages 19-28 of LLPSI Coverage Reader should be cold-free (PR #164 manual warm + frontend prefetch). New Latin acquiring lemmas added by reading should pick up ≥5 sentences within one cron pass after they're created (PR #165 broader validator acceptance). All three are observable in `/var/log/polyglot-update-material.log` and the polyglot reader UI.
+
+---
+
 ## 2026-05-26: Codex `gpt-5.5` vs Claude Haiku on Alif Arabic enrichment (A/B, deferred follow-up resolved)
 
 **Question.** Follow-up to the 2026-05-26 hybrid-migration A/B (`codex-vs-claude-sentence-gen-2026-05-26.md`). The plan flips Alif's audit pipelines from Claude Haiku to Codex `gpt-5.5`, but enrichment was singled out for its own A/B before flipping — the Latin philology user complaint hinted at a possible prompt-vs-provider issue with enrichment specifically. PR #157 closed the Latin philology side as prompt + parser bugs; this A/B closes the Arabic side.

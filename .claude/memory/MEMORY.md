@@ -150,6 +150,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Don't trust bg-task "exit 0" alone — tail the output (2026-05-21)
 - [Details](feedback_bg_task_exit_code_misleading.md) — A bg notification claimed pytest exit 0 but the output showed 1 failed. Always tail the file even on "passing" notifications.
 
+## Polyglot validator: PageWord/SentenceWord = forms_json equivalent (2026-05-26)
+- [Details](feedback_polyglot_validator_forms_json_equivalent.md) — When sentence-gen validator rejects valid inflections (e.g. `sagittam` for target `sagitta` because LatinCy mis-lemmatizes), augment `known_bare_forms`/`lemma_lookup` with PageWord+verified SentenceWord rows. Same shape as Alif's `forms_json`; data-driven instead of pre-stored. PR #165.
+
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
 - Interaction logger: skipped when TESTING=1 (set in conftest.py)
