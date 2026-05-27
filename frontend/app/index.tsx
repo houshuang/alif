@@ -51,6 +51,7 @@ import {
   SessionEndData,
   WordLookupResult,
   ConfusionAnalysis,
+  ConfusionCaptureIn,
   GrammarLesson,
   WrapUpCard,
 } from "../lib/types";
@@ -63,6 +64,7 @@ import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
+import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 import { bestVocalizedDisplayForm } from "../lib/arabic-display";
@@ -328,6 +330,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupSurfaceTranslit, setLookupSurfaceTranslit] = useState<string | null>(null);
   const [confusionData, setConfusionData] = useState<ConfusionAnalysis | null>(null);
   const [confusionCandidateLemmaIds, setConfusionCandidateLemmaIds] = useState<Record<number, number[]>>({});
+  const [confusionCaptures, setConfusionCaptures] = useState<Record<number, ConfusionCaptureIn>>({});
   const [tappedOrder, setTappedOrder] = useState<number[]>([]);
   const [tappedCursor, setTappedCursor] = useState(-1);
   const tappedCacheRef = useRef<Map<number, TappedEntry>>(new Map());
@@ -395,6 +398,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setConfusionData(null);
     setConfusionCandidateLemmaIds({});
+    setConfusionCaptures({});
   }, [mode]);
 
   const totalCards = sentenceSession
@@ -748,6 +752,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupLoading(false);
     setLookupShowMeaning(false);
     setConfusionData(null);
+    setConfusionCaptures({});
     setAudioPlayCount(0);
     setLookupCount(0);
     setSubmittingReview(false);
@@ -1042,6 +1047,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         delete next[lemmaId];
         return next;
       });
+      setConfusionCaptures((prev) => {
+        if (!prev[lemmaId]) return prev;
+        const next = { ...prev };
+        delete next[lemmaId];
+        return next;
+      });
     }
 
     // If tap clears this word, hide the info card or show previous.
@@ -1240,6 +1251,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         missed_lemma_ids: missedLemmaIds,
         confused_lemma_ids: confusedLemmaIds.length > 0 ? confusedLemmaIds : undefined,
         confusion_candidate_lemma_ids: hasConfusionCandidates ? confusionCandidateMap : undefined,
+        confusion_captures: Object.values(confusionCaptures).length > 0 ? Object.values(confusionCaptures) : undefined,
         response_ms: responseMs,
         session_id: sentenceSession.session_id,
         review_mode: mode,
@@ -2801,6 +2813,29 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           surfaceTranslit={lookupSurfaceTranslit}
           confusionData={confusionData}
         />
+      )}
+
+      {!isListening
+        && focusedWordMark === "did_not_recognize"
+        && lookupLemmaId != null
+        && confusionData
+        && (
+          <ConfusionPicker
+            failedLemmaId={lookupLemmaId}
+            confusionData={confusionData}
+            existing={confusionCaptures[lookupLemmaId]}
+            onSave={(capture) =>
+              setConfusionCaptures((prev) => ({ ...prev, [capture.failed_lemma_id]: capture }))
+            }
+            onClear={() =>
+              setConfusionCaptures((prev) => {
+                if (!prev[lookupLemmaId]) return prev;
+                const next = { ...prev };
+                delete next[lookupLemmaId];
+                return next;
+              })
+            }
+          />
       )}
 
       <View style={styles.bottomActions}>

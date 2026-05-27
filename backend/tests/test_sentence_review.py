@@ -559,6 +559,93 @@ class TestAPIEndpoints:
         assert ratings[1] == 3
 
 
+class TestConfusionCapture:
+    def test_suggested_pick_persists(self, client, db_session):
+        from app.models import ConfusionCapture
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "كاتب", "writer")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "partial",
+            "confused_lemma_ids": [1],
+            "confusion_captures": [{
+                "failed_lemma_id": 1,
+                "capture_method": "suggested_pick",
+                "confused_with_lemma_id": 2,
+                "candidates_shown": [2, 3, 4],
+            }],
+            "session_id": "cap-test",
+        })
+        assert resp.status_code == 200, resp.text
+
+        rows = db_session.query(ConfusionCapture).filter_by(session_id="cap-test").all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.capture_method == "suggested_pick"
+        assert row.failed_lemma_id == 1
+        assert row.confused_with_lemma_id == 2
+        assert row.confused_with_text is None
+        assert row.candidates_shown_json == [2, 3, 4]
+        assert row.rating == 2  # partial → Hard
+
+    def test_free_text_persists(self, client, db_session):
+        from app.models import ConfusionCapture
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "no_idea",
+            "confusion_captures": [{
+                "failed_lemma_id": 1,
+                "capture_method": "free_text",
+                "confused_with_text": "the one about libraries",
+                "candidates_shown": [5, 6],
+            }],
+            "session_id": "ft-test",
+        })
+        assert resp.status_code == 200, resp.text
+
+        rows = db_session.query(ConfusionCapture).filter_by(session_id="ft-test").all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.capture_method == "free_text"
+        assert row.confused_with_text == "the one about libraries"
+        assert row.confused_with_lemma_id is None
+        assert row.rating == 1  # no_idea → Again
+
+    def test_invalid_capture_skipped(self, client, db_session):
+        from app.models import ConfusionCapture
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        # suggested_pick without confused_with_lemma_id → skipped
+        # free_text with empty text → skipped
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "no_idea",
+            "confusion_captures": [
+                {"failed_lemma_id": 1, "capture_method": "suggested_pick"},
+                {"failed_lemma_id": 1, "capture_method": "free_text", "confused_with_text": "   "},
+                {"failed_lemma_id": 1, "capture_method": "bogus"},
+            ],
+            "session_id": "bad-test",
+        })
+        assert resp.status_code == 200, resp.text
+        assert db_session.query(ConfusionCapture).filter_by(session_id="bad-test").count() == 0
+
+
 class TestVariantStats:
     def test_variant_surface_form_tracked(self, db_session):
         """When surface form differs from lemma bare, variant_stats_json is updated."""

@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models import (
+    ConfusionCapture,
     GrammarFeature,
     Lemma,
     ReviewLog,
@@ -52,6 +53,7 @@ def submit_sentence_review(
     missed_lemma_ids: list[int] | None = None,
     confused_lemma_ids: list[int] | None = None,
     confusion_candidate_lemma_ids: dict[int, list[int]] | None = None,
+    confusion_captures: list[dict] | None = None,
     response_ms: Optional[int] = None,
     session_id: Optional[str] = None,
     review_mode: str = "reading",
@@ -435,6 +437,36 @@ def submit_sentence_review(
             comprehension_signal,
             commit=False,
         )
+
+    for cap in confusion_captures or []:
+        method = cap.get("capture_method")
+        failed_lid = cap.get("failed_lemma_id")
+        if not failed_lid or method not in ("suggested_pick", "free_text"):
+            continue
+        confused_with_lid = cap.get("confused_with_lemma_id")
+        confused_with_text = cap.get("confused_with_text")
+        if method == "suggested_pick":
+            if not confused_with_lid:
+                continue
+            confused_with_text = None
+        else:  # free_text
+            text = (confused_with_text or "").strip()
+            if not text:
+                continue
+            confused_with_text = text
+            confused_with_lid = None
+        rating_for_capture = 1 if comprehension_signal == "no_idea" else 2
+        db.add(ConfusionCapture(
+            failed_lemma_id=failed_lid,
+            sentence_id=primary_sentence_id,
+            session_id=session_id,
+            rating=rating_for_capture,
+            captured_at=now,
+            capture_method=method,
+            confused_with_lemma_id=confused_with_lid,
+            confused_with_text=confused_with_text,
+            candidates_shown_json=cap.get("candidates_shown") or None,
+        ))
 
     db.commit()
 

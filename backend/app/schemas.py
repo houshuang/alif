@@ -515,6 +515,14 @@ class SentenceSessionOut(BaseModel):
     verse_cards: list[VerseCardOut] = []
 
 
+class ConfusionCaptureIn(BaseModel):
+    failed_lemma_id: int
+    capture_method: str  # 'suggested_pick' | 'free_text'
+    confused_with_lemma_id: int | None = None
+    confused_with_text: str | None = None
+    candidates_shown: list[int] = []
+
+
 class SentenceReviewSubmitIn(BaseModel):
     sentence_id: int | None = None
     sentence_ids: list[int] = []
@@ -523,6 +531,7 @@ class SentenceReviewSubmitIn(BaseModel):
     missed_lemma_ids: list[int] = []
     confused_lemma_ids: list[int] = []
     confusion_candidate_lemma_ids: dict[int, list[int]] = {}
+    confusion_captures: list[ConfusionCaptureIn] = []
     response_ms: int | None = None
     session_id: str | None = None
     review_mode: str = "reading"
