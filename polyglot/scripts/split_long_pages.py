@@ -99,13 +99,18 @@ def _resplit_one_story(
 
     page_ids = [p.id for p in pages]
 
-    # Deactivate harvested Sentences for the old pages. Keep them around
-    # because review_log / sentence_review_log hold FKs.
-    sentence_q = db.query(Sentence).filter(
+    # Deactivate currently-active Sentences for the old pages. Keep them
+    # around because review_log / sentence_review_log hold FKs.
+    active_sentence_q = db.query(Sentence).filter(
         Sentence.page_id.in_(page_ids),
         Sentence.is_active.is_(True),
     )
-    deactivated = sentence_q.count()
+    deactivated = active_sentence_q.count()
+    # FK-null query must include *inactive* sentences too — their stale
+    # page_id pointers still block the Page delete under PRAGMA
+    # foreign_keys=ON. Encountered 2026-05-27 on prod story 1 (page 12 had
+    # 1 inactive sentence left over from a prior harvest correction).
+    all_sentence_q = db.query(Sentence).filter(Sentence.page_id.in_(page_ids))
 
     # Page review logs for this story would silently dedup the next review
     # if their `client_review_id` (pr:{sid}:{n}) collides with a new advance.
@@ -136,9 +141,11 @@ def _resplit_one_story(
     # `page_id` nulled — PRAGMA foreign_keys=ON would otherwise block the
     # Page delete (sentences.page_id has no ondelete cascade). Going-forward
     # harvest inserts fresh Sentence rows under the new Page ids.
-    sentence_q.update(
-        {Sentence.is_active: False, Sentence.page_id: None},
-        synchronize_session=False,
+    active_sentence_q.update(
+        {Sentence.is_active: False}, synchronize_session=False,
+    )
+    all_sentence_q.update(
+        {Sentence.page_id: None}, synchronize_session=False,
     )
     page_review_q.delete(synchronize_session=False)
 
