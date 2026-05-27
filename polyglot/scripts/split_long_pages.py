@@ -211,10 +211,13 @@ def main() -> int:
 
         if not args.dry_run and totals["stories"] > 0:
             log_activity(
-                "pages_resplit",
-                f"Re-split {totals['stories']} story/stories "
-                f"({totals['old_pages']} → {totals['new_pages']} pages, "
-                f"max_chars={args.max_chars})",
+                db,
+                event_type="pages_resplit",
+                summary=(
+                    f"Re-split {totals['stories']} story/stories "
+                    f"({totals['old_pages']} → {totals['new_pages']} pages, "
+                    f"max_chars={args.max_chars})"
+                ),
                 detail={
                     "story_ids": [s.id for s in stories],
                     "max_chars": args.max_chars,
