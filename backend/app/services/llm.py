@@ -1315,6 +1315,162 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
     return sentences
 
 
+# --- Root-Showcase Sentence Generation (Claude Sonnet via CLI) ---
+
+ROOT_SHOWCASE_SYSTEM_PROMPT = f"""\
+You are writing "root-showcase" sentences for an Arabic MSA learner. The pedagogical goal: \
+pack as many derivations of ONE Arabic root into each sentence as you can, leveraging Arabic's \
+shared-root pattern system as a memory hook. Light wordplay, parallelism, and the natural \
+echo of a shared root across multiple slots are EXPLICITLY WELCOME — that is the point. \
+Sentences may be slightly contrived in service of the showcase as long as they are grammatical, \
+sensible, and would not be flagged as nonsense by a native speaker.
+
+A good showcase sentence:
+- Uses ≥3 distinct derivations of the target root (verb + agent + masdar + place noun, etc.)
+- Each derivation appears in a grammatically correct surface form (vocalised with full tashkīl)
+- The English translation faithfully conveys the literal meaning
+- Reads as MSA prose a native could utter, even if the "every word shares a root" framing is unusual
+
+{ARABIC_STYLE_RULES}
+
+Vocabulary constraint:
+- Use derivations from the PROVIDED PALETTE for the target root as your primary content words
+- You may freely use common MSA function words (في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
+ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، لن، قد، \
+الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن)
+- You may freely use names of people/places, days, numerals if needed for the scene
+- You may use a SMALL number of words from the auxiliary vocabulary list to connect ideas, \
+but the palette derivations should dominate
+- Do NOT use Arabic content words from outside both lists
+
+Each sentence's surface forms MUST be exact diacritized inflections of the palette entries — \
+write the surface form the way it appears in a vocalised sentence (with prefixes, suffixes, \
+case endings as needed), but the underlying lemma must be from the palette.
+
+For each sentence, list the palette lemmas that appear (by their lemma_ar from the palette).
+
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": \
+"...", "palette_lemmas_used": ["palette_word_1", "palette_word_2", ...]}}, ...]}}"""
+
+
+class RootShowcaseSentenceResult(BaseModel):
+    arabic: str
+    english: str
+    transliteration: str
+    palette_lemmas_used: list[str]
+
+
+def generate_root_showcase_sentences(
+    root: str,
+    core_meaning_en: str,
+    palette: list[dict[str, str]],
+    aux_vocabulary: list[dict[str, str]],
+    count: int = 3,
+    model_override: str = "claude_sonnet",
+    timeout: int = 180,
+) -> list[RootShowcaseSentenceResult]:
+    """Generate root-showcase sentences packing multiple derivations of one root.
+
+    Args:
+        root: The Arabic root in display form (e.g. "ك.ت.ب").
+        core_meaning_en: The Root.core_meaning_en value, for prompt grounding.
+        palette: List of {"arabic": ..., "english": ..., "wazn": ...} for the lemmas
+                 under this root that the LLM may use as showcase content.
+        aux_vocabulary: List of {"arabic": ..., "english": ...} for additional MSA
+                        words the LLM may sparingly draw on to glue the scene together.
+        count: Number of sentences to generate.
+        model_override: LLM model. Sonnet by default — A/B 2026-05-26 showed Codex
+                        is weaker on Arabic naturalness under vocab constraint.
+
+    Returns:
+        List of RootShowcaseSentenceResult.
+    """
+    palette_lines = "\n".join(
+        f"- {p['arabic']}  ({p.get('wazn') or '?'} / {p.get('family') or '?'}): {p['english']}"
+        for p in palette
+    )
+    aux_lines = format_known_words_by_pos(aux_vocabulary) if aux_vocabulary else "(none)"
+
+    prompt = f"""Create {count} different root-showcase MSA sentences for the root {root} \
+(core meaning: {core_meaning_en or 'unspecified'}).
+
+TARGET ROOT PALETTE (use as many of these as possible per sentence — each sentence MUST \
+include ≥3 distinct lemmas from this palette as exact diacritized inflections):
+{palette_lines}
+
+AUXILIARY VOCABULARY (use sparingly, only to connect the showcase derivations):
+{aux_lines}
+
+CONSTRAINTS:
+- Each sentence ≥3 palette lemmas. More is better — pack the sentence.
+- Wordplay, parallelism, and the natural echo of a shared root are WELCOME and pedagogical.
+- The sentence must remain grammatical MSA and not nonsense.
+- Across the {count} sentences, try to USE EVERY PALETTE LEMMA AT LEAST ONCE.
+- Full tashkīl on all Arabic. Arabic punctuation: ، for clauses, ؟ for questions, . for statements.
+- 8-16 words per sentence is the sweet spot.
+
+For each sentence, list the EXACT palette lemma_ar entries (from the palette above) that \
+your sentence's surface forms map to.
+
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": \
+"...", "palette_lemmas_used": ["palette_entry_1", "palette_entry_2", ...]}}, ...]}}"""
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "sentences": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "arabic": {"type": "string"},
+                        "english": {"type": "string"},
+                        "transliteration": {"type": "string"},
+                        "palette_lemmas_used": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": ["arabic", "english", "transliteration", "palette_lemmas_used"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["sentences"],
+        "additionalProperties": False,
+    }
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=ROOT_SHOWCASE_SYSTEM_PROMPT,
+        json_schema=schema,
+        temperature=0.6,
+        timeout=timeout,
+        model_override=model_override,
+        task_type="root_showcase_gen",
+    )
+
+    sentences: list[RootShowcaseSentenceResult] = []
+    raw = result.get("sentences", []) if isinstance(result, dict) else []
+    if not isinstance(raw, list):
+        return sentences
+    for item in raw[:count]:
+        if not isinstance(item, dict):
+            continue
+        arabic = (item.get("arabic") or "").strip()
+        english = (item.get("english") or "").strip()
+        translit = (item.get("transliteration") or "").strip()
+        used = item.get("palette_lemmas_used") or []
+        if not isinstance(used, list):
+            used = []
+        if arabic and english:
+            sentences.append(RootShowcaseSentenceResult(
+                arabic=arabic, english=english, transliteration=translit,
+                palette_lemmas_used=[str(u) for u in used],
+            ))
+    return sentences
+
+
 # --- Sentence Quality Review (Claude Haiku via CLI) ---
 
 class SentenceReviewResult(BaseModel):

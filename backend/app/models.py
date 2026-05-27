@@ -219,8 +219,11 @@ class Sentence(Base):
     quality_natural = Column(Boolean, nullable=True)
     quality_translation_correct = Column(Boolean, nullable=True)
     quality_reason = Column(Text, nullable=True)
+    root_focus_id = Column(Integer, ForeignKey("roots.root_id"), nullable=True, index=True)
+    kind = Column(String(30), nullable=True, index=True)
 
     story = relationship("Story", foreign_keys=[story_id])
+    root_focus = relationship("Root", foreign_keys=[root_focus_id])
     words = relationship("SentenceWord", back_populates="sentence")
     review_logs = relationship("SentenceReviewLog", back_populates="sentence")
     grammar_features = relationship("SentenceGrammarFeature", back_populates="sentence")
