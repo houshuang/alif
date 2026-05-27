@@ -4,6 +4,24 @@
 
 ---
 
+## 🟡 [IN PROGRESS 2026-05-27] Root-showcase sentences — pack multi-derivation sentences from one root
+
+User idea: generate sentences that exploit as many forms of a single Arabic root as possible (e.g. *الكاتب كتب كتبًا للكتّاب في المكتب في المكتبة* for ك-ت-ب, or *المحاسب معي الحاسوب حسّب الحاسب* for ح-س-ب). The pedagogical wager: contrived wordplay sentences are memorable *precisely because* they're contrived, and they directly reinforce Arabic's root-pattern system — every reviewed surface form earns its own lemma credit (FOUNDATIONAL rule), so a single showcase sentence yields N reviews instead of 1.
+
+**5-phase implementation on branch `sh/root-showcase-sentences`:**
+
+1. **Phase 1 (read-only analysis)** — `backend/scripts/root_showcase_candidates.py` ranks roots by `(known+acquiring lemmas) × √productivity_score` with a ≥3-lemma palette floor, flags missing canonical wazn families. Output: `research/root-showcase-candidates-<date>.{json,html}`. Top roots from today's snapshot: ق.ب.ل (18 lemmas, 56% known), ك.ت.ب (10, 100%), ج.م.ع (11, 82%), ب.ن.ي (9, 78%), ع.ل.م (10, 90%), د.ر.س (8, 100%).
+2. **Phase 2 (schema)** — `Sentence.root_focus_id` (FK→roots) + `Sentence.kind` (e.g. `'root_showcase'`). Alembic migration.
+3. **Phase 3 (gap-fill)** — for selected roots, ask LLM (with the *actual lemma palette* — `Lemma.wazn` is NULL on ~50% of gated lemmas, so the wazn-family diagnostic from Phase 1 over-counts gaps) to propose canonical Arabic forms for genuinely missing derivations. Route through `run_quality_gates()` so new lemmas get variant detection + enrichment + `gates_completed_at`. Dry-run by default.
+4. **Phase 4 (multi-target gen)** — `generate_root_showcase_sentences()` in `sentence_generator.py`. Sonnet (NOT Codex — A/B 2026-05-26 showed Codex weaker on Arabic naturalness). Prompt explicitly says wordplay/parallelism welcome, redundancy IS the point. Routes through existing `validate_multi_target_sentence` + `write_multi_target_sentence` (lock-discipline-safe, extracted from 2026-04-17 incident). Stamps `root_focus_id` + `kind='root_showcase'`. TTS lazy.
+5. **Phase 5** — tests + branch + self-review PR per CLAUDE.md Rule #7.
+
+Showcase sentences drop into the regular session pool — each surface form earns review credit per the FOUNDATIONAL "every word in every sentence" rule. No new card type needed for v1. A dedicated "Root Showcase" review mode is a future enhancement.
+
+**Key design tension** the wazn-NULL caveat exposes: `Lemma.wazn` was supposed to be the ground truth for "which derivations under root X already exist," but it's only ~50% populated. Phase 3's LLM has to reason from the actual lemma glosses+forms instead. This is fine for the immediate feature, but it suggests a separate backfill pass to fill missing `wazn` values is worth doing — would help everything downstream (Explore tab pattern browsing, root family rendering on intro cards, this feature, etc.).
+
+---
+
 ## 🟢 [LIVE 2026-05-27 — PR #167] Confusion capture: ground-truth what user actually confuses with what
 
 User observed that real confusions don't match algorithmic clusters (same-root, gloss-keyword overlap, surface-prefix). Algorithm-driven cluster-aware features would target the wrong pairs. Built a passive capture layer: on yellow ("did not recognize") taps, a small collapsed "Confused with another word?" link below WordInfoCard expands into 5 similar/phonetic candidate chips + a free-text input. Each capture stored to new `confusion_captures` table with explicit `capture_method` ('suggested_pick' | 'free_text') and `candidates_shown_json` (so later analysis can answer "did the algorithm guess right?"). No scheduling change yet — pure data collection. Migration `f8a9b0c1d234`. Tests `TestConfusionCapture` in `test_sentence_review.py`.

@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<title>Root showcase candidates — 2026-05-27 23:32:36</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { margin-bottom: 0.2rem; }
+  .intro { color: #555; margin-bottom: 2rem; }
+  details.root { border-bottom: 1px solid #eee; padding: 0.6rem 0; }
+  details.root summary { cursor: pointer; display: flex; gap: 0.8rem; align-items: baseline; flex-wrap: wrap; }
+  .rank { color: #888; font-variant-numeric: tabular-nums; min-width: 2.5rem; }
+  .root-ar { font-size: 1.4rem; font-family: 'Scheherazade New', 'Noto Naskh Arabic', serif; }
+  .meta { color: #444; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+  .core { color: #666; font-style: italic; font-size: 0.9rem; flex: 1; }
+  .detail { margin: 0.8rem 0 0 3rem; font-size: 0.9rem; }
+  .detail > div { margin: 0.3rem 0; }
+  table.palette { margin-top: 0.6rem; border-collapse: collapse; width: 100%; }
+  table.palette th, table.palette td { padding: 0.2rem 0.6rem; text-align: left; border-bottom: 1px solid #f5f5f5; font-size: 0.85rem; }
+  table.palette th { background: #fafafa; color: #555; font-weight: 500; }
+  td.ar { font-family: 'Scheherazade New', 'Noto Naskh Arabic', serif; font-size: 1.1rem; }
+  tr.st-known { background: #e8f5e9; }
+  tr.st-acquiring { background: #fff8e1; }
+  tr.st-encountered { background: #f3e5f5; }
+  tr.st-lapsed { background: #ffebee; }
+  tr.st-suspended { color: #999; }
+  tr.st-unstudied { color: #777; }
+  .legend { margin: 1rem 0; padding: 0.6rem 1rem; background: #fafafa; border-radius: 4px; font-size: 0.85rem; }
+  .legend span { display: inline-block; padding: 0.1rem 0.5rem; margin-right: 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Root showcase candidates</h1>
+<div class='intro'>
+  Generated 2026-05-27 23:32:36. Top 50 of 368 roots (≥3 gated canonical lemmas).
+  Score = <code>(known + acquiring) × √productivity_score</code> — rewards both palette
+  size <em>and</em> corpus frequency, so a 1-lemma root can't win.
+  <br><strong>Caveat:</strong> "Missing target families" relies on <code>Lemma.wazn</code>
+  which is NULL on ~50% of gated lemmas. The list overcounts. Phase 3 (LLM gap-fill)
+  inspects the full palette directly rather than trusting this column.
+</div>
+<div class='legend'>
+  <strong>State colour:</strong>
+  <span class='st-known' style='background:#e8f5e9;'>known</span>
+  <span class='st-acquiring' style='background:#fff8e1;'>acquiring</span>
+  <span class='st-encountered' style='background:#f3e5f5;'>encountered</span>
+  <span class='st-lapsed' style='background:#ffebee;'>lapsed</span>
+  <span>suspended / unstudied</span>
+</div>
+
+        <details class='root'>
+          <summary>
+            <span class='rank'>#1</span>
+            <span class='root-ar'>ق.ب.ل</span>
+            <span class='meta'>score=38,436 · cov=56% · gated=18 · prod=14,773,316</span>
+            <span class='core'>related to front, acceptance, before, direction</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> encountered: 1, known: 9, lapsed: 1, unstudied: 7</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I, masdar_X, nisba_adj, place_or_time</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1153</td><td class='ar'>قَبِيلَةٌ</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>tribe</td><td>known</td></tr><tr class='st-encountered'><td>#466</td><td class='ar'>قَبْل</td><td>prep</td><td>fa'l</td><td>masdar_I</td><td>before</td><td>encountered</td></tr><tr class='st-unstudied'><td>#1222</td><td class='ar'>قُبْلَةٌ</td><td>noun</td><td>fu'la</td><td>masdar_I</td><td>kiss</td><td>unstudied</td></tr><tr class='st-known'><td>#1467</td><td class='ar'>اِسْتِقْبَالٌ</td><td>noun</td><td>istif'al</td><td>masdar_X</td><td>reception</td><td>known</td></tr><tr class='st-unstudied'><td>#576</td><td class='ar'>قَبَائِلِيَّةٌ</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>Kabyle language</td><td>unstudied</td></tr><tr class='st-known'><td>#2601</td><td class='ar'>مُقْبِلَة</td><td>noun</td><td>maf'ala</td><td>place_or_time</td><td>next</td><td>known</td></tr><tr class='st-unstudied'><td>#1341</td><td class='ar'>قَابِلَةٌ</td><td>noun</td><td>fa'ila</td><td>—</td><td>midwife</td><td>unstudied</td></tr><tr class='st-known'><td>#1559</td><td class='ar'>مُقَابَلَة</td><td>noun</td><td>mufaa'ala</td><td>—</td><td>interview</td><td>known</td></tr><tr class='st-known'><td>#2353</td><td class='ar'>مُقَبِّلَات</td><td>noun</td><td></td><td>—</td><td>appetizers</td><td>known</td></tr><tr class='st-known'><td>#2436</td><td class='ar'>مُسْتَقْبَل</td><td>noun</td><td></td><td>—</td><td>future</td><td>known</td></tr><tr class='st-lapsed'><td>#2923</td><td class='ar'>اِسْتَقْبَلَ</td><td>verb</td><td></td><td>—</td><td>to receive</td><td>lapsed</td></tr><tr class='st-known'><td>#3004</td><td class='ar'>مُقْبِل</td><td>adj</td><td></td><td>—</td><td>next, upcoming</td><td>known</td></tr><tr class='st-known'><td>#3078</td><td class='ar'>مُقَابِل</td><td>noun</td><td></td><td>—</td><td>opposite</td><td>known</td></tr><tr class='st-known'><td>#3398</td><td class='ar'>قَبُولٌ</td><td>noun</td><td></td><td>—</td><td>acceptance</td><td>known</td></tr><tr class='st-unstudied'><td>#3628</td><td class='ar'>قَابِل</td><td>adjective</td><td></td><td>—</td><td>capable</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3773</td><td class='ar'>قَبِيل</td><td>noun</td><td></td><td>—</td><td>shortly before, just before</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3840</td><td class='ar'>مَقْبُول</td><td>adj</td><td></td><td>—</td><td>acceptable; accepted</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3845</td><td class='ar'>إِقْبال</td><td>noun</td><td></td><td>—</td><td>advance</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#2</span>
+            <span class='root-ar'>ك.ت.ب</span>
+            <span class='meta'>score=37,489 · cov=100% · gated=10 · prod=14,054,791</span>
+            <span class='core'>related to writing, books, correspondence, scribes</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 10</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, patient, place_or_time, verb_I, verb_III</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_IV, verb_V, verb_VIII, verb_X, agent, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#197</td><td class='ar'>كِتابة</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>writing</td><td>known</td></tr><tr class='st-known'><td>#228</td><td class='ar'>كِتاب</td><td>noun</td><td>fi'al</td><td>masdar_I</td><td>book</td><td>known</td></tr><tr class='st-known'><td>#229</td><td class='ar'>كُتُب</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>books</td><td>known</td></tr><tr class='st-known'><td>#2424</td><td class='ar'>مَكْتُوب</td><td>adj</td><td>maf'ul</td><td>patient</td><td>written</td><td>known</td></tr><tr class='st-known'><td>#290</td><td class='ar'>مَكْتَب</td><td>noun</td><td>maf'al</td><td>place_or_time</td><td>office</td><td>known</td></tr><tr class='st-known'><td>#300</td><td class='ar'>مَكْتَبَة</td><td>noun</td><td>maf'ala</td><td>place_or_time</td><td>bookstore, library</td><td>known</td></tr><tr class='st-known'><td>#1682</td><td class='ar'>أَكْتُبُ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>I write</td><td>known</td></tr><tr class='st-known'><td>#1384</td><td class='ar'>كَاتَبَ</td><td>verb</td><td>form_3</td><td>verb_III</td><td>to correspond with</td><td>known</td></tr><tr class='st-known'><td>#1558</td><td class='ar'>يَكْتُبُونَ</td><td>verb</td><td></td><td>—</td><td>they write</td><td>known</td></tr><tr class='st-known'><td>#2259</td><td class='ar'>أُكْتُوبَر</td><td>noun</td><td></td><td>—</td><td>October</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#3</span>
+            <span class='root-ar'>ج.م.ع</span>
+            <span class='meta'>score=35,717 · cov=82% · gated=11 · prod=15,750,007</span>
+            <span class='core'>related to gathering, collecting, groups, universities, Fridays</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 9, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, agent, masdar_I, patient, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#2577</td><td class='ar'>جَمِيع</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>all</td><td>known</td></tr><tr class='st-unstudied'><td>#680</td><td class='ar'>جَامِعٌ</td><td>adj</td><td>fa'il</td><td>agent</td><td>comprehensive, mosque</td><td>unstudied</td></tr><tr class='st-known'><td>#238</td><td class='ar'>جُمْعة</td><td>noun</td><td>fu'la</td><td>masdar_I</td><td>Friday</td><td>known</td></tr><tr class='st-known'><td>#1158</td><td class='ar'>مَجْمُوعَةٌ</td><td>noun</td><td>maf'ul</td><td>patient</td><td>collection, compilation, anthology</td><td>known</td></tr><tr class='st-known'><td>#2680</td><td class='ar'>جَمَّع</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to collect</td><td>known</td></tr><tr class='st-known'><td>#107</td><td class='ar'>جامِعة</td><td></td><td>fa'ila</td><td>—</td><td>university</td><td>known</td></tr><tr class='st-known'><td>#2993</td><td class='ar'>ٱِجْتِماعِيّ</td><td>adj</td><td></td><td>—</td><td>social</td><td>known</td></tr><tr class='st-known'><td>#3106</td><td class='ar'>جَمَاعِيّ</td><td>adj</td><td></td><td>—</td><td>collective</td><td>known</td></tr><tr class='st-known'><td>#3176</td><td class='ar'>اِجْتِمَاع</td><td>noun</td><td></td><td>—</td><td>gathering, meeting</td><td>known</td></tr><tr class='st-known'><td>#3555</td><td class='ar'>اجْتَمَعَ</td><td>verb</td><td></td><td>—</td><td>to gather; assemble</td><td>known</td></tr><tr class='st-unstudied'><td>#3734</td><td class='ar'>مَجْمُوع</td><td>noun</td><td></td><td>—</td><td>total/sum</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#4</span>
+            <span class='root-ar'>ب.ن.ي</span>
+            <span class='meta'>score=33,401 · cov=78% · gated=9 · prod=22,768,084</span>
+            <span class='core'>related to building, constructing, sons, offspring, structures</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 7, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#79</td><td class='ar'>اِبْن</td><td></td><td>fi'l</td><td>masdar_I</td><td>son</td><td>known</td></tr><tr class='st-known'><td>#102</td><td class='ar'>بِناية</td><td></td><td>fi'ala</td><td>masdar_I</td><td>building</td><td>known</td></tr><tr class='st-known'><td>#258</td><td class='ar'>بَنات</td><td>noun</td><td>fa'al</td><td>masdar_I</td><td>girls</td><td>known</td></tr><tr class='st-unstudied'><td>#599</td><td class='ar'>אבן</td><td>noun</td><td>fi'l</td><td>masdar_I</td><td>Judeo-Arabic spelling of اِبْن (ibn, “son”)</td><td>unstudied</td></tr><tr class='st-known'><td>#988</td><td class='ar'>بْنٌ</td><td>noun</td><td>fi'l</td><td>masdar_I</td><td>alternative form of اِبْن (ibn)</td><td>known</td></tr><tr class='st-known'><td>#2618</td><td class='ar'>بِناء</td><td>noun</td><td>fi'al</td><td>masdar_I</td><td>building</td><td>known</td></tr><tr class='st-known'><td>#259</td><td class='ar'>أَبْناء</td><td>noun</td><td>af'aal</td><td>—</td><td>boys, boys and girls</td><td>known</td></tr><tr class='st-unstudied'><td>#1437</td><td class='ar'>بَنِين</td><td>noun</td><td></td><td>—</td><td>sons, children</td><td>unstudied</td></tr><tr class='st-known'><td>#3409</td><td class='ar'>مَبْنَى</td><td>noun</td><td></td><td>—</td><td>building</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#5</span>
+            <span class='root-ar'>ع.ل.م</span>
+            <span class='meta'>score=32,288 · cov=90% · gated=10 · prod=12,870,932</span>
+            <span class='core'>related to knowledge, science, teaching, learning, signs</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> acquiring: 1, known: 8, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_II, patient, verb_IV, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_VIII, verb_X, masdar_I, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#121</td><td class='ar'>مُعَلِّم</td><td></td><td>mufa''il</td><td>agent</td><td>teacher</td><td>known</td></tr><tr class='st-known'><td>#723</td><td class='ar'>عَالَمٌ</td><td>noun</td><td>fa'il</td><td>agent</td><td>world</td><td>known</td></tr><tr class='st-known'><td>#1534</td><td class='ar'>تَّعْلِيمُ</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>education</td><td>known</td></tr><tr class='st-known'><td>#1543</td><td class='ar'>مَعْلُومَات</td><td>noun</td><td>maf'ul</td><td>patient</td><td>information</td><td>known</td></tr><tr class='st-known'><td>#714</td><td class='ar'>أَعْلَمَ</td><td>verb</td><td>form_4</td><td>verb_IV</td><td>to inform, notify</td><td>known</td></tr><tr class='st-known'><td>#395</td><td class='ar'>تعلّمَ</td><td>verb</td><td>form_5</td><td>verb_V</td><td>to learn</td><td>known</td></tr><tr class='st-known'><td>#722</td><td class='ar'>عَلِمَ</td><td>verb</td><td>fa'ila</td><td>—</td><td>to know</td><td>known</td></tr><tr class='st-acquiring'><td>#2900</td><td class='ar'>عَلِيمٞ</td><td>adj</td><td></td><td>—</td><td>knowledgeable</td><td>acquiring</td></tr><tr class='st-unstudied'><td>#3604</td><td class='ar'>عَلَامَة</td><td>noun</td><td></td><td>—</td><td>sign; mark; symbol</td><td>unstudied</td></tr><tr class='st-known'><td>#3714</td><td class='ar'>عَوْلَمَة</td><td>noun</td><td></td><td>—</td><td>globalization</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#6</span>
+            <span class='root-ar'>د.ر.س</span>
+            <span class='meta'>score=20,948 · cov=100% · gated=8 · prod=6,856,899</span>
+            <span class='core'>related to studying, learning, lessons, schools</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 8</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, nisba_adj, place_or_time, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#222</td><td class='ar'>مُدَرِّس</td><td>noun</td><td>mufa''il</td><td>agent</td><td>teacher</td><td>known</td></tr><tr class='st-known'><td>#200</td><td class='ar'>دِراسَة</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>studying</td><td>known</td></tr><tr class='st-known'><td>#216</td><td class='ar'>دَرْس</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>lesson</td><td>known</td></tr><tr class='st-known'><td>#217</td><td class='ar'>دُرُوس</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>lessons</td><td>known</td></tr><tr class='st-known'><td>#1606</td><td class='ar'>دِراسِيّ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>academic</td><td>known</td></tr><tr class='st-known'><td>#226</td><td class='ar'>مَدْرَسَة</td><td>noun</td><td>maf'ala</td><td>place_or_time</td><td>school</td><td>known</td></tr><tr class='st-known'><td>#1680</td><td class='ar'>أَدْرُسُ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>I study</td><td>known</td></tr><tr class='st-known'><td>#1556</td><td class='ar'>نَدْرُسُ</td><td>verb</td><td></td><td>—</td><td>we study</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#7</span>
+            <span class='root-ar'>أ.خ.ر</span>
+            <span class='meta'>score=20,681 · cov=100% · gated=6 · prod=11,880,876</span>
+            <span class='core'>related to lateness, delay, end, rear, others</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, lapsed: 1</div>
+            <div class='present'><strong>Families present:</strong> elative, masdar_II, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_VIII, verb_X, agent, patient, masdar_I, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#741</td><td class='ar'>آخِرٌ</td><td>adj</td><td>af'al</td><td>elative</td><td>last, final</td><td>known</td></tr><tr class='st-known'><td>#2209</td><td class='ar'>تَأْخِير</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>delay</td><td>known</td></tr><tr class='st-known'><td>#415</td><td class='ar'>مُتَأَخِّراً</td><td>adv</td><td>form_5</td><td>verb_V</td><td>late</td><td>known</td></tr><tr class='st-known'><td>#2211</td><td class='ar'>مُتَأَخِّر</td><td>noun</td><td></td><td>—</td><td>late</td><td>known</td></tr><tr class='st-known'><td>#2458</td><td class='ar'>تَأَخَّرَ</td><td>verb</td><td></td><td>—</td><td>to be late</td><td>known</td></tr><tr class='st-lapsed'><td>#2475</td><td class='ar'>مُؤَخَّرَة</td><td>noun</td><td></td><td>—</td><td>rear or backside</td><td>lapsed</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#8</span>
+            <span class='root-ar'>س.ع.د</span>
+            <span class='meta'>score=20,121 · cov=100% · gated=6 · prod=11,246,143</span>
+            <span class='core'>related to happiness, good fortune, prosperity, bliss</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, nisba_adj, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#165</td><td class='ar'>سَعيد</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>happy</td><td>known</td></tr><tr class='st-known'><td>#1930</td><td class='ar'>سُعُودِيّ</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>Saudi</td><td>known</td></tr><tr class='st-known'><td>#1951</td><td class='ar'>سَعُودِيَّة</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>Saudi Arabia</td><td>known</td></tr><tr class='st-known'><td>#2094</td><td class='ar'>ساعَد</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to help</td><td>known</td></tr><tr class='st-known'><td>#2028</td><td class='ar'>سَعِد</td><td>verb</td><td>fa'ila</td><td>—</td><td>to be happy</td><td>known</td></tr><tr class='st-known'><td>#2091</td><td class='ar'>مُساعَدَة</td><td>noun</td><td>mufaa'ala</td><td>—</td><td>help</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#9</span>
+            <span class='root-ar'>ط.ي.ر</span>
+            <span class='meta'>score=19,844 · cov=100% · gated=6 · prod=10,938,787</span>
+            <span class='core'>related to flying, birds, aviation, airports, speed</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6</div>
+            <div class='present'><strong>Families present:</strong> agent, intensive_profession, masdar_I, place_or_time, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#2461</td><td class='ar'>طَائِر</td><td>noun</td><td>fa'il</td><td>agent</td><td>bird</td><td>known</td></tr><tr class='st-known'><td>#1851</td><td class='ar'>طَيَّار</td><td>noun</td><td>fa''al</td><td>intensive_profession</td><td>pilot</td><td>known</td></tr><tr class='st-known'><td>#1517</td><td class='ar'>طُيُور</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>birds</td><td>known</td></tr><tr class='st-known'><td>#306</td><td class='ar'>مَطار</td><td>noun</td><td>maf'al</td><td>place_or_time</td><td>airport</td><td>known</td></tr><tr class='st-known'><td>#1428</td><td class='ar'>طَارَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to fly</td><td>known</td></tr><tr class='st-known'><td>#1520</td><td class='ar'>طَائِرَة</td><td>noun</td><td>fa'ila</td><td>—</td><td>airplane</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#10</span>
+            <span class='root-ar'>د.و.ر</span>
+            <span class='meta'>score=18,510 · cov=75% · gated=8 · prod=9,517,260</span>
+            <span class='core'>related to turning, rotation, cycles, management</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> acquiring: 1, known: 5, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, masdar_IV</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_II, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#685</td><td class='ar'>مُدِيرٌ</td><td>adj</td><td>muf'il</td><td>agent</td><td>manager, director</td><td>known</td></tr><tr class='st-acquiring'><td>#192</td><td class='ar'>دَوْرٌ</td><td></td><td>fa'l</td><td>masdar_I</td><td>role</td><td>acquiring</td></tr><tr class='st-known'><td>#1132</td><td class='ar'>دُوَارٌ</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>dizziness, vertigo</td><td>known</td></tr><tr class='st-known'><td>#1163</td><td class='ar'>إِدَارَةٌ</td><td>noun</td><td>if'al</td><td>masdar_IV</td><td>administration, management</td><td>known</td></tr><tr class='st-known'><td>#3057</td><td class='ar'>مَدَار</td><td>noun</td><td></td><td>—</td><td>orbit</td><td>known</td></tr><tr class='st-known'><td>#3321</td><td class='ar'>أَدَارَ</td><td>verb</td><td></td><td>—</td><td>to turn</td><td>known</td></tr><tr class='st-unstudied'><td>#3445</td><td class='ar'>دائِرَة</td><td>noun</td><td></td><td>—</td><td>circle; department; office</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3741</td><td class='ar'>إِدَارِيٌ</td><td>adj</td><td></td><td>—</td><td>administrative</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#11</span>
+            <span class='root-ar'>خ.ب.ر</span>
+            <span class='meta'>score=17,874 · cov=100% · gated=6 · prod=8,875,351</span>
+            <span class='core'>related to news, information, experience, testing, reports</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6</div>
+            <div class='present'><strong>Families present:</strong> agent, elative, masdar_VIII, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_I, masdar_II, masdar_IV, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#2092</td><td class='ar'>خَبِير</td><td>noun</td><td>fa'il</td><td>agent</td><td>expert</td><td>known</td></tr><tr class='st-known'><td>#317</td><td class='ar'>أخْبار</td><td>noun</td><td>af'al</td><td>elative</td><td>news</td><td>known</td></tr><tr class='st-known'><td>#2457</td><td class='ar'>اِخْتِبَار</td><td>noun</td><td>ifti'al</td><td>masdar_VIII</td><td>test</td><td>known</td></tr><tr class='st-known'><td>#975</td><td class='ar'>خَبَرَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to try, to test</td><td>known</td></tr><tr class='st-known'><td>#3082</td><td class='ar'>أَخْبَرَ</td><td>verb</td><td></td><td>—</td><td>to inform, to tell</td><td>known</td></tr><tr class='st-known'><td>#3491</td><td class='ar'>اخْتَبَرَ</td><td>verb</td><td></td><td>—</td><td>to test</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#12</span>
+            <span class='root-ar'>ع.م.ل</span>
+            <span class='meta'>score=16,898 · cov=60% · gated=10 · prod=7,932,194</span>
+            <span class='core'>related to action, work, labor, making, doing</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, lapsed: 1, learning: 1, unstudied: 3</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_II, masdar_X, patient, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, masdar_I, masdar_IV, masdar_VIII, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#686</td><td class='ar'>عَامِلٌ</td><td>verb</td><td>fa'il</td><td>agent</td><td>worker</td><td>known</td></tr><tr class='st-known'><td>#1804</td><td class='ar'>تَعْمَل</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>she works</td><td>known</td></tr><tr class='st-unstudied'><td>#748</td><td class='ar'>اِسْتِعْمَالٌ</td><td>noun</td><td>istif'al</td><td>masdar_X</td><td>use, usage</td><td>unstudied</td></tr><tr class='st-learning'><td>#1008</td><td class='ar'>مَعْمُولٌ</td><td>adj</td><td>maf'ul</td><td>patient</td><td>current, practiced</td><td>learning</td></tr><tr class='st-known'><td>#272</td><td class='ar'>عَمَل</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to work</td><td>known</td></tr><tr class='st-lapsed'><td>#2112</td><td class='ar'>تَعامُل</td><td>noun</td><td>tafaa'ul</td><td>—</td><td>dealing</td><td>lapsed</td></tr><tr class='st-known'><td>#2795</td><td class='ar'>مُسْتَعْمَل</td><td>adj</td><td></td><td>—</td><td>used</td><td>known</td></tr><tr class='st-known'><td>#3008</td><td class='ar'>اسْتَعْمَلَ</td><td>verb</td><td></td><td>—</td><td>to use</td><td>known</td></tr><tr class='st-unstudied'><td>#3879</td><td class='ar'>عَمِيل</td><td>noun</td><td></td><td>—</td><td>agent</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3949</td><td class='ar'>مَعْمَل</td><td>noun</td><td></td><td>—</td><td>factory, workshop, laboratory</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#13</span>
+            <span class='root-ar'>ع.د.د</span>
+            <span class='meta'>score=16,737 · cov=86% · gated=7 · prod=7,781,330</span>
+            <span class='core'>related to counting, numbers, preparation, readiness, equipment</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I, masdar_X, nisba_adj, verb_IV</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#2429</td><td class='ar'>عَدِيد</td><td>adj</td><td>fa'iil</td><td>adj_fa'iil</td><td>many</td><td>known</td></tr><tr class='st-known'><td>#2422</td><td class='ar'>عَدَد</td><td>noun</td><td>fi'al</td><td>masdar_I</td><td>count</td><td>known</td></tr><tr class='st-known'><td>#963</td><td class='ar'>اِسْتِعْدَادٌ</td><td>noun</td><td>istif'al</td><td>masdar_X</td><td>readiness, preparation</td><td>known</td></tr><tr class='st-known'><td>#2724</td><td class='ar'>اِسْتَعَدَّ</td><td>verb</td><td>istif'al</td><td>masdar_X</td><td>to prepare</td><td>known</td></tr><tr class='st-known'><td>#1539</td><td class='ar'>إِعْدَادِيَّةِ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>preparatory</td><td>known</td></tr><tr class='st-known'><td>#2533</td><td class='ar'>أَعَدَّ</td><td>verb</td><td>form_4</td><td>verb_IV</td><td>to prepare</td><td>known</td></tr><tr class='st-unstudied'><td>#3787</td><td class='ar'>مُتَعَدِّد</td><td>adj</td><td></td><td>—</td><td>multiple</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#14</span>
+            <span class='root-ar'>ف.ض.ل</span>
+            <span class='meta'>score=16,445 · cov=86% · gated=7 · prod=7,512,602</span>
+            <span class='core'>related to virtue, grace, surplus, preference</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> acquiring: 1, known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> elative, patient, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_VIII, verb_X, agent, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1794</td><td class='ar'>أَفْضَل</td><td>verb</td><td>af'al</td><td>elative</td><td>best</td><td>known</td></tr><tr class='st-known'><td>#1603</td><td class='ar'>مُفَضَّل</td><td>noun</td><td>mufa''al</td><td>patient</td><td>favorite</td><td>known</td></tr><tr class='st-known'><td>#432</td><td class='ar'>تفَضَّل</td><td>expr</td><td>form_5</td><td>verb_V</td><td>welcome, go ahead</td><td>known</td></tr><tr class='st-known'><td>#1607</td><td class='ar'>تَفَضَّلِي</td><td>verb</td><td>form_5</td><td>verb_V</td><td>please, come in</td><td>known</td></tr><tr class='st-acquiring'><td>#3152</td><td class='ar'>فَضْلَة</td><td>noun</td><td></td><td>—</td><td>dropping; droppings</td><td>acquiring</td></tr><tr class='st-known'><td>#3274</td><td class='ar'>فُضول</td><td>noun</td><td></td><td>—</td><td>curiosity</td><td>known</td></tr><tr class='st-unstudied'><td>#3737</td><td class='ar'>فَضِيلَة</td><td>noun</td><td></td><td>—</td><td>virtue</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#15</span>
+            <span class='root-ar'>ع.ل.و</span>
+            <span class='meta'>score=15,974 · cov=83% · gated=6 · prod=10,208,006</span>
+            <span class='core'>Relates to height, loftiness, being high, or ascending.</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I, verb_VI</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1968</td><td class='ar'>عَلِيٌّ</td><td>noun_prop</td><td>fa'iil</td><td>adj_fa'iil</td><td>Ali</td><td>known</td></tr><tr class='st-known'><td>#2208</td><td class='ar'>عَالٍ</td><td>noun</td><td>fa'al</td><td>masdar_I</td><td>loud</td><td>known</td></tr><tr class='st-known'><td>#2522</td><td class='ar'>عَالٍ</td><td>adjective</td><td>fa'l</td><td>masdar_I</td><td>high</td><td>known</td></tr><tr class='st-known'><td>#2171</td><td class='ar'>تَعالَى</td><td>verb</td><td>form_6</td><td>verb_VI</td><td>to come</td><td>known</td></tr><tr class='st-known'><td>#3229</td><td class='ar'>عَلَا</td><td>verb</td><td></td><td>—</td><td>to rise</td><td>known</td></tr><tr class='st-unstudied'><td>#3954</td><td class='ar'>عِلاوَة</td><td>noun</td><td></td><td>—</td><td>addition; bonus</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#16</span>
+            <span class='root-ar'>ي.و.م</span>
+            <span class='meta'>score=15,446 · cov=100% · gated=3 · prod=26,510,821</span>
+            <span class='core'>related to days, daytime, periods, daily life</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3</div>
+            <div class='present'><strong>Families present:</strong> elative, masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#241</td><td class='ar'>أَيّام</td><td>noun</td><td>af'al</td><td>elative</td><td>days</td><td>known</td></tr><tr class='st-known'><td>#240</td><td class='ar'>يَوْم</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>day</td><td>known</td></tr><tr class='st-known'><td>#2105</td><td class='ar'>يَوْمِيّ</td><td>adj</td><td></td><td>—</td><td>daily</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#17</span>
+            <span class='root-ar'>ج.د.د</span>
+            <span class='meta'>score=14,857 · cov=83% · gated=6 · prod=8,829,787</span>
+            <span class='core'>related to newness, seriousness, ancestors, effort, renewal</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#179</td><td class='ar'>جَديد</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>new</td><td>known</td></tr><tr class='st-known'><td>#43</td><td class='ar'>جَدّ</td><td></td><td>fa'l</td><td>masdar_I</td><td>grandfather</td><td>known</td></tr><tr class='st-known'><td>#45</td><td class='ar'>جَدّة</td><td></td><td>fa'la</td><td>masdar_I</td><td>grandmother</td><td>known</td></tr><tr class='st-known'><td>#122</td><td class='ar'>جِدّاً</td><td></td><td>fa'l</td><td>masdar_I</td><td>very</td><td>known</td></tr><tr class='st-known'><td>#2549</td><td class='ar'>جِدّ</td><td>noun</td><td>fi'l</td><td>masdar_I</td><td>seriousness, earnestness, diligence</td><td>known</td></tr><tr class='st-unstudied'><td>#3728</td><td class='ar'>تَجْدِيد</td><td>noun</td><td></td><td>—</td><td>renewal; renovation</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#18</span>
+            <span class='root-ar'>ر.ب.ع</span>
+            <span class='meta'>score=13,616 · cov=100% · gated=8 · prod=2,897,059</span>
+            <span class='core'>related to the number four, Wednesday, squares, spring</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 8</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, patient, verb_IV</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_V, verb_VIII, verb_X, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1696</td><td class='ar'>رَّابِع</td><td>adj</td><td>fa'il</td><td>agent</td><td>fourth</td><td>known</td></tr><tr class='st-known'><td>#2256</td><td class='ar'>رَبِيع</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>spring</td><td>known</td></tr><tr class='st-known'><td>#2373</td><td class='ar'>رُبْع</td><td>noun</td><td>fu'l</td><td>masdar_I</td><td>quarter</td><td>known</td></tr><tr class='st-known'><td>#1252</td><td class='ar'>مُرَبَّعٌ</td><td>noun</td><td>mufa''al</td><td>patient</td><td>square</td><td>known</td></tr><tr class='st-known'><td>#606</td><td class='ar'>أَرْبَعَةٌ</td><td>noun</td><td>form_4</td><td>verb_IV</td><td>four</td><td>known</td></tr><tr class='st-known'><td>#236</td><td class='ar'>أَربِعاء</td><td>noun</td><td>af'ilaa'</td><td>—</td><td>Wedenesday</td><td>known</td></tr><tr class='st-known'><td>#1697</td><td class='ar'>رَّابِعَة</td><td>adj</td><td>fa'ila</td><td>—</td><td>fourth (feminine)</td><td>known</td></tr><tr class='st-known'><td>#1768</td><td class='ar'>أَرْبَعُونَ</td><td>noun</td><td></td><td>—</td><td>forty</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#19</span>
+            <span class='root-ar'>ك.ث.ر</span>
+            <span class='meta'>score=13,581 · cov=100% · gated=4 · prod=11,528,066</span>
+            <span class='core'>related to abundance, many, much, plurality</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, elative, masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#361</td><td class='ar'>كَثِير</td><td>adj</td><td>fa'iil</td><td>adj_fa'iil</td><td>many, many, a lot</td><td>known</td></tr><tr class='st-known'><td>#377</td><td class='ar'>أَكْثَر</td><td>adj</td><td>af'al</td><td>elative</td><td>more</td><td>known</td></tr><tr class='st-known'><td>#2561</td><td class='ar'>كَثْرَة</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>abundance</td><td>known</td></tr><tr class='st-known'><td>#3110</td><td class='ar'>كَثُرَ</td><td>verb</td><td></td><td>—</td><td>to increase</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#20</span>
+            <span class='root-ar'>ح.ق.ق</span>
+            <span class='meta'>score=13,173 · cov=71% · gated=7 · prod=6,941,132</span>
+            <span class='core'>related to truth, reality, rights, certainty, and justice</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> acquiring: 1, known: 4, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I, masdar_II, verb_I, verb_X</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, agent, patient, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#532</td><td class='ar'>حَقِيقَةٌ</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>truth, reality</td><td>known</td></tr><tr class='st-known'><td>#1318</td><td class='ar'>حُقُوقٌ</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>rights, law</td><td>known</td></tr><tr class='st-known'><td>#2443</td><td class='ar'>تَحْقيق</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>achievement</td><td>known</td></tr><tr class='st-known'><td>#866</td><td class='ar'>حَقَّ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to be true, to be confirmed</td><td>known</td></tr><tr class='st-acquiring'><td>#2740</td><td class='ar'>اِسْتَحَقّ</td><td>verb</td><td>form_10</td><td>verb_X</td><td>to deserve</td><td>acquiring</td></tr><tr class='st-unstudied'><td>#3416</td><td class='ar'>حَقَّق</td><td>verb</td><td></td><td>—</td><td>to verify, to realize</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3514</td><td class='ar'>حَقِيق</td><td>noun</td><td></td><td>—</td><td>real, actual, true</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#21</span>
+            <span class='root-ar'>أ.م.ر</span>
+            <span class='meta'>score=12,724 · cov=83% · gated=6 · prod=6,476,660</span>
+            <span class='core'>related to commanding, ordering, authority, matters, affairs</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, agent, masdar_I, masdar_IV, nisba_adj, patient</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, masdar_II, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1350</td><td class='ar'>أَمِيرَة</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>princess</td><td>known</td></tr><tr class='st-known'><td>#1185</td><td class='ar'>آمَرَ</td><td>verb</td><td>fa'il</td><td>agent</td><td>to command, to order</td><td>known</td></tr><tr class='st-known'><td>#2501</td><td class='ar'>أَمْر</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>matter/affair</td><td>known</td></tr><tr class='st-known'><td>#1872</td><td class='ar'>إِمَارَات</td><td>noun</td><td>if'al</td><td>masdar_IV</td><td>the Emirates</td><td>known</td></tr><tr class='st-known'><td>#1933</td><td class='ar'>إِمَارَاتِيّ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>Emirati</td><td>known</td></tr><tr class='st-unstudied'><td>#1299</td><td class='ar'>مَأْمُورٌ</td><td>noun</td><td>maf'ul</td><td>patient</td><td>officer, bailiff</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#22</span>
+            <span class='root-ar'>ح.و.ل</span>
+            <span class='meta'>score=12,550 · cov=86% · gated=7 · prod=4,375,755</span>
+            <span class='core'>related to change, transformation, power, shifting, surrounding</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> agent, verb_I, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_VIII, verb_X, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1835</td><td class='ar'>حَالِياً</td><td>adv</td><td>fa'il</td><td>agent</td><td>currently</td><td>known</td></tr><tr class='st-known'><td>#890</td><td class='ar'>حَالَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to change, to be transformed</td><td>known</td></tr><tr class='st-known'><td>#1009</td><td class='ar'>تَحَوَّلَ</td><td>verb</td><td>form_5</td><td>verb_V</td><td>to transform, change</td><td>known</td></tr><tr class='st-known'><td>#2120</td><td class='ar'>حالَة</td><td>noun</td><td>fa'ila</td><td>—</td><td>case</td><td>known</td></tr><tr class='st-known'><td>#2771</td><td class='ar'>حَوالَيْ</td><td>noun</td><td></td><td>—</td><td>around</td><td>known</td></tr><tr class='st-known'><td>#2772</td><td class='ar'>حَاوَلَ</td><td>verb</td><td></td><td>—</td><td>to try</td><td>known</td></tr><tr class='st-unstudied'><td>#3554</td><td class='ar'>تَحْوِيل</td><td>noun</td><td></td><td>—</td><td>to transform; transfer</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#23</span>
+            <span class='root-ar'>ع.و.د</span>
+            <span class='meta'>score=12,008 · cov=73% · gated=11 · prod=2,253,294</span>
+            <span class='core'>related to returning, habits, customs, recurring festivals</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> acquiring: 1, known: 6, lapsed: 1, unstudied: 3</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_VIII, verb_X, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#171</td><td class='ar'>عَادِيٌّ</td><td></td><td>fa'il</td><td>agent</td><td>normal</td><td>known</td></tr><tr class='st-known'><td>#419</td><td class='ar'>عادَةً</td><td>adv</td><td>fi'ala</td><td>masdar_I</td><td>usually</td><td>known</td></tr><tr class='st-known'><td>#610</td><td class='ar'>عِيدٌ</td><td>noun</td><td>fi'l</td><td>masdar_I</td><td>holiday, festival</td><td>known</td></tr><tr class='st-known'><td>#1330</td><td class='ar'>عُودٌ</td><td>noun</td><td>fu'l</td><td>masdar_I</td><td>wood, timber</td><td>known</td></tr><tr class='st-known'><td>#2484</td><td class='ar'>عِيَادَة</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>clinics</td><td>known</td></tr><tr class='st-unstudied'><td>#2147</td><td class='ar'>تَعَوَّد</td><td>verb</td><td>form_5</td><td>verb_V</td><td>to get used to</td><td>unstudied</td></tr><tr class='st-known'><td>#2200</td><td class='ar'>أَعَادَ</td><td>verb</td><td></td><td>—</td><td>to repeat</td><td>known</td></tr><tr class='st-lapsed'><td>#3404</td><td class='ar'>مُعْتَادٌ</td><td>adj</td><td></td><td>—</td><td>accustomed</td><td>lapsed</td></tr><tr class='st-unstudied'><td>#3725</td><td class='ar'>ٱِسْتِعادَة</td><td>noun</td><td></td><td>—</td><td>restoration; retrieval</td><td>unstudied</td></tr><tr class='st-acquiring'><td>#3814</td><td class='ar'>عائِد</td><td>adj</td><td></td><td>—</td><td>returning; returning to</td><td>acquiring</td></tr><tr class='st-unstudied'><td>#3988</td><td class='ar'>عاوَد</td><td>noun</td><td></td><td>—</td><td>compresses, poultices</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#24</span>
+            <span class='root-ar'>غ.ر.ب</span>
+            <span class='meta'>score=11,862 · cov=86% · gated=7 · prod=3,908,757</span>
+            <span class='core'>related to the west, sunset, strangeness, foreignness</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6, learning: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, masdar_I, nisba_adj, place_or_time</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#119</td><td class='ar'>غَريب</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>weird</td><td>known</td></tr><tr class='st-known'><td>#967</td><td class='ar'>غُرُوب</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>sunset</td><td>known</td></tr><tr class='st-known'><td>#1940</td><td class='ar'>مَغْرِبِيّ</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>Moroccan</td><td>known</td></tr><tr class='st-known'><td>#1958</td><td class='ar'>مَغْرِب</td><td>noun</td><td>maf'il</td><td>place_or_time</td><td>Morocco</td><td>known</td></tr><tr class='st-known'><td>#2784</td><td class='ar'>غَرْب</td><td>noun</td><td></td><td>—</td><td>west</td><td>known</td></tr><tr class='st-known'><td>#3121</td><td class='ar'>غُرَاب</td><td>noun</td><td></td><td>—</td><td>raven, crow</td><td>known</td></tr><tr class='st-learning'><td>#3313</td><td class='ar'>اسْتَغْرَب</td><td>verb</td><td></td><td>—</td><td>to be surprised</td><td>learning</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#25</span>
+            <span class='root-ar'>ش.ه.ر</span>
+            <span class='meta'>score=11,112 · cov=86% · gated=7 · prod=3,429,953</span>
+            <span class='core'>related to fame, months, visibility, clarity, publicizing</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, masdar_VIII, nisba_adj, patient</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, masdar_II, masdar_IV, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#633</td><td class='ar'>شَهْرٌ</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>month</td><td>known</td></tr><tr class='st-unstudied'><td>#1140</td><td class='ar'>اشْتِهَارٌ</td><td>noun</td><td>ifti'al</td><td>masdar_VIII</td><td>fame, notoriety</td><td>unstudied</td></tr><tr class='st-known'><td>#1466</td><td class='ar'>شَهْرِيٌّ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>monthly</td><td>known</td></tr><tr class='st-known'><td>#96</td><td class='ar'>مَشْهورة</td><td></td><td>maf'ul</td><td>patient</td><td>famous</td><td>known</td></tr><tr class='st-known'><td>#2946</td><td class='ar'>مَشْهُور</td><td>adj</td><td></td><td>—</td><td>famous</td><td>known</td></tr><tr class='st-known'><td>#2947</td><td class='ar'>اِشْتَهَرَ</td><td>verb</td><td></td><td>—</td><td>to be famous</td><td>known</td></tr><tr class='st-known'><td>#2950</td><td class='ar'>شَهِير</td><td>adj</td><td></td><td>—</td><td>famous</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#26</span>
+            <span class='root-ar'>ح.م.د</span>
+            <span class='meta'>score=11,041 · cov=100% · gated=3 · prod=13,546,228</span>
+            <span class='core'>related to praise, commendation, gratitude, being praiseworthy</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, patient</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1994</td><td class='ar'>حَمْد</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>praise</td><td>known</td></tr><tr class='st-known'><td>#4</td><td class='ar'>مُحَمَّد</td><td></td><td>mufa''al</td><td>patient</td><td>(name) Mohamed</td><td>known</td></tr><tr class='st-known'><td>#3151</td><td class='ar'>أَحْمَد</td><td>noun</td><td></td><td>—</td><td>Ahmed (proper name)</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#27</span>
+            <span class='root-ar'>ط.ل.ب</span>
+            <span class='meta'>score=10,317 · cov=83% · gated=6 · prod=4,257,689</span>
+            <span class='core'>related to seeking, requesting, students, demanding, searching</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, patient, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#223</td><td class='ar'>طالِب</td><td>noun</td><td>fa'il</td><td>agent</td><td>student</td><td>known</td></tr><tr class='st-known'><td>#224</td><td class='ar'>طُلّاب</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>students</td><td>known</td></tr><tr class='st-known'><td>#2520</td><td class='ar'>مَطْلُوب</td><td>adjective</td><td>maf'ul</td><td>patient</td><td>required</td><td>known</td></tr><tr class='st-known'><td>#225</td><td class='ar'>طَلبة</td><td>noun</td><td>form_1</td><td>verb_I</td><td>students</td><td>known</td></tr><tr class='st-known'><td>#620</td><td class='ar'>طَلَبَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to request, ask</td><td>known</td></tr><tr class='st-unstudied'><td>#3742</td><td class='ar'>مَطْلَبٌ</td><td>noun</td><td></td><td>—</td><td>demand</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#28</span>
+            <span class='root-ar'>ل.ع.ب</span>
+            <span class='meta'>score=9,935 · cov=100% · gated=4 · prod=6,170,044</span>
+            <span class='core'>related to playing, games, toys, saliva, drooling</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4</div>
+            <div class='present'><strong>Families present:</strong> elative, masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1243</td><td class='ar'>أَلْعَابٌ</td><td>noun</td><td>af'al</td><td>elative</td><td>games, toys</td><td>known</td></tr><tr class='st-known'><td>#1247</td><td class='ar'>لُعَابٌ</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>saliva, spittle</td><td>known</td></tr><tr class='st-known'><td>#1244</td><td class='ar'>لَعِبَ</td><td>verb</td><td>fa'ila</td><td>—</td><td>to play</td><td>known</td></tr><tr class='st-known'><td>#2788</td><td class='ar'>مَلْعَب</td><td>noun</td><td></td><td>—</td><td>playground</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#29</span>
+            <span class='root-ar'>ث.ن.ي</span>
+            <span class='meta'>score=9,917 · cov=86% · gated=7 · prod=2,732,400</span>
+            <span class='core'>related to doubling, the number two, Monday, secondary</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> agent, nisba_adj, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1560</td><td class='ar'>ثَّانِي</td><td>adj</td><td>fa'il</td><td>agent</td><td>second</td><td>known</td></tr><tr class='st-known'><td>#1540</td><td class='ar'>ثَّانَوِيَّةُ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>secondary</td><td>known</td></tr><tr class='st-known'><td>#234</td><td class='ar'>اثْنَين</td><td>noun</td><td>form_1</td><td>verb_I</td><td>Monday</td><td>known</td></tr><tr class='st-known'><td>#632</td><td class='ar'>ثَانِيَةٌ</td><td>noun</td><td>fa'ila</td><td>—</td><td>second</td><td>known</td></tr><tr class='st-known'><td>#2967</td><td class='ar'>أَثْناء</td><td>noun</td><td></td><td>—</td><td>during</td><td>known</td></tr><tr class='st-known'><td>#3465</td><td class='ar'>اثْنَان</td><td>adj</td><td></td><td>—</td><td>two</td><td>known</td></tr><tr class='st-unstudied'><td>#3857</td><td class='ar'>ٱِسْتِثْناء</td><td>noun</td><td></td><td>—</td><td>exception</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#30</span>
+            <span class='root-ar'>ج.م.ل</span>
+            <span class='meta'>score=9,891 · cov=100% · gated=5 · prod=3,913,829</span>
+            <span class='core'>related to beauty, grace, totality, camels, elegance</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, elative, masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#7</td><td class='ar'>جَميلة</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>pretty</td><td>known</td></tr><tr class='st-known'><td>#151</td><td class='ar'>جَميل</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>beautiful</td><td>known</td></tr><tr class='st-known'><td>#1791</td><td class='ar'>أَجْمَل</td><td>noun</td><td>af'al</td><td>elative</td><td>more beautiful</td><td>known</td></tr><tr class='st-known'><td>#210</td><td class='ar'>جُمَل</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>sentences</td><td>known</td></tr><tr class='st-known'><td>#521</td><td class='ar'>جَمَالٌ</td><td>noun</td><td>fa'al</td><td>masdar_I</td><td>beauty</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#31</span>
+            <span class='root-ar'>د.ق.ق</span>
+            <span class='meta'>score=9,814 · cov=100% · gated=5 · prod=3,852,947</span>
+            <span class='core'>related to precision, fineness, minutes, flour, crushing</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#249</td><td class='ar'>دَقِيقَة</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>minute</td><td>known</td></tr><tr class='st-known'><td>#697</td><td class='ar'>دَقِيقٌ</td><td>adj</td><td>fa'iil</td><td>adj_fa'iil</td><td>precise, accurate, exact</td><td>known</td></tr><tr class='st-known'><td>#250</td><td class='ar'>دَقائِق</td><td>noun</td><td>fa'a'il</td><td>—</td><td>minutes</td><td>known</td></tr><tr class='st-known'><td>#3029</td><td class='ar'>دِقَّة</td><td>noun</td><td></td><td>—</td><td>precision, accuracy</td><td>known</td></tr><tr class='st-known'><td>#3324</td><td class='ar'>دَقَّ</td><td>verb</td><td></td><td>—</td><td>to ring</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#32</span>
+            <span class='root-ar'>ب.ي.ن</span>
+            <span class='meta'>score=9,767 · cov=50% · gated=4 · prod=23,851,659</span>
+            <span class='core'>related to clarity, separation, distance, betweenness</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 2, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#554</td><td class='ar'>بَانَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to separate, to become distinct, to sunder</td><td>known</td></tr><tr class='st-unstudied'><td>#461</td><td class='ar'>بَيْن</td><td>prep</td><td></td><td>—</td><td>between</td><td>unstudied</td></tr><tr class='st-known'><td>#2228</td><td class='ar'>بِيانُو</td><td>noun</td><td></td><td>—</td><td>piano</td><td>known</td></tr><tr class='st-unstudied'><td>#4024</td><td class='ar'>بَيَان</td><td>noun</td><td></td><td>—</td><td>statement; clarification</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#33</span>
+            <span class='root-ar'>ق.و.ل</span>
+            <span class='meta'>score=9,734 · cov=60% · gated=5 · prod=10,528,717</span>
+            <span class='core'>related to saying, speech, words, utterance, speaking</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#905</td><td class='ar'>قَوْلٌ</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>speech, saying</td><td>known</td></tr><tr class='st-known'><td>#408</td><td class='ar'>قَالَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to say</td><td>known</td></tr><tr class='st-known'><td>#3056</td><td class='ar'>مُقال</td><td>noun</td><td></td><td>—</td><td>article</td><td>known</td></tr><tr class='st-unstudied'><td>#3693</td><td class='ar'>اِسْتِقَالَة</td><td>noun</td><td></td><td>—</td><td>resignation</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#4020</td><td class='ar'>مَايَقُولُونَ</td><td>verb</td><td></td><td>—</td><td>to say</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#34</span>
+            <span class='root-ar'>ح.ك.م</span>
+            <span class='meta'>score=9,597 · cov=71% · gated=7 · prod=3,684,409</span>
+            <span class='core'>related to wisdom, ruling, judgment, authority, governing</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> encountered: 1, known: 5, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, agent, masdar_I, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#638</td><td class='ar'>حَكِيمٌ</td><td>adj</td><td>fa'iil</td><td>adj_fa'iil</td><td>wise</td><td>known</td></tr><tr class='st-known'><td>#1327</td><td class='ar'>حَاكِمٌ</td><td>adj</td><td>fa'il</td><td>agent</td><td>ruling, governing</td><td>known</td></tr><tr class='st-known'><td>#671</td><td class='ar'>حِكْمَة</td><td>noun</td><td>fi'la</td><td>masdar_I</td><td>wisdom</td><td>known</td></tr><tr class='st-known'><td>#690</td><td class='ar'>حُكُومَةٌ</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>government</td><td>known</td></tr><tr class='st-known'><td>#1439</td><td class='ar'>حَكَمَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to rule, judge</td><td>known</td></tr><tr class='st-encountered'><td>#3564</td><td class='ar'>حُكُومِيّ</td><td>adj</td><td></td><td>—</td><td>governmental</td><td>encountered</td></tr><tr class='st-unstudied'><td>#3624</td><td class='ar'>مُحَاكَمَة</td><td>noun</td><td></td><td>—</td><td>trial</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#35</span>
+            <span class='root-ar'>ك.ل.ل</span>
+            <span class='meta'>score=9,341 · cov=67% · gated=3 · prod=21,814,882</span>
+            <span class='core'>related to totality, completeness, crowns, exhaustion</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 2, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, nisba_adj</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#358</td><td class='ar'>كُلّ</td><td>noun</td><td>fu'l</td><td>masdar_I</td><td>all (of), each</td><td>known</td></tr><tr class='st-known'><td>#1052</td><td class='ar'>كُلِّيَّة</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>college, faculty</td><td>known</td></tr><tr class='st-unstudied'><td>#4011</td><td class='ar'>الكَلُّوت</td><td>verb</td><td></td><td>—</td><td>to overflow, to spill</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#36</span>
+            <span class='root-ar'>س.ل.م</span>
+            <span class='meta'>score=9,322 · cov=71% · gated=7 · prod=3,476,534</span>
+            <span class='core'>related to peace, safety, submission, soundness</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 5, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, masdar_IV, verb_III</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_IV, verb_V, verb_VIII, verb_X, patient, masdar_II, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#498</td><td class='ar'>مُسْلِمٌ</td><td>noun</td><td>muf'il</td><td>agent</td><td>Muslim</td><td>known</td></tr><tr class='st-known'><td>#429</td><td class='ar'>سَلام</td><td>expr</td><td>fa'al</td><td>masdar_I</td><td>hi, bye (abbrev. of السلام عليكم \ وعليكم السلام)</td><td>known</td></tr><tr class='st-known'><td>#484</td><td class='ar'>سِلْمٌ</td><td>noun</td><td>fi'l</td><td>masdar_I</td><td>peace</td><td>known</td></tr><tr class='st-known'><td>#1652</td><td class='ar'>سَّلامَةِ</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>safety</td><td>known</td></tr><tr class='st-known'><td>#839</td><td class='ar'>إِسْلَامٌ</td><td>noun</td><td>if'al</td><td>masdar_IV</td><td>Islam, submission</td><td>known</td></tr><tr class='st-unstudied'><td>#1199</td><td class='ar'>سَالَمَ</td><td>verb</td><td>form_3</td><td>verb_III</td><td>to make peace</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3594</td><td class='ar'>تَسْلِيم</td><td>noun</td><td></td><td>—</td><td>delivery</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#37</span>
+            <span class='root-ar'>ك.ب.ر</span>
+            <span class='meta'>score=9,319 · cov=75% · gated=4 · prod=9,650,694</span>
+            <span class='core'>related to greatness, size, aging, seniority, bridges</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, elative, nisba_adj</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#108</td><td class='ar'>كَبيرة</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>older</td><td>known</td></tr><tr class='st-known'><td>#177</td><td class='ar'>كَبير</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>big</td><td>known</td></tr><tr class='st-known'><td>#378</td><td class='ar'>أَكْبَر</td><td>adj</td><td>af'al</td><td>elative</td><td>big</td><td>known</td></tr><tr class='st-unstudied'><td>#556</td><td class='ar'>كُوبْرِيٌّ</td><td>noun</td><td>nisba</td><td>nisba_adj</td><td>overpass, flyover</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#38</span>
+            <span class='root-ar'>ت.م.م</span>
+            <span class='meta'>score=9,314 · cov=75% · gated=4 · prod=9,640,484</span>
+            <span class='core'>related to completion, perfection, fullness, being finished</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#435</td><td class='ar'>تَمَامٌ</td><td>expr</td><td>fi'al</td><td>masdar_I</td><td>ok, deal</td><td>known</td></tr><tr class='st-known'><td>#1360</td><td class='ar'>تَمَّ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>be completed</td><td>known</td></tr><tr class='st-known'><td>#144</td><td class='ar'>تَماماً</td><td></td><td>fa'aal</td><td>—</td><td>absolutely</td><td>known</td></tr><tr class='st-unstudied'><td>#3825</td><td class='ar'>إِتْمام</td><td>noun</td><td></td><td>—</td><td>completion; fulfillment</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#39</span>
+            <span class='root-ar'>ر.س.ل</span>
+            <span class='meta'>score=9,289 · cov=80% · gated=5 · prod=5,392,875</span>
+            <span class='core'>related to sending, messages, messengers, correspondence, missions</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, verb_IV</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#320</td><td class='ar'>رِسالة</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>message</td><td>known</td></tr><tr class='st-known'><td>#791</td><td class='ar'>رَسُولٌ</td><td>noun</td><td>fa'ul</td><td>masdar_I</td><td>messenger, envoy</td><td>known</td></tr><tr class='st-known'><td>#2278</td><td class='ar'>أَرْسَلَ</td><td>verb</td><td>form_4</td><td>verb_IV</td><td>to send</td><td>known</td></tr><tr class='st-known'><td>#321</td><td class='ar'>رَسائِل</td><td>noun</td><td>fa'a'il</td><td>—</td><td>messages</td><td>known</td></tr><tr class='st-unstudied'><td>#3764</td><td class='ar'>مُرَاسِل</td><td>noun</td><td></td><td>—</td><td>correspondent; letter writer</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#40</span>
+            <span class='root-ar'>ج.ل.س</span>
+            <span class='meta'>score=9,211 · cov=100% · gated=3 · prod=9,427,016</span>
+            <span class='core'>related to sitting, sessions, councils, assemblies</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, place_or_time, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1722</td><td class='ar'>جُلُوس</td><td>noun</td><td>fu'ul</td><td>masdar_I</td><td>sitting</td><td>known</td></tr><tr class='st-known'><td>#864</td><td class='ar'>مَجْلِسٌ</td><td>noun</td><td>maf'il</td><td>place_or_time</td><td>seat</td><td>known</td></tr><tr class='st-known'><td>#1731</td><td class='ar'>جَلَسَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to sit</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#41</span>
+            <span class='root-ar'>ص.و.ر</span>
+            <span class='meta'>score=8,932 · cov=75% · gated=4 · prod=8,865,381</span>
+            <span class='core'>related to pictures, images, photography, shapes, forms</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3, unstudied: 1</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, masdar_II, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_VIII, verb_X, patient, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1853</td><td class='ar'>مُصَوِّر</td><td>noun</td><td>mufa''il</td><td>agent</td><td>photographer</td><td>known</td></tr><tr class='st-known'><td>#319</td><td class='ar'>صُوَر</td><td>noun</td><td>fu'al</td><td>masdar_I</td><td>photos, pictures</td><td>known</td></tr><tr class='st-known'><td>#2240</td><td class='ar'>تَصْوِير</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>photography</td><td>known</td></tr><tr class='st-unstudied'><td>#2149</td><td class='ar'>تَصَوَّر</td><td>verb</td><td>form_5</td><td>verb_V</td><td>to imagine</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#42</span>
+            <span class='root-ar'>ك.و.ن</span>
+            <span class='meta'>score=8,920 · cov=50% · gated=4 · prod=19,895,576</span>
+            <span class='core'>related to being, existence, places, happening, the universe</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 2, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> place_or_time, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#293</td><td class='ar'>مَكان</td><td>noun</td><td>maf'al</td><td>place_or_time</td><td>place</td><td>known</td></tr><tr class='st-known'><td>#385</td><td class='ar'>كَانَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to be</td><td>known</td></tr><tr class='st-unstudied'><td>#1145</td><td class='ar'>כאן</td><td>verb</td><td>form_1</td><td>verb_I</td><td>was (Judeo-Arabic)</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3694</td><td class='ar'>تَكْوِين</td><td>noun</td><td></td><td>—</td><td>formation</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#43</span>
+            <span class='root-ar'>س.و.د</span>
+            <span class='meta'>score=8,904 · cov=100% · gated=6 · prod=2,202,550</span>
+            <span class='core'>related to mastery, lordship, the color black, leadership</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 6</div>
+            <div class='present'><strong>Families present:</strong> elative, nisba_adj, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#382</td><td class='ar'>أََسْوَد</td><td>adj</td><td>af'al</td><td>elative</td><td>black</td><td>known</td></tr><tr class='st-known'><td>#1942</td><td class='ar'>سُودَانِيّ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>Sudanese</td><td>known</td></tr><tr class='st-known'><td>#139</td><td class='ar'>سَادَةٌ</td><td></td><td>form_1</td><td>verb_I</td><td>gentlemen</td><td>known</td></tr><tr class='st-known'><td>#1837</td><td class='ar'>سُوِيد</td><td>noun</td><td></td><td>—</td><td>Sweden</td><td>known</td></tr><tr class='st-known'><td>#1838</td><td class='ar'>سُوِيدِيّ</td><td>adj</td><td></td><td>—</td><td>Swedish</td><td>known</td></tr><tr class='st-known'><td>#1960</td><td class='ar'>سُودَان</td><td>noun</td><td>fu'laan</td><td>—</td><td>Sudan</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#44</span>
+            <span class='root-ar'>ع.ب.د</span>
+            <span class='meta'>score=8,809 · cov=100% · gated=3 · prod=8,622,524</span>
+            <span class='core'>related to worship, service, slavery, devotion, being a servant</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3</div>
+            <div class='present'><strong>Families present:</strong> masdar_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1338</td><td class='ar'>عَبْدٌ</td><td>noun</td><td>fa'l</td><td>masdar_I</td><td>slave, servant</td><td>known</td></tr><tr class='st-known'><td>#2800</td><td class='ar'>مَعْبَد</td><td>noun</td><td></td><td>—</td><td>temple</td><td>known</td></tr><tr class='st-known'><td>#3927</td><td class='ar'>عَبَدَ</td><td>verb</td><td></td><td>—</td><td>to worship</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#45</span>
+            <span class='root-ar'>ح.د.ث</span>
+            <span class='meta'>score=8,799 · cov=67% · gated=6 · prod=4,839,347</span>
+            <span class='core'>modern</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, verb_I, verb_IV, verb_V</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1529</td><td class='ar'>حَدِيثٌ</td><td>noun</td><td>fa'iil</td><td>adj_fa'iil</td><td>modern</td><td>known</td></tr><tr class='st-known'><td>#2551</td><td class='ar'>حَدَثَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to happen</td><td>known</td></tr><tr class='st-known'><td>#2170</td><td class='ar'>أَحْدَث</td><td>verb</td><td>form_4</td><td>verb_IV</td><td>to happen</td><td>known</td></tr><tr class='st-known'><td>#2536</td><td class='ar'>تَحَدَّثَ</td><td>verb</td><td>form_5</td><td>verb_V</td><td>to talk</td><td>known</td></tr><tr class='st-unstudied'><td>#3655</td><td class='ar'>مُحَادَثَة</td><td>noun</td><td></td><td>—</td><td>conversation</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3685</td><td class='ar'>تَحْدِيث</td><td>noun</td><td></td><td>—</td><td>update; modernization; renewal</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#46</span>
+            <span class='root-ar'>ج.ن.ب</span>
+            <span class='meta'>score=8,797 · cov=67% · gated=6 · prod=4,837,779</span>
+            <span class='core'>related to sides, proximity, avoidance, direction</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> masdar_I, verb_III</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1062</td><td class='ar'>جَنُوبٌ</td><td>noun</td><td>fa'ul</td><td>masdar_I</td><td>south</td><td>known</td></tr><tr class='st-known'><td>#2020</td><td class='ar'>جانَب</td><td>verb</td><td>form_3</td><td>verb_III</td><td>to avoid</td><td>known</td></tr><tr class='st-known'><td>#460</td><td class='ar'>بِجَانِبِ</td><td>prep</td><td></td><td>—</td><td>next to</td><td>known</td></tr><tr class='st-known'><td>#3371</td><td class='ar'>أَجْنَبِي</td><td>adj</td><td></td><td>—</td><td>foreign</td><td>known</td></tr><tr class='st-unstudied'><td>#3812</td><td class='ar'>تَجَنَّب</td><td>verb</td><td></td><td>—</td><td>to avoid</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3813</td><td class='ar'>جَنْب</td><td>noun</td><td></td><td>—</td><td>side</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#47</span>
+            <span class='root-ar'>م.د.ن</span>
+            <span class='meta'>score=8,711 · cov=100% · gated=3 · prod=8,432,962</span>
+            <span class='core'>related to cities, civilization, urbanization, settling, being refined</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3</div>
+            <div class='present'><strong>Families present:</strong> adj_fa'iil, nisba_adj</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_I, verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_II, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#110</td><td class='ar'>مَدينة</td><td></td><td>fa'iil</td><td>adj_fa'iil</td><td>city</td><td>known</td></tr><tr class='st-known'><td>#1867</td><td class='ar'>مَدَنِيَّةٌ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>civil</td><td>known</td></tr><tr class='st-known'><td>#2531</td><td class='ar'>مَدَنِيّ</td><td>adjective</td><td>nisba</td><td>nisba_adj</td><td>civil</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#48</span>
+            <span class='root-ar'>ح.ض.ر</span>
+            <span class='meta'>score=8,664 · cov=100% · gated=8 · prod=1,173,021</span>
+            <span class='core'>related to presence, civilization, urban life, attending, settling</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 8</div>
+            <div class='present'><strong>Families present:</strong> agent, masdar_I, masdar_II, patient, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#2210</td><td class='ar'>حَاضِر</td><td>verb</td><td>fa'il</td><td>agent</td><td>present</td><td>known</td></tr><tr class='st-known'><td>#1106</td><td class='ar'>حَضَارَةٌ</td><td>noun</td><td>fi'ala</td><td>masdar_I</td><td>civilization</td><td>known</td></tr><tr class='st-known'><td>#2636</td><td class='ar'>تَحْضِير</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>preparation</td><td>known</td></tr><tr class='st-known'><td>#2463</td><td class='ar'>حُضُور</td><td>noun</td><td>maf'ul</td><td>patient</td><td>attendance, presence</td><td>known</td></tr><tr class='st-known'><td>#2455</td><td class='ar'>حَضَرَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to attend</td><td>known</td></tr><tr class='st-known'><td>#2920</td><td class='ar'>حَضَارِيّ</td><td>adj</td><td></td><td>—</td><td>civilized</td><td>known</td></tr><tr class='st-known'><td>#2922</td><td class='ar'>مُحَاضَرَة</td><td>noun</td><td></td><td>—</td><td>lecture</td><td>known</td></tr><tr class='st-known'><td>#3327</td><td class='ar'>إِحْضَار</td><td>noun</td><td></td><td>—</td><td>bringing</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#49</span>
+            <span class='root-ar'>و.ق.ع</span>
+            <span class='meta'>score=8,334 · cov=60% · gated=5 · prod=7,717,713</span>
+            <span class='core'>related to falling, occurring, locations, and reality</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 3, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> masdar_II, place_or_time, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_I, masdar_IV, masdar_VIII, masdar_X, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#1547</td><td class='ar'>تَقَعُ</td><td>verb</td><td>taf'il</td><td>masdar_II</td><td>is located</td><td>known</td></tr><tr class='st-known'><td>#820</td><td class='ar'>مَوْقِعٌ</td><td>noun</td><td>maf'al</td><td>place_or_time</td><td>site, location</td><td>known</td></tr><tr class='st-known'><td>#1743</td><td class='ar'>وَقَعَ</td><td>verb</td><td>form_1</td><td>verb_I</td><td>to fall; to be located</td><td>known</td></tr><tr class='st-unstudied'><td>#3536</td><td class='ar'>تَوْقِيع</td><td>noun</td><td></td><td>—</td><td>signature; signing</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#3855</td><td class='ar'>مُتَوَقِّع</td><td>adj</td><td></td><td>—</td><td>expected</td><td>unstudied</td></tr></tbody></table>
+          </div>
+        </details>
+        
+        <details class='root'>
+          <summary>
+            <span class='rank'>#50</span>
+            <span class='root-ar'>ح.س.ن</span>
+            <span class='meta'>score=8,190 · cov=67% · gated=6 · prod=4,192,607</span>
+            <span class='core'>related to goodness, beauty, improvement, excellence</span>
+          </summary>
+          <div class='detail'>
+            <div class='counts'><strong>States:</strong> known: 4, unstudied: 2</div>
+            <div class='present'><strong>Families present:</strong> elative, masdar_I, masdar_II, nisba_adj, verb_I</div>
+            <div class='missing'><strong>Missing target families:</strong> verb_II, verb_III, verb_IV, verb_V, verb_VIII, verb_X, agent, patient, masdar_IV, masdar_VIII, masdar_X, place_or_time, instrument</div>
+            <table class='palette'><thead><tr><th>id</th><th>arabic</th><th>pos</th><th>wazn</th><th>family</th><th>gloss</th><th>state</th></tr></thead><tbody><tr class='st-known'><td>#379</td><td class='ar'>أَحْسَن</td><td>adj</td><td>af'al</td><td>elative</td><td>better</td><td>known</td></tr><tr class='st-known'><td>#486</td><td class='ar'>حَسُنَ</td><td>verb</td><td>fa'ula</td><td>masdar_I</td><td>to be good</td><td>known</td></tr><tr class='st-known'><td>#949</td><td class='ar'>تَحْسِينٌ</td><td>noun</td><td>taf'il</td><td>masdar_II</td><td>improvement</td><td>known</td></tr><tr class='st-unstudied'><td>#950</td><td class='ar'>تَحْسِينِيٌّ</td><td>adj</td><td>nisba</td><td>nisba_adj</td><td>amendatory</td><td>unstudied</td></tr><tr class='st-unstudied'><td>#948</td><td class='ar'>حَسَنَةٌ</td><td>noun</td><td>form_1</td><td>verb_I</td><td>good deed, benefaction</td><td>unstudied</td></tr><tr class='st-known'><td>#2106</td><td class='ar'>تَحَسُّن</td><td>noun</td><td>tafa''ul</td><td>—</td><td>improvement</td><td>known</td></tr></tbody></table>
+          </div>
+        </details>
+        
+</body>
+</html>
