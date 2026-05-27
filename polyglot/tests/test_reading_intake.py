@@ -113,6 +113,113 @@ def test_split_into_sentences_unquoted_text_unaffected_by_dialog_rule():
     assert parts == ["Marcus venit.", "Quintus plorat.", "Iulia cantat."]
 
 
+# ─── paginate_by_length ────────────────────────────────────────────────────
+
+
+def test_paginate_short_text_one_page():
+    out = reading_intake._paginate_by_length("Καλημέρα.", "el", max_chars=500)
+    assert out == ["Καλημέρα."]
+
+
+def test_paginate_empty_returns_empty_list():
+    assert reading_intake._paginate_by_length("", "el") == []
+    assert reading_intake._paginate_by_length("   \n  ", "el") == []
+
+
+def test_paginate_groups_sentences_under_limit():
+    # Three 12-char sentences. max=30 → first two fit (25 chars), third spills.
+    text = "Aaa aaa aaa. Bbb bbb bbb. Ccc ccc ccc."
+    out = reading_intake._paginate_by_length(text, "la", max_chars=30)
+    assert out == ["Aaa aaa aaa. Bbb bbb bbb.", "Ccc ccc ccc."]
+
+
+def test_paginate_keeps_oversize_single_sentence_whole():
+    # An 80-char single sentence with max=40 stays as one page rather than
+    # being sliced mid-clause.
+    text = "Hoc est unum colossale enuntiatum quod limitem excedit certissime."
+    out = reading_intake._paginate_by_length(text, "la", max_chars=40)
+    assert out == [text]
+
+
+def test_paginate_latin_calendar_abbrev_not_split():
+    # Eutropius-style date phrase — `Kal.` must stay attached to its date,
+    # so we don't generate an orphan "Maias, ..." page.
+    text = (
+        "Urbs Romana condita est ante diem XI Kal. Maias, "
+        "Olympiadis sextae anno tertio. "
+        "Romulus deinde populum in centurias divisit. "
+        "Senatum ex centum optimatibus elegit. "
+        "Bellum cum Sabinis gessit propter raptas mulieres."
+    )
+    out = reading_intake._paginate_by_length(text, "la", max_chars=80)
+    # First page must contain the full date phrase including 'Kal. Maias'.
+    assert any("Kal. Maias" in p for p in out)
+    # All Latin in every chunk, no naked "Maias" page-start.
+    assert not any(p.startswith("Maias") for p in out)
+
+
+def test_paginate_greek_textbook_excerpt():
+    # First 4 sentences of the actual production Greek textbook page 11
+    # (Ιστορία), which today is one ~4,600-char page. ~500-char max should
+    # split it.
+    text = (
+        "Μεσοποταμία ονομάστηκε για πρώτη φορά από τους αρχαίους Έλληνες η "
+        "χώρα την οποία διαρρέουν δύο μεγάλοι ποταμοί, ο Τίγρης ανατολικά "
+        "και ο Ευφράτης δυτικά. "
+        "Με το όνομα αυτό οριοθετείται μια μεγάλη περιοχή που περιλαμβάνει "
+        "τις κοιλάδες των δύο ποταμών και των παραποτάμων τους. "
+        "Το μεγαλύτερο και σπουδαιότερο σε ότι αφορά την ιστορία τμήμα της "
+        "χώρας αυτής βρίσκεται στο σημερινό κράτος του Ιράκ. "
+        "Ο Τίγρης και ο Ευφράτης στην πορεία τους διακλαδίζονται σε "
+        "παραποτάμους, ενώνονται όμως πριν από την έξοδό τους στον Περσικό "
+        "κόλπο και σχηματίζουν μια ελώδη περιοχή μεγάλης έκτασης."
+    )
+    out = reading_intake._paginate_by_length(text, "el", max_chars=500)
+    # Splits into more than one page, every page non-empty, every page <= ~600
+    # (cap + headroom for a single trailing oversize sentence).
+    assert len(out) >= 2
+    assert all(len(p) > 0 for p in out)
+    # The four full sentences should still be present in concatenation.
+    joined = " ".join(out)
+    assert "Μεσοποταμία" in joined
+    assert "Περσικό κόλπο" in joined
+    # No sentence should be cut mid-word — every page ends with terminal
+    # punctuation (the only oversize-sentence escape would land terminal at
+    # the page end anyway).
+    for p in out:
+        assert p[-1] in ".!?·;"
+
+
+def test_import_paste_paginates_long_body(tmp_db):
+    # Long pasted body should fan out into multiple Pages.
+    body = ("Λέγει. " * 200).strip()  # 7 chars * 200 = ~1400 chars
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body=body, max_chars_per_page=300,
+        )
+        pages = (
+            db.query(Page)
+            .filter(Page.story_id == story.id)
+            .order_by(Page.page_number)
+            .all()
+        )
+        assert len(pages) >= 2
+        assert story.page_count == len(pages)
+        assert [p.page_number for p in pages] == list(range(1, len(pages) + 1))
+
+
+def test_import_paste_legacy_single_page_when_disabled(tmp_db):
+    # Pass max_chars_per_page=None to opt out and recover the pre-redesign
+    # single-page behavior (used by callers that want to keep the body whole).
+    body = ("Λέγει. " * 200).strip()
+    with tmp_db() as db:
+        story = reading_intake.import_paste(
+            db, language_code="el", body=body, max_chars_per_page=None,
+        )
+        pages = db.query(Page).filter(Page.story_id == story.id).all()
+        assert len(pages) == 1
+
+
 def test_paste_creates_story_and_single_page(tmp_db):
     with tmp_db() as db:
         story = reading_intake.import_paste(
