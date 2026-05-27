@@ -170,6 +170,56 @@ def _split_into_sentences(text: str, language_code: str = "el") -> list[str]:
     ]
 
 
+# Target body size for a polyglot Page — the screen-fit unit the reader
+# advances through. The Greek textbook PDF lands at ~2,280 char/page on
+# average (max 4,655), which scrolls heavily on a phone. We split at
+# sentence boundaries until each Page fits roughly one phone screen of
+# EB Garamond body text.
+DEFAULT_MAX_CHARS_PER_PAGE = 500
+
+
+def _paginate_by_length(
+    text: str,
+    language_code: str,
+    max_chars: int = DEFAULT_MAX_CHARS_PER_PAGE,
+) -> list[str]:
+    """Split a body of text into screen-sized chunks at sentence boundaries.
+
+    Each chunk is <= max_chars unless a single sentence already exceeds it
+    (we keep oversize sentences whole rather than slicing mid-clause). The
+    splitter is language-aware via `_split_into_sentences` so Latin calendar
+    abbreviations and quoted dialog stay intact.
+
+    Empty / whitespace-only input returns []. Callers decide whether to keep
+    or drop empty source pages.
+    """
+    text = text.strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+    sentences = _split_into_sentences(text, language_code)
+    if not sentences:
+        return [text]
+    out: list[str] = []
+    cur: list[str] = []
+    cur_len = 0
+    for s in sentences:
+        s_len = len(s)
+        # Only break when the current page already has content. A single
+        # oversize sentence becomes its own page.
+        if cur and cur_len + 1 + s_len > max_chars:
+            out.append(" ".join(cur))
+            cur = [s]
+            cur_len = s_len
+        else:
+            cur.append(s)
+            cur_len = cur_len + 1 + s_len if cur_len else s_len
+    if cur:
+        out.append(" ".join(cur))
+    return out
+
+
 def _lookup_lemma(db: Session, language_code: str, lemma_bare: str) -> Lemma | None:
     return (
         db.query(Lemma)
@@ -220,20 +270,30 @@ def import_paste(
     body: str,
     title: str | None = None,
     author: str | None = None,
+    max_chars_per_page: int | None = DEFAULT_MAX_CHARS_PER_PAGE,
 ) -> Story:
-    """Import a pasted text as a single-page Story. Pages aren't tokenized
-    yet — that happens on first view."""
+    """Import a pasted text as a Story. The body is paginated into
+    screen-sized Page rows at sentence boundaries; pass ``max_chars_per_page=None``
+    to keep the legacy single-page behavior. Pages aren't tokenized yet —
+    that happens on first view."""
+    chunks = (
+        _paginate_by_length(body, language_code, max_chars_per_page)
+        if max_chars_per_page else [body.strip()]
+    )
+    if not chunks:
+        chunks = [""]
     story = Story(
         language_code=language_code,
         title=title,
         author=author,
         body_src=body,
         source="paste",
-        page_count=1,
+        page_count=len(chunks),
     )
     db.add(story)
     db.flush()
-    db.add(Page(story_id=story.id, page_number=1, body_src=body))
+    for idx, chunk in enumerate(chunks, start=1):
+        db.add(Page(story_id=story.id, page_number=idx, body_src=chunk))
     db.commit()
     db.refresh(story)
     return story
@@ -246,12 +306,31 @@ def import_pdf(
     pdf_path: str | Path,
     title: str | None = None,
     author: str | None = None,
+    max_chars_per_page: int | None = DEFAULT_MAX_CHARS_PER_PAGE,
 ) -> Story:
     """Extract a PDF page-by-page into Story + Page rows. No tokenization.
-    Pages are tokenized lazily on first view."""
+    Each PDF page is paginated into screen-sized chunks at sentence
+    boundaries (pass ``max_chars_per_page=None`` to preserve 1:1 PDF page
+    mapping). Empty PDF pages are dropped. Pages are tokenized lazily on
+    first view."""
     pages = pdf_extract.extract_pages(pdf_path)
     if not pages:
         raise ValueError(f"No pages extracted from {pdf_path}")
+
+    # Build the polyglot Page sequence. PDF page boundaries are preserved as
+    # natural section breaks — we never merge across PDF pages — but a single
+    # long PDF page may fan out into multiple polyglot pages.
+    new_bodies: list[str] = []
+    for ep in pages:
+        if max_chars_per_page:
+            chunks = _paginate_by_length(ep.text, language_code, max_chars_per_page)
+        else:
+            t = (ep.text or "").strip()
+            chunks = [t] if t else []
+        new_bodies.extend(chunks)
+
+    if not new_bodies:
+        raise ValueError(f"No non-empty pages extracted from {pdf_path}")
 
     story = Story(
         language_code=language_code,
@@ -259,16 +338,16 @@ def import_pdf(
         author=author,
         source="pdf",
         source_path=str(pdf_path),
-        page_count=len(pages),
+        page_count=len(new_bodies),
     )
     db.add(story)
     db.flush()
-    for ep in pages:
-        db.add(Page(story_id=story.id, page_number=ep.page_number, body_src=ep.text))
+    for idx, body in enumerate(new_bodies, start=1):
+        db.add(Page(story_id=story.id, page_number=idx, body_src=body))
     db.commit()
     db.refresh(story)
-    log.info("Imported PDF %s as Story id=%d (%d pages, all unprocessed)",
-             pdf_path, story.id, len(pages))
+    log.info("Imported PDF %s as Story id=%d (%d pages from %d PDF pages, all unprocessed)",
+             pdf_path, story.id, len(new_bodies), len(pages))
     return story
 
 
