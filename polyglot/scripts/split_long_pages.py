@@ -130,11 +130,16 @@ def _resplit_one_story(
     if dry_run:
         return stats
 
-    # Apply in one transaction. Note: deleting Pages cascades to PageWord
-    # via the SQLAlchemy relationship cascade. Sentences are FK-orphaned by
-    # the Page delete (page_id stays as an id-pointer; no DB-level cascade),
-    # but they're already marked inactive so they're invisible to the reader.
-    sentence_q.update({Sentence.is_active: False}, synchronize_session=False)
+    # Apply in one transaction. Note: deleting Pages cascades to PageWord via
+    # the SQLAlchemy relationship cascade. Sentence rows are kept (FK history
+    # in review_log/sentence_review_log) but flipped inactive AND have their
+    # `page_id` nulled — PRAGMA foreign_keys=ON would otherwise block the
+    # Page delete (sentences.page_id has no ondelete cascade). Going-forward
+    # harvest inserts fresh Sentence rows under the new Page ids.
+    sentence_q.update(
+        {Sentence.is_active: False, Sentence.page_id: None},
+        synchronize_session=False,
+    )
     page_review_q.delete(synchronize_session=False)
 
     # Delete old pages BEFORE inserting new ones to avoid the
