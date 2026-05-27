@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   AppState,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -2722,7 +2723,33 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const showSentenceInfo = item.sentence_id != null && !isPassageCard(item);
   const showStoryInfo = item.sentence_id != null && isPassageCard(item);
 
+  const pickedConfusionLemmaId =
+    lookupLemmaId != null && confusionCaptures[lookupLemmaId]?.capture_method === "suggested_pick"
+      ? confusionCaptures[lookupLemmaId].confused_with_lemma_id ?? null
+      : null;
+  const handlePickConfusion = (chosenLemmaId: number) => {
+    if (lookupLemmaId == null || !confusionData) return;
+    const candidateIds = [
+      ...(confusionData.similar_words ?? []).map((w) => w.lemma_id),
+      ...(confusionData.phonetic_similar ?? []).map((w) => w.lemma_id),
+    ];
+    setConfusionCaptures((prev) => ({
+      ...prev,
+      [lookupLemmaId]: {
+        failed_lemma_id: lookupLemmaId,
+        capture_method: "suggested_pick",
+        confused_with_lemma_id: chosenLemmaId,
+        candidates_shown: Array.from(new Set(candidateIds)),
+      },
+    }));
+  };
+
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+    >
     <View
       style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
     >
@@ -2812,6 +2839,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           hasNext={tappedCursor < tappedOrder.length - 1}
           surfaceTranslit={lookupSurfaceTranslit}
           confusionData={confusionData}
+          onPickConfusion={handlePickConfusion}
+          pickedConfusionLemmaId={pickedConfusionLemmaId}
         />
       )}
 
@@ -2875,6 +2904,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         />
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

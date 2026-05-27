@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
 import { ConfusionAnalysis, ConfusionCaptureIn } from "../types";
 
@@ -11,12 +12,6 @@ interface ConfusionPickerProps {
   onClear: () => void;
 }
 
-interface Candidate {
-  lemma_id: number;
-  lemma_ar: string;
-  gloss_en: string | null;
-}
-
 export function ConfusionPicker({
   failedLemmaId,
   confusionData,
@@ -24,72 +19,88 @@ export function ConfusionPicker({
   onSave,
   onClear,
 }: ConfusionPickerProps) {
-  const [expanded, setExpanded] = useState<boolean>(!!existing);
-  const [selectedLemmaId, setSelectedLemmaId] = useState<number | null>(
-    existing?.capture_method === "suggested_pick" ? existing.confused_with_lemma_id ?? null : null,
-  );
   const [freeText, setFreeText] = useState<string>(
     existing?.capture_method === "free_text" ? existing.confused_with_text ?? "" : "",
   );
+  const [typing, setTyping] = useState<boolean>(false);
 
-  const candidates: Candidate[] = useMemo(() => {
+  const candidateIds = useMemo(() => {
     const seen = new Set<number>();
-    const out: Candidate[] = [];
+    const out: number[] = [];
     for (const w of confusionData.similar_words ?? []) {
-      if (seen.has(w.lemma_id)) continue;
-      seen.add(w.lemma_id);
-      out.push({ lemma_id: w.lemma_id, lemma_ar: w.lemma_ar, gloss_en: w.gloss_en ?? null });
-      if (out.length >= 5) break;
+      if (!seen.has(w.lemma_id)) { seen.add(w.lemma_id); out.push(w.lemma_id); }
     }
     for (const w of confusionData.phonetic_similar ?? []) {
-      if (out.length >= 5) break;
-      if (seen.has(w.lemma_id)) continue;
-      seen.add(w.lemma_id);
-      out.push({ lemma_id: w.lemma_id, lemma_ar: w.lemma_ar, gloss_en: w.gloss_en ?? null });
+      if (!seen.has(w.lemma_id)) { seen.add(w.lemma_id); out.push(w.lemma_id); }
     }
     return out;
   }, [confusionData]);
 
-  const candidateIds = candidates.map((c) => c.lemma_id);
-
-  const handlePickChip = (lemmaId: number) => {
-    setFreeText("");
-    setSelectedLemmaId(lemmaId);
-    onSave({
-      failed_lemma_id: failedLemmaId,
-      capture_method: "suggested_pick",
-      confused_with_lemma_id: lemmaId,
-      candidates_shown: candidateIds,
-    });
-  };
+  const savedSummary = useMemo(() => {
+    if (!existing) return null;
+    if (existing.capture_method === "suggested_pick") {
+      const all = [...(confusionData.similar_words ?? []), ...(confusionData.phonetic_similar ?? [])];
+      const match = all.find((w) => w.lemma_id === existing.confused_with_lemma_id);
+      return {
+        kind: "lemma" as const,
+        arabic: match?.lemma_ar ?? `#${existing.confused_with_lemma_id}`,
+        gloss: match?.gloss_en ?? null,
+      };
+    }
+    return { kind: "text" as const, text: existing.confused_with_text ?? "" };
+  }, [existing, confusionData]);
 
   const handleSubmitText = () => {
     const text = freeText.trim();
     if (!text) return;
-    setSelectedLemmaId(null);
     onSave({
       failed_lemma_id: failedLemmaId,
       capture_method: "free_text",
       confused_with_text: text,
       candidates_shown: candidateIds,
     });
+    setTyping(false);
   };
 
-  const handleClear = () => {
-    setSelectedLemmaId(null);
+  const handleClearAll = () => {
     setFreeText("");
+    setTyping(false);
     onClear();
   };
 
-  if (!expanded) {
+  if (savedSummary) {
+    return (
+      <View style={styles.savedRow}>
+        <Ionicons name="checkmark-circle" size={16} color={colors.confused} />
+        <Text style={styles.savedLabel}>Will record: </Text>
+        {savedSummary.kind === "lemma" ? (
+          <>
+            <Text style={styles.savedArabic}>{savedSummary.arabic}</Text>
+            {savedSummary.gloss && (
+              <Text style={styles.savedGloss} numberOfLines={1}>
+                ({savedSummary.gloss})
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text style={styles.savedText} numberOfLines={1}>"{savedSummary.text}"</Text>
+        )}
+        <Pressable onPress={handleClearAll} hitSlop={8} style={styles.clearLinkWrap}>
+          <Text style={styles.clearLink}>clear</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!typing) {
     return (
       <Pressable
-        onPress={() => setExpanded(true)}
+        onPress={() => setTyping(true)}
         style={({ pressed }) => [styles.collapsedLink, pressed && { opacity: 0.5 }]}
         accessibilityRole="button"
       >
         <Text style={styles.collapsedText}>
-          {existing ? "✓ confused with something — edit" : "Confused with another word?"}
+          Or type the word you thought it was ›
         </Text>
       </Pressable>
     );
@@ -97,70 +108,29 @@ export function ConfusionPicker({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>What were you thinking of?</Text>
-        <Pressable onPress={() => setExpanded(false)} hitSlop={8}>
-          <Text style={styles.cancelLink}>Close</Text>
-        </Pressable>
-      </View>
-
-      {candidates.length > 0 && (
-        <View style={styles.chipsRow}>
-          {candidates.map((c) => {
-            const selected = selectedLemmaId === c.lemma_id;
-            return (
-              <Pressable
-                key={c.lemma_id}
-                onPress={() => handlePickChip(c.lemma_id)}
-                style={({ pressed }) => [
-                  styles.chip,
-                  selected && styles.chipSelected,
-                  pressed && { opacity: 0.7 },
-                  freeText.length > 0 && !selected && styles.chipDimmed,
-                ]}
-              >
-                <Text style={[styles.chipArabic, selected && styles.chipArabicSelected]}>
-                  {c.lemma_ar}
-                </Text>
-                {c.gloss_en && (
-                  <Text style={[styles.chipGloss, selected && styles.chipGlossSelected]} numberOfLines={1}>
-                    {c.gloss_en}
-                  </Text>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-
       <View style={styles.textRow}>
         <TextInput
           value={freeText}
-          onChangeText={(t) => {
-            setFreeText(t);
-            if (t.length > 0 && selectedLemmaId !== null) setSelectedLemmaId(null);
-          }}
+          onChangeText={setFreeText}
           onSubmitEditing={handleSubmitText}
-          placeholder="…or type in English"
+          placeholder="what word did you think it was?"
           placeholderTextColor={colors.textSecondary}
-          style={[
-            styles.textInput,
-            selectedLemmaId !== null && styles.textInputDimmed,
-          ]}
-          editable={selectedLemmaId === null}
+          style={styles.textInput}
+          autoFocus
+          returnKeyType="done"
+          blurOnSubmit
         />
-        {freeText.trim().length > 0 && (
-          <Pressable onPress={handleSubmitText} style={styles.saveButton}>
-            <Text style={styles.saveButtonText}>Save</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {existing && (
-        <Pressable onPress={handleClear} style={styles.clearRow}>
-          <Text style={styles.clearText}>Clear selection</Text>
+        <Pressable
+          onPress={handleSubmitText}
+          disabled={freeText.trim().length === 0}
+          style={[styles.saveButton, freeText.trim().length === 0 && styles.saveButtonDisabled]}
+        >
+          <Text style={styles.saveButtonText}>Save</Text>
         </Pressable>
-      )}
+        <Pressable onPress={() => { setTyping(false); setFreeText(""); }} hitSlop={8}>
+          <Text style={styles.cancelLink}>cancel</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -170,6 +140,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     marginTop: 4,
+    alignSelf: "flex-start",
   },
   collapsedText: {
     color: colors.textSecondary,
@@ -178,70 +149,12 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   container: {
-    marginTop: 8,
-    padding: 10,
+    marginTop: 6,
+    padding: 8,
     borderRadius: 8,
     backgroundColor: "rgba(243, 156, 18, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(243, 156, 18, 0.25)",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 13,
-    fontFamily: fontFamily.translitRegular,
-    fontWeight: "600" as const,
-  },
-  cancelLink: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontFamily: fontFamily.translitRegular,
-  },
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 8,
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  chipSelected: {
-    backgroundColor: colors.confused,
-    borderColor: colors.confused,
-  },
-  chipDimmed: {
-    opacity: 0.4,
-  },
-  chipArabic: {
-    color: colors.text,
-    fontSize: 16,
-    fontFamily: fontFamily.arabic,
-  },
-  chipArabicSelected: {
-    color: "#fff",
-  },
-  chipGloss: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: fontFamily.translitRegular,
-    maxWidth: 110,
-  },
-  chipGlossSelected: {
-    color: "#fff",
   },
   textRow: {
     flexDirection: "row",
@@ -260,14 +173,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.translitRegular,
     backgroundColor: colors.surface,
   },
-  textInputDimmed: {
-    opacity: 0.4,
-  },
   saveButton: {
     paddingHorizontal: 12,
     paddingVertical: 7,
     backgroundColor: colors.confused,
     borderRadius: 6,
+  },
+  saveButtonDisabled: {
+    opacity: 0.4,
   },
   saveButtonText: {
     color: "#fff",
@@ -275,11 +188,52 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.translitRegular,
     fontWeight: "600" as const,
   },
-  clearRow: {
-    marginTop: 6,
-    alignSelf: "flex-end",
+  cancelLink: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontFamily: fontFamily.translitRegular,
+    paddingHorizontal: 4,
   },
-  clearText: {
+  savedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(243, 156, 18, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 156, 18, 0.35)",
+  },
+  savedLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontFamily: fontFamily.translitRegular,
+    fontWeight: "600" as const,
+  },
+  savedArabic: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    fontSize: 18,
+    writingDirection: "rtl",
+  },
+  savedGloss: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontFamily: fontFamily.translitRegular,
+    flexShrink: 1,
+  },
+  savedText: {
+    color: colors.text,
+    fontSize: 13,
+    fontStyle: "italic",
+    flexShrink: 1,
+  },
+  clearLinkWrap: {
+    marginLeft: "auto",
+  },
+  clearLink: {
     color: colors.textSecondary,
     fontSize: 11,
     fontFamily: fontFamily.translitRegular,
