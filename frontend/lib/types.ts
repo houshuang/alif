@@ -493,6 +493,14 @@ export interface GrammarLesson {
   is_refresher?: boolean;
 }
 
+export interface ConfusionCaptureIn {
+  failed_lemma_id: number;
+  capture_method: "suggested_pick" | "free_text";
+  confused_with_lemma_id?: number;
+  confused_with_text?: string;
+  candidates_shown: number[];
+}
+
 export interface SentenceReviewSubmission {
   sentence_id: number | null;
   sentence_ids?: number[];
@@ -501,6 +509,7 @@ export interface SentenceReviewSubmission {
   missed_lemma_ids: number[];
   confused_lemma_ids?: number[];
   confusion_candidate_lemma_ids?: Record<number, number[]>;
+  confusion_captures?: ConfusionCaptureIn[];
   response_ms: number;
   session_id: string;
   review_mode: ReviewMode;

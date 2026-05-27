@@ -255,6 +255,38 @@ class SentenceReviewLog(Base):
     sentence = relationship("Sentence", back_populates="review_logs")
 
 
+class ConfusionCapture(Base):
+    __tablename__ = "confusion_captures"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    failed_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
+    sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True, index=True)
+    session_id = Column(String(50), nullable=True, index=True)
+    rating = Column(Integer, nullable=False)  # 1=Again, 2=Hard
+    captured_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    # Exactly one of these two is populated, governed by capture_method
+    capture_method = Column(String(20), nullable=False)  # 'suggested_pick' | 'free_text'
+    confused_with_lemma_id = Column(
+        Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True
+    )
+    confused_with_text = Column(Text, nullable=True)
+
+    # Forensics: which candidates the algorithm offered when this was captured.
+    # Lets us later answer "did the algorithm ever guess right?"
+    candidates_shown_json = Column(JSON, nullable=True)
+
+    # Filled later by Claude-driven analysis batches; null until then
+    resolved_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    resolution_method = Column(String(20), nullable=True)  # 'llm' | 'manual'
+    resolution_confidence = Column(Float, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+    failed_lemma = relationship("Lemma", foreign_keys=[failed_lemma_id])
+    confused_with_lemma = relationship("Lemma", foreign_keys=[confused_with_lemma_id])
+    resolved_lemma = relationship("Lemma", foreign_keys=[resolved_lemma_id])
+
+
 class GrammarFeature(Base):
     __tablename__ = "grammar_features"
 

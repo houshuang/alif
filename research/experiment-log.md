@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-27: Confusion capture — ground truth for what user actually confuses with what
+
+**Question.** User reports that real-life word confusions don't match what algorithmic clustering surfaces (root-share, surface-prefix, gloss-keyword overlap). Without observed signal on _which word was the user thinking of when they failed_, any cluster-aware scheduling is theater — it will target the wrong pairs. Empirical observation pass: how many of the user's reported confusions did our existing similarity heuristics surface?
+
+**Backstory.** Investigation triggered by user reporting that the "talaq" cluster felt like a problem in daily review but data showed it was actually doing fine (76% avg). The genuinely-stuck pool (110 lemmas, 4.8% of active words, 96% historical recovery rate) didn't match user's felt struggle. Hypothesis: the metric (objective accuracy) understates real interference cost because correct answers don't reveal hesitation or near-miss confusion. Today's data does not include user-reported pairings — the existing `confusion_candidate_lemma_ids` API field has been accepted by the backend for months but silently discarded. The frontend auto-attached up to 12 algorithmic candidates per yellow tap; user never picked one explicitly.
+
+**Method.** New `confusion_captures` table. Frontend gets a collapsed "Confused with another word?" link below the WordInfoCard on yellow taps; expanding reveals up to 5 similar/phonetic-similar lemma chips from `/confusion-help` plus a free-text input ("…or type in English"). Each capture stored with explicit `capture_method` ('suggested_pick' or 'free_text'), `candidates_shown_json` (which suggestions were offered at capture time — critical for later validating whether the algorithm caught the real confusion), `rating` (1=Again, 2=Hard), and unresolved `resolved_lemma_id`/`resolution_method` columns that Claude-driven batch analysis will fill later. No automatic resolution pipeline, no cron — purely passive collection until ≥50 captures accumulate.
+
+**Decisions explicitly NOT made now.** No scheduling change, no leech-policy change, no cluster-aware logic — those depend on having data first. The 32-word manual reset done the same day was a separate one-shot rescue (acquiring/Box 1 reset of hot-stuck words), not part of this experiment.
+
+**Verification plan.** After ~2-4 weeks of natural use, query `confusion_captures` for: (a) capture rate (% of yellow taps that resulted in a saved capture), (b) `suggested_pick` vs `free_text` ratio (proxy for algorithm precision — if free-text dominates, the suggestions miss the real confusions), (c) candidate-hit rate where free-text resolves to a lemma that was in `candidates_shown_json`. The third number is the user's original claim ("confusions don't match algorithmic clusters") made empirically testable.
+
+**Code.** Migration `f8a9b0c1d234`. Backend model + endpoint changes in `models.py`, `schemas.py`, `services/sentence_review_service.py`, `routers/review.py`. Frontend picker at `lib/review/ConfusionPicker.tsx` integrated into `app/index.tsx`. Tests `TestConfusionCapture` in `test_sentence_review.py` (3 cases: suggested_pick, free_text, invalid-capture-skipped).
+
+---
+
 ## 2026-05-26: Codex `gpt-5.5` vs Claude Haiku on Alif Arabic enrichment (A/B, deferred follow-up resolved)
 
 **Question.** Follow-up to the 2026-05-26 hybrid-migration A/B (`codex-vs-claude-sentence-gen-2026-05-26.md`). The plan flips Alif's audit pipelines from Claude Haiku to Codex `gpt-5.5`, but enrichment was singled out for its own A/B before flipping — the Latin philology user complaint hinted at a possible prompt-vs-provider issue with enrichment specifically. PR #157 closed the Latin philology side as prompt + parser bugs; this A/B closes the Arabic side.
