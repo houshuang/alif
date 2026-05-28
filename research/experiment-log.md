@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-28: Root-showcase Phase 8 — link textbook_scan verb conjugations to canonical Form-I bases
+
+**Context.** Phase 7 sidestepped the verifier same-lemma rejection at palette positions for showcases (yield 2→11 of 30 on retry). But the underlying data-shape problem remained: textbook_scan OCR imported verb conjugations (e.g. يَكْتُبُونَ #1558, أَكْتُبُ #1682, نَدْرُسُ #1556) as standalone canonical lemmas without ever creating or linking the Form-I past 3sg masc canonical base. The verifier knows MSA morphology and objects whenever it sees a leaf inflection masquerading as canonical, which degrades regular sentence verification across the system — not just showcases.
+
+**Change.** New `cleanup_textbook_inflected_verbs.py` script. Pipeline:
+
+1. Heuristic shortlist: 47 textbook_scan canonical verbs with imperfect-prefix (يـ/تـ/نـ/أـ) or conjugated-suffix (وا/ون/تم/نا/ن…) shape.
+2. Claude Haiku classifies each as inflected-vs-canonical, proposes canonical lemma_ar + wazn for inflected ones. Of 47 candidates: 9 link-only, 2 create-then-link, 36 correctly classified as already-canonical (heuristic false positives — Claude caught e.g. نَاسَبَ Form III past, نَفَخَ Form I past, نَمِر noun-mistagged-as-verb).
+3. **POS-aware canonical lookup** — critical learning from the first apply. The general `resolve_existing_lemma` matches by bare only, which silently links verb inflections to noun homographs sharing the same bare (e.g. نَدْرُسُ "we study" → دَرْس "lesson" noun #216). First-run shipped 5 such wrong links before I caught it. Rolled back via direct-SQL nullification, added a pre-built verb-only bare→id index, re-applied. All 11 final links verified `pos='verb'` on the canonical.
+4. For missing canonicals: create new Lemma via `run_quality_gates(skip_variants=True, enrich=True, background_enrich=False)` so the canonical gets forms_json / etymology / wazn finalized inline before linking.
+
+Conservative scope: does NOT touch ULK, SentenceWord, ReviewLog, or Sentence.target_lemma_id. The variant chain in `canonical_resolution.py` handles credit redirection automatically — when a user reviews a sentence containing يَكْتُبُونَ, the credit now flows to canonical #4028 كَتَبَ instead of being trapped at #1558. If overshadowed-variant cleanup is needed afterwards (where the variant's own ULK keeps ticking even though credit goes elsewhere), `scripts/suspend_variant_ulks.py` is the next step.
+
+**Result.** 6 new canonical verbs created (#4025 ضَحِكَ, #4026 تَغَدَّى, #4027 دَرَسَ, #4028 كَتَبَ, #4029 تَفَضَّلَ, #4030 وَضَعَ), all enriched with forms_json + etymology. 11 textbook_scan inflected lemmas linked as variants. Verified `pos='verb'` match on all 11 canonical resolutions. Backup at `/opt/alif-backups/alif_pre_textbook_inflected_cleanup_20260528_113259.db`.
+
+**Followup.** A post-Phase-8 rerun of `generate_root_showcases.py` on the same 10 candidate roots tests whether the root-cause fix produces yield improvement beyond Phase 7's palette-trust workaround.
+
+**Caveats.**
+- POS-aware verb lookup was a near-miss bug. Any future "link inflected to canonical" script must filter on POS, not bare alone. The general `resolve_existing_lemma` doesn't do this. Added to `scripts-catalog.md` as a critical-rule footnote.
+- Claude Haiku correctly skipped 36/47 false positives, including subtle cases (نَمِر noun-mistagged-as-verb, تَقَرُّب verbal noun not verb, partially-vocalized spellings like احْتَضَن which are bare-form variants not inflections). Heuristic over-flagging worth keeping conservative.
+- Some of the 36 skips include legitimate Form II-X canonicals that started with نـ/تـ (e.g. نَاسَبَ, نَاوَلَ Form III; تَأَخَّرَ, تَشَجَّعَ Form V). The شَكِل of the bare is similar to inflected forms but the canonical itself is the lemma. No action needed.
+
+---
+
 ## 2026-05-28: Root-showcase Phase 7 — `trust_palette_mappings` narrow exception to same_lemma rejection
 
 **Context.** Bootstrap run of root-showcase on prod yielded only 2/30 sentences (ج.م.ع #47934, س.ع.د #47935). 8/10 roots produced zero showcases. Inspecting the failure log: most rejections were `apply_corrections` returning `same_lemma` — meaning the verifier flagged a palette-position mapping as wrong, but the corrector couldn't find the "correct" lemma in the DB.
