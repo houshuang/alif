@@ -4,6 +4,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-28: Root-showcase Phase 6 — make showcases actually appear + safe new-lemma handling
+
+**Context.** PR #170 landed the root-showcase generator (sentences packing 3+ derivations of one Arabic root, e.g. *يَكْتُبُونَ … وَكَاتَبَ … مَكْتُوبٌ* for ك.ت.ب). Each surface form earns its own lemma review credit via the foundational "every word" rule, so one showcase yields N hits instead of 1. But two issues surfaced when reasoning about the rollout:
+
+1. **Showcases were essentially invisible.** `_source_bonus_for_sentence` didn't recognise `kind='root_showcase'`, so a 30-sentence library would surface ~0.5 times/day expected — most reviews wouldn't even compete to show a showcase. `target_lemma_id` was stamped to the first targeted palette lemma (set iteration order, effectively arbitrary), so the showcase entered the selector pool only when an arbitrary lemma came due.
+2. **Phase 3 gap-fill could deprive the user of intro cards.** Newly-created lemmas had no ULK row, so a showcase including one of them would trigger `auto_introduce` on first sight — straight into acquiring Box 1 with no proper intro card, no gloss/etymology preview.
+
+**Change.**
+- `_source_bonus_for_sentence`: 1.8× for `kind='root_showcase'` (sits between book/corpus 1.3 and passage 2.0). Showcases now win selection contests when their primary target is due.
+- `generate_and_store_showcases_for_root`: stamps `target_lemma_id` to the *most-due palette lemma actually targeted in the sentence* via a new `_build_palette_due_ranking` helper that reads `acquisition_next_due` (acquiring) and `fsrs_card_json.due` (FSRS). Most-due means the showcase enters the pool at the moment of greatest pedagogical leverage.
+- `build_palette_for_root`: now excludes lemmas with ULK state in `{new, encountered}` or no ULK at all — palette is `{acquiring, learning, known, lapsed}`-only. Brand-new lemmas reach the user via the normal intro pipeline first.
+- `propose_root_palette_extensions.py`: when creating new lemmas via gap-fill, also creates a ULK row in `encountered` state. These flow through normal intro-picker selection over the next few days; once they enter acquiring/known, the next showcase regen for that root can include them.
+- `update_material.py` Step G2b (new): every cron pass, regenerates up to 3 roots where `active_showcase_count < 2` AND `palette_size ≥ 4`. Only operates on roots already seeded by an explicit manual `generate_root_showcases.py` run — cron never autonomously starts new roots.
+
+**Expected behaviour.** Bootstrap with ~30 showcases across 10 roots (`generate_root_showcases.py --top 10 --count 3 --apply`). Each cron pass, as users review and showcases age out via `times_shown >= 5` / scaffold staleness, depleted roots auto-refresh. With the 1.8× boost + most-due target stamping, a single showcase library member surfaces ~3-5×/week instead of ~0.5×/day, and discharges 3+ lemma reviews when it does.
+
+**Verification.** `test_root_showcase.py` covers all four changes:
+- `test_source_bonus_boosts_root_showcase`: returns 1.8, > LLM/book, < passage
+- `test_palette_due_ranking_orders_by_acquisition_then_fsrs`: overdue acquiring < due-soon acquiring < FSRS-30d
+- `test_palette_excludes_encountered_and_unstudied_lemmas`: gap-fill new lemmas don't appear in the next showcase batch
+- (already covered) `test_generate_requires_three_palette_lemmas_per_sentence`: ≥3 gate enforced
+8/8 in the test file pass; 181/181 in related test modules (showcase + selector + material_generator + sentence_generator + acquisition) green.
+
+**Followups.** Bootstrap run + first cron pass have not yet happened on prod — those are manual/deploy actions, not part of this PR. After the first week of bootstrap, want to measure actual surfacing rate vs expected (the 3-5×/week guess) and adjust the 1.8 multiplier if showcases are too rare or too dominant.
+
+---
+
 ## 2026-05-27: Polyglot — three Greek participle/verbal-adjective lemmas linked to verb canonicals
 
 **Context.** Daily polyglot warm-cache log surfaced 13 Greek lemmas where sentence generation kept failing. Audit showed 10 were correctly-lemmatized base forms failing for vocab-scaffold or `same_lemma` reasons (expected); 3 were mis-shaped as standalone lemmas when they are inflections of an existing verb canonical: `στρωμένος` (passive participle, "spread") → `στρώνω`, `σπασμένος` (passive participle, "broken") → `σπάζω`, `σπαρτός` (verbal adjective in `-τός`, "sown") → `σπέρνω`. With no `canonical_lemma_id` set, each carried its own ULK box state and accumulated sentences keyed to the participle surface — so a session due on "the verb to break" would never pull the user's 15 existing `σπασμένο` sentences, and the warm cache kept asking the LLM for fresh `σπασμένος`-target sentences which the validator killed.
