@@ -269,6 +269,20 @@ def main() -> None:
     db = SessionLocal()
     try:
         lemma_lookup = build_comprehensive_lemma_lookup(db)
+        # Pre-fetch all canonical verb lemmas indexed by bare so we can do a
+        # pos-aware canonical lookup. The general lemma_lookup matches by bare
+        # only — for nominal/verbal homographs like كتب (noun 'books' #229 vs
+        # verb كَتَبَ which may or may not exist), we MUST filter to verbs.
+        verb_lemmas_by_bare: dict[str, list[int]] = {}
+        for vl in (
+            db.query(Lemma)
+            .filter(Lemma.pos == "verb")
+            .filter(Lemma.canonical_lemma_id.is_(None))
+            .all()
+        ):
+            bare = (vl.lemma_ar_bare or "").strip()
+            if bare:
+                verb_lemmas_by_bare.setdefault(bare, []).append(vl.lemma_id)
     finally:
         db.close()
 
@@ -290,8 +304,30 @@ def main() -> None:
             logger.warning(f"  #{cand.lemma_id} {cand.lemma_ar}: missing canonical info — skipping")
             continue
 
-        # Look up canonical in DB
-        existing_canon_id = resolve_existing_lemma(canonical_bare, lemma_lookup)
+        # Look up canonical in DB — POS-AWARE. The general lemma_lookup matches
+        # by bare only, which silently links verb inflections to noun homographs
+        # (e.g. نَدْرُسُ "we study" would link to دَرْس "lesson" noun #216
+        # because both share bare 'درس'). Require pos=verb on the match.
+        from app.services.sentence_validator import normalize_alef as _norm
+        bare_norm = _norm(canonical_bare)
+        verb_matches = verb_lemmas_by_bare.get(bare_norm, []) + (
+            verb_lemmas_by_bare.get(canonical_bare, []) if canonical_bare != bare_norm else []
+        )
+        verb_matches = [vid for vid in verb_matches if vid != cand.lemma_id]
+        existing_canon_id = verb_matches[0] if verb_matches else None
+        if existing_canon_id is None:
+            # As a fallback, try the general lookup but ONLY accept if pos=verb
+            general_match = resolve_existing_lemma(canonical_bare, lemma_lookup)
+            if general_match and general_match != cand.lemma_id:
+                db_check = SessionLocal()
+                try:
+                    candidate_canon = db_check.query(Lemma).filter(
+                        Lemma.lemma_id == general_match
+                    ).first()
+                    if candidate_canon and candidate_canon.pos == "verb":
+                        existing_canon_id = general_match
+                finally:
+                    db_check.close()
         action = {
             "lemma_id": cand.lemma_id,
             "lemma_ar": cand.lemma_ar,
@@ -358,9 +394,10 @@ def main() -> None:
                         linked_inflected_ids.append(cand.lemma_id)
                     finally:
                         db.close()
-                    # Refresh lemma_lookup so subsequent batch-members
-                    # checking the same canonical bare hit the cache
+                    # Refresh both caches so subsequent batch-members checking
+                    # the same canonical bare hit the cache
                     lemma_lookup[canonical_bare] = new_canon_id
+                    verb_lemmas_by_bare.setdefault(_norm(canonical_bare), []).append(new_canon_id)
                 except Exception as e:
                     action["error"] = str(e)
                     failed.append({"lemma_id": cand.lemma_id, "reason": f"create+link failed: {e}"})
