@@ -2,12 +2,15 @@
 
 Covers:
 - WAZN_TO_FAMILY classification in both root_showcase_candidates and root_showcase
-- build_palette_for_root filters (canonical only, gated only, non-proper-name only)
+- build_palette_for_root filters (canonical only, gated only, non-proper-name only,
+  introduced-state only)
 - generate_and_store_showcases_for_root happy path with mocked LLM
 - Per-sentence acceptance gate (≥3 distinct palette lemmas required)
 - root_focus_id + kind stamping on persisted sentences
+- _source_bonus_for_sentence selector boost for kind='root_showcase'
+- target_lemma_id stamping to the most-due palette lemma
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -15,10 +18,12 @@ import pytest
 from app.models import Lemma, Root, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.root_showcase import (
     WAZN_TO_FAMILY,
+    _build_palette_due_ranking,
     build_palette_for_root,
     generate_and_store_showcases_for_root,
 )
 from app.services.llm import RootShowcaseSentenceResult
+from app.services.sentence_selector import _source_bonus_for_sentence
 
 
 def test_wazn_family_mapping_covers_canonical_categories():
@@ -53,8 +58,14 @@ def test_root_showcase_candidates_wazn_table_matches_root_showcase_table():
 
 
 def _make_lemma(db, *, lemma_ar, root_id, gloss, pos="noun", wazn=None,
-                gated=True, canonical_id=None, word_category=None):
-    """Helper: insert a minimal Lemma row with knobs the palette filter cares about."""
+                gated=True, canonical_id=None, word_category=None,
+                ulk_state="known"):
+    """Helper: insert a minimal Lemma row with knobs the palette filter cares about.
+
+    Defaults to ULK state='known' so the lemma is palette-eligible. Pass
+    ulk_state=None to skip ULK creation entirely, or 'encountered' / 'new'
+    to test the introduced-state filter.
+    """
     l = Lemma(
         lemma_ar=lemma_ar,
         lemma_ar_bare=lemma_ar,
@@ -68,7 +79,42 @@ def _make_lemma(db, *, lemma_ar, root_id, gloss, pos="noun", wazn=None,
     )
     db.add(l)
     db.flush()
+    if ulk_state is not None:
+        db.add(UserLemmaKnowledge(
+            lemma_id=l.lemma_id,
+            knowledge_state=ulk_state,
+        ))
+        db.flush()
     return l
+
+
+def test_palette_excludes_encountered_and_unstudied_lemmas(db_session):
+    """build_palette_for_root must exclude lemmas in 'encountered' / 'new' /
+    no-ULK states — they need a proper intro card before being showcase-eligible.
+    This rule guards against the Phase 3 gap-fill creating a new lemma that
+    immediately appears in a showcase as the user's first encounter (which
+    would bypass the intro-card UX)."""
+    db = db_session
+    root = Root(root="ك.ت.ب", core_meaning_en="writing")
+    db.add(root)
+    db.flush()
+    # All four have correct shape (gated, canonical, gloss); ULK state varies
+    _make_lemma(db, lemma_ar="كَتَبَ", root_id=root.root_id, gloss="to write", wazn="form_1", ulk_state="known")
+    _make_lemma(db, lemma_ar="كاتِب", root_id=root.root_id, gloss="writer", wazn="fa'il", ulk_state="acquiring")
+    _make_lemma(db, lemma_ar="مَكْتَب", root_id=root.root_id, gloss="office", wazn="maf'al", ulk_state="lapsed")
+    # These three must be EXCLUDED:
+    _make_lemma(db, lemma_ar="كِتاب", root_id=root.root_id, gloss="book", wazn="fi'al", ulk_state="encountered")
+    _make_lemma(db, lemma_ar="كُتُب", root_id=root.root_id, gloss="books", wazn="fu'ul", ulk_state="new")
+    _make_lemma(db, lemma_ar="مَكْتُوب", root_id=root.root_id, gloss="written", wazn="maf'ul", ulk_state=None)
+    db.commit()
+
+    palette = build_palette_for_root(db, root.root_id)
+
+    surfaces = {p["arabic"] for p in palette}
+    assert surfaces == {"كَتَبَ", "كاتِب", "مَكْتَب"}, (
+        "Only known/acquiring/lapsed lemmas should be palette-eligible; "
+        f"got {surfaces}"
+    )
 
 
 def test_build_palette_filters_canonical_gated_non_proper_name(db_session):
@@ -207,3 +253,71 @@ def test_generate_requires_three_palette_lemmas_per_sentence(db_session):
     assert sent.mappings_verified_at is not None
     sw_count = db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).count()
     assert sw_count == 3
+
+
+def test_source_bonus_boosts_root_showcase():
+    """Selector must give kind='root_showcase' a meaningful bonus or showcases
+    barely surface — they compete on equal footing with every other LLM sentence
+    for their primary target's review slot."""
+    showcase = Sentence(source="llm", kind="root_showcase", arabic_text="x")
+    plain_llm = Sentence(source="llm", arabic_text="y")
+    book = Sentence(source="book", arabic_text="z")
+    passage = Sentence(source="passage", arabic_text="w")
+
+    assert _source_bonus_for_sentence(showcase) == 1.8
+    assert _source_bonus_for_sentence(showcase) > _source_bonus_for_sentence(book)
+    assert _source_bonus_for_sentence(showcase) > _source_bonus_for_sentence(plain_llm)
+    # But still below passages — those are the strongest collateral-credit card
+    assert _source_bonus_for_sentence(showcase) < _source_bonus_for_sentence(passage)
+
+
+def test_palette_due_ranking_orders_by_acquisition_then_fsrs(db_session):
+    """_build_palette_due_ranking returns timestamps so min() picks the most-due
+    (smallest timestamp). Acquisition next_due wins over FSRS due when both
+    exist, since acquiring lemmas are the higher-priority review state."""
+    db = db_session
+    root = Root(root="ك.ت.ب", core_meaning_en="writing")
+    db.add(root)
+    db.flush()
+    now = datetime.now(timezone.utc)
+
+    l_overdue = _make_lemma(db, lemma_ar="A", root_id=root.root_id, gloss="a", ulk_state=None)
+    l_due_soon = _make_lemma(db, lemma_ar="B", root_id=root.root_id, gloss="b", ulk_state=None)
+    l_fsrs_far = _make_lemma(db, lemma_ar="C", root_id=root.root_id, gloss="c", ulk_state=None)
+    l_no_due = _make_lemma(db, lemma_ar="D", root_id=root.root_id, gloss="d", ulk_state=None)
+
+    db.add(UserLemmaKnowledge(
+        lemma_id=l_overdue.lemma_id,
+        knowledge_state="acquiring",
+        acquisition_next_due=now - timedelta(days=3),
+    ))
+    db.add(UserLemmaKnowledge(
+        lemma_id=l_due_soon.lemma_id,
+        knowledge_state="acquiring",
+        acquisition_next_due=now + timedelta(hours=1),
+    ))
+    # FSRS-state lemma with due date 30 days out
+    far_iso = (now + timedelta(days=30)).isoformat()
+    db.add(UserLemmaKnowledge(
+        lemma_id=l_fsrs_far.lemma_id,
+        knowledge_state="known",
+        fsrs_card_json={"due": far_iso, "stability": 30.0},
+    ))
+    # No ULK at all
+    db.commit()
+
+    ranks = _build_palette_due_ranking(
+        db, [l_overdue.lemma_id, l_due_soon.lemma_id, l_fsrs_far.lemma_id, l_no_due.lemma_id]
+    )
+
+    # Overdue acquiring lemma is most-due (smallest timestamp)
+    assert ranks[l_overdue.lemma_id] < ranks[l_due_soon.lemma_id]
+    assert ranks[l_due_soon.lemma_id] < ranks[l_fsrs_far.lemma_id]
+    # Lemma with no ULK is absent from the ranking (caller's min() should fall
+    # back to the _DUE_RANK_DEFAULT sentinel via .get())
+    assert l_no_due.lemma_id not in ranks
+    # Picking the most-due actually-targeted lemma
+    from app.services.root_showcase import _DUE_RANK_DEFAULT
+    targeted = {l_due_soon.lemma_id, l_overdue.lemma_id, l_no_due.lemma_id}
+    most_due = min(targeted, key=lambda lid: ranks.get(lid, _DUE_RANK_DEFAULT))
+    assert most_due == l_overdue.lemma_id

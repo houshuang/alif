@@ -91,6 +91,13 @@ def build_palette_for_root(db: Session, root_id: int) -> list[dict[str, Any]]:
 
     Only canonical (no canonical_lemma_id), gated, non-proper-name lemmas
     are included. The returned shape matches what the LLM prompt expects.
+
+    Lemmas with no ULK *or* ULK state in {'new', 'encountered'} are excluded:
+    a brand-new lemma should reach the user via a proper intro card first,
+    not via a multi-derivation showcase as its first encounter. This rule
+    matters in tandem with the Phase 3 gap-fill, which now creates ULK rows
+    in 'encountered' state for new lemmas — they remain palette-eligible
+    only after they've been introduced and entered acquiring/known/lapsed.
     """
     lemmas = (
         db.query(Lemma)
@@ -100,9 +107,20 @@ def build_palette_for_root(db: Session, root_id: int) -> list[dict[str, Any]]:
         .filter((Lemma.word_category != "proper_name") | (Lemma.word_category.is_(None)))
         .all()
     )
+    if not lemmas:
+        return []
+    lemma_ids = [l.lemma_id for l in lemmas]
+    states = {
+        u.lemma_id: u.knowledge_state
+        for u in db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids)).all()
+    }
+    INTRODUCED_STATES = {"acquiring", "learning", "known", "lapsed"}
     palette: list[dict[str, Any]] = []
     for l in lemmas:
         if not l.gloss_en:
+            continue
+        if states.get(l.lemma_id) not in INTRODUCED_STATES:
             continue
         palette.append({
             "lemma_id": l.lemma_id,
@@ -219,6 +237,12 @@ def generate_and_store_showcases_for_root(
 
     lemma_lookup = build_comprehensive_lemma_lookup(db)
 
+    # Build a "most-due first" ranking of palette lemmas. We stamp the
+    # sentence's target_lemma_id to the most-due lemma actually targeted in
+    # the sentence — not an arbitrary one — so the selector picks the showcase
+    # up at the moment when a learner most needs review on one of its words.
+    palette_due_rank = _build_palette_due_ranking(db, [p["lemma_id"] for p in palette])
+
     accepted_results: list[tuple[RootShowcaseSentenceResult, list]] = []
     rejected: list[str] = []
     for res in generated:
@@ -247,8 +271,15 @@ def generate_and_store_showcases_for_root(
                 f"too_few_palette_lemmas ({len(targeted)}): {res.arabic[:40]}"
             )
             continue
-        # Re-pick primary to be one of the lemmas actually in the sentence
-        adapted.primary_target_lemma_id = next(iter(targeted))
+        # Re-pick primary to be the MOST-DUE palette lemma actually in the
+        # sentence. Pre-2026-05-28 this used `next(iter(targeted))` which is
+        # set-iteration-order — effectively random, so the showcase entered
+        # the selector pool when an arbitrary one of its palette lemmas came
+        # due. Most-due means the showcase is most likely to win against
+        # competing sentences for that lemma's review slot.
+        adapted.primary_target_lemma_id = min(
+            targeted, key=lambda lid: palette_due_rank.get(lid, _DUE_RANK_DEFAULT)
+        )
         accepted_results.append((adapted, mappings))
 
     if not accepted_results:
@@ -304,6 +335,50 @@ def generate_and_store_showcases_for_root(
         requested=count, generated=len(generated), persisted=len(persisted_ids),
         sentence_ids=persisted_ids, rejected_reasons=rejected,
     )
+
+
+# Sentinel: lemmas not in the user's ULK (unstudied) sort *after* known/acquiring
+# lemmas — they'd never enter the selector pool anyway, so we'd never need to
+# stamp the showcase to them. A large positive float beats any real timestamp.
+_DUE_RANK_DEFAULT = 1e15
+
+
+def _build_palette_due_ranking(db: Session, lemma_ids: list[int]) -> dict[int, float]:
+    """Return {lemma_id: due_rank} where lower = more-due / more-overdue.
+
+    Rank is the unix timestamp of when the lemma's next review is due:
+      - acquisition_next_due for acquiring lemmas
+      - fsrs_card_json.due for FSRS-state lemmas
+    Lemmas with no due date (encountered / unstudied) sort to the end via
+    _DUE_RANK_DEFAULT — they wouldn't enter the selector via due-ness anyway.
+    """
+    if not lemma_ids:
+        return {}
+    import json
+    from app.models import UserLemmaKnowledge as _ULK
+    ranks: dict[int, float] = {}
+    ulks = db.query(_ULK).filter(_ULK.lemma_id.in_(lemma_ids)).all()
+    for ulk in ulks:
+        due_ts: float | None = None
+        if ulk.acquisition_next_due is not None:
+            due_ts = ulk.acquisition_next_due.timestamp()
+        elif ulk.fsrs_card_json:
+            card = ulk.fsrs_card_json
+            if isinstance(card, str):
+                try:
+                    card = json.loads(card)
+                except (json.JSONDecodeError, TypeError):
+                    card = None
+            if isinstance(card, dict) and card.get("due"):
+                try:
+                    due_ts = datetime.fromisoformat(
+                        card["due"].replace("Z", "+00:00")
+                    ).timestamp()
+                except (ValueError, TypeError, AttributeError):
+                    due_ts = None
+        if due_ts is not None:
+            ranks[ulk.lemma_id] = due_ts
+    return ranks
 
 
 class _ShowcaseToMultiTargetAdapter:

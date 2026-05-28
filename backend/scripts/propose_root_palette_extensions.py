@@ -28,7 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import SessionLocal
-from app.models import Lemma, Root
+from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.activity_log import log_activity
 from app.services.lemma_quality import run_quality_gates
 from app.services.llm import generate_completion
@@ -154,7 +154,19 @@ def validate_proposal_shape(prop: dict[str, Any]) -> str | None:
 
 
 def insert_proposal(db, prop: dict[str, Any], root_id: int) -> int:
-    """Insert one proposal as a Lemma row. Returns the new lemma_id."""
+    """Insert one proposal as a Lemma + encountered ULK row. Returns the lemma_id.
+
+    Why we create an `encountered` ULK row here rather than leaving the lemma
+    with NULL ULK: the lemma is brand-new to the user, and if a showcase
+    sentence is generated immediately after gap-fill and includes this lemma,
+    the sentence_review_service's "every word earns credit" rule would
+    `auto_introduce` it directly into acquiring on first sight — no proper
+    intro card, no gloss/etymology preview. By seeding it as encountered we
+    make it visible to the normal intro-picker (word_selector.select_next_words)
+    which will offer it as a proper intro card over the next few days. The
+    next showcase regen cycle then finds it in known/acquiring and can include
+    it as a fully-introduced palette member.
+    """
     # POS normalisation: schema-permitted enums use "adj" not "adjective"
     pos = prop["pos"]
     if pos == "adjective":
@@ -169,6 +181,13 @@ def insert_proposal(db, prop: dict[str, Any], root_id: int) -> int:
         source="root_showcase_gap_fill",
     )
     db.add(lemma)
+    db.flush()
+    db.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="encountered",
+        source="root_showcase_gap_fill",
+        total_encounters=0,
+    ))
     db.flush()
     return lemma.lemma_id
 

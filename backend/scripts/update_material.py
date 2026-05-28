@@ -1743,6 +1743,73 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # ── Step G2b: Root-showcase refresh ────────────────────────────
+        # For roots that have fewer than MIN_ACTIVE active showcase sentences
+        # AND a palette of ≥4 introduced lemmas, regenerate. Capped per run so
+        # one cron pass can't burn unbounded LLM spend. Skip silently if there
+        # are no eligible roots — no error, no log noise.
+        showcase_g2b = 0
+        print("\n═══ Step G2b: Root-showcase refresh ═══")
+        if not args.dry_run:
+            from app.services.root_showcase import (
+                build_palette_for_root,
+                generate_and_store_showcases_for_root,
+            )
+            from app.models import Root as _Root
+
+            MIN_ACTIVE_SHOWCASES = 2
+            MIN_PALETTE_FOR_REFRESH = 4
+            MAX_ROOTS_PER_CRON_RUN = 3
+            COUNT_PER_REFRESH = 3
+
+            active_per_root = dict(
+                db.query(Sentence.root_focus_id, func.count(Sentence.id))
+                .filter(Sentence.kind == "root_showcase")
+                .filter(Sentence.is_active.is_(True))
+                .filter(Sentence.root_focus_id.isnot(None))
+                .group_by(Sentence.root_focus_id)
+                .all()
+            )
+            # Also consider roots with ZERO showcases (not in the count above)
+            # — pull all roots that have any focused sentence history OR a
+            # large palette. Cheap to enumerate; main loop short-circuits.
+            roots_with_showcases = set(active_per_root.keys())
+            # Don't enumerate every root in the DB — only those with at least
+            # one historical showcase OR explicitly seeded. The bootstrap run
+            # (generate_root_showcases.py) seeds the initial set; cron only
+            # refreshes those, never introduces brand-new roots on its own.
+            depleted_root_ids = [
+                rid for rid in roots_with_showcases
+                if active_per_root.get(rid, 0) < MIN_ACTIVE_SHOWCASES
+            ]
+
+            refreshed = 0
+            for rid in depleted_root_ids[:MAX_ROOTS_PER_CRON_RUN]:
+                palette = build_palette_for_root(db, rid)
+                if len(palette) < MIN_PALETTE_FOR_REFRESH:
+                    continue
+                root_row = db.query(_Root).filter(_Root.root_id == rid).first()
+                root_str = root_row.root if root_row else f"#{rid}"
+                print(f"  Refreshing {root_str}: active={active_per_root.get(rid, 0)}, palette={len(palette)}")
+                try:
+                    result = generate_and_store_showcases_for_root(
+                        db, rid, count=COUNT_PER_REFRESH,
+                    )
+                    showcase_g2b += result.persisted
+                    refreshed += 1
+                    print(f"    persisted={result.persisted}, generated={result.generated}")
+                except Exception as e:
+                    logger.exception(f"Showcase refresh failed for root {rid}")
+                    print(f"    failed: {e}")
+                    # Clean dirty state so the next iteration / next step
+                    # doesn't inherit a poisoned session
+                    db.rollback()
+            if refreshed == 0:
+                print(f"  No roots eligible for refresh ({len(depleted_root_ids)} depleted, "
+                      f"none met palette≥{MIN_PALETTE_FOR_REFRESH} threshold)")
+        else:
+            print("  Skipped (dry run)")
+
         # ── Step G3: FSRS difficulty reconciliation ────────────────────
         diff_g3 = 0
         print("\n═══ Step G3: FSRS difficulty reconciliation ═══")

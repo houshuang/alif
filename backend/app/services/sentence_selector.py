@@ -96,6 +96,13 @@ LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 def _source_bonus_for_sentence(sent: Sentence) -> float:
     if sent.source == "passage":
         return 2.0
+    # Root-showcase sentences earn a boost so they actually surface — without
+    # one they compete on equal footing with regular LLM sentences for their
+    # primary target and a small showcase library (~30 sentences) would
+    # otherwise appear roughly never. 1.8 sits below 'passage' (the strongest
+    # collateral-credit card we have) but well above book/corpus.
+    if getattr(sent, "kind", None) == "root_showcase":
+        return 1.8
     if sent.source in ("book", "corpus"):
         return 1.3
     return 1.0
