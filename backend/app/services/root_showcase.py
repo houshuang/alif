@@ -257,8 +257,13 @@ def generate_and_store_showcases_for_root(
             transliteration=res.transliteration,
             primary_target_lemma_id=primary_lemma_id,
         )
+        # trust_palette_mappings=True: palette positions are deterministic
+        # spec (we asked LLM to use lemma[X] for surface Y, mapper confirmed
+        # the bare match). Verifier objections at palette positions are
+        # bypassed; scaffold-position corrections still apply normally.
         mappings = validate_multi_target_sentence(
             db, adapted, lemma_lookup, target_bares,
+            trust_palette_mappings=True,
         )
         if mappings is None:
             rejected.append(f"validation_failed: {res.arabic[:40]}")
