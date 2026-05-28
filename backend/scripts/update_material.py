@@ -1801,6 +1801,9 @@ async def main():
                 except Exception as e:
                     logger.exception(f"Showcase refresh failed for root {rid}")
                     print(f"    failed: {e}")
+                    # Clean dirty state so the next iteration / next step
+                    # doesn't inherit a poisoned session
+                    db.rollback()
             if refreshed == 0:
                 print(f"  No roots eligible for refresh ({len(depleted_root_ids)} depleted, "
                       f"none met palette≥{MIN_PALETTE_FOR_REFRESH} threshold)")
