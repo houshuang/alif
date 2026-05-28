@@ -219,7 +219,7 @@ def test_generate_requires_three_palette_lemmas_per_sentence(db_session):
         # second returns None (validation failed)
         from app.services.sentence_validator import TokenMapping
 
-        def fake_validate(db, result, lemma_lookup, target_bares):
+        def fake_validate(db, result, lemma_lookup, target_bares, **kwargs):
             if "كَتَبَ" in result.arabic and "كاتِب" in result.arabic:
                 ms = []
                 for i, (sf, lid) in enumerate([
@@ -321,3 +321,83 @@ def test_palette_due_ranking_orders_by_acquisition_then_fsrs(db_session):
     targeted = {l_due_soon.lemma_id, l_overdue.lemma_id, l_no_due.lemma_id}
     most_due = min(targeted, key=lambda lid: ranks.get(lid, _DUE_RANK_DEFAULT))
     assert most_due == l_overdue.lemma_id
+
+
+def _stub_validate_multi_target(*, trust_palette_mappings: bool):
+    """Drive material_generator.validate_multi_target_sentence with everything
+    inside mocked. Returns the corrections list that reached apply_corrections.
+
+    The function imports its dependencies inside (sentence_validator helpers),
+    so we patch at the sentence_validator module, not material_generator.
+    """
+    from unittest.mock import MagicMock
+    from app.services import material_generator
+    from app.services.sentence_validator import TokenMapping
+
+    mappings = [
+        TokenMapping(position=0, surface_form="كَتَبَ", lemma_id=101,
+                     is_target=True, is_function_word=False),
+        TokenMapping(position=1, surface_form="فِي", lemma_id=200,
+                     is_target=False, is_function_word=False),
+        TokenMapping(position=2, surface_form="كَاتِب", lemma_id=102,
+                     is_target=True, is_function_word=False),
+    ]
+    fake_corrections = [
+        {"position": 0, "correct_lemma_ar": "X", "correct_gloss": "x", "correct_pos": "verb"},
+        {"position": 1, "correct_lemma_ar": "Y", "correct_gloss": "y", "correct_pos": "prep"},
+        {"position": 2, "correct_lemma_ar": "Z", "correct_gloss": "z", "correct_pos": "noun"},
+    ]
+
+    received_corrections: list[dict] = []
+    def fake_apply(corrections, mappings, db, **kwargs):
+        received_corrections.extend(corrections)
+        return []
+
+    db_mock = MagicMock()
+    db_mock.query.return_value.filter.return_value.all.return_value = []
+
+    result = MagicMock()
+    result.arabic = "كَتَبَ في كَاتِب"
+    result.english = "wrote in writer"
+    result.transliteration = ""
+    result.primary_target_lemma_id = 101
+
+    with patch("app.services.sentence_validator.tokenize_display",
+               return_value=["كَتَبَ", "في", "كَاتِب"]), \
+         patch("app.services.sentence_validator.map_tokens_to_lemmas",
+               return_value=mappings), \
+         patch("app.services.sentence_validator.verify_and_correct_mappings_llm",
+               return_value=fake_corrections), \
+         patch("app.services.sentence_validator.apply_corrections",
+               side_effect=fake_apply):
+        material_generator.validate_multi_target_sentence(
+            db_mock, result,
+            lemma_lookup={"كتب": 101, "كاتب": 102, "في": 200},
+            target_bares={"كتب": 101, "كاتب": 102},
+            trust_palette_mappings=trust_palette_mappings,
+        )
+
+    return received_corrections
+
+
+def test_trust_palette_mappings_drops_palette_position_corrections():
+    """When trust_palette_mappings=True, verifier corrections targeting
+    is_target=True positions are dropped before apply_corrections sees them.
+    Scaffold-position corrections (is_target=False) are preserved — the
+    verifier's general gate still applies to them."""
+    received = _stub_validate_multi_target(trust_palette_mappings=True)
+    # Only the scaffold-position correction (position 1) reaches apply_corrections
+    positions = [c["position"] for c in received]
+    assert positions == [1], (
+        f"Expected only scaffold position 1 to reach apply_corrections, got {positions}"
+    )
+
+
+def test_trust_palette_mappings_default_false_preserves_existing_behavior():
+    """Default trust_palette_mappings=False — all corrections pass through.
+    Regression guard so regular multi-target generation behavior is unchanged."""
+    received = _stub_validate_multi_target(trust_palette_mappings=False)
+    positions = [c["position"] for c in received]
+    assert positions == [0, 1, 2], (
+        f"Expected all 3 corrections to reach apply_corrections, got {positions}"
+    )

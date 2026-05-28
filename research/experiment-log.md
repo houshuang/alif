@@ -4,6 +4,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-28: Root-showcase Phase 7 — `trust_palette_mappings` narrow exception to same_lemma rejection
+
+**Context.** Bootstrap run of root-showcase on prod yielded only 2/30 sentences (ج.م.ع #47934, س.ع.د #47935). 8/10 roots produced zero showcases. Inspecting the failure log: most rejections were `apply_corrections` returning `same_lemma` — meaning the verifier flagged a palette-position mapping as wrong, but the corrector couldn't find the "correct" lemma in the DB.
+
+Investigation: the textbook_scan import created inflected verb forms as standalone canonical lemmas (e.g. `يَكْتُبُونَ` is its own lemma #1558, `أَكْتُبُ` is #1682) **without ever creating or linking to the Form-I canonical base** (`كَتَبَ` for ك.ت.ب doesn't exist in the DB at all). When the showcase used `يَكْتُبُونَ`, the mapper correctly mapped it to #1558, but the verifier — which knows MSA morphology — suggested "the canonical lemma should be كَتَبَ." That isn't in the DB → `same_lemma` rejection → sentence discarded. Root cause is data quality (Phase 8 will address); root-showcase Phase 7 sidesteps it for now.
+
+**Change.** New `trust_palette_mappings: bool = False` kwarg to `validate_multi_target_sentence`. When True, verifier corrections targeting `is_target=True` positions are filtered out **before** they reach `apply_corrections`. Scaffold-position corrections still pass through unchanged.
+
+Why this is safe (and not a weakening of the sacred `apply_corrections` `same_lemma` gate that CLAUDE.md repeatedly warns against touching):
+
+- **Palette positions are deterministic spec, not inference.** The showcase prompt explicitly tells the LLM "use lemma X for surface Y." When the mapper confirms `bare(surface) == target_bares[bare]`, the mapping is ground truth — there's no ambiguity for the verifier to be opinionated about.
+- **The gate isn't weakened — it's bypassed for a narrow class** of mappings where the original concern (verifier rejecting because the right lemma isn't in DB) is by construction inapplicable.
+- **`apply_corrections` itself is untouched.** The DO-NOT-WEAKEN guard block is preserved. The filter happens upstream, in the multi-target shim that already wraps `apply_corrections`.
+- **Scaffold-position rejections still fire.** If a non-palette word (e.g. `بِمَعْلُومَاتٍ`) trips the verifier, the existing rejection logic still discards the sentence. Only palette positions get the bypass.
+- **The flag defaults to False.** Regular multi-target generation behavior is unchanged. Only `root_showcase.py` opts in.
+
+**Expected behaviour.** Of the 8 roots that produced zero showcases in the bootstrap, ~6 had failure reasons dominated by palette-position verifier rejections (يَكْتُبُونَ, أَكْتُبُ for ك.ت.ب; نَدْرُسُ, أَدْرُسُ for د.ر.س; similar for ع.ل.م, ب.ن.ي, أ.خ.ر, ط.ي.ر). After Phase 7 deploys, the cron Step G2b refresh should yield ≥1 showcase per palette-heavy depleted root within 1-2 cron passes. ق.ب.ل and د.و.ر also rejected — those had a mix of palette and scaffold issues — yield improvement uncertain.
+
+**Verification.** Two new tests in `test_root_showcase.py`:
+- `test_trust_palette_mappings_drops_palette_position_corrections`: with `trust_palette_mappings=True`, 3 verifier corrections at positions {palette, scaffold, palette} → only the scaffold one reaches `apply_corrections`.
+- `test_trust_palette_mappings_default_false_preserves_existing_behavior`: with default False, all 3 corrections pass through (regression guard so regular multi-target gen is unaffected).
+10/10 in `test_root_showcase.py` and 183/183 in related modules green.
+
+**Followups.** Phase 8 (textbook_scan inflected verb cleanup) addresses the underlying data-shape issue — ~47 standalone inflected verbs across 47 roots should be linked to canonical Form-I bases (created if missing). Once done, the verifier objections that motivate Phase 7 go away, and other places in the codebase that touch these lemmas also benefit. Phase 7 stays — it's cheap insurance and the principle (trust deterministic spec over LLM inference) is general.
+
+---
+
 ## 2026-05-28: Root-showcase Phase 6 — make showcases actually appear + safe new-lemma handling
 
 **Context.** PR #170 landed the root-showcase generator (sentences packing 3+ derivations of one Arabic root, e.g. *يَكْتُبُونَ … وَكَاتَبَ … مَكْتُوبٌ* for ك.ت.ب). Each surface form earns its own lemma review credit via the foundational "every word" rule, so one showcase yields N hits instead of 1. But two issues surfaced when reasoning about the rollout:

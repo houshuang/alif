@@ -1267,6 +1267,8 @@ def validate_multi_target_sentence(
     result,
     lemma_lookup: dict[str, int],
     target_bares: dict[str, int],
+    *,
+    trust_palette_mappings: bool = False,
 ) -> list | None:
     """LLM-only validation phase. No DB writes, no session dirty state.
 
@@ -1278,6 +1280,17 @@ def validate_multi_target_sentence(
     the session has no dirty state when calling — otherwise the query-driven
     autoflush will acquire the SQLite write lock and hold it for the duration
     of the LLM calls (verify ~15-25s, disambig ~5-10s).
+
+    trust_palette_mappings: when True, verifier corrections targeting positions
+    flagged is_target=True (i.e. the bare form matches one of the caller's
+    target_bares — a verified palette match) are dropped before being passed to
+    apply_corrections. The semantics: palette mappings come from a deterministic
+    spec (the caller asked the LLM to use lemma[X] for surface Y, and the bare
+    confirms the match), not from inference. The verifier's objections at these
+    positions are bypassed because we have ground truth. Scaffold-position
+    corrections are preserved — the verifier's general gate still applies there.
+    Currently used only by root_showcase.py, where same-root crowded sentences
+    confuse the verifier into rejecting correctly-mapped palette lemmas.
     """
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
@@ -1354,6 +1367,23 @@ def validate_multi_target_sentence(
     if corrections is None:
         logger.warning("Mapping verification unavailable for multi-target sentence, discarding")
         return None
+    if corrections and trust_palette_mappings:
+        # Drop corrections at palette positions: the bare form matched a
+        # caller-supplied target — that's ground truth, not inference. Leaves
+        # scaffold-position corrections intact so apply_corrections's general
+        # gate still fires there (and same_lemma rejection on scaffold still
+        # works as designed — see apply_corrections docstring).
+        palette_positions = {m.position for m in mappings if m.is_target}
+        before = len(corrections)
+        corrections = [
+            c for c in corrections if c.get("position") not in palette_positions
+        ]
+        dropped = before - len(corrections)
+        if dropped:
+            logger.info(
+                f"trust_palette_mappings: dropped {dropped} verifier "
+                f"correction(s) at palette positions for: {result.arabic[:60]}"
+            )
     if corrections:
         failed = apply_corrections(
             corrections, mappings, db, arabic_text=result.arabic,
