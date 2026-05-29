@@ -532,6 +532,7 @@ def _intro_card_to_pydantic(card: IntroCardPayload) -> IntroCardOut:
 def session(
     language_code: str,
     limit: int = DEFAULT_SESSION_LIMIT,
+    prefetch: bool = False,
     db: Session = Depends(get_db),
 ) -> SessionBundleOut:
     """Build a sentence review session for the language.
@@ -544,10 +545,22 @@ def session(
     eligible sentence are silently skipped — a shorter-than-``limit``
     response is the right signal for the frontend to surface "generate more
     material" UX.
+
+    ``prefetch=True`` is sent by the client's background next-session warm-up
+    (so the session→session transition is a cache hit, not a live fetch on a
+    flaky connection). It suppresses the ``session_built`` interaction log so a
+    prefetch — which may never be shown — doesn't get counted as a session the
+    learner actually did. Mirrors Alif's ``prefetch=true`` flag. Selection is
+    otherwise identical and side-effect-free (DB-only, no state mutation).
     """
     if not db.query(Language).filter(Language.code == language_code).first():
         raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
     bundle = build_session(db, language_code=language_code, limit=limit)
+    if prefetch:
+        return SessionBundleOut(
+            sentences=[_payload_to_pydantic(p) for p in bundle.sentences],
+            intro_cards=[_intro_card_to_pydantic(c) for c in bundle.intro_cards],
+        )
     log_interaction(
         event="session_built",
         app="polyglot",

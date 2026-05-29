@@ -12,6 +12,8 @@
  * polyglot uvicorn on :3001).
  */
 import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { netStatus } from "./net-status";
 
 const ALIF_API_URL: string =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:3000";
@@ -595,13 +597,153 @@ export type ReviewSessionBundle = {
   intro_cards: IntroCard[];
 };
 
+// ─── Review session loading (prefetch + resilient fetch) ────────────────────
+//
+// Mirrors Alif's session cache + background prefetch (lib/api.ts), per
+// polyglot/CLAUDE.md § "Ground design and code in Alif". The problem this
+// solves: the review screen used to do a single cold fetch for the *next*
+// session at the exact moment the current one finished. On an iOS dev build
+// over mobile data, a transient failure there surfaces as a bare "Network
+// request failed". The fix is to build the next session in the background while
+// the learner is still reviewing, so the transition is a cache hit.
+//
+// Divergence from Alif: a single-slot cache (one session ahead), keyed per
+// language because Greek and Latin share the review screen — that's all the
+// transition needs. Bump to a queue if deep offline use is ever required.
+
+const nextSessionKey = (lang: string) => `@polyglot:nextSession:${lang}`;
+
+// Don't serve a prefetched session older than this — the learner may have
+// reviewed words since it was built, drifting it out of date. 15 min matches
+// the review-snapshot recency gate in polyglot-review.tsx.
+const NEXT_SESSION_MAX_AGE_MS = 15 * 60_000;
+
+// build_session is DB-only and <1s (mirrors Alif's "no LLM in session build"
+// invariant), so a generous timeout here only catches genuine transport
+// stalls. NOT applied to the shared get() helper — the reader's page-view /
+// gloss endpoints can legitimately spend 2-3 min in the LLM quality gate.
+const SESSION_TIMEOUT_MS = 12_000;
+
+type CachedNextSession = {
+  language: string;
+  bundle: ReviewSessionBundle;
+  savedAt: number;
+};
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchSessionBundle(
+  languageCode: string,
+  limit: number,
+  prefetch: boolean,
+): Promise<ReviewSessionBundle> {
+  const url =
+    `${POLYGLOT_BASE_URL}/api/reviews/session` +
+    `?language_code=${encodeURIComponent(languageCode)}&limit=${limit}` +
+    (prefetch ? "&prefetch=true" : "");
+  const res = await fetchWithTimeout(url, SESSION_TIMEOUT_MS);
+  if (!res.ok) throw new Error(`/api/reviews/session: ${res.status}`);
+  return res.json();
+}
+
+async function readCachedNextSession(
+  languageCode: string,
+): Promise<ReviewSessionBundle | null> {
+  try {
+    const raw = await AsyncStorage.getItem(nextSessionKey(languageCode));
+    if (!raw) return null;
+    const cached: CachedNextSession = JSON.parse(raw);
+    if (cached.language !== languageCode) return null;
+    if (Date.now() - cached.savedAt > NEXT_SESSION_MAX_AGE_MS) return null;
+    return cached.bundle;
+  } catch {
+    return null;
+  }
+}
+
+async function clearCachedNextSession(languageCode: string): Promise<void> {
+  await AsyncStorage.removeItem(nextSessionKey(languageCode)).catch(() => {});
+}
+
+// Build the next session ahead of time and stash it. Best-effort: any failure
+// just leaves the previous cache (if any) in place, and the next transition
+// falls back to a live fetch. `prefetch=true` suppresses the backend's
+// session_built log so a prefetch that's never shown isn't counted as a
+// session (mirror of Alif's prefetch flag).
+export async function prefetchReviewSession(
+  languageCode: string,
+  limit: number = 15,
+): Promise<void> {
+  if (!netStatus.isOnline) return;
+  try {
+    const bundle = await fetchSessionBundle(languageCode, limit, true);
+    const entry: CachedNextSession = {
+      language: languageCode,
+      bundle,
+      savedAt: Date.now(),
+    };
+    await AsyncStorage.setItem(nextSessionKey(languageCode), JSON.stringify(entry));
+  } catch {
+    // keep any existing cache
+  }
+}
+
+// Primary session loader for the review screen. Serves a background-prefetched
+// session instantly when one is cached (the common session→session case),
+// else fetches live with a timeout and falls back to the cache on failure.
+// Either way it kicks off a prefetch of the *following* session so the next
+// transition is a cache hit too. `forceFresh` (the "Refresh session" action)
+// bypasses the cache and always pulls live.
+export async function getReviewSessionResilient(
+  languageCode: string,
+  limit: number = 15,
+  opts: { forceFresh?: boolean } = {},
+): Promise<ReviewSessionBundle> {
+  if (opts.forceFresh) {
+    await clearCachedNextSession(languageCode);
+  } else {
+    const cached = await readCachedNextSession(languageCode);
+    if (cached) {
+      // Consume the slot, then refill it in the background.
+      await clearCachedNextSession(languageCode);
+      void prefetchReviewSession(languageCode, limit);
+      return cached;
+    }
+  }
+
+  try {
+    const bundle = await fetchSessionBundle(languageCode, limit, false);
+    void prefetchReviewSession(languageCode, limit);
+    return bundle;
+  } catch (e) {
+    // Live fetch failed (timeout / transport). A prefetch kicked during the
+    // previous session may have landed in the meantime — a slightly-stale
+    // session beats a hard "Network request failed" wall. forceFresh skips
+    // this: the user explicitly asked for new material.
+    if (!opts.forceFresh) {
+      const stale = await readCachedNextSession(languageCode);
+      if (stale) return stale;
+    }
+    throw e;
+  }
+}
+
+// Raw single-fetch session loader. Retained for callers/tests that want a
+// direct fetch without the cache layer; the review screen uses
+// getReviewSessionResilient.
 export async function getReviewSession(
   languageCode: string,
   limit: number = 15,
 ): Promise<ReviewSessionBundle> {
-  return get(
-    `/api/reviews/session?language_code=${encodeURIComponent(languageCode)}&limit=${limit}`,
-  );
+  return fetchSessionBundle(languageCode, limit, false);
 }
 
 export async function ackExperimentIntro(
