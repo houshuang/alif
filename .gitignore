@@ -96,6 +96,9 @@ backend/data/*.db.backup*
 backend/data/*.jsonl.gz
 backend/data/*.log
 backend/data/*_audit.json
+backend/data/*_cleanup.json
+backend/data/step4b_tag_progress.json
 backend/data/*.tsv
 polyglot/polyglot.db.*
-polyglot/data/lemma_audit_*.jsonl
+polyglot/data/*.jsonl
+polyglot/data/textbooks/
