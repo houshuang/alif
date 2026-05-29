@@ -711,41 +711,50 @@ export async function prefetchReviewSession(
   }
 }
 
-// Primary session loader for the review screen. Serves a background-prefetched
-// session instantly when one is cached (the common session→session case),
-// else fetches live with a timeout and falls back to the cache on failure.
-// Either way it kicks off a prefetch of the *following* session so the next
-// transition is a cache hit too. `forceFresh` (the "Refresh session" action)
-// bypasses the cache and always pulls live.
+// Primary session loader for the review screen. Fetches live first, and only
+// falls back to a background-prefetched session if the live fetch fails.
+//
+// Why live-first rather than cache-first: a prefetched bundle was built at the
+// PREVIOUS session's start — before that session's reviews were submitted. Two
+// things only change once those reviews land: the reviewed lemmas get
+// rescheduled out of the due pool, and each shown sentence gets its
+// `last_reading_shown_at` stamped (which the backend's 24h `avoid_recently_
+// shown` hard-skip keys on). So a prefetch built mid-session re-selects the
+// exact same due lemmas and un-stamped sentences — serving it cache-first
+// re-shows the session you just finished ("same session again"). Only a fetch
+// made AFTER the transition reflects the rescheduled pool + recency skip.
+// build_session is DB-only and <1s, so the live fetch is cheap.
+//
+// (Alif can serve cache-first because its prefetch passes `exclude=<seen ids>`
+// and draws from a far larger FSRS pool; polyglot's single-slot cache has no
+// exclude, so the small due pool collides exactly. The prefetch here exists
+// only to provide a fallback when the transition's live fetch genuinely fails
+// — PR #175's original goal: no bare "Network request failed" wall.)
+//
+// `forceFresh` (the "Refresh session" action) additionally skips the stale
+// fallback on failure — the user explicitly asked for new material.
 export async function getReviewSessionResilient(
   languageCode: string,
   limit: number = 15,
   opts: { forceFresh?: boolean } = {},
 ): Promise<ReviewSessionBundle> {
-  if (opts.forceFresh) {
-    await clearCachedNextSession(languageCode);
-  } else {
-    const cached = await readCachedNextSession(languageCode);
-    if (cached) {
-      // Consume the slot, then refill it in the background.
-      await clearCachedNextSession(languageCode);
-      void prefetchReviewSession(languageCode, limit);
-      return cached;
-    }
-  }
-
   try {
     const bundle = await fetchSessionBundle(languageCode, limit, false);
+    // Drop the now-stale prefetch (built before this session's reviews) and
+    // warm a fresh fallback for the next transition.
+    await clearCachedNextSession(languageCode);
     void prefetchReviewSession(languageCode, limit);
     return bundle;
   } catch (e) {
-    // Live fetch failed (timeout / transport). A prefetch kicked during the
-    // previous session may have landed in the meantime — a slightly-stale
-    // session beats a hard "Network request failed" wall. forceFresh skips
-    // this: the user explicitly asked for new material.
+    // Live fetch failed (timeout / transport). A prefetch that landed during
+    // the previous session is a slightly-stale fallback — better than a hard
+    // "Network request failed" wall. forceFresh skips it.
     if (!opts.forceFresh) {
       const stale = await readCachedNextSession(languageCode);
-      if (stale) return stale;
+      if (stale) {
+        await clearCachedNextSession(languageCode);
+        return stale;
+      }
     }
     throw e;
   }
