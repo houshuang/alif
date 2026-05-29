@@ -251,6 +251,15 @@ class ReviewLog(Base):
     # where the learner knew the word but didn't recognize it in context.
     credit_type = Column(String(20), nullable=True)
     was_confused = Column(Boolean, default=False, server_default="0")
+    # First-class analytics discriminators (added 2026-05-29) so review analysis
+    # is a direct query instead of reconstructing event class from is_acquisition
+    # + fsrs_log_json["scaffold_confirmation"]. event_type names the SRS-mechanics
+    # class of the event; provenance (reading vs review session) stays in
+    # review_mode / sentence_id. Values: "fsrs_review", "acquisition_review",
+    # "scaffold_confirmation". graduation_tier records WHICH tier fired (0/1/2/3)
+    # at the moment of graduation — NULL for non-graduating / non-acquisition rows.
+    event_type = Column(String(24), nullable=True, index=True)
+    graduation_tier = Column(Integer, nullable=True)
 
     lemma = relationship("Lemma", back_populates="reviews")
 
