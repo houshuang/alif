@@ -273,14 +273,29 @@ export type LanguageStats = {
     pages_read: number;
     new_lemmas: number;
     graduated: number;
+    graduated_words: { lemma: string; gloss: string | null }[];
     marked_unknown: number;
     streak: number;
+  };
+  overall: {
+    total_reviews: number;
+    recall_accuracy: number | null;
+    recall_tests: number;
+    sentences_read: number;
+    pages_read: number;
+    words_seen: number;
+    words_graduated: number;
+    avg_reviews_to_graduate: number | null;
+    study_days: number;
+    best_streak: number;
   };
   history_14d: {
     date: string;
     reviews: number;
     pages_read: number;
     new_lemmas: number;
+    graduated: number;
+    gaps_found: number;
   }[];
   flow_history: {
     week_start: string;

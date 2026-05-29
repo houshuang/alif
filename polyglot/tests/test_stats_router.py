@@ -181,6 +181,59 @@ def test_stats_today_activity_and_history(tmp_db):
         _cleanup()
 
 
+def test_stats_overall_and_promoted_words(tmp_db):
+    """overall lifetime block + today.graduated_words + per-day graduated/gaps."""
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            now = datetime.utcnow()
+            # Graduated-today word with a gloss + 2 real recall tests (1 right, 1 wrong)
+            grad = Lemma(language_code="el", lemma_form="rex", lemma_bare="rex",
+                         gloss_en="king", source="test")
+            db.add(grad); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=grad.lemma_id, knowledge_state="known",
+                graduated_at=now, times_seen=2,
+            ))
+            db.add(ReviewLog(lemma_id=grad.lemma_id, rating=3, reviewed_at=now,
+                             event_type="fsrs_review"))
+            db.add(ReviewLog(lemma_id=grad.lemma_id, rating=1, reviewed_at=now,
+                             event_type="fsrs_review"))
+            # Scaffold confirmation (always green) — must NOT count toward recall accuracy
+            db.add(ReviewLog(lemma_id=grad.lemma_id, rating=3, reviewed_at=now,
+                             event_type="scaffold_confirmation"))
+            # A gap flagged today
+            gap = Lemma(language_code="el", lemma_form="hostis", lemma_bare="hostis",
+                        source="test")
+            db.add(gap); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=gap.lemma_id, knowledge_state="acquiring",
+                first_failed_at=now, times_seen=1,
+            ))
+            db.commit()
+
+        body = client.get("/api/stats?language_code=el").json()
+        ov = body["overall"]
+        assert ov["total_reviews"] == 3
+        assert ov["recall_tests"] == 2           # scaffold excluded
+        assert ov["recall_accuracy"] == 50.0     # 1 of 2 real tests correct
+        assert ov["words_graduated"] == 1
+        assert ov["avg_reviews_to_graduate"] == 3.0  # all 3 rows reviewed <= graduated_at
+        assert ov["words_seen"] == 2
+        assert ov["study_days"] == 1
+
+        promoted = body["today"]["graduated_words"]
+        assert {"lemma": "rex", "gloss": "king"} in promoted
+        assert body["today"]["graduated"] == 1
+
+        # history carries per-day graduations + gaps
+        assert all("graduated" in d and "gaps_found" in d for d in body["history_14d"])
+        assert any(d["graduated"] == 1 for d in body["history_14d"])
+        assert any(d["gaps_found"] == 1 for d in body["history_14d"])
+    finally:
+        _cleanup()
+
+
 def test_stats_flow_history_weekly_buckets(tmp_db):
     client, factory = _client(tmp_db)
     try:

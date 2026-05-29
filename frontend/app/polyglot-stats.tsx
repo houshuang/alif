@@ -1,17 +1,24 @@
 /**
- * Polyglot stats — "Ledger" reading-engine dashboard.
+ * Polyglot stats — reading-engine dashboard.
  *
- * Organized by EVIDENCE STRENGTH for a warm-start learner: you've either
- * proven a word by meeting it in real text (a page OR a sentence — reader and
- * review count identically), or you're still guessing. Reading is framed as the
- * review engine: every finished page confirms knowns and surfaces gaps.
+ * Organized around ONE goal number — VERIFIED words: lemmas you've actually
+ * proven, either by meeting them in real text (clean, un-flagged exposure) or
+ * recalling them cold on a card. This is distinct from "assumed known" words
+ * (bulk-marked at warm-start, never yet seen) which are shown dimmer.
  *
- * Language-agnostic: every number comes from the language-scoped /api/stats, so
- * the same screen serves Modern Greek, Latin, and any future polyglot language
- * (the active one is read from the language context). Modern Editorial palette,
- * matching the reader / review / lemma-detail screens.
+ * Two kinds of number live here and must never be conflated:
+ *   - STATE counts (words): verified / assumed / in-acquisition / unseen.
+ *   - ACTIVITY counts (events): reviews, sentences, gaps found, etc.
+ * Units are labelled everywhere so "342 reviews" is never read as 342 words.
  *
- * See research/experiment-log.md (2026-05-25) and polyglot/CLAUDE.md Hard
+ * Reading is the primary learning mode, so raw FSRS-review counts are NOT the
+ * headline; the verified word count and how it grows are. Layout: a dense
+ * editorial grid — verified hero + today, knowledge breakdown, promoted-today,
+ * the Leitner + gap-recovery flows, reviews/day (with graduations + gaps
+ * overlaid), frequency coverage, and lifetime totals.
+ *
+ * Language-agnostic: every number comes from the language-scoped /api/stats.
+ * See research/experiment-log.md (2026-05-29) and polyglot/CLAUDE.md Hard
  * Invariant 6 for the trust-gradient model this renders.
  */
 import { useCallback, useState } from "react";
@@ -25,8 +32,6 @@ import { useLanguage } from "../lib/language-context";
 import { POLYGLOT_COLORS as P } from "../lib/polyglot-design-colors";
 import { POLYGLOT_FONTS } from "../lib/polyglot-design-tokens";
 
-// English display names + native-script headline. Fallbacks keep a brand-new
-// language working before it gets a hand-tuned entry.
 const LANGUAGE_NAMES: Record<string, string> = {
   el: "Modern Greek", grc: "Ancient Greek", la: "Latin",
 };
@@ -34,11 +39,14 @@ const NATIVE_NAME: Record<string, string> = {
   el: "ελληνικά", grc: "ἑλληνικά", la: "Latina",
 };
 
-// Gradient tier colors (Modern Editorial green → sand).
-const TIER = {
-  recall: "#2e7d6b",     // recall-tested (FSRS card)
-  confirmed: "#4f9683",  // confirmed by exposure (reader OR review)
-  guess: "#e7c9a6",      // unconfirmed cognate guess
+// Tier / accent colors (built on the canonical polyglot palette).
+const C = {
+  verified: "#2e7d6b",   // proven
+  recall: "#4f9683",     // recalled-cold subset
+  assumed: "#e7c9a6",    // marked known, not yet seen
+  practice: P.etymology, // in acquisition (orange)
+  unseen: "#e7e1d4",     // never encountered
+  warning: P.warning,    // gaps
 };
 
 const num = (n: number | null | undefined) => (n ?? 0).toLocaleString();
@@ -49,8 +57,6 @@ export default function PolyglotStats() {
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
-  // This screen only mounts for polyglot languages; pass the active one
-  // straight through so any future language works without a code change.
   const languageCode = language === "ar" ? "el" : language;
 
   useFocusEffect(
@@ -81,160 +87,217 @@ export default function PolyglotStats() {
   }
 
   const ks = stats.known_summary;
-  const recall = ks.fsrs_known;
-  const confirmed = ks.exposure_confirmed;
-  const guess = ks.assumed_unconfirmed;
-  const confirmedTotal = recall + confirmed;
-  const totalKnown = ks.total;
-
   const rc = stats.recovery;
   const lt = stats.leitner;
   const td = stats.today;
-  const fh = stats.flow_history ?? [];
-  const lastWeek = fh.length ? fh[fh.length - 1] : null;
+  const ov = stats.overall;
+
+  const verified = ks.fsrs_known + ks.exposure_confirmed;
+  const assumed = ks.assumed_unconfirmed;
+  const inAcq = lt.total_acquiring;
+  const unseen = stats.new;
+
+  // Gap recovery flow: found → in-recovery → closed, with still-open broken out.
+  const gapsFound = rc.ever_failed;
+  const gapsClosed = rc.graduated_after_failure;
+  const gapsOpen = rc.failed_not_yet_recovered;
+  const gapsInRecovery = Math.max(0, rc.recovered_once - rc.graduated_after_failure);
 
   const code = stats.language_code;
   const native = NATIVE_NAME[code] ?? LANGUAGE_NAMES[code] ?? code;
+
+  // Reviews/day: last 7 days, scaled so a one-time import spike doesn't crush
+  // the recent days — an outlier (>2.5× the next-highest) is capped + hatched.
+  const days = stats.history_14d.slice(-7);
+  const sorted = [...days.map((d) => d.reviews)].sort((a, b) => b - a);
+  const top = sorted[0] ?? 0;
+  const second = sorted[1] ?? 0;
+  const outlier = top > 2.5 * second && second > 0;
+  const displayMax = Math.max(1, outlier ? second : top);
 
   return (
     <ScrollView
       style={s.screen}
       contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
     >
-      <Text style={s.eyebrow}>
-        {(LANGUAGE_NAMES[code] ?? code).toUpperCase()} · WHAT YOU KNOW, BY HOW IT WAS PROVEN
-      </Text>
-      <Text style={s.h1}>{native}</Text>
-
-      {/* ── Reading engine ─────────────────────────────────────── */}
-      <View style={s.engine}>
-        <Text style={s.engineText}>
-          Reading <Text style={{ fontWeight: "700" }}>is</Text> your review. Every page
-          you finish confirms the words you knew and surfaces the ones you didn’t.
-        </Text>
-        <View style={s.row}>
-          <Pill n={`+${lastWeek?.confirmed ?? 0}`} label="confirmed / wk" color={TIER.recall} />
-          <Pill n={`+${lastWeek?.gaps_discovered ?? 0}`} label="gaps / wk" color={P.warning} />
-          <Pill n={`${td.streak}`} label="🔥 streak" color={P.text} />
+      <View style={s.headerRow}>
+        <View>
+          <Text style={s.eyebrow}>{(LANGUAGE_NAMES[code] ?? code).toUpperCase()}</Text>
+          <Text style={s.h1}>{native}</Text>
         </View>
+        {td.streak >= 2 && (
+          <View style={s.streak}><Text style={s.streakText}>🔥 {td.streak}d streak</Text></View>
+        )}
       </View>
 
-      {/* ── Hero: the honest split ─────────────────────────────── */}
-      <View style={s.heroRow}>
-        <Text style={s.heroBig}>{num(confirmedTotal)}</Text>
-        <Text style={s.heroLab}>
-          confirmed · <Text style={{ color: P.etymology, fontWeight: "600" }}>{num(guess)}</Text> still a guess
-        </Text>
-      </View>
-      <View style={s.gbar}>
-        {recall > 0 && <View style={{ flex: recall, backgroundColor: TIER.recall }} />}
-        {confirmed > 0 && <View style={{ flex: confirmed, backgroundColor: TIER.confirmed }} />}
-        {guess > 0 && <View style={{ flex: guess, backgroundColor: TIER.guess }} />}
-      </View>
-      <View style={s.keyRow}>
-        <KeyDot color={TIER.recall} label={`Recall-tested ${num(recall)}`} />
-        <KeyDot color={TIER.confirmed} label={`Confirmed ${num(confirmed)}`} />
-        <KeyDot color={TIER.guess} label={`Guess ${num(guess)}`} />
-        <Text style={s.keyMeta}>· {num(totalKnown)} credited · {num(stats.new)} unseen</Text>
+      {/* ── Verified hero + Today ─────────────────────────────────────── */}
+      <View style={s.row}>
+        <Panel style={{ flex: 1 }}>
+          <PanelTitle label="Verified words" />
+          <Text style={s.heroNum}>{num(verified)}</Text>
+          <Text style={s.heroSub}>proven, not assumed</Text>
+          <Text style={s.heroCompo}>{num(ks.exposure_confirmed)} read · {num(ks.fsrs_known)} recall</Text>
+          {inAcq > 0 && <Text style={s.heroAcq}>+{num(inAcq)} in acquisition</Text>}
+        </Panel>
+        <Panel style={{ flex: 1 }}>
+          <PanelTitle label="Today" />
+          <KV label="reviews" value={num(td.reviews)} unit="evt" />
+          <KV label="sentences" value={num(td.sentence_reviews)} />
+          <KV label="verified" value={`+${num(td.graduated)}`} unit="wd" valueColor={C.verified} />
+          <KV label="new gaps" value={`+${num(td.marked_unknown)}`} unit="wd" valueColor={C.warning} last />
+        </Panel>
       </View>
 
-      {/* ── Evidence ladder ────────────────────────────────────── */}
-      <SectionHeader label="The evidence ladder" right={`${num(totalKnown)} credited known`} />
-      <Tier color={TIER.recall} name="Recall-tested" how="recalled under spacing · FSRS card" n={recall} nColor={TIER.recall} />
-      <Tier color={TIER.confirmed} name="Confirmed by exposure" how="met in a page or a sentence, not flagged · reader = review" n={confirmed} nColor="#3f8f7c" />
-      <Tier color="#d9b48f" ghost name="Unconfirmed guess" how="cognate guess · you’ve never been shown it" n={guess} nColor={P.etymology} />
-
-      {/* ── Gaps reading surfaced ──────────────────────────────── */}
-      <SectionHeader label="Gaps reading surfaced" right="what you’re actually learning" />
-      <View style={s.card}>
-        <View style={s.funnel}>
-          <Funnel n={rc.ever_failed} label="found" color={P.warning} />
-          <Sep />
-          <Funnel n={stats.judged_progress.pipeline.acquiring} label="in practice" color={P.etymology} />
-          <Sep />
-          <Funnel n={stats.by_state.learning} label="learning" color={P.accent} />
-          <Sep />
-          <Funnel n={rc.graduated_after_failure} label="closed" color={TIER.recall} />
+      {/* ── Knowledge breakdown ───────────────────────────────────────── */}
+      <Panel span>
+        <PanelTitle label="Knowledge" right={`${num(stats.total_lemmas)} lemmas`} />
+        <View style={s.splitbar}>
+          {verified > 0 && <View style={{ flex: verified, backgroundColor: C.verified }} />}
+          {assumed > 0 && <View style={{ flex: assumed, backgroundColor: C.assumed }} />}
+          {inAcq > 0 && <View style={{ flex: inAcq, backgroundColor: C.practice }} />}
+          {unseen > 0 && <View style={{ flex: unseen, backgroundColor: C.unseen }} />}
         </View>
-        <View style={[s.row, { marginTop: 9 }]}>
-          <Box n={lt.box_1} label="Box 1 · 4h" />
-          <Box n={lt.box_2} label="Box 2 · 1d" />
-          <Box n={lt.box_3} label="Box 3 · 3d" />
-          <Box n={rc.failed_not_yet_recovered} label="open gaps" danger />
-        </View>
-      </View>
-      {stats.fsrs.tracked > 0 && (
-        <View style={s.card}>
-          <Text style={s.cardLabel}>FSRS stability · {num(stats.fsrs.tracked)} verified cards</Text>
-          <StabilityBar buckets={stats.fsrs.stability_buckets} />
-        </View>
-      )}
+        <KVDot color={C.verified} label="Verified — met in text / recalled" value={num(verified)} />
+        <KVDot color={C.assumed} label="Assumed known, not yet seen" value={num(assumed)} />
+        <KVDot color={C.practice} label="In practice (acquiring)" value={num(inAcq)} />
+        <KVDot color={C.unseen} label="Unseen" value={num(unseen)} last />
+      </Panel>
 
-      {/* ── Conversion over time ───────────────────────────────── */}
-      {fh.some((w) => w.confirmed || w.gaps_discovered) && (
-        <>
-          <SectionHeader label="Conversion over time" right="last 8 weeks" />
-          <View style={s.card}>
-            <WeeklyChart weeks={fh} />
-            <View style={[s.keyRow, { marginTop: 8 }]}>
-              <KeyDot color={TIER.confirmed} label="confirmed" />
-              <KeyDot color={P.warning} label="gaps found" />
-            </View>
-            <Text style={s.note}>
-              A tall earlier week is the one-time seed import + history backfill, not your weekly rate.
-            </Text>
+      {/* ── Promoted today ────────────────────────────────────────────── */}
+      {td.graduated_words.length > 0 && (
+        <Panel span>
+          <PanelTitle label="Promoted to verified today" />
+          <View style={s.chipRow}>
+            {td.graduated_words.map((w, i) => (
+              <View key={`${w.lemma}-${i}`} style={s.chip}>
+                <Text style={s.chipLemma}>{w.lemma}{w.gloss ? <Text style={s.chipGloss}>  {w.gloss}</Text> : null}</Text>
+              </View>
+            ))}
           </View>
-        </>
+        </Panel>
       )}
 
-      {/* ── Frequency coverage ─────────────────────────────────── */}
+      {/* ── Leitner flow ──────────────────────────────────────────────── */}
+      <Panel span>
+        <PanelTitle label="In practice — Leitner flow" right={`${num(lt.due_now)} due now`} />
+        <View style={s.funnel}>
+          <FunnelCell n={lt.box_1} label="Box 1 · 4h" color={C.warning} />
+          <Sep />
+          <FunnelCell n={lt.box_2} label="Box 2 · 1d" color={C.practice} />
+          <Sep />
+          <FunnelCell n={lt.box_3} label="Box 3 · 3d" color={P.textTertiary} />
+          <Sep />
+          <FunnelCell n={ov.words_graduated} label="graduated" color={C.verified} />
+        </View>
+        <Text style={s.flowFoot}>words climb 4h → 1d → 3d, then graduate into verified</Text>
+      </Panel>
+
+      {/* ── Gap recovery flow ─────────────────────────────────────────── */}
+      {gapsFound > 0 && (
+        <Panel span>
+          <PanelTitle label="Gaps — flagged unknown, working back" />
+          <View style={s.funnel}>
+            <FunnelCell n={gapsFound} label="found ever" color={P.text} />
+            <Sep />
+            <FunnelCell n={gapsInRecovery} label="in recovery" color={C.practice} />
+            <Sep />
+            <FunnelCell n={gapsClosed} label="closed" color={C.verified} />
+            <View style={s.openDivider} />
+            <FunnelCell n={gapsOpen} label="still open" color={C.warning} />
+          </View>
+        </Panel>
+      )}
+
+      {/* ── Reviews per day (with graduations + gaps overlay) ──────────── */}
+      <Panel span>
+        <PanelTitle label="Reviews per day" right="last 7 days" />
+        <View style={s.chart}>
+          {days.map((d, i) => {
+            const isOutlier = outlier && d.reviews === top;
+            const h = Math.max(d.reviews > 0 ? 3 : 0, Math.min(1, d.reviews / displayMax) * 80);
+            const isToday = i === days.length - 1;
+            return (
+              <View key={d.date} style={s.dayCol}>
+                <View style={s.dayMarks}>
+                  {d.graduated > 0 && <Text style={s.markG}>▲{d.graduated}</Text>}
+                  {d.gaps_found > 0 && <Text style={s.markX}>✕{d.gaps_found}</Text>}
+                </View>
+                <View
+                  style={[
+                    s.dayBar,
+                    { height: isOutlier ? 80 : h },
+                    isOutlier ? s.dayBarOutlier : isToday ? s.dayBarToday : s.dayBarNormal,
+                  ]}
+                />
+                <Text style={s.dayLab}>{dayLabel(i, days.length)}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={s.legend}>
+          <LegendDot color="#9ec7ba" label="reviews" />
+          <LegendDot color={C.verified} label="▲ graduated" />
+          <LegendDot color={C.warning} label="✕ new gaps" />
+        </View>
+        {outlier && (
+          <Text style={s.note}>
+            The hatched bar is a one-time import/backfill ({num(top)}), not a daily rate.
+          </Text>
+        )}
+      </Panel>
+
+      {/* ── Frequency coverage ────────────────────────────────────────── */}
       {stats.frequency && stats.frequency.bands.length > 0 && (
-        <>
-          <SectionHeader label="Frequency coverage" right={stats.frequency.source} />
-          <View style={s.card}>
-            {stats.frequency.bands.map((b) => (
+        <Panel span>
+          <PanelTitle label="Frequency coverage" right={stats.frequency.source} />
+          {stats.frequency.bands.map((b) => {
+            const pct = Math.min(100, b.coverage_pct);
+            return (
               <View key={b.top_n} style={{ marginBottom: 9 }}>
                 <View style={s.fqTop}>
                   <Text style={s.fqLabel}>Top {num(b.top_n)}</Text>
-                  <Text style={s.fqPct}>{b.coverage_pct}% reached</Text>
+                  <Text style={s.fqPct}>{num(b.learned)} reached · {b.coverage_pct}%</Text>
                 </View>
                 <View style={s.fqTrack}>
-                  <View style={{ width: `${Math.min(100, b.coverage_pct)}%`, backgroundColor: TIER.confirmed, height: "100%" }} />
+                  <View style={{ width: `${pct}%`, backgroundColor: C.recall, height: "100%" }} />
                 </View>
-                <Text style={s.fqDetail}>
-                  {num(b.learned)} learned · {num(b.acquiring)} acquiring · {num(b.encountered)} seen
-                </Text>
               </View>
-            ))}
-          </View>
-        </>
+            );
+          })}
+        </Panel>
       )}
 
-      {/* ── Today ──────────────────────────────────────────────── */}
-      <SectionHeader label="Today" />
-      <View style={s.row}>
-        <TodayCell n={td.reviews} label="reviews" />
-        <TodayCell n={td.sentence_reviews} label="sentences" />
-        <TodayCell n={td.pages_read} label="pages" />
-        <TodayCell n={td.new_lemmas} label="new" color={TIER.recall} />
-        <TodayCell n={td.marked_unknown} label="marked ?" color={P.warning} />
-      </View>
+      {/* ── All time ──────────────────────────────────────────────────── */}
+      <Panel span>
+        <PanelTitle label="All time" />
+        <KV label="total reviews" value={num(ov.total_reviews)} />
+        <KV
+          label="recall accuracy"
+          labelHint="real tests only"
+          value={ov.recall_accuracy != null ? `${ov.recall_accuracy}%` : "—"}
+        />
+        <KV label="sentences read" value={num(ov.sentences_read)} />
+        <KV label="story pages read" value={num(ov.pages_read)} />
+        <KV label="distinct words seen" value={num(ov.words_seen)} />
+        <KV label="words graduated" value={num(ov.words_graduated)} />
+        <KV
+          label="avg reviews to graduate"
+          value={ov.avg_reviews_to_graduate != null ? String(ov.avg_reviews_to_graduate) : "—"}
+        />
+        <KV label="days studied · best streak" value={`${num(ov.study_days)} · ${num(ov.best_streak)}d`} last />
+      </Panel>
 
-      {/* ── Texts ──────────────────────────────────────────────── */}
+      {/* ── Texts ─────────────────────────────────────────────────────── */}
       {stats.stories.length > 0 && (
-        <>
-          <SectionHeader label="Texts" />
-          <View style={s.card}>
-            {stats.stories.map((st) => (
-              <View key={st.id} style={s.textRow}>
-                <Text style={s.textTitle} numberOfLines={1}>{st.title ?? "Untitled"}</Text>
-                <Text style={s.textMeta}>
-                  {num(st.viewed_pages)}/{num(st.page_count ?? 0)} read
-                </Text>
-              </View>
-            ))}
-          </View>
-        </>
+        <Panel span>
+          <PanelTitle label="Texts" />
+          {stats.stories.map((st) => (
+            <View key={st.id} style={s.textRow}>
+              <Text style={s.textTitle} numberOfLines={1}>{st.title ?? "Untitled"}</Text>
+              <Text style={s.textMeta}>{num(st.viewed_pages)}/{num(st.page_count ?? 0)} read</Text>
+            </View>
+          ))}
+        </Panel>
       )}
 
       <View style={{ height: 40 }} />
@@ -244,50 +307,57 @@ export default function PolyglotStats() {
 
 // ─── Small presentational pieces ───────────────────────────────────────────
 
-function SectionHeader({ label, right }: { label: string; right?: string }) {
+function dayLabel(i: number, len: number): string {
+  if (i === len - 1) return "today";
+  return `−${len - 1 - i}`;
+}
+
+function Panel({ children, span, style }: { children: React.ReactNode; span?: boolean; style?: object }) {
+  return <View style={[s.panel, span && s.panelSpan, style]}>{children}</View>;
+}
+
+function PanelTitle({ label, right }: { label: string; right?: string }) {
   return (
-    <View style={s.sec}>
-      <Text style={s.secLabel}>{label.toUpperCase()}</Text>
-      {right ? <Text style={s.secRight}>{right}</Text> : null}
+    <View style={s.panelTitleRow}>
+      <Text style={s.panelTitle}>{label.toUpperCase()}</Text>
+      {right ? <Text style={s.panelTitleRight}>{right}</Text> : null}
     </View>
   );
 }
 
-function Pill({ n, label, color }: { n: string; label: string; color: string }) {
-  return (
-    <View style={s.pill}>
-      <Text style={[s.pillN, { color }]}>{n}</Text>
-      <Text style={s.pillL}>{label}</Text>
-    </View>
-  );
-}
-
-function KeyDot({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={s.keyItem}>
-      <View style={[s.dot, { backgroundColor: color }]} />
-      <Text style={s.keyText}>{label}</Text>
-    </View>
-  );
-}
-
-function Tier(
-  { color, name, how, n, nColor, ghost }:
-  { color: string; name: string; how: string; n: number; nColor: string; ghost?: boolean },
+function KV(
+  { label, labelHint, value, unit, valueColor, last }:
+  { label: string; labelHint?: string; value: string; unit?: string; valueColor?: string; last?: boolean },
 ) {
   return (
-    <View style={[s.tier, ghost && s.tierGhost]}>
-      <View style={[s.tierBar, { backgroundColor: color }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={[s.tierName, ghost && { color: "#a06a2c" }]}>{name}</Text>
-        <Text style={s.tierHow}>{how}</Text>
-      </View>
-      <Text style={[s.tierN, { color: nColor }]}>{num(n)}</Text>
+    <View style={[s.kv, last && s.kvLast]}>
+      <Text style={s.kvLabel}>
+        {label}{labelHint ? <Text style={s.kvHint}>  {labelHint}</Text> : null}
+      </Text>
+      <Text style={s.kvValue}>
+        <Text style={[s.kvNum, valueColor ? { color: valueColor } : null]}>{value}</Text>
+        {unit ? <Text style={s.kvUnit}> {unit}</Text> : null}
+      </Text>
     </View>
   );
 }
 
-function Funnel({ n, label, color }: { n: number; label: string; color: string }) {
+function KVDot(
+  { color, label, value, last }:
+  { color: string; label: string; value: string; last?: boolean },
+) {
+  return (
+    <View style={[s.kv, last && s.kvLast]}>
+      <View style={s.kvDotLabel}>
+        <View style={[s.kvDot, { backgroundColor: color }]} />
+        <Text style={s.kvLabel}>{label}</Text>
+      </View>
+      <Text style={s.kvNum}>{value}</Text>
+    </View>
+  );
+}
+
+function FunnelCell({ n, label, color }: { n: number; label: string; color: string }) {
   return (
     <View style={s.funnelCell}>
       <Text style={[s.funnelN, { color }]}>{num(n)}</Text>
@@ -297,131 +367,87 @@ function Funnel({ n, label, color }: { n: number; label: string; color: string }
 }
 const Sep = () => <Text style={s.sep}>›</Text>;
 
-function Box({ n, label, danger }: { n: number; label: string; danger?: boolean }) {
+function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <View style={[s.box, danger && s.boxDanger]}>
-      <Text style={[s.boxN, { color: danger ? P.warning : P.etymology }]}>{num(n)}</Text>
-      <Text style={[s.boxL, danger && { color: "#9c4133" }]}>{label}</Text>
-    </View>
-  );
-}
-
-function TodayCell({ n, label, color }: { n: number; label: string; color?: string }) {
-  return (
-    <View style={s.tcell}>
-      <Text style={[s.tcellN, color ? { color } : null]}>{num(n)}</Text>
-      <Text style={s.tcellL}>{label}</Text>
-    </View>
-  );
-}
-
-const STABILITY_COLORS: Record<string, string> = {
-  "<1d": P.warning, "1-3d": P.etymology, "3-7d": P.etymology,
-  "7-21d": TIER.recall, "21-60d": "#27ae60", "60d+": "#1abc9c",
-};
-function StabilityBar({ buckets }: { buckets: { label: string; count: number }[] }) {
-  const total = buckets.reduce((a, b) => a + b.count, 0) || 1;
-  return (
-    <>
-      <View style={s.stab}>
-        {buckets.map((b) => b.count > 0 ? (
-          <View key={b.label} style={{ flex: b.count, backgroundColor: STABILITY_COLORS[b.label] ?? P.textTertiary }} />
-        ) : null)}
-      </View>
-      <Text style={s.note}>
-        {buckets.filter((b) => b.count > 0).map((b) => `${b.count} ${b.label}`).join(" · ") || "—"}
-      </Text>
-      <Text style={[s.note, { marginTop: 0 }]}>{total} cards · nothing past 21d means memory is still young</Text>
-    </>
-  );
-}
-
-function WeeklyChart({ weeks }: { weeks: LanguageStats["flow_history"] }) {
-  const max = Math.max(1, ...weeks.map((w) => Math.max(w.confirmed, w.gaps_discovered)));
-  return (
-    <View style={s.wk}>
-      {weeks.map((w, i) => (
-        <View key={w.week_start} style={s.wcol}>
-          <View style={s.wbars}>
-            <View style={{ width: 9, height: `${(w.confirmed / max) * 100}%`, backgroundColor: TIER.confirmed, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
-            <View style={{ width: 9, height: `${(w.gaps_discovered / max) * 100}%`, backgroundColor: P.warning, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} />
-          </View>
-          <Text style={s.wlab}>{i === weeks.length - 1 ? "now" : `−${weeks.length - 1 - i}w`}</Text>
-        </View>
-      ))}
+    <View style={s.legendItem}>
+      <View style={[s.legendDot, { backgroundColor: color }]} />
+      <Text style={s.legendText}>{label}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: P.bg },
-  content: { padding: 16 },
+  content: { padding: 13 },
   center: { alignItems: "center", justifyContent: "center" },
   error: { color: P.warning, textAlign: "center", paddingHorizontal: 24 },
-  eyebrow: { fontSize: 10.5, letterSpacing: 1.2, color: P.textTertiary, fontWeight: "600" },
-  h1: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 28, color: P.text, marginTop: 3, marginBottom: 2 },
 
-  engine: { backgroundColor: "#eef4f1", borderWidth: 1, borderColor: "#cfe2da", borderRadius: 14, padding: 14, marginTop: 12, marginBottom: 6 },
-  engineText: { fontFamily: POLYGLOT_FONTS.greekBody, fontSize: 16, color: P.text, lineHeight: 22, marginBottom: 11 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 },
+  eyebrow: { fontSize: 9.5, letterSpacing: 1.3, color: P.textTertiary, fontWeight: "600" },
+  h1: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 29, color: P.text, lineHeight: 31 },
+  streak: { backgroundColor: "#fbeede", borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5 },
+  streakText: { fontSize: 11, color: C.warning, fontWeight: "700" },
+
   row: { flexDirection: "row", gap: 8 },
-  pill: { flex: 1, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 10, paddingVertical: 9, alignItems: "center" },
-  pillN: { fontSize: 19, fontWeight: "700", letterSpacing: -0.3 },
-  pillL: { fontSize: 9, color: P.textTertiary, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
+  panel: { backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 12, padding: 13, marginBottom: 8 },
+  panelSpan: { },
+  panelTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 },
+  panelTitle: { fontSize: 9.5, letterSpacing: 0.8, color: P.textTertiary, fontWeight: "700" },
+  panelTitleRight: { fontSize: 10.5, color: P.textTertiary },
 
-  heroRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 12, marginBottom: 6 },
-  heroBig: { fontSize: 34, fontWeight: "800", letterSpacing: -0.5, color: TIER.recall },
-  heroLab: { fontSize: 12.5, color: P.textSecondary, paddingBottom: 4 },
-  gbar: { height: 14, borderRadius: 7, overflow: "hidden", flexDirection: "row", marginBottom: 8 },
-  keyRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
-  keyItem: { flexDirection: "row", alignItems: "center" },
-  dot: { width: 8, height: 8, borderRadius: 2, marginRight: 4 },
-  keyText: { fontSize: 11, color: P.textSecondary },
-  keyMeta: { fontSize: 11, color: P.textTertiary },
+  heroNum: { fontSize: 50, fontWeight: "800", letterSpacing: -2.5, color: C.verified, lineHeight: 46 },
+  heroSub: { fontSize: 12, color: P.textSecondary, marginTop: 5 },
+  heroCompo: { fontSize: 11.5, color: C.verified, fontWeight: "600", marginTop: 3 },
+  heroAcq: { fontSize: 11.5, color: C.practice, fontWeight: "600", marginTop: 2 },
 
-  sec: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 22, marginBottom: 9 },
-  secLabel: { fontSize: 11, letterSpacing: 1, color: P.textTertiary, fontWeight: "700" },
-  secRight: { fontSize: 11, color: P.textTertiary },
+  kv: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#f1ece1" },
+  kvLast: { borderBottomWidth: 0 },
+  kvLabel: { fontSize: 13, color: P.textSecondary },
+  kvHint: { fontSize: 10, color: P.textTertiary },
+  kvValue: { },
+  kvNum: { fontSize: 14, fontWeight: "700", color: P.text },
+  kvUnit: { fontSize: 10, color: P.textTertiary, fontWeight: "400" },
+  kvDotLabel: { flexDirection: "row", alignItems: "center", gap: 7, flex: 1 },
+  kvDot: { width: 9, height: 9, borderRadius: 2 },
 
-  card: { backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 13, padding: 13, marginBottom: 9 },
-  cardLabel: { fontSize: 11, color: P.textTertiary, marginBottom: 6 },
-  note: { fontSize: 10.5, color: P.textTertiary, fontStyle: "italic", marginTop: 6, lineHeight: 14 },
+  splitbar: { height: 11, borderRadius: 6, overflow: "hidden", flexDirection: "row", marginBottom: 8 },
 
-  tier: { flexDirection: "row", alignItems: "center", gap: 11, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 12, padding: 11, paddingLeft: 14, marginBottom: 7, overflow: "hidden" },
-  tierGhost: { backgroundColor: "#fdfaf5", borderColor: "#e6d3bb" },
-  tierBar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4 },
-  tierName: { fontSize: 13, fontWeight: "600", color: P.text },
-  tierHow: { fontSize: 11, color: P.textTertiary, marginTop: 1 },
-  tierN: { fontSize: 21, fontWeight: "700", letterSpacing: -0.3 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: { backgroundColor: "#eef4f1", borderRadius: 7, paddingHorizontal: 8, paddingVertical: 4 },
+  chipLemma: { fontSize: 12.5, color: C.verified, fontFamily: POLYGLOT_FONTS.greekBody },
+  chipGloss: { fontSize: 10.5, color: P.textTertiary },
 
   funnel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   funnelCell: { flex: 1, alignItems: "center" },
-  funnelN: { fontSize: 19, fontWeight: "700", letterSpacing: -0.3 },
-  funnelL: { fontSize: 9, color: P.textTertiary, textTransform: "uppercase", marginTop: 3 },
-  sep: { color: "#d2d8da", fontSize: 14 },
+  funnelN: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+  funnelL: { fontSize: 8.5, color: P.textTertiary, textTransform: "uppercase", marginTop: 2, textAlign: "center" },
+  sep: { color: "#cbbfa6", fontSize: 15, paddingHorizontal: 1 },
+  openDivider: { width: 1, alignSelf: "stretch", backgroundColor: "#efe7d6", marginHorizontal: 4 },
+  flowFoot: { fontSize: 10.5, color: P.textTertiary, marginTop: 9, textAlign: "center" },
 
-  box: { flex: 1, backgroundColor: "#fbf3ea", borderWidth: 1, borderColor: "#efd9bf", borderRadius: 9, paddingVertical: 8, alignItems: "center" },
-  boxDanger: { backgroundColor: "#fdebe7", borderColor: "#f3c9bf" },
-  boxN: { fontSize: 16, fontWeight: "700" },
-  boxL: { fontSize: 8.5, color: "#a06a2c", marginTop: 1 },
+  chart: { flexDirection: "row", alignItems: "flex-end", gap: 6, height: 110, marginTop: 4 },
+  dayCol: { flex: 1, alignItems: "center", justifyContent: "flex-end" },
+  dayMarks: { flexDirection: "row", gap: 3, height: 13, alignItems: "flex-end" },
+  markG: { fontSize: 9, fontWeight: "700", color: C.verified },
+  markX: { fontSize: 9, fontWeight: "700", color: C.warning },
+  dayBar: { width: "62%", borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: 2 },
+  dayBarNormal: { backgroundColor: "#9ec7ba" },
+  dayBarToday: { backgroundColor: C.verified },
+  dayBarOutlier: { backgroundColor: "#cdbf9f" },
+  dayLab: { fontSize: 9, color: P.textTertiary, marginTop: 4 },
 
-  stab: { height: 9, borderRadius: 5, overflow: "hidden", flexDirection: "row", marginVertical: 6 },
-
-  wk: { flexDirection: "row", alignItems: "flex-end", gap: 10, height: 96, paddingTop: 6 },
-  wcol: { flex: 1, alignItems: "center", justifyContent: "flex-end", height: "100%" },
-  wbars: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: "100%", justifyContent: "center" },
-  wlab: { fontSize: 9, color: P.textTertiary, marginTop: 5 },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8 },
+  legendItem: { flexDirection: "row", alignItems: "center" },
+  legendDot: { width: 9, height: 9, borderRadius: 2, marginRight: 4 },
+  legendText: { fontSize: 10, color: P.textSecondary },
+  note: { fontSize: 9.5, color: P.textTertiary, fontStyle: "italic", marginTop: 6 },
 
   fqTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
   fqLabel: { fontSize: 11.5, color: P.text },
   fqPct: { fontSize: 11.5, color: P.textTertiary },
   fqTrack: { height: 7, backgroundColor: "#f0ece4", borderRadius: 5, overflow: "hidden" },
-  fqDetail: { fontSize: 10.5, color: P.textSecondary, marginTop: 4 },
 
-  tcell: { flex: 1, backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, borderRadius: 10, paddingVertical: 9, alignItems: "center" },
-  tcellN: { fontSize: 17, fontWeight: "700", color: P.text },
-  tcellL: { fontSize: 8.5, color: P.textTertiary, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
-
-  textRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#f1eee7" },
+  textRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7, borderTopWidth: 1, borderTopColor: "#f1eee7" },
   textTitle: { flex: 1, fontSize: 12.5, color: P.text },
   textMeta: { fontSize: 11, color: P.textTertiary },
 });

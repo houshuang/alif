@@ -14,13 +14,13 @@ from datetime import datetime, date, time, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, Story, Page, Language,
-    ReviewLog, SentenceReviewLog, FrequencyEntry, ActivityLog,
+    ReviewLog, SentenceReviewLog, Sentence, FrequencyEntry, ActivityLog,
 )
 from app.services.fsrs_service import parse_json_column
 from app.services.knowledge_lifecycle import (
@@ -75,6 +75,117 @@ def _card_due_on_or_before(card_json: dict[str, Any] | None, now: datetime) -> b
         return False
     due_naive = _as_naive_utc(due)
     return due_naive is not None and due_naive <= now
+
+
+def _overall_stats(db: Session, language_code: str) -> dict[str, Any]:
+    """Lifetime totals for the 'All time' panel.
+
+    recall_accuracy is computed ONLY over genuine retrieval tests
+    (fsrs_review + acquisition_review); scaffold_confirmation rows — passive
+    reading-confirmations that are always green — are excluded so the number
+    reflects real recall, not reading exposure.
+    """
+    total_reviews = (
+        db.query(func.count(ReviewLog.id))
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .scalar() or 0
+    )
+
+    recall_row = (
+        db.query(
+            func.count(ReviewLog.id),
+            func.sum(case((ReviewLog.rating >= 3, 1), else_=0)),
+        )
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            ReviewLog.event_type.in_(("fsrs_review", "acquisition_review")),
+        )
+        .first()
+    )
+    recall_total = int(recall_row[0] or 0)
+    recall_correct = int(recall_row[1] or 0)
+    recall_accuracy = (
+        round(100.0 * recall_correct / recall_total, 1) if recall_total else None
+    )
+
+    sentences_read = (
+        db.query(func.count(SentenceReviewLog.id))
+        .join(Sentence, Sentence.id == SentenceReviewLog.sentence_id)
+        .filter(Sentence.language_code == language_code)
+        .scalar() or 0
+    )
+    pages_read = (
+        db.query(func.count(Page.id))
+        .join(Story, Story.id == Page.story_id)
+        .filter(Story.language_code == language_code, Page.viewed_at.isnot(None))
+        .scalar() or 0
+    )
+    words_seen = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(Lemma.language_code == language_code, UserLemmaKnowledge.times_seen > 0)
+        .scalar() or 0
+    )
+
+    grad_rows = (
+        db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.graduated_at)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            UserLemmaKnowledge.graduated_at.isnot(None),
+        )
+        .all()
+    )
+    words_graduated = len(grad_rows)
+    avg_reviews_to_graduate = None
+    if grad_rows:
+        total_grad_reviews = 0
+        for lemma_id, grad_at in grad_rows:
+            total_grad_reviews += (
+                db.query(func.count(ReviewLog.id))
+                .filter(
+                    ReviewLog.lemma_id == lemma_id,
+                    ReviewLog.reviewed_at <= grad_at,
+                )
+                .scalar() or 0
+            )
+        avg_reviews_to_graduate = round(total_grad_reviews / words_graduated, 1)
+
+    # study days + best consecutive-day streak from distinct review dates
+    day_rows = (
+        db.query(func.distinct(func.date(ReviewLog.reviewed_at)))
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    )
+    study_dates = sorted(
+        date.fromisoformat(d[0]) if isinstance(d[0], str) else d[0]
+        for d in day_rows
+        if d[0] is not None
+    )
+    study_days = len(study_dates)
+    best_streak = 0
+    run = 0
+    prev: date | None = None
+    for d in study_dates:
+        run = run + 1 if prev is not None and (d - prev).days == 1 else 1
+        best_streak = max(best_streak, run)
+        prev = d
+
+    return {
+        "total_reviews": int(total_reviews),
+        "recall_accuracy": recall_accuracy,
+        "recall_tests": recall_total,
+        "sentences_read": int(sentences_read),
+        "pages_read": int(pages_read),
+        "words_seen": int(words_seen),
+        "words_graduated": words_graduated,
+        "avg_reviews_to_graduate": avg_reviews_to_graduate,
+        "study_days": study_days,
+        "best_streak": best_streak,
+    }
 
 
 @router.get("")
@@ -202,7 +313,11 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
     )
     sentence_reviews_today = (
         db.query(func.count(SentenceReviewLog.id))
-        .filter(SentenceReviewLog.reviewed_at >= today_start)
+        .join(Sentence, Sentence.id == SentenceReviewLog.sentence_id)
+        .filter(
+            Sentence.language_code == language_code,
+            SentenceReviewLog.reviewed_at >= today_start,
+        )
         .scalar() or 0
     )
     pages_read_today = (
@@ -266,12 +381,28 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         streak += 1
         cursor = cursor - timedelta(days=1)
 
+    graduated_words_today = [
+        {"lemma": lemma_form, "gloss": gloss_en}
+        for lemma_form, gloss_en in (
+            db.query(Lemma.lemma_form, Lemma.gloss_en)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.language_code == language_code,
+                UserLemmaKnowledge.graduated_at >= today_start,
+            )
+            .order_by(UserLemmaKnowledge.graduated_at.desc())
+            .limit(8)
+            .all()
+        )
+    ]
+
     today = {
         "reviews": int(reviews_today),
         "sentence_reviews": int(sentence_reviews_today),
         "pages_read": int(pages_read_today),
         "new_lemmas": int(new_lemmas_today),
         "graduated": int(graduated_today),
+        "graduated_words": graduated_words_today,
         "marked_unknown": int(unknown_marked_today),
         "streak": streak,
     }
@@ -312,11 +443,33 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
             )
             .scalar() or 0
         )
+        g = (
+            db.query(func.count(UserLemmaKnowledge.id))
+            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                Lemma.language_code == language_code,
+                UserLemmaKnowledge.graduated_at >= day_start,
+                UserLemmaKnowledge.graduated_at < day_end,
+            )
+            .scalar() or 0
+        )
+        gaps = (
+            db.query(func.count(UserLemmaKnowledge.id))
+            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                Lemma.language_code == language_code,
+                UserLemmaKnowledge.first_failed_at >= day_start,
+                UserLemmaKnowledge.first_failed_at < day_end,
+            )
+            .scalar() or 0
+        )
         history.append({
             "date": day.isoformat(),
             "reviews": int(r),
             "pages_read": int(p),
             "new_lemmas": int(n),
+            "graduated": int(g),
+            "gaps_found": int(gaps),
         })
 
     # ── 6b. Weekly flow history (the conversion loop over time) ──────────
@@ -384,6 +537,7 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "known_summary": known_summary,
         "judged_progress": judged_progress,
         "today": today,
+        "overall": _overall_stats(db, language_code),
         "history_14d": history,
         "flow_history": flow_history,
         "frequency": frequency_block,
