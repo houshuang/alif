@@ -44,7 +44,8 @@ import {
   askPolyglotAI,
   ackExperimentIntro,
   flagPolyglotContent,
-  getReviewSession,
+  getReviewSessionResilient,
+  prefetchReviewSession,
   submitSentenceReview,
   getReviewStats,
   getLemmaDetail,
@@ -164,14 +165,14 @@ export default function PolyglotReview() {
       ? bundle.intro_cards[currentSlot.introIndex]
       : undefined;
 
-  const loadSession = useCallback(async () => {
+  const loadSession = useCallback(async (opts: { forceFresh?: boolean } = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const [next, s] = await Promise.all([
-        getReviewSession(languageCode, 15),
-        getReviewStats(languageCode),
-      ]);
+      // Session load is the critical path (cache-first, resilient); stats is
+      // best-effort so a stats hiccup can't block the session→next transition.
+      const next = await getReviewSessionResilient(languageCode, 15, opts);
+      const s = await getReviewStats(languageCode).catch(() => null);
       sessionIdRef.current = generateSessionId();
       const nextSlots = buildInterleavedSlots(
         next.sentences,
@@ -180,7 +181,7 @@ export default function PolyglotReview() {
       );
       setBundle(next);
       setSlots(nextSlots);
-      setStats(s);
+      if (s) setStats(s);
       setIndex(0);
       setCardState("front");
       setMarks(emptyMarks());
@@ -231,6 +232,10 @@ export default function PolyglotReview() {
           shownAtRef.current = Date.now();
           loadedLanguageRef.current = languageCode;
           setLoading(false);
+          // The restore path doesn't go through loadSession, so warm the next
+          // session here too — otherwise a resumed session's finish→next would
+          // be a cold fetch (the exact failure this prefetch layer removes).
+          void prefetchReviewSession(languageCode);
           return;
         }
       }
@@ -388,7 +393,7 @@ export default function PolyglotReview() {
   // effect. Mirrors Alif's "Refresh session" overflow action (index.tsx).
   const handleRefreshSession = useCallback(() => {
     AsyncStorage.removeItem(reviewSnapshotKey(languageCode)).catch(() => {});
-    void loadSession();
+    void loadSession({ forceFresh: true });
   }, [loadSession, languageCode]);
 
   const handleBackToReader = useCallback(() => {
@@ -408,7 +413,7 @@ export default function PolyglotReview() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.button} onPress={loadSession}>
+        <Pressable style={styles.button} onPress={() => loadSession()}>
           <Text style={styles.buttonText}>Retry</Text>
         </Pressable>
       </View>
@@ -443,7 +448,7 @@ export default function PolyglotReview() {
         >
           <Text style={styles.buttonText}>Back</Text>
         </Pressable>
-        <Pressable style={[styles.button, styles.buttonGhost]} onPress={loadSession}>
+        <Pressable style={[styles.button, styles.buttonGhost]} onPress={() => loadSession({ forceFresh: true })}>
           <Text style={[styles.buttonText, styles.buttonGhostText]}>Refresh</Text>
         </Pressable>
       </View>
@@ -487,7 +492,7 @@ export default function PolyglotReview() {
     // end-of-session rather than crash; loadSession() resets.
     return (
       <View style={styles.center}>
-        <Pressable style={styles.button} onPress={loadSession}>
+        <Pressable style={styles.button} onPress={() => loadSession({ forceFresh: true })}>
           <Text style={styles.buttonText}>Refresh</Text>
         </Pressable>
       </View>

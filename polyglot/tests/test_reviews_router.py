@@ -218,6 +218,36 @@ def test_due_unknown_language_400(tmp_db):
         _cleanup()
 
 
+def test_session_prefetch_suppresses_interaction_log(tmp_db, monkeypatch):
+    """prefetch=true returns the same bundle shape but logs no session_built —
+    so a background prefetch that may never be shown isn't counted as a session
+    the learner did (mirrors Alif's prefetch flag)."""
+    import app.routers.reviews as reviews_router
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        reviews_router, "log_interaction", lambda **kw: calls.append(kw)
+    )
+
+    client, _ = _client(tmp_db)
+    try:
+        r_normal = client.get("/api/reviews/session", params={"language_code": "el"})
+        assert r_normal.status_code == 200
+        assert set(r_normal.json().keys()) >= {"sentences", "intro_cards"}
+        assert len(calls) == 1
+        assert calls[0]["event"] == "session_built"
+
+        r_prefetch = client.get(
+            "/api/reviews/session", params={"language_code": "el", "prefetch": "true"}
+        )
+        assert r_prefetch.status_code == 200
+        # Same shape, but no additional log row was written.
+        assert r_prefetch.json().keys() == r_normal.json().keys()
+        assert len(calls) == 1
+    finally:
+        _cleanup()
+
+
 def test_stats_reflects_acquisition_distribution(tmp_db):
     client, factory = _client(tmp_db)
     try:
