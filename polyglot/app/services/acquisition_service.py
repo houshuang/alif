@@ -465,6 +465,7 @@ def submit_acquisition_review(
         is_due = acq_due <= now
 
     graduated = False
+    grad_tier: int | None = None
     fast_graduation_allowed = is_due and not recent_intro and not collateral_acquisition
 
     # Tier 0: first correct review → graduate immediately, but only when this
@@ -473,6 +474,7 @@ def submit_acquisition_review(
     if old_times_seen == 0 and rating_int >= 3 and fast_graduation_allowed:
         _graduate(ulk, now)
         graduated = True
+        grad_tier = 0
 
     if not graduated and rating_int >= 3:
         if old_box == 1:
@@ -522,6 +524,7 @@ def submit_acquisition_review(
         # standing in for spaced retrieval.
         if fast_graduation_allowed and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
+            grad_tier = 1
         # Tier 2: ≥ 80% accuracy, ≥ 4 reviews → graduate from Box ≥ 2
         elif (
             fast_graduation_allowed
@@ -530,6 +533,7 @@ def submit_acquisition_review(
             and (ulk.acquisition_box or 1) >= 2
         ):
             graduated = True
+            grad_tier = 2
         # Tier 3: standard — Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 calendar days
         elif (
             is_due
@@ -539,6 +543,7 @@ def submit_acquisition_review(
             and _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS)
         ):
             graduated = True
+            grad_tier = 3
 
     if graduated:
         _graduate(ulk, now)
@@ -556,6 +561,8 @@ def submit_acquisition_review(
         client_review_id=client_review_id,
         sentence_id=sentence_id,
         is_acquisition=True,
+        event_type="acquisition_review",
+        graduation_tier=grad_tier,
         fsrs_log_json={
             "rating": rating_int,
             "state": ulk.knowledge_state,

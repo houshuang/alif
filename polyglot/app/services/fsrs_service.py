@@ -194,6 +194,7 @@ def submit_review(
         client_review_id=client_review_id,
         sentence_id=sentence_id,
         is_acquisition=False,
+        event_type="fsrs_review",
         fsrs_log_json={
             "rating": rating_int,
             "state": new_state,
@@ -293,6 +294,7 @@ def record_scaffold_confirmation(
         sentence_id=sentence_id,
         is_acquisition=False,
         credit_type=credit_type,
+        event_type="scaffold_confirmation",
         fsrs_log_json={
             "rating": rating_int,
             "scaffold_confirmation": True,
