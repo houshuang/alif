@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-29: Targeted generation refills the due-cohort coverage deficit + structural finding on salvage threshold
+
+**Context.** After the reverify sweep (entry below) lifted due-cohort coverage to 78%, 99 due+cohort words still had no reviewable sentence (5 more in generation backoff). Breakdown: 83 had only *inactive* (retired) sentences, 11 still `active_stale` (skipped by the reverify because their token-mappings were empty), 1 corpus sentinel, 4 with no sentence at all. 87 of the 99 were FSRS-`known`.
+
+**Structural finding (not a code change yet).** This deficit recurs by design, not as a bug. Cap-enforcement (`update_material.py` step 0) and `rotate_stale_sentences.py` retire all-known-scaffold sentences (no cross-training value); a `known` word's sentences usually qualify, so they get retired and the word has zero active sentences when it next comes due. The reactivation safety net `salvage_due_dense_inactive_sentences` does **not** catch these — it requires a retired sentence to cover **≥2 due words** (`len(due_hits) >= 2`), but a churned known word's retired sentence covers only 1 due word. So single-coverage known words stay in deficit until generation refills them. Candidate fix (deferred): allow single-due-word salvage for words *currently in deficit*, closing the recurrence at the source instead of regenerating each time.
+
+**Change (data).** Ran the verified pipeline `batch_generate_material(ids, count_per_word=2)` over the 99 ready words (deficit minus backoff), in chunks of 12, under the `/tmp/alif-update-material.lock` flock + nohup so it couldn't race the cron. Result: **81 sentences generated, 61 of 99 words covered**, ~20 min, free via CLI. The ~38 misses are genuinely hard words (no comprehensible sentence under vocab constraint) — left to the cron.
+
+**Verification.** Reviewable sentences 1,816 → 1,907; due-cohort coverage 373 → 428 with a sentence (78% → **91%**); deficit 105 → 44. Active count 2,034 (just over the 2,000 cap) — next cron step-0 trims low-value sentences and protects the new due-word ones, so no manual cleanup. Logged as ActivityLog `sentences_generated` "Targeted deficit gen: …".
+
+---
+
 ## 2026-05-29: Manual reverify sweep clears the stale-gated sentence backlog left by the 2026-05-17 verifier cutoff
 
 **Context.** Sessions were short. Investigation found 838 of 1,961 active sentences (43%) were hidden by the runtime reviewability gate because their `mappings_verified_at` predated the `MAPPING_VERIFICATION_MIN_AT` hardening cutoff (2026-05-17 18:59). This halved coverage: of 473 due cohort words, 213 (~45%) had no showable sentence.
