@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-29: Manual reverify sweep clears the stale-gated sentence backlog left by the 2026-05-17 verifier cutoff
+
+**Context.** Sessions were short. Investigation found 838 of 1,961 active sentences (43%) were hidden by the runtime reviewability gate because their `mappings_verified_at` predated the `MAPPING_VERIFICATION_MIN_AT` hardening cutoff (2026-05-17 18:59). This halved coverage: of 473 due cohort words, 213 (~45%) had no showable sentence.
+
+**Why it persisted ~12 days.** Of the three reverify paths, the two that re-stamp on a schedule — the full sweep `reverify_all_active_sentences` (b) and the continuous rolling `reverify_oldest_active_sentences` (c) — both select via `reviewable_sentence_clauses()`, so they can *only* re-check sentences that already pass the gate; a stale-gated sentence is invisible to them. The one path that *does* reach pre-cutoff sentences, the lazy rescue `rescue_sentences_for_lemmas` (a), is capped at `MAX_RESCUE_LEMMAS_PER_RUN=10` × `MAX_RESCUE_SENTENCES_PER_LEMMA=5` = 50/warm-pass and only fires for *gap* lemmas (words below their sentence target). Stale sentences belonging to adequately-covered words are never reached, so a large post-cutoff backlog heals slowly and incompletely.
+
+**Change (data, not code).** Ran a one-shot driver that selected the stale-gated IDs (`is_active AND not_has_unmapped_words() AND mappings_verified_at < MIN_AT AND != 2000-01-01`) and fed them explicitly to `reverify_all_active_sentences(sentence_ids=...)`. Backed up the DB first (`alif_pre_reverify_20260529_120435.db`). Result over 833 sentences (~19 min, free via Codex/Claude CLI, 0 LLM failures): **656 passed + 55 corrected = 711 re-stamped fresh (un-gated)**; 122 unfixable (correct lemma not in vocabulary) had 133 positions NULL'd and were logged to `mapping_reverify_failures_2026-05-29.jsonl`.
+
+**Verification.** Reviewable sentences 1,105 → 1,816 (+711, matches un-gated count). Due-cohort coverage 260 → 373 words with a sentence (55% → 78%); deficit 213 → 105. No backend restart needed — the gate is queried live. Logged to ActivityLog as `manual_action` "Stale-gate reverify: …".
+
+**Follow-up.** No code change shipped, but this is a recurring operational hazard: every future bump of `MAPPING_VERIFICATION_MIN_AT` re-creates the orphan backlog. Until paths (b)/(c) are taught to also sweep stale-gated rows (or rescue's cap is lifted after a cutoff bump), run this targeted stale-ID sweep manually after each bump. Remaining 105-word deficit is genuine under-coverage (no sentence exists / lemma not in vocabulary) and is left to the 3h generation cron.
+
+---
+
 ## 2026-05-28: Root-showcase Phase 8 — link textbook_scan verb conjugations to canonical Form-I bases
 
 **Context.** Phase 7 sidestepped the verifier same-lemma rejection at palette positions for showcases (yield 2→11 of 30 on retry). But the underlying data-shape problem remained: textbook_scan OCR imported verb conjugations (e.g. يَكْتُبُونَ #1558, أَكْتُبُ #1682, نَدْرُسُ #1556) as standalone canonical lemmas without ever creating or linking the Form-I past 3sg masc canonical base. The verifier knows MSA morphology and objects whenever it sees a leaf inflection masquerading as canonical, which degrades regular sentence verification across the system — not just showcases.
