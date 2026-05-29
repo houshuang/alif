@@ -60,8 +60,10 @@ describe("prefetchReviewSession", () => {
 });
 
 describe("getReviewSessionResilient", () => {
-  it("serves a cached prefetched session WITHOUT a live session fetch, then refills", async () => {
-    // Seed a fresh cache entry.
+  it("fetches live even when a fresh cache exists — the prefetch is a fallback only", async () => {
+    // A prefetched bundle was built before the current session's reviews, so
+    // serving it cache-first would re-show the just-finished session. The
+    // happy path must always fetch live.
     (AsyncStorage as any)._store[KEY("el")] = JSON.stringify({
       language: "el",
       bundle: bundle("cached"),
@@ -70,15 +72,12 @@ describe("getReviewSessionResilient", () => {
     const fetchMock = mockFetchOnce();
 
     const result = await getReviewSessionResilient("el");
-    expect(result.sentences[0].text).toBe("cached");
-    // The cache slot is consumed...
-    expect((AsyncStorage as any)._store[KEY("el")]).toBeUndefined();
+    expect(result.sentences[0].text).toBe("live");
 
-    // ...and a background refill prefetch runs (prefetch=true only — no live
-    // session fetch was needed for the served session).
+    // The live fetch happens first (non-prefetch URL), and the stale slot is
+    // dropped then refilled with a fresh fallback for the next transition.
+    expect((fetchMock.mock.calls[0][0] as string)).not.toContain("prefetch=true");
     await flush();
-    const urls = fetchMock.mock.calls.map((c) => c[0] as string);
-    expect(urls.every((u) => u.includes("prefetch=true"))).toBe(true);
     expect((AsyncStorage as any)._store[KEY("el")]).toBeDefined();
   });
 
@@ -94,18 +93,23 @@ describe("getReviewSessionResilient", () => {
     expect((AsyncStorage as any)._store[KEY("el")]).toBeDefined();
   });
 
-  it("ignores a stale cache entry and fetches live", async () => {
+  it("falls back to a prefetched session when the live fetch fails", async () => {
     (AsyncStorage as any)._store[KEY("el")] = JSON.stringify({
       language: "el",
-      bundle: bundle("stale"),
-      savedAt: 0, // far in the past → beyond the 15-min recency gate
+      bundle: bundle("cached"),
+      savedAt: Date.now(),
     });
-    mockFetchOnce();
+    (global as any).fetch = jest.fn(() =>
+      Promise.reject(new Error("Network request failed")),
+    );
+
     const result = await getReviewSessionResilient("el");
-    expect(result.sentences[0].text).toBe("live");
+    expect(result.sentences[0].text).toBe("cached");
+    // The consumed fallback is dropped so a retry doesn't re-serve it blindly.
+    expect((AsyncStorage as any)._store[KEY("el")]).toBeUndefined();
   });
 
-  it("forceFresh bypasses a fresh cache and fetches live", async () => {
+  it("forceFresh fetches live", async () => {
     (AsyncStorage as any)._store[KEY("el")] = JSON.stringify({
       language: "el",
       bundle: bundle("cached"),
@@ -115,6 +119,20 @@ describe("getReviewSessionResilient", () => {
     const result = await getReviewSessionResilient("el", 15, { forceFresh: true });
     expect(result.sentences[0].text).toBe("live");
     expect((fetchMock.mock.calls[0][0] as string)).not.toContain("prefetch=true");
+  });
+
+  it("forceFresh does NOT fall back to a stale cache on failure", async () => {
+    (AsyncStorage as any)._store[KEY("el")] = JSON.stringify({
+      language: "el",
+      bundle: bundle("cached"),
+      savedAt: Date.now(),
+    });
+    (global as any).fetch = jest.fn(() =>
+      Promise.reject(new Error("Network request failed")),
+    );
+    await expect(
+      getReviewSessionResilient("el", 15, { forceFresh: true }),
+    ).rejects.toThrow();
   });
 
   it("throws when live fetch fails and no cache is available", async () => {
