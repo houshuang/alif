@@ -82,3 +82,20 @@ backend/data/*_checkpoint.json
 backend/data/step4c_*.json
 backend/data/kalila_dove.*
 frontend/node_modules
+
+# Server-side runtime state (lives on prod, never commit). Without these the prod
+# working tree shows thousands of untracked files and `git status` is unusable,
+# which hides real strays. Patterns chosen to avoid the tracked files under
+# backend/data/ (fonts/, benchmarks/*.tsv, kalila_dove.*, frequency_sources/, *_progress.json).
+.codex/
+backend/data/audio/
+backend/data/story-audio/
+backend/data/book-uploads/
+backend/data/voice-samples/
+backend/data/*.db.backup*
+backend/data/*.jsonl.gz
+backend/data/*.log
+backend/data/*_audit.json
+backend/data/*.tsv
+polyglot/polyglot.db.*
+polyglot/data/lemma_audit_*.jsonl

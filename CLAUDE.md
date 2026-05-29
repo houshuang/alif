@@ -221,22 +221,40 @@ python3 scripts/simulate_sessions.py --days 30 --profile beginner
 Profiles: `beginner` (55%), `strong` (85%), `casual` (70%), `intensive` (75%), `calibrated` (80%, from production data). Code: `backend/app/simulation/`.
 
 ## Deployment
-```bash
-# Deploy backend (venv + systemd, no Docker)
-ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend"
 
-# If dependencies changed in pyproject.toml:
+**Deploy discipline — ALWAYS deploy from `main` (a prod incident on 2026-05-29 came from violating this):**
+1. **Merge to `main` first.** Every change ships via PR → squash-merge to `main` → `git push`. Never deploy from a feature branch; never leave prod checked out on one. (On 2026-05-29 prod was silently on an unmerged feature branch incl. a "WIP untested" commit, so a bare `git pull` no-op'd and the restart ran stale code.)
+2. **Force the server onto `main` and verify HEAD** — a bare `git pull` on a non-`main` branch merges the wrong upstream or no-ops. Every deploy starts with:
+   ```bash
+   ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && git log --oneline -1"
+   ```
+   Confirm the printed HEAD is the commit you just merged before restarting anything.
+3. **Verify the effect, not the status line.** `systemctl is-active` reports "active" even when stale code/schema is running. Confirm the real change landed (new column exists via `sqlite3 ... pragma_table_info`, endpoint returns expected data, etc.).
+4. **Back up the DB before any data-touching step** (migrations that rewrite rows, backfills): `ssh alif "cp <db> /opt/<app>-backups/<name>_$(date +%Y%m%d_%H%M%S).db"`.
+
+```bash
+# Deploy alif backend (venv + systemd, no Docker)
+ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && git log --oneline -1 && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend"
+
+# If alif dependencies changed in pyproject.toml:
 ssh alif "cd /opt/alif/backend && .venv/bin/pip install -e . -q && systemctl restart alif-backend"
 
-# Deploy frontend (Expo dev server is a systemd service)
+# Deploy POLYGLOT backend (separate systemd service `polyglot-backend` + venv at
+# /opt/alif/polyglot/.venv, port 3002). No Alembic — additive schema deltas in
+# app/database.py `_ADDITIVE_COLUMN_DELTAS` auto-apply via ensure_schema() on
+# startup, so a restart picks up new columns/indexes. Verify the column/effect after.
+ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && git log --oneline -1 && systemctl restart polyglot-backend && systemctl is-active polyglot-backend"
+# If polyglot dependencies changed: ssh alif "cd /opt/alif/polyglot && .venv/bin/pip install -e . -q && systemctl restart polyglot-backend"
+
+# Deploy frontend (Expo dev server is a systemd service; shared by alif + polyglot)
 # NOTE: a bare `systemctl restart alif-expo` keeps Metro's transform cache and can
 # serve a STALE bundle (frontend code changes silently don't appear; symptom seen
 # 2026-05-25 — a screen showed the wrong language's data though source + backend
 # were correct). Clear the Metro cache too, then hard-reload the client:
-ssh alif "cd /opt/alif && git pull && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
 
-# Full deploy (both):
-ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
+# Full deploy (alif backend + frontend):
+ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && rm -rf /tmp/metro-* /tmp/haste-map-* /opt/alif/frontend/node_modules/.cache /opt/alif/frontend/.expo && systemctl restart alif-expo"
 
 # Cron wrapper:
 # scripts/deploy.sh links /opt/alif-update-material.sh to deploy/alif-update-material.sh
