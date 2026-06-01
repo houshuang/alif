@@ -1070,3 +1070,159 @@ def test_acquiring_lemma_with_llm_sentence_still_works(tmp_db):
         bundle = build_session(db, language_code="el", limit=10)
         assert len(bundle.sentences) == 1
         assert bundle.sentences[0].sentence_id == sent.id
+
+
+# ─── Collateral-diversity + confirmation-sweep tests ──────────────────────
+
+from app.services.sentence_selector import (  # noqa: E402
+    SESSION_SCAFFOLD_DECAY,
+    _confirmation_budget,
+    _greedy_cover,
+    _scaffold_freshness_multiplier,
+    _session_decay_multiplier,
+)
+
+
+def _seed_assumed_known(db, lemma_id: int) -> UserLemmaKnowledge:
+    """known / no FSRS card / confirmed_at NULL — the never-confirmed
+    assumed-known the confirmation sweep targets."""
+    ulk = UserLemmaKnowledge(
+        lemma_id=lemma_id,
+        knowledge_state="known",
+        fsrs_card_json=None,
+        confirmed_at=None,
+    )
+    db.add(ulk)
+    db.flush()
+    return ulk
+
+
+def test_confirmation_budget_reserves_share():
+    assert _confirmation_budget(15) == 5      # round(4.5) via +0.5
+    assert _confirmation_budget(10) == 3
+    assert _confirmation_budget(4) == 1
+    assert _confirmation_budget(3) == 0        # tiny sessions: legacy behaviour
+    assert _confirmation_budget(0) == 0
+
+
+def test_session_decay_multiplier_uses_max_reuse():
+    assert _session_decay_multiplier([]) == 1.0
+    assert _session_decay_multiplier([0, 0]) == 1.0
+    assert _session_decay_multiplier([0, 2, 1]) == SESSION_SCAFFOLD_DECAY ** 2
+
+
+def test_scaffold_freshness_multiplier():
+    assert _scaffold_freshness_multiplier([]) == 1.0
+    assert _scaffold_freshness_multiplier([0]) == pytest.approx(1.0)   # never seen
+    assert _scaffold_freshness_multiplier([10]) == pytest.approx(0.5)
+    assert _scaffold_freshness_multiplier([50]) == pytest.approx(0.1)  # floor
+    assert _scaffold_freshness_multiplier([10, 10]) == pytest.approx(0.5)
+
+
+def test_greedy_cover_picks_max_distinct_then_complements():
+    cover = {1: {10, 11}, 2: {12, 13}, 3: {10}}
+    rank = {1: (1,), 2: (2,), 3: (3,)}
+    # Round 1: 1 and 2 tie on gain=2; rank breaks tie → 2. Round 2: 1 adds {10,11}.
+    assert _greedy_cover(cover, 2, rank) == [2, 1]
+
+
+def test_greedy_cover_stops_at_zero_gain_and_budget():
+    cover = {1: {10}, 2: {10}}
+    rank = {1: (1,), 2: (2,)}
+    assert _greedy_cover(cover, 5, rank) == [2]   # 1 would add nothing
+    assert _greedy_cover({1: {10, 11}, 2: {12}}, 1, {1: (1,), 2: (2,)}) == [1]
+
+
+def test_confirmation_sweep_covers_diverse_unconfirmed(tmp_db):
+    """No due gaps → the whole session is confirmation cards, one per distinct
+    never-confirmed assumed-known."""
+    with tmp_db() as db:
+        a = _seed_lemma(db, form="άλφα")
+        b = _seed_lemma(db, form="βήτα")
+        c = _seed_lemma(db, form="γάμα")
+        for lm in (a, b, c):
+            _seed_assumed_known(db, lm.lemma_id)
+        _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "άλφα")], text="άλφα", source="llm")
+        _seed_sentence(db, lemma_surfaces=[(b.lemma_id, "βήτα")], text="βήτα", source="llm")
+        _seed_sentence(db, lemma_surfaces=[(c.lemma_id, "γάμα")], text="γάμα", source="llm")
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=15)
+        assert {p.selection_reason for p in bundle.sentences} == {"confirmation_sweep"}
+        assert {p.target_lemma_id for p in bundle.sentences} == {a.lemma_id, b.lemma_id, c.lemma_id}
+
+
+def test_gaps_keep_majority_confirmation_reserved(tmp_db):
+    """With abundant due gaps AND unconfirmed words, the session is the gap
+    majority + the reserved confirmation share."""
+    with tmp_db() as db:
+        for i in range(8):
+            t = _seed_lemma(db, form=f"due{i}")
+            _seed_acquiring(db, t.lemma_id, box=1)
+            _seed_sentence(db, lemma_surfaces=[(t.lemma_id, f"due{i}")], text=f"due{i}", source="llm")
+        for i in range(4):
+            u = _seed_lemma(db, form=f"unc{i}")
+            _seed_assumed_known(db, u.lemma_id)
+            _seed_sentence(db, lemma_surfaces=[(u.lemma_id, f"unc{i}")], text=f"unc{i}", source="llm")
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        reasons = [p.selection_reason for p in bundle.sentences]
+        confirm = [r for r in reasons if r == "confirmation_sweep"]
+        assert len(bundle.sentences) == 10
+        assert len(confirm) == _confirmation_budget(10)   # 3 reserved
+        assert len(reasons) - len(confirm) == 7           # gap majority
+
+
+def test_confirmation_slack_backfills_with_gaps(tmp_db):
+    """No unconfirmed words → the reserved slots backfill with deferred gaps
+    instead of shrinking the session."""
+    with tmp_db() as db:
+        for i in range(10):
+            t = _seed_lemma(db, form=f"due{i}")
+            _seed_acquiring(db, t.lemma_id, box=1)
+            _seed_sentence(db, lemma_surfaces=[(t.lemma_id, f"due{i}")], text=f"due{i}", source="llm")
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 10
+        assert all(p.selection_reason != "confirmation_sweep" for p in bundle.sentences)
+
+
+def test_confirmation_sweep_honors_comprehensibility_floor(tmp_db):
+    """A sentence dense with genuinely-unknown words is NOT used to confirm an
+    assumed-known, even though it covers one."""
+    with tmp_db() as db:
+        u = _seed_lemma(db, form="γνωστό")
+        _seed_assumed_known(db, u.lemma_id)
+        new1 = _seed_lemma(db, form="ξένο1")   # no ULK → knowledge_state "new"
+        new2 = _seed_lemma(db, form="ξένο2")
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(u.lemma_id, "γνωστό"), (new1.lemma_id, "ξένο1"), (new2.lemma_id, "ξένο2")],
+            text="γνωστό ξένο1 ξένο2",
+            source="llm",
+        )
+        db.commit()
+        bundle = build_session(db, language_code="el", limit=15)
+        assert bundle.sentences == []   # comp 1/3 < 0.6 → excluded, nothing else due
+
+
+def test_scaffold_decay_demotes_reused_scaffold(tmp_db):
+    """The picker scores down a candidate whose scaffold word has already been
+    placed in the session, so a fresher-scaffold sentence wins."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="στόχος")
+        x = _seed_lemma(db, form="ξ")
+        y = _seed_lemma(db, form="ψ")
+        # Seed B first (lower id), A second (higher id) so the id tie-break
+        # favours A absent any decay.
+        b = _seed_sentence(db, lemma_surfaces=[(target.lemma_id, "στόχος"), (y.lemma_id, "ψ")], text="B", source="llm")
+        a = _seed_sentence(db, lemma_surfaces=[(target.lemma_id, "στόχος"), (x.lemma_id, "ξ")], text="A", source="llm")
+        db.commit()
+        # No decay → A wins (newer id breaks the score tie).
+        picked = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert picked.sentence_id == a.id
+        # X already used 3× this session → A demoted by 0.5**3, B wins.
+        picked2 = pick_sentence_for_lemma(
+            db, lemma_id=target.lemma_id, language_code="el",
+            session_scaffold_counts={x.lemma_id: 3},
+        )
+        assert picked2.sentence_id == b.id
