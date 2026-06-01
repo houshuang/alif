@@ -12,6 +12,8 @@ from app.services.confusion_service import (
     find_phonetically_similar,
     analyze_confusion,
     _build_prefix_hint,
+    _is_adjacent_transposition,
+    _shares_rime,
     RASM_MAP,
 )
 
@@ -298,6 +300,85 @@ class TestAnalyzeConfusion:
 
         result = analyze_confusion(db, 42, "مدرسة")
         assert result["confusion_type"] is None
+
+
+class TestTranspositionAndRime:
+    """Two confusion signals plain edit distance underweights (added 2026-06-01
+    after free-text capture analysis: جرح/جحر metathesis and نام/صام rhyme were
+    in vocab but ranked out of the suggestion list)."""
+
+    def test_metathesis_detected(self):
+        # جرح (wound) ↔ جحر (burrow): same letters, middle pair swapped
+        assert _is_adjacent_transposition("جرح", "جحر") is True
+
+    def test_transposition_requires_adjacent(self):
+        # non-adjacent swap is not a single adjacent transposition
+        assert _is_adjacent_transposition("كتب", "بتك") is False
+
+    def test_transposition_rejects_substitution(self):
+        assert _is_adjacent_transposition("كلب", "قلب") is False
+
+    def test_transposition_rejects_length_change(self):
+        assert _is_adjacent_transposition("كتب", "كتاب") is False
+
+    def test_rime_rhyme_pair(self):
+        # نام (sleep) / صام (fast): shared -ام ending, different onset
+        assert _shares_rime("نام", "صام") is True
+        # حرث (plow) / ورث (inherit): shared -رث ending
+        assert _shares_rime("حرث", "ورث") is True
+
+    def test_rime_requires_different_onset(self):
+        # same onset → not the rhyme-confusion signal (handled by other rules)
+        assert _shares_rime("كتب", "كلب") is False
+
+    def test_rime_needs_shared_ending(self):
+        assert _shares_rime("نام", "نوم") is False
+
+
+class TestSurfacesRealFreeTextConfusions:
+    """Regression: the actual free-text confusions users typed that the old
+    matcher truncated should now appear and carry a meaningful reason."""
+
+    def _make_lemma(self, lemma_id, ar, bare, gloss, pos="verb"):
+        m = MagicMock()
+        m.lemma_id = lemma_id
+        m.lemma_ar = ar
+        m.lemma_ar_bare = bare
+        m.gloss_en = gloss
+        m.pos = pos
+        m.forms_json = None
+        m.canonical_lemma_id = None
+        return m
+
+    def test_rhyme_surfaces_over_dot_variant(self):
+        db = MagicMock()
+        # Target نام (sleep). صام (fast, rhyme) must outrank دمّ (dot variant).
+        saam = self._make_lemma(10, "صَامَ", "صام", "to fast")
+        damm = self._make_lemma(20, "دَمَّ", "دم", "to smear")
+        results = find_similar_words(
+            db, 1, "نام", max_results=5,
+            candidates=[(damm, "known"), (saam, "known")],
+            target_pos="verb",
+        )
+        ids = [r["lemma_id"] for r in results]
+        assert 10 in ids
+        saam_result = next(r for r in results if r["lemma_id"] == 10)
+        assert saam_result["match_reason"] == "rhymes"
+        # rhyme should rank ahead of the dot-only variant
+        assert ids.index(10) < ids.index(20)
+
+    def test_metathesis_surfaces_with_reason(self):
+        db = MagicMock()
+        # Target جرح (wound). جحر (burrow) is a letter-swap.
+        juhr = self._make_lemma(30, "جُحْر", "جحر", "burrow", pos="noun")
+        results = find_similar_words(
+            db, 1, "جرح", max_results=5,
+            candidates=[(juhr, "known")],
+            target_pos="noun",
+        )
+        assert len(results) == 1
+        assert results[0]["lemma_id"] == 30
+        assert results[0]["match_reason"] == "letters swapped"
 
 
 class TestPrefixHint:
