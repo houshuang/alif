@@ -9,6 +9,8 @@ import {
   markStateAt,
   middleButtonLabel,
   pageReviewClientId,
+  submissionSignature,
+  toMarkSets,
 } from "../polyglot-review-helpers";
 import type { IntroCard, SentencePayload, WordRender } from "../polyglot-api";
 
@@ -127,6 +129,60 @@ describe("lemmaIdsFromMarks", () => {
     const { missed, confused } = lemmaIdsFromMarks(emptyMarks(), words);
     expect(missed).toEqual([]);
     expect(confused).toEqual([]);
+  });
+});
+
+describe("toMarkSets", () => {
+  it("rehydrates the persisted array form back into Sets", () => {
+    const m = toMarkSets({ missed: [1, 4], confused: [2] });
+    expect(markStateAt(m, 1)).toBe("missed");
+    expect(markStateAt(m, 4)).toBe("missed");
+    expect(markStateAt(m, 2)).toBe("confused");
+    expect(markStateAt(m, 3)).toBe("off");
+  });
+});
+
+describe("submissionSignature", () => {
+  it("is identical for the same answer regardless of id order", () => {
+    expect(submissionSignature("partial", [3, 1], [2])).toBe(
+      submissionSignature("partial", [1, 3], [2]),
+    );
+  });
+
+  it("differs when the comprehension signal changes", () => {
+    expect(submissionSignature("understood", [], [])).not.toBe(
+      submissionSignature("no_idea", [], []),
+    );
+  });
+
+  it("differs when a content lemma is added or removed", () => {
+    const before = submissionSignature("partial", [10], []);
+    expect(before).not.toBe(submissionSignature("partial", [10, 14], []));
+    expect(before).not.toBe(submissionSignature("partial", [], []));
+  });
+
+  it("differs when a lemma moves between missed and confused", () => {
+    expect(submissionSignature("partial", [10], [])).not.toBe(
+      submissionSignature("partial", [], [10]),
+    );
+  });
+
+  it("a function-word re-tap is invisible (already filtered by lemmaIdsFromMarks)", () => {
+    // The signature is computed from lemmaIdsFromMarks output, which strips
+    // function words. So toggling a function word never changes the payload —
+    // a back→forward that only re-marked a function word stays a server no-op.
+    const words: WordRender[] = [
+      word({ position: 0, lemma_id: 10 }),                         // content
+      word({ position: 1, lemma_id: 11, is_function_word: true }), // function
+    ];
+    const sig = (m: ReturnType<typeof emptyMarks>) => {
+      const { missed, confused } = lemmaIdsFromMarks(m, words);
+      return submissionSignature("partial", missed, confused);
+    };
+    let withoutFn = emptyMarks();
+    withoutFn = cycleMark(withoutFn, 0);             // content missed
+    let withFn = cycleMark(withoutFn, 1);            // also mark the function word
+    expect(sig(withFn)).toBe(sig(withoutFn));
   });
 });
 

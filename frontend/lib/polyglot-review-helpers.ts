@@ -19,6 +19,11 @@ export function emptyMarks(): MarkSets {
   return { missed: new Set<number>(), confused: new Set<number>() };
 }
 
+/** Rehydrate a MarkSets from the plain-array form persisted on a SubmittedCard. */
+export function toMarkSets(marks: { missed: number[]; confused: number[] }): MarkSets {
+  return { missed: new Set(marks.missed), confused: new Set(marks.confused) };
+}
+
 export function markStateAt(marks: MarkSets, index: number): MarkState {
   if (marks.missed.has(index)) return "missed";
   if (marks.confused.has(index)) return "confused";
@@ -98,6 +103,44 @@ export function lemmaIdsFromMarks(
     if (w && w.lemma_id != null && isContentWord(w)) confused.push(w.lemma_id);
   }
   return { missed, confused };
+}
+
+/**
+ * A submitted sentence card, kept so the learner can navigate back to it.
+ *
+ * `clientReviewId` is the idempotency key of the review the backend recorded —
+ * needed to `undoSentenceReview` if the answer is later changed. `marks` /
+ * `cardState` / `glossWordIdx` restore the exact UI on return. The marks ride
+ * as plain arrays (Sets don't survive JSON, since this is also persisted in the
+ * review snapshot).
+ */
+export type SubmittedCard = {
+  clientReviewId: string;
+  signal: ComprehensionSignal;
+  marks: { missed: number[]; confused: number[] };
+  cardState: "front" | "back";
+  glossWordIdx: number | null;
+};
+
+/**
+ * A stable, order-independent fingerprint of what a submission sends to the
+ * backend: the comprehension signal plus the (sorted) content-lemma id sets.
+ *
+ * Two submissions with the same signature produce the same server state, so a
+ * back→forward with an unchanged answer can skip the network entirely; a
+ * changed answer (a word un-tapped, a new word marked, a different signal)
+ * yields a different signature and triggers an undo + re-submit. Function-word
+ * / proper-name toggles are invisible here because `lemmaIdsFromMarks` already
+ * filtered them out — they carry no FSRS credit, so re-marking one is correctly
+ * a no-op.
+ */
+export function submissionSignature(
+  signal: ComprehensionSignal,
+  missed: readonly number[],
+  confused: readonly number[],
+): string {
+  const norm = (a: readonly number[]) => [...a].sort((x, y) => x - y).join(",");
+  return `${signal}|${norm(missed)}|${norm(confused)}`;
 }
 
 /**

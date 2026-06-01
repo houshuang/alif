@@ -47,6 +47,7 @@ import {
   getReviewSessionResilient,
   prefetchReviewSession,
   submitSentenceReview,
+  undoSentenceReview,
   getReviewStats,
   getLemmaDetail,
   type IntroCard,
@@ -71,8 +72,11 @@ import {
   lemmaIdsFromMarks,
   markStateAt,
   middleButtonLabel,
+  submissionSignature,
+  toMarkSets,
   type MarkSets,
   type SessionSlot,
+  type SubmittedCard,
 } from "../lib/polyglot-review-helpers";
 import { renderTokens } from "../lib/polyglot-render-helpers";
 import {
@@ -132,6 +136,11 @@ export default function PolyglotReview() {
   const [cardState, setCardState] = useState<CardState>("front");
   const [marks, setMarks] = useState<MarkSets>(emptyMarks);
   const [glossWordIdx, setGlossWordIdx] = useState<number | null>(null);
+  // Back-navigation history: every sentence card already submitted this
+  // session, keyed by slot index. Drives "go back" (restore the card's marks +
+  // reveal) and the deferred server correction (re-forwarding an unchanged
+  // card is a no-op; a changed one undoes the recorded review and re-submits).
+  const [submitted, setSubmitted] = useState<Record<number, SubmittedCard>>({});
   // Lazy-fetched lemma detail for the tapped word + intro card. Same pattern
   // as polyglot.tsx — render the head row immediately from what we have, then
   // stream enrichment in. detailRequestRef guards against stale responses.
@@ -186,6 +195,7 @@ export default function PolyglotReview() {
       setCardState("front");
       setMarks(emptyMarks());
       setGlossWordIdx(null);
+      setSubmitted({});
       shownAtRef.current = Date.now();
       loadedLanguageRef.current = languageCode;
       // An empty fresh session means any prior snapshot is spent — drop it so a
@@ -222,6 +232,7 @@ export default function PolyglotReview() {
             confused: new Set(snap.marks?.confused ?? []),
           });
           setGlossWordIdx(snap.glossWordIdx);
+          setSubmitted(snap.submitted ?? {});
           sessionIdRef.current = snap.sessionId;
           shownIntroLemmaIdsRef.current = new Set(snap.shownIntroLemmaIds ?? []);
           // Restart the response-time clock on resume. Deliberate: response_ms
@@ -279,10 +290,11 @@ export default function PolyglotReview() {
       glossWordIdx,
       sessionId: sessionIdRef.current,
       shownIntroLemmaIds: Array.from(shownIntroLemmaIdsRef.current),
+      submitted,
       savedAt: Date.now(),
     };
     AsyncStorage.setItem(reviewSnapshotKey(languageCode), JSON.stringify(snap)).catch(() => {});
-  }, [bundle, slots, stats, index, cardState, marks, glossWordIdx, languageCode]);
+  }, [bundle, slots, stats, index, cardState, marks, glossWordIdx, submitted, languageCode]);
 
   useEffect(() => { persistSnapshot(); }, [persistSnapshot]);
 
@@ -339,6 +351,25 @@ export default function PolyglotReview() {
     });
   }, [currentSentence]);
 
+  // Move to a slot, restoring its UI from the back-navigation history if it was
+  // already submitted (re-walking forward across reviewed cards, or stepping
+  // back to one), else presenting it fresh. The single place card UI is reset,
+  // so forward and back navigation can't drift.
+  const goToSlot = useCallback((target: number) => {
+    const rec = submitted[target];
+    if (rec) {
+      setMarks(toMarkSets(rec.marks));
+      setCardState(rec.cardState);
+      setGlossWordIdx(rec.glossWordIdx);
+    } else {
+      setMarks(emptyMarks());
+      setCardState("front");
+      setGlossWordIdx(null);
+    }
+    setIndex(target);
+    shownAtRef.current = Date.now();
+  }, [submitted]);
+
   const advanceSlot = useCallback(() => {
     if (index + 1 >= slots.length) {
       // Final slot consumed — drop the snapshot before loading the next session.
@@ -350,19 +381,63 @@ export default function PolyglotReview() {
       AsyncStorage.removeItem(reviewSnapshotKey(languageCode)).catch(() => {});
       void loadSession();
     } else {
-      setIndex(index + 1);
-      setCardState("front");
-      setMarks(emptyMarks());
-      setGlossWordIdx(null);
-      shownAtRef.current = Date.now();
+      goToSlot(index + 1);
     }
-  }, [index, slots.length, loadSession, languageCode]);
+  }, [index, slots.length, loadSession, languageCode, goToSlot]);
+
+  // Back to the nearest earlier sentence card that was submitted (intro cards
+  // are skipped — there's nothing to correct on them). Mirrors Alif's
+  // handleGoBack, but does NOT touch the server: the recorded review stays in
+  // place and is only undone/re-submitted if the learner actually changes the
+  // answer before going forward again (see handleSubmit). So a back→forward
+  // with no edit is a pure no-op, which is the whole point of going back to
+  // double-check a card.
+  const canGoBack = useMemo(() => {
+    for (let i = index - 1; i >= 0; i--) {
+      const slot = slots[i];
+      if (slot?.type === "sentence") return Boolean(submitted[i]);
+    }
+    return false;
+  }, [index, slots, submitted]);
+
+  const handleGoBack = useCallback(() => {
+    if (submitting) return;
+    for (let i = index - 1; i >= 0; i--) {
+      const slot = slots[i];
+      if (slot?.type !== "sentence") continue;
+      if (submitted[i]) goToSlot(i);
+      return;
+    }
+  }, [index, slots, submitted, submitting, goToSlot]);
 
   const handleSubmit = useCallback(async (signal: ComprehensionSignal) => {
     if (!currentSentence || submitting) return;
+    const slotIdx = index;
+    const prev = submitted[slotIdx];
+    const { missed, confused } = lemmaIdsFromMarks(marks, currentSentence.words);
+
+    // Re-forwarding a card already submitted this session, unchanged: the
+    // backend already holds the right review, so advance with no server call.
+    if (prev) {
+      const prevDerived = lemmaIdsFromMarks(toMarkSets(prev.marks), currentSentence.words);
+      const unchanged =
+        submissionSignature(signal, missed, confused) ===
+        submissionSignature(prev.signal, prevDerived.missed, prevDerived.confused);
+      if (unchanged) {
+        advanceSlot();
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      const { missed, confused } = lemmaIdsFromMarks(marks, currentSentence.words);
+      // A changed answer must correct the server: undo the recorded review
+      // first, then submit the new one under a fresh idempotency key. (undo is
+      // idempotent and a no-op if the prior submit never reached the backend.)
+      if (prev) {
+        await undoSentenceReview(prev.clientReviewId);
+      }
+      const clientReviewId = generateClientReviewId();
       const responseMs = Date.now() - shownAtRef.current;
       await submitSentenceReview({
         sentence_id: currentSentence.sentence_id,
@@ -372,16 +447,26 @@ export default function PolyglotReview() {
         confused_lemma_ids: confused,
         response_ms: responseMs,
         session_id: sessionIdRef.current,
-        client_review_id: generateClientReviewId(),
+        client_review_id: clientReviewId,
         review_mode: "reading",
       });
+      setSubmitted((m) => ({
+        ...m,
+        [slotIdx]: {
+          clientReviewId,
+          signal,
+          marks: { missed: Array.from(marks.missed), confused: Array.from(marks.confused) },
+          cardState,
+          glossWordIdx,
+        },
+      }));
       advanceSlot();
     } catch (e: any) {
       setError(e?.message ?? "Submit failed");
     } finally {
       setSubmitting(false);
     }
-  }, [currentSentence, submitting, marks, advanceSlot]);
+  }, [currentSentence, submitting, marks, index, submitted, cardState, glossWordIdx, advanceSlot]);
 
   const handleIntroContinue = useCallback(() => {
     advanceSlot();
@@ -595,6 +680,7 @@ export default function PolyglotReview() {
       <ProgressHeader
         current={index + 1}
         total={slots.length}
+        onBack={canGoBack ? handleGoBack : undefined}
         trailing={
           <ActionMenu
             focusedLemmaId={focusedLemmaId}
@@ -955,12 +1041,25 @@ function ProgressHeader({
   current,
   total,
   trailing,
-}: { label?: string; current: number; total: number; trailing?: ReactNode }) {
+  onBack,
+}: {
+  label?: string;
+  current: number;
+  total: number;
+  trailing?: ReactNode;
+  onBack?: (() => void) | null;
+}) {
   const ratio = total > 0 ? Math.max(0, Math.min(1, current / total)) : 0;
   return (
     <View style={styles.header}>
       <View style={styles.progressRow}>
-        <Text style={styles.progressLabel}>{label ?? ""}</Text>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={20} color={C.textMuted} />
+          </Pressable>
+        ) : (
+          <Text style={styles.progressLabel}>{label ?? ""}</Text>
+        )}
         <View style={styles.progressRight}>
           <Text style={styles.progressCount}>Card {current} of {total}</Text>
           {trailing}
@@ -1053,6 +1152,7 @@ const styles = StyleSheet.create({
   // Overflow ("...") menu — bottom-sheet styled to the Folio palette, mirroring
   // Alif's ActionMenu sheet (rounded top, drag handle, full-width rows).
   menuTrigger: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  backButton: { width: 28, height: 28, alignItems: "center", justifyContent: "center", marginLeft: -6 },
   menuBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end",
   },
