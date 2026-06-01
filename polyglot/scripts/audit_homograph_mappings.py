@@ -149,6 +149,13 @@ def _report_glossless_targets(db, language_code: str) -> list[dict]:
         .join(Sentence, Sentence.id == SentenceWord.sentence_id)
         .filter(Sentence.language_code == language_code)
         .filter((Lemma.gloss_en.is_(None)) | (Lemma.gloss_en == ""))
+        # Non-content lemmas legitimately carry no gloss (proper names use the
+        # lemma_form as the gloss; function/not-word are inert), so they are not
+        # gloss-invariant violations — exclude to avoid permanent false positives.
+        .filter(
+            (Lemma.word_category.is_(None))
+            | (Lemma.word_category.notin_(("proper_name", "function_word", "not_word")))
+        )
         .distinct()
         .all()
     )
