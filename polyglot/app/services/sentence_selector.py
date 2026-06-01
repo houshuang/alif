@@ -117,6 +117,113 @@ RECENT_SENTENCE_PENALTY = 0.25
 TEXTBOOK_FALLBACK_SOURCES = frozenset({"textbook"})
 TEXTBOOK_FALLBACK_MAX_PER_SESSION = 2
 
+# ── Collateral / scaffold diversity (ported from Alif sentence_selector) ──────
+# Polyglot ported only the soft generation-side sampling bias; Alif's
+# experiment log credits these *selection-side* mechanisms as what actually
+# broke the "same handful of high-frequency known words in every card" pattern.
+# Spreading collateral across the known pool is, for polyglot, the same lever as
+# confirmation breadth: every distinct assumed-known that surfaces in a shown
+# sentence gets a green-confirmation, so wider scaffold reuse = more words
+# verified. See research/experiment-log.md (Alif SESSION_SCAFFOLD_DECAY).
+#
+# Within-session scaffold decay: each reuse of a known scaffold word in an
+# already-picked sentence this session multiplies the next candidate's score by
+# 0.5**reuse_count (1st use 1.0×, 2nd 0.5×, 3rd 0.25×).
+SESSION_SCAFFOLD_DECAY = 0.5
+# Scaffold freshness: an over-exposed scaffold word (high times_seen) yields to a
+# rarely-/never-seen one. Per-word penalty = min(1, BASELINE/max(times_seen,1)),
+# geometric mean across the sentence's content scaffold, floored. A never-seen
+# (times_seen=0) word contributes 1.0, so still-unconfirmed knowns are favoured.
+SCAFFOLD_FRESHNESS_BASELINE = 5
+SCAFFOLD_FRESHNESS_FLOOR = 0.1
+
+# ── Confirmation sweep (Tier 2, polyglot-original) ────────────────────────────
+# Share of each session reserved for confirming assumed-known words never yet
+# verified by exposure (knowledge_state='known' / no FSRS card / confirmed_at
+# IS NULL). Filled by greedy set-cover over existing reviewable sentences,
+# maximising distinct never-confirmed assumed-knowns covered. Reading is the
+# breadth tool, but the learner studies via sentence review by default — this
+# makes review carry real confirmation breadth too. Gap-training keeps the
+# majority; the reserve only binds once enough due gaps exist to fill the rest.
+CONFIRMATION_SESSION_SHARE = 0.30
+# Don't surface a confirmation sentence dense with genuinely-unknown
+# (new/acquiring) words just because it covers an assumed-known — the
+# assumed-known words are by definition known, so a real exposure should still
+# be mostly comprehensible. Same floor Alif uses for its comprehensibility gate.
+CONFIRMATION_MIN_COMPREHENSIBILITY = 0.6
+
+
+def _session_decay_multiplier(reuse_counts: list[int]) -> float:
+    """0.5 ** (max reuse so far among this sentence's scaffold words).
+
+    A candidate that re-uses a known word already placed 3× this session is
+    scored 0.5**3 = 0.125 — strong enough to let a fresher-scaffold sentence
+    win, but a multiplier, not a veto (a one-candidate word still gets shown).
+    """
+    if not reuse_counts:
+        return 1.0
+    return SESSION_SCAFFOLD_DECAY ** max(reuse_counts)
+
+
+def _scaffold_freshness_multiplier(times_seen: list[int]) -> float:
+    """Geometric mean of per-scaffold-word freshness penalties.
+
+    penalty(w) = min(1, BASELINE / max(times_seen, 1)); aggregated as a
+    geometric mean and floored at SCAFFOLD_FRESHNESS_FLOOR so an all-over-exposed
+    sentence still contributes. Empty scaffold → neutral 1.0.
+    """
+    if not times_seen:
+        return 1.0
+    product = 1.0
+    for ts in times_seen:
+        product *= min(1.0, SCAFFOLD_FRESHNESS_BASELINE / max(ts, 1))
+    geo = product ** (1.0 / len(times_seen))
+    return max(SCAFFOLD_FRESHNESS_FLOOR, geo)
+
+
+def _confirmation_budget(limit: int) -> int:
+    """Slots reserved for the confirmation sweep. 0 for tiny sessions so the
+    legacy gap-only behaviour (and the existing tests) is preserved."""
+    if limit < 4:
+        return 0
+    return int(limit * CONFIRMATION_SESSION_SHARE + 0.5)
+
+
+def _greedy_cover(
+    cover_by_id: dict[int, set[int]],
+    budget: int,
+    rank: dict[int, tuple],
+) -> list[int]:
+    """Greedy maximum-coverage selection.
+
+    ``cover_by_id`` maps candidate id → the set of target items it covers.
+    Repeatedly pick the candidate adding the most *still-uncovered* items
+    (ties broken by ``rank[id]``, higher wins), mark them covered, until the
+    budget is hit or no candidate adds anything. Pure / DB-free for testability.
+    """
+    if budget <= 0:
+        return []
+    covered: set[int] = set()
+    remaining = set(cover_by_id)
+    chosen: list[int] = []
+    while len(chosen) < budget and remaining:
+        best_id = None
+        best_key: tuple | None = None
+        for cid in remaining:
+            gain = len(cover_by_id[cid] - covered)
+            if gain <= 0:
+                continue
+            key = (gain,) + tuple(rank.get(cid, ()))
+            if best_key is None or key > best_key:
+                best_key = key
+                best_id = cid
+        if best_id is None:
+            break
+        chosen.append(best_id)
+        covered |= cover_by_id[best_id]
+        remaining.discard(best_id)
+    return chosen
+
 
 def _quality_multiplier_for_sentence(sent: Sentence) -> float:
     """Prefer quality-reviewed LLM rows, but keep unreviewed rows as fallback."""
@@ -249,6 +356,7 @@ def pick_sentence_for_lemma(
     exclude_sentence_ids: Optional[set[int]] = None,
     exclude_sources: Optional[set[str]] = None,
     avoid_recently_shown: bool = False,
+    session_scaffold_counts: Optional[dict[int, int]] = None,
 ) -> Optional[SentencePayload]:
     """Pick the best sentence covering ``lemma_id`` for the learner.
 
@@ -329,6 +437,7 @@ def pick_sentence_for_lemma(
             ulks_by_lemma=ulks_by_lemma,
             function_words=function_words,
             recent_page_view_ids=recent_page_view_ids,
+            session_scaffold_counts=session_scaffold_counts,
         )
         if result is not None:
             scored.append(result)
@@ -404,11 +513,16 @@ def _score_candidate(
     ulks_by_lemma: dict[int, UserLemmaKnowledge],
     function_words: set,
     recent_page_view_ids: Optional[set[int]] = None,
+    session_scaffold_counts: Optional[dict[int, int]] = None,
 ) -> Optional[_Scored]:
     has_target = False
     scaffold_total = 0
     scaffold_known = 0
+    # Per-content-scaffold-word signals for the diversity multipliers below.
+    scaffold_reuse: list[int] = []     # times each scaffold word already used this session
+    scaffold_times_seen: list[int] = []  # lifetime exposures (freshness)
 
+    counts = session_scaffold_counts or {}
     for sw in sentence.words:
         if sw.lemma_id is None:
             continue
@@ -425,6 +539,8 @@ def _score_candidate(
         ulk = ulks_by_lemma.get(sw.lemma_id)
         if ulk is not None and ulk.knowledge_state in KNOWN_STATES:
             scaffold_known += 1
+        scaffold_reuse.append(counts.get(sw.lemma_id, 0))
+        scaffold_times_seen.append((ulk.times_seen or 0) if ulk is not None else 0)
 
     if not has_target:
         return None
@@ -462,7 +578,21 @@ def _score_candidate(
     recently_shown = _sentence_recently_shown(sentence)
     sentence_recency_penalty = RECENT_SENTENCE_PENALTY if recently_shown else 1.0
 
-    score = base * cooldown_bonus * quality_multiplier * sentence_recency_penalty
+    # Diversity multipliers (ported from Alif): within-session scaffold decay
+    # spreads reuse across the session; freshness yields over-exposed scaffold
+    # to rarely-seen words. Both are within-tier — the generated-first sort key
+    # is unaffected, so material quality still leads.
+    session_diversity = _session_decay_multiplier(scaffold_reuse)
+    freshness = _scaffold_freshness_multiplier(scaffold_times_seen)
+
+    score = (
+        base
+        * cooldown_bonus
+        * quality_multiplier
+        * sentence_recency_penalty
+        * session_diversity
+        * freshness
+    )
 
     if page_recently_viewed:
         reason = "page_cooldown_fallback"
@@ -781,38 +911,201 @@ def _build_intro_cards(
     return out
 
 
+def _content_scaffold_lemma_ids(payload: SentencePayload) -> list[int]:
+    """Content (non-target, non-function, non-proper, non-punctuation) lemma
+    ids in a chosen sentence — the words whose within-session reuse the
+    scaffold-decay multiplier tracks."""
+    out: list[int] = []
+    for w in payload.words:
+        if w.lemma_id is None or w.is_punctuation:
+            continue
+        if w.is_function_word or w.is_proper_name:
+            continue
+        if w.lemma_id == payload.target_lemma_id:
+            continue
+        out.append(w.lemma_id)
+    return out
+
+
+def _confirmation_sweep(
+    db: Session,
+    language_code: str,
+    now: datetime,
+    *,
+    budget: int,
+    exclude_sentence_ids: set[int],
+    session_scaffold_counts: dict[int, int],
+) -> list[SentencePayload]:
+    """Greedy set-cover sweep that confirms assumed-known words never yet
+    verified by exposure (``knowledge_state='known'`` / no FSRS card /
+    ``confirmed_at IS NULL``).
+
+    Reading is polyglot's breadth tool, but the learner reviews by default, so
+    this lets a session actively confirm a *diverse* set of assumed-knowns:
+    pick the reviewable sentence covering the most still-unconfirmed words, mark
+    them covered, repeat — each pick deliberately targets different words.
+    Textbook sentences ARE allowed here (unlike the acquiring gap path): they're
+    authentic exposure and cover the broadest vocabulary, and a comprehensibility
+    floor keeps out sentences dense with genuinely-unknown words. DB-only, so the
+    ``build_session`` <1s / no-LLM invariant holds.
+    """
+    if budget <= 0:
+        return []
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+
+    # Whole-language lemma + ULK maps. Loaded by language (not by an IN over the
+    # candidate word ids) to stay under SQLite's host-parameter limit and to
+    # reuse them for both the unconfirmed set and payload construction.
+    lemmas_by_id: dict[int, Lemma] = {
+        l.lemma_id: l
+        for l in db.query(Lemma).filter(Lemma.language_code == language_code).all()
+    }
+    ulks_by_lemma: dict[int, UserLemmaKnowledge] = {
+        u.lemma_id: u
+        for u in db.query(UserLemmaKnowledge)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    }
+
+    unconfirmed: set[int] = set()
+    for lid, lemma in lemmas_by_id.items():
+        if lemma.canonical_lemma_id is not None:
+            continue
+        u = ulks_by_lemma.get(lid)
+        if (
+            u is not None
+            and u.knowledge_state == "known"
+            and u.fsrs_card_json is None
+            and u.confirmed_at is None
+            and not is_noncontent_lemma(
+                lemma, language_code=language_code, function_words=function_words
+            )
+        ):
+            unconfirmed.add(lid)
+    if not unconfirmed:
+        return []
+
+    candidate_rows = (
+        db.query(Sentence)
+        .filter(
+            Sentence.language_code == language_code,
+            Sentence.is_active.is_(True),
+            Sentence.mappings_verified_at.isnot(None),
+        )
+        .options(joinedload(Sentence.words))
+        .all()
+    )
+
+    cover_by_id: dict[int, set[int]] = {}
+    cover_target: dict[int, int] = {}
+    sentence_by_id: dict[int, Sentence] = {}
+    rank: dict[int, tuple] = {}
+    for s in candidate_rows:
+        if s.id in exclude_sentence_ids or _sentence_recently_shown(s):
+            continue
+        covered = {sw.lemma_id for sw in s.words if sw.lemma_id in unconfirmed}
+        if not covered:
+            continue
+        total = known = 0
+        for sw in s.words:
+            if sw.lemma_id is None:
+                continue
+            lemma = lemmas_by_id.get(sw.lemma_id)
+            if lemma is None or is_noncontent_lemma(lemma, function_words=function_words):
+                continue
+            total += 1
+            u = ulks_by_lemma.get(sw.lemma_id)
+            if u is not None and u.knowledge_state in KNOWN_STATES:
+                known += 1
+        comp = 1.0 if total == 0 else known / total
+        if comp < CONFIRMATION_MIN_COMPREHENSIBILITY:
+            continue
+        cover_by_id[s.id] = covered
+        cover_target[s.id] = min(covered)
+        sentence_by_id[s.id] = s
+        # Tie-break after coverage gain: more comprehensible, then generated
+        # (cleaner than book prose), then fresher (fewer prior shows).
+        rank[s.id] = (
+            round(comp, 3),
+            1 if _is_quality_approved_generated(s) else 0,
+            -(s.times_shown or 0),
+            s.id,
+        )
+
+    if not cover_by_id:
+        return []
+
+    chosen_ids = _greedy_cover(cover_by_id, budget, rank)
+
+    payloads: list[SentencePayload] = []
+    for sid in chosen_ids:
+        s = sentence_by_id[sid]
+        scored = _Scored(
+            sentence=s,
+            score=0.0,
+            comprehensibility=rank[sid][0],
+            scaffold_total=0,
+            scaffold_known=0,
+            page_first=False,
+            selection_reason="confirmation_sweep",
+            generated=_is_quality_approved_generated(s),
+            times_shown=s.times_shown or 0,
+            recently_shown=False,
+        )
+        payload = _build_payload(
+            best=scored,
+            target_canonical_id=cover_target[sid],
+            lemmas_by_id=lemmas_by_id,
+            ulks_by_lemma=ulks_by_lemma,
+            function_words=function_words,
+            candidate_count=len(cover_by_id),
+            llm_candidate_count=0,
+        )
+        payloads.append(payload)
+        for lid in _content_scaffold_lemma_ids(payload):
+            session_scaffold_counts[lid] = session_scaffold_counts.get(lid, 0) + 1
+    return payloads
+
+
 def build_session(
     db: Session,
     language_code: str,
     limit: int = DEFAULT_SESSION_LIMIT,
 ) -> SessionBundle:
-    """Assemble a session: pick one sentence per due lemma, up to ``limit``,
-    and emit intro cards for any never-shown acquiring lemmas in those
-    sentences.
+    """Assemble a session: due-gap sentences plus a reserved confirmation sweep.
 
-    Order: acquisition-due first (Box 1 → 2 → 3, then by due time), then
-    FSRS-due (oldest due first). For each lemma we call the picker; if the
-    picker returns ``None`` (no eligible sentence covers it yet), the lemma
-    is skipped for this session — it will reappear once material exists.
+    Gap phase (the majority of the session): pick one sentence per due lemma —
+    acquisition-due first (Box 1 → 2 → 3, then by due time), then FSRS-due
+    (oldest due first). Within-session scaffold decay (threaded via
+    ``session_scaffold_counts``) keeps the same high-frequency known words from
+    appearing in every card.
 
-    Within a single session we don't repeat the same sentence even if two
-    due lemmas happen to share a candidate, and we skip sentences shown in
-    the last ``SENTENCE_RECENCY_HOURS`` rather than resurfacing yesterday's
-    row. Textbook fallbacks are capped per session so review remains mostly
-    generated/novel material while the warm cache catches up.
+    Confirmation phase (``CONFIRMATION_SESSION_SHARE`` of ``limit``, reserved):
+    greedy set-cover over reviewable sentences to confirm a diverse set of
+    assumed-known words never verified by exposure. The reserve only binds once
+    enough due gaps exist to fill the rest; on a thin-gap day confirmation
+    expands into the empty slots, and on a thin-unconfirmed day deferred gaps
+    backfill the reserve, so the session is never short when work exists.
+
+    A sentence is never repeated within a session, and sentences shown in the
+    last ``SENTENCE_RECENCY_HOURS`` are skipped. Textbook fallbacks are capped
+    per session on the gap path (acquiring lemmas get none at all).
     """
     if not db.query(Language).filter(Language.code == language_code).first():
         return SessionBundle(sentences=[])
 
     now = datetime.now(timezone.utc)
+    confirm_reserved = _confirmation_budget(limit)
+    gap_cap = limit - confirm_reserved
 
-    acquiring = _acquisition_due_lemmas(db, language_code, now, limit)
-
-    selected: list[SentencePayload] = []
     used_sentence_ids: set[int] = set()
     skipped_due: list[SkippedDueLemma] = []
     textbook_fallback_limit = _textbook_fallback_limit(limit)
     textbook_fallback_count = 0
+    # How often each known scaffold word has already been placed this session —
+    # drives the within-session scaffold-decay multiplier in the picker.
+    session_scaffold_counts: dict[int, int] = {}
 
     def _pick_for_session(
         lemma_id: int, *, allow_textbook: bool
@@ -831,16 +1124,28 @@ def build_session(
             exclude_sentence_ids=used_sentence_ids,
             exclude_sources=exclude_sources,
             avoid_recently_shown=True,
+            session_scaffold_counts=session_scaffold_counts,
         )
         if payload is not None and (payload.source or "") in TEXTBOOK_FALLBACK_SOURCES:
             textbook_fallback_count += 1
         return payload
 
+    # ── Gap phase ── pick up to the full `limit` in priority order, so leftover
+    # gaps can backfill the session if the confirmation sweep can't fill its
+    # reserve. Only the first `gap_cap` are committed up front; the rest are
+    # overflow consulted after the sweep.
+    gap_payloads: list[SentencePayload] = []
+
+    def _commit_gap(payload: SentencePayload) -> None:
+        used_sentence_ids.add(payload.sentence_id)
+        gap_payloads.append(payload)
+        for lid in _content_scaffold_lemma_ids(payload):
+            session_scaffold_counts[lid] = session_scaffold_counts.get(lid, 0) + 1
+
+    acquiring = _acquisition_due_lemmas(db, language_code, now, limit)
     for ulk, lemma in acquiring:
-        if len(selected) >= limit:
+        if len(gap_payloads) >= limit:
             break
-        # Acquiring = no textbook fallback. Skip the lemma if no LLM sentence
-        # exists yet; the warm cache will eventually catch up.
         payload = _pick_for_session(lemma.lemma_id, allow_textbook=False)
         if payload is None:
             skipped_due.append(SkippedDueLemma(
@@ -849,14 +1154,12 @@ def build_session(
                 reason="no_eligible_non_recent_sentence",
             ))
             continue
-        used_sentence_ids.add(payload.sentence_id)
-        selected.append(payload)
+        _commit_gap(payload)
 
-    remaining = max(0, limit - len(selected))
+    remaining = max(0, limit - len(gap_payloads))
     fsrs = _fsrs_due_lemmas(db, language_code, now, remaining) if remaining else []
-
     for ulk, lemma, _due in fsrs:
-        if len(selected) >= limit:
+        if len(gap_payloads) >= limit:
             break
         payload = _pick_for_session(lemma.lemma_id, allow_textbook=True)
         if payload is None:
@@ -866,8 +1169,34 @@ def build_session(
                 reason="no_eligible_non_recent_sentence",
             ))
             continue
-        used_sentence_ids.add(payload.sentence_id)
+        _commit_gap(payload)
+
+    # ── Allocate ── gaps keep the majority (up to gap_cap); the rest is the
+    # confirmation reserve, expanded with any slack the gap phase left empty.
+    selected: list[SentencePayload] = list(gap_payloads[:gap_cap])
+    selected_ids = {p.sentence_id for p in selected}
+
+    confirmation = _confirmation_sweep(
+        db,
+        language_code,
+        now,
+        budget=limit - len(selected),
+        exclude_sentence_ids={p.sentence_id for p in gap_payloads},
+        session_scaffold_counts=session_scaffold_counts,
+    )
+    for payload in confirmation:
         selected.append(payload)
+        selected_ids.add(payload.sentence_id)
+
+    # Backfill leftover confirmation slots with deferred gap sentences, so a thin
+    # unconfirmed pool never shrinks the session below the real due backlog.
+    for payload in gap_payloads[gap_cap:]:
+        if len(selected) >= limit:
+            break
+        if payload.sentence_id in selected_ids:
+            continue
+        selected.append(payload)
+        selected_ids.add(payload.sentence_id)
 
     intro_cards = _build_intro_cards(db, selected, language_code)
     return SessionBundle(

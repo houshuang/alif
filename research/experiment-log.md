@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-01: Polyglot — collateral-diversity (Alif port) + reserved confirmation sweep
+
+**Context.** Polyglot is reading-as-mapping first: a large *assumed-known* pool (Greek ~1,107 / Latin ~730 never-confirmed words) only gets *confirmed* when it surfaces in a shown sentence and is rated green. Confirmation was incidental — `material_generator`'s `UNCONFIRMED_SCAFFOLD_BOOST=2.5` only biased which scaffold words the LLM was *offered*, and the picker had **no scaffold-diversity term at all** (`score = (0.3+0.7·comp)·page_cooldown·sentence_recency`). Prod audit (2026-06-01): sentence review had ever confirmed only **333 distinct Greek lemmas**; the reader (the breadth tool) was barely used (7/1,681 pages). User studies via sentence review by default → review must carry the breadth.
+
+**Grounding in Alif.** Alif's ~2,000 known lemmas hit the identical "same handful of high-frequency scaffold in every card" failure (طالب/أستاذ in 25–31 sentences each). Its log credits the *selection-side* mechanisms — `SESSION_SCAFFOLD_DECAY=0.5` (within-session reuse decay) and `_scaffold_freshness` (`min(1, 5/times_seen)` geo-mean) — as what actually broke the pattern; the soft generation-side sampling bias alone was not enough. Polyglot had ported only the soft sampling + avoid-list.
+
+**Change (PR, `sentence_selector.py`).**
+- **Tier 1 — port Alif's spreading machinery into the picker.** `_score_candidate` now multiplies by `_session_decay_multiplier` (0.5**max-reuse of the candidate's scaffold so far this session) and `_scaffold_freshness_multiplier` (favours never-/rarely-seen scaffold, so still-unconfirmed knowns with `times_seen=0` win). Threaded via a new `session_scaffold_counts` dict that `build_session` maintains as it commits each gap card. Within-tier only — the generated-first sort key is unaffected.
+- **Tier 2 — reserved confirmation sweep (polyglot-original; Alif has no assumed-known concept).** `build_session` reserves `CONFIRMATION_SESSION_SHARE=0.30` of the session and fills it via `_confirmation_sweep`: greedy set-cover (`_greedy_cover`) over reviewable sentences, maximising **distinct never-confirmed assumed-knowns** covered (`known`/no-card/`confirmed_at IS NULL`, content only), with a 0.6 comprehensibility floor. Textbook sentences ARE allowed here (authentic breadth; the no-textbook rule is for *acquiring* gaps only). The reserve only binds when enough due gaps exist to fill the rest; on a thin-gap day confirmation expands into the empties, on a thin-unconfirmed day deferred gaps backfill — the session is never short when work exists. DB-only (<1s, no-LLM invariant holds).
+
+**Expected.** Sentence review becomes an active breadth-confirmation engine, not just gap-training: each session confirms a *diverse* set of assumed-knowns instead of re-confirming the same frequent few. Greek's verified-word count should climb off review alone without depending on reader volume.
+
+**Verification (dry-run of new `build_session` against a copy of prod `polyglot.db`).** Greek 15-card session = 10 gap + **5 confirmation** cards surfacing **30 distinct known words** in one session (vs. 333 confirmed *ever* before), 523 ms. Latin 10 gap + 5 confirmation, **35 distinct known words**, 325 ms (sweep even pulled an authentic textbook sentence). Isolated sweep at budget 20 → 20 distinct unconfirmed targets (set-cover spreads, doesn't cluster). 48 selector tests (10 new) + full polyglot suite (432) green.
+
+**Deferred (IDEAS.md).** Alif's *generation-side* post-gen over-exposure reject+retry (`_check_scaffold_diversity`, `DIVERSITY_SENTENCE_THRESHOLD≈10`) — grows corpus diversity so the sweep can reach the long-tail rare words not yet in any sentence. Kept out of this PR to keep the risky generation-path change separate from the selection rewrite; the sweep over existing corpus is the immediate win.
+
+---
+
 ## 2026-06-01: First confusion-capture analysis (21 captures) → matcher gains rime + metathesis signals; faster capture UX
 
 **Context.** The confusion-capture feature (PR #167, 2026-05-27) has been collecting passively. First analysis pass at 21 captures (below the ≥50 the original plan set for the full verification, but the patterns are already clear). Split: **14 `suggested_pick` / 7 `free_text`**, all `rating=2`. Capture rate **10.5%** (21 saved / 200 `confusion_help` yellow-tap analyses).
