@@ -347,6 +347,15 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         )
         .scalar() or 0
     )
+    confirmed_today = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            UserLemmaKnowledge.confirmed_at >= today_start,
+        )
+        .scalar() or 0
+    )
     unknown_marked_today = (
         db.query(func.count(UserLemmaKnowledge.id))
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
@@ -402,6 +411,7 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "pages_read": int(pages_read_today),
         "new_lemmas": int(new_lemmas_today),
         "graduated": int(graduated_today),
+        "confirmed": int(confirmed_today),
         "graduated_words": graduated_words_today,
         "marked_unknown": int(unknown_marked_today),
         "streak": streak,

@@ -210,6 +210,14 @@ def test_stats_overall_and_promoted_words(tmp_db):
                 lemma_id=gap.lemma_id, knowledge_state="acquiring",
                 first_failed_at=now, times_seen=1,
             ))
+            # Assumed-known scaffold exposure-confirmed today (no FSRS card)
+            scaffold = Lemma(language_code="el", lemma_form="terra", lemma_bare="terra",
+                             gloss_en="earth", source="test")
+            db.add(scaffold); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=scaffold.lemma_id, knowledge_state="known",
+                confirmed_at=now, clean_exposures=1,
+            ))
             db.commit()
 
         body = client.get("/api/stats?language_code=el").json()
@@ -225,6 +233,8 @@ def test_stats_overall_and_promoted_words(tmp_db):
         promoted = body["today"]["graduated_words"]
         assert {"lemma": "rex", "gloss": "king"} in promoted
         assert body["today"]["graduated"] == 1
+        # exposure-confirmed scaffold counts toward today.confirmed, not graduated
+        assert body["today"]["confirmed"] == 1
 
         # history carries per-day graduations + gaps
         assert all("graduated" in d and "gaps_found" in d for d in body["history_14d"])

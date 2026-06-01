@@ -273,6 +273,7 @@ export type LanguageStats = {
     pages_read: number;
     new_lemmas: number;
     graduated: number;
+    confirmed: number;
     graduated_words: { lemma: string; gloss: string | null }[];
     marked_unknown: number;
     streak: number;
