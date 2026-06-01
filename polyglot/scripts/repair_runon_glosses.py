@@ -247,8 +247,8 @@ def cmd_audit(args) -> None:
                     "form": c["form"],
                     "old_gloss": c["gloss"],
                     "status": r["status"],
-                    "new_gloss": r.get("gloss", "").strip() or None,
-                    "note": r.get("note", ""),
+                    "new_gloss": (r.get("gloss") or "").strip() or None,
+                    "note": r.get("note") or "",
                 }
                 out.write(json.dumps(row, ensure_ascii=False) + "\n")
                 written += 1
