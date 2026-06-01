@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-01: Polyglot — coverage generation (Lever A + Lever B), the planter to the confirmation sweep
+
+**Context.** The confirmation sweep (prior entry, PR #180) made sentence review an active breadth-confirmation engine — but it only *set-covers existing reviewable sentences*. Following its deferred-idea analysis on a copy of prod `polyglot.db`: the sweep reaches **651/1,110 (59%)** never-confirmed Greek assumed-knowns and **177/730 (24%)** Latin; the remaining **459 Greek / 553 Latin sit in ZERO reviewable sentences** (mostly LLPSI/Roma-Aeterna seed vocab never given a generated sentence), structurally unreachable by selection no matter how many sessions. The sweep is the *harvester*; only generation can be the *planter*.
+
+**Grounding in Alif.** Lever A mirrors Alif's `sentence_generator._check_scaffold_diversity` (`DIVERSITY_SENTENCE_THRESHOLD=10`). Lever B is the polyglot analogue of Alif's `warm_sentence_cache` coverage phases (generate for any word below its target sentence count) — but where Alif targets retrieval gaps, polyglot already does that, so Lever B extends coverage to the *assumed-known* pool Alif has no concept of.
+
+**Change (PR, `material_generator.py` + warm-cache CLI/cron).**
+- **Lever A — post-gen over-exposure preference.** `_scaffold_overexposure_count` + `DIVERSITY_SENTENCE_THRESHOLD=10`. The batch generator already over-requests candidates (`max(spt+5, 8)`) then trims to `sentences_per_target`; Lever A sorts the surplus quality-passed buffer by over-exposure (distinct non-target content lemmas already in ≥10 active+verified sentences) so fresher-scaffold candidates win the trim. **Divergence from Alif:** no 7× reject+retry loop — polyglot is batched, not a single-target retry loop, so this is a *ranking* that can never reduce yield, not a rejection.
+- **Lever B — coverage generation.** New bounded warm-cache phase after retrieval gaps. `_coverage_lemmas_missing_material` selects never-confirmed assumed-known content lemmas (`known`, no card, `confirmed_at IS NULL`) in fewer than `COVERAGE_TARGET=1` reviewable sentences, zero-coverage-first then by `frequency_rank`, and feeds them to the existing verified `batch_generate_material` as targets so a later reading session confirms them as collateral. Disjoint from retrieval gaps by knowledge state; own budget (`COVERAGE_MAX_LEMMAS`, cron 24/run), runs second, so it never starves retrieval. Env-gated (`POLYGLOT_COVERAGE_GEN` default on).
+
+**Expected.** Over cron cycles the zero-coverage tail shrinks: every planted word becomes reachable by the sweep next session, so the sweep's 59%/24% ceiling rises as its denominator (words-in-≥1-sentence) grows. Corpus also spreads off the saturated high-frequency scaffold (Lever A).
+
+**Verification.** New unit + integration tests in `test_material_generator.py`: `_scaffold_overexposure_count` counts distinct non-target over-used lemmas; Lever A's fresher candidate wins the trim despite being generated second; `_coverage_lemmas_missing_material` selects only never-confirmed assumed-known zero-coverage lemmas (excludes confirmed / carded / acquiring / non-content / already-covered); the warm-cache coverage phase plants a sentence for an unconfirmed assumed-known and is skipped when `POLYGLOT_COVERAGE_GEN=0`. Full polyglot suite **427 passed** (5 new), 6 slow deselected. Not yet measured on prod — deploy + watch `warm_cache_done.coverage_generated` and the `assumed_unconfirmed`→`exposure_confirmed` trend in `_flow_history`.
+
+---
+
 ## 2026-06-01: Polyglot — collateral-diversity (Alif port) + reserved confirmation sweep
 
 **Context.** Polyglot is reading-as-mapping first: a large *assumed-known* pool (Greek ~1,107 / Latin ~730 never-confirmed words) only gets *confirmed* when it surfaces in a shown sentence and is rated green. Confirmation was incidental — `material_generator`'s `UNCONFIRMED_SCAFFOLD_BOOST=2.5` only biased which scaffold words the LLM was *offered*, and the picker had **no scaffold-diversity term at all** (`score = (0.3+0.7·comp)·page_cooldown·sentence_recency`). Prod audit (2026-06-01): sentence review had ever confirmed only **333 distinct Greek lemmas**; the reader (the breadth tool) was barely used (7/1,681 pages). User studies via sentence review by default → review must carry the breadth.
