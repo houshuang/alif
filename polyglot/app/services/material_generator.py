@@ -1161,6 +1161,14 @@ def _observed_surfaces_for_lemmas(
     """
     if not lemma_ids:
         return {}
+    # Refuse to ingest surfaces that carry a deterministic homograph override
+    # (e.g. Latin `pilum`): their stored mappings are precisely the ones the
+    # override exists to distrust, so re-ingesting them here would let a
+    # corrected mapping be re-polluted on the next generation pass.
+    override_surfaces: frozenset[str] = frozenset()
+    if language_code == "la":
+        from app.services.languages.la import override_surface_keys
+        override_surfaces = override_surface_keys()
     out: dict[str, int] = {}
     page_rows = (
         db.query(PageWord.surface_form, PageWord.lemma_id)
@@ -1173,7 +1181,7 @@ def _observed_surfaces_for_lemmas(
     )
     for surface, lid in page_rows:
         sb = normalize_bare(surface or "", language_code)
-        if sb:
+        if sb and sb not in override_surfaces:
             out.setdefault(sb, lid)
     sentence_rows = (
         db.query(SentenceWord.surface_form, SentenceWord.lemma_id)
@@ -1187,7 +1195,7 @@ def _observed_surfaces_for_lemmas(
     )
     for surface, lid in sentence_rows:
         sb = normalize_bare(surface or "", language_code)
-        if sb:
+        if sb and sb not in override_surfaces:
             out.setdefault(sb, lid)
     return out
 
@@ -1460,26 +1468,81 @@ def batch_generate_material(
             "words_failed": target_indexed_ids,
         }
 
-    # Reject candidates where Haiku flagged a content position as "wrong" — we
-    # don't auto-create new lemmas from a generated sentence (the no-auto-
-    # create-from-corrections invariant). "unclear" is tolerated; wrong
-    # verdicts on non-content/same-lemma positions are ignored because the
-    # verifier often nitpicks articles and prepositions even when the proposed
-    # lemma is already right.
+    # Resolve verifier-proposed corrections to EXISTING lemmas in one read
+    # session. A "wrong" verdict whose `correct_lemma` matches a lemma already
+    # in the vocabulary is applied as a re-mapping (Alif's apply_corrections
+    # behavior) instead of discarding an otherwise-good sentence; this is how
+    # the homograph-error class (`pilum`→pilus) gets repaired when the
+    # deterministic override didn't fire. Proposals with no existing lemma are
+    # NOT auto-created (the no-auto-create-from-generation invariant) — those
+    # candidates are still rejected. Loading the corrected lemmas into
+    # lemma_by_id keeps the downstream gloss gate + write phase consistent.
+    correction_by_bare: dict[str, int] = {}
+    proposed_bares = {
+        normalize_bare(v.correct_lemma, language_code)
+        for verdicts in verify_per_cand
+        for v in verdicts
+        if v.verdict == "wrong" and (v.correct_lemma or "").strip()
+    }
+    proposed_bares.discard("")
+    if proposed_bares:
+        db_corr = database.SessionLocal()
+        try:
+            for lem in (
+                db_corr.query(Lemma)
+                .filter(Lemma.language_code == language_code)
+                .filter(Lemma.lemma_bare.in_(proposed_bares))
+                .all()
+            ):
+                # Prefer a canonical row (canonical_lemma_id IS NULL) when a
+                # bare form has both a canonical and a variant entry.
+                prev = correction_by_bare.get(lem.lemma_bare)
+                if prev is None or lem.canonical_lemma_id is None:
+                    correction_by_bare[lem.lemma_bare] = lem.lemma_id
+                lemma_by_id.setdefault(lem.lemma_id, lem)
+                # Keep the write-time canonical map in sync so a re-mapped
+                # lemma is still redirected to its canonical at insert.
+                canonical_map.setdefault(lem.lemma_id, lem.canonical_lemma_id)
+        finally:
+            db_corr.close()
+
+    # Reject candidates where the verifier flagged a content position as "wrong"
+    # AND we can't repair it by re-mapping to an existing lemma. "unclear" is
+    # tolerated; wrong verdicts on non-content/same-lemma positions are ignored
+    # because the verifier often nitpicks articles and prepositions even when
+    # the proposed lemma is already right.
     accepted: list[dict] = []
     for cand, verdicts in zip(candidates, verify_per_cand):
-        wrong = [
-            v for v in verdicts
-            if v.verdict == "wrong"
-            and _wrong_verdict_rejects_candidate(
+        fatal: list[VerifyDecision] = []
+        corrected: list[dict] = []
+        for v in verdicts:
+            if v.verdict != "wrong":
+                continue
+            if not _wrong_verdict_rejects_candidate(
                 v,
                 cand["mappings"],
                 lemma_by_id,
                 language_code=language_code,
                 function_words=function_words,
+            ):
+                continue
+            new_id = correction_by_bare.get(
+                normalize_bare(v.correct_lemma or "", language_code)
             )
-        ]
-        if wrong:
+            mapping = next(
+                (m for m in cand["mappings"] if m.position == v.position), None
+            )
+            if new_id is not None and mapping is not None and new_id != mapping.lemma_id:
+                corrected.append({
+                    "position": v.position,
+                    "from": mapping.lemma_id,
+                    "to": new_id,
+                    "correct_lemma": v.correct_lemma,
+                })
+                mapping.lemma_id = new_id
+            else:
+                fatal.append(v)
+        if fatal:
             _log_pipeline({
                 "event": "verify_rejected",
                 "language_code": language_code,
@@ -1487,10 +1550,18 @@ def batch_generate_material(
                 "text": cand["text"],
                 "wrong_positions": [
                     {"position": v.position, "correct_lemma": v.correct_lemma}
-                    for v in wrong
+                    for v in fatal
                 ],
             })
             continue
+        if corrected:
+            _log_pipeline({
+                "event": "verify_corrected",
+                "language_code": language_code,
+                "lemma_id": cand["target_lemma_id"],
+                "text": cand["text"],
+                "corrections": corrected,
+            })
 
         # Gloss gate: every content-mapping must point at a lemma with a non-
         # empty gloss_en. The picker enforces this on the read side too.
