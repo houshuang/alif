@@ -38,6 +38,11 @@
 #      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
 #        register) for engaged lemmas. Surfaced in the lookup card + lemma
 #        detail screen (Modern Editorial design).
+#   6. repair_runon_glosses (audit + apply) for Modern Greek
+#      — re-punctuates multi-sense glosses that lost their separators at
+#        seed-import. Checkpoint-gated and clean LLM glosses carry punctuation,
+#        so steady-state it's a near-no-op; it only works when a dirty seed
+#        import (e.g. the Latin DCC source) adds run-ons.
 #
 # Future passes (deferred — no harvest-side fixes needed yet):
 #   - rotate_stale_sentences (when pipeline tiers land)
@@ -106,6 +111,14 @@ TRANSLATE_TIMEOUT_SECONDS="${POLYGLOT_TRANSLATE_TIMEOUT_SECONDS:-1200}"
 # overlapping cron runs from double-spending LLM calls on the same lemmas.
 ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-30}"
 ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"
+# 2026-06-01: sixth phase re-punctuates run-on glosses (multi-sense definitions
+# that lost their separators at seed-import — the Latin DCC source space-joined
+# verb senses, e.g. "I surround I circle"). The audit is CHECKPOINT-GATED
+# (data/lemma_runon_repair_<lang>.jsonl) and clean ensure_glosses_batch output
+# carries punctuation so it never matches the candidate filter — steady-state
+# cost is ~0 LLM calls; the phase only does work when a future dirty seed import
+# adds run-ons. apply --apply is idempotent (skips already-repaired rows).
+RUNON_TIMEOUT_SECONDS="${POLYGLOT_RUNON_TIMEOUT_SECONDS:-1200}"
 
 export PYTHONUNBUFFERED=1
 # Belt-and-suspenders: explicitly point at polyglot's DB so the cron run
@@ -174,6 +187,11 @@ for LANGUAGE in $LANGUAGES; do
     --language "$LANGUAGE" \
     --max-lemmas "$ENRICH_MAX_LEMMAS" \
     --include-failed
+
+  run_phase "$LANGUAGE repair_runon_glosses audit" timeout "$RUNON_TIMEOUT_SECONDS" \
+    "$VENV" scripts/repair_runon_glosses.py audit --language "$LANGUAGE"
+  run_phase "$LANGUAGE repair_runon_glosses apply" timeout "$RUNON_TIMEOUT_SECONDS" \
+    "$VENV" scripts/repair_runon_glosses.py apply --language "$LANGUAGE" --apply
 done
 
 echo "[$TIMESTAMP] Polyglot material cron done" >> "$LOG"
