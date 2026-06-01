@@ -13,6 +13,16 @@ def test_runon_candidates_marked_true():
     assert _looks_runon("adultery adulteration")                # adulterium
 
 
+def test_multi_verb_runons_marked_true():
+    # The DCC Latin seed fused first-person verb senses with no separator.
+    # These start with "I " so the phrase-prefix skip used to hide the whole
+    # class (found live 2026-06-01: 265 Latin lemmas, 23 of them being studied).
+    assert _looks_runon("I surround I circle")          # cingo
+    assert _looks_runon("I feed I pasture I consume")   # pasco
+    assert _looks_runon("I am useful I am good")        # prosum
+    assert _looks_runon("I leap I spring forth I mount for copulation")  # salio
+
+
 def test_legitimate_definitions_marked_false():
     # The filter is intentionally permissive; the LLM is the final arbiter.
     # Whatever can be CHEAPLY ruled out here saves an LLM call.

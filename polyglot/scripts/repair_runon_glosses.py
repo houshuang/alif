@@ -88,6 +88,14 @@ def _looks_runon(gloss: str | None) -> bool:
     words = g.split()
     if len(words) < 2:
         return False
+    # Multiple first-person verb senses fused without a separator
+    # ("I surround I circle", "I feed I pasture I consume") are run-ons even
+    # though they start with the "i " phrase prefix. This whole class — the
+    # dominant shape of Latin DCC-seed verb glosses — was invisible before
+    # because the prefix-skip below dropped any gloss starting with "i ". A
+    # single "I <verb>" sense ("I stand firm") still falls through to the skip.
+    if len(re.findall(r"\bI\s+[a-z]", g)) >= 2:
+        return True
     low = g.lower()
     if low.startswith(_PHRASE_PREFIXES):
         return False
