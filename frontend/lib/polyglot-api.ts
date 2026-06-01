@@ -712,6 +712,61 @@ export async function prefetchReviewSession(
   }
 }
 
+type SessionFetchEvent = {
+  outcome: "failed" | "recovered";
+  language_code: string;
+  error_kind: string;
+  error_message?: string;
+  force_fresh: boolean;
+  had_prefetch: boolean;
+  prefetch_age_ms?: number;
+  used_fallback: boolean;
+};
+
+// Classify a failed session fetch so the server log can tell apart the causes
+// that all surface to the user as "couldn't load". `fetchSessionBundle` throws
+// an Error("…: <status>") on a non-2xx response; the AbortController fires an
+// AbortError on the 12s timeout; everything else (radio handoff, reset, DNS) is
+// React Native's bare TypeError "Network request failed".
+function classifyFetchError(e: any): string {
+  if (e?.name === "AbortError" || /abort/i.test(e?.message ?? "")) return "timeout";
+  const status = /:\s*(\d{3})\s*$/.exec(e?.message ?? "");
+  if (status) return `http_${status[1]}`;
+  if (/network request failed/i.test(e?.message ?? "")) return "transport";
+  return "unknown";
+}
+
+// Fire-and-forget beacon: the live session fetch is the only place a "couldn't
+// load" wall is actually observed, and it's client-side — see the backend
+// endpoint docstring. Never throws (a telemetry failure must not break the
+// screen) and is skipped offline (it couldn't reach the server anyway).
+function reportSessionFetchEvent(event: SessionFetchEvent): void {
+  if (!netStatus.isOnline) return;
+  fetch(`${POLYGLOT_BASE_URL}/api/reviews/session-fetch-event`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  }).catch(() => {});
+}
+
+// Read the raw prefetch slot for telemetry — reports whether ANY cached session
+// existed and its age, WITHOUT applying the 15-min staleness gate. This is what
+// surfaces "a prefetch existed but was 17 min stale so the fallback couldn't
+// catch the failure" — distinct from "no prefetch at all".
+async function inspectPrefetchSlot(
+  languageCode: string,
+): Promise<{ hadPrefetch: boolean; ageMs?: number }> {
+  try {
+    const raw = await AsyncStorage.getItem(nextSessionKey(languageCode));
+    if (!raw) return { hadPrefetch: false };
+    const cached: CachedNextSession = JSON.parse(raw);
+    if (cached.language !== languageCode) return { hadPrefetch: false };
+    return { hadPrefetch: true, ageMs: Date.now() - cached.savedAt };
+  } catch {
+    return { hadPrefetch: false };
+  }
+}
+
 // Primary session loader for the review screen. Fetches live first, and only
 // falls back to a background-prefetched session if the live fetch fails.
 //
@@ -746,17 +801,39 @@ export async function getReviewSessionResilient(
     await clearCachedNextSession(languageCode);
     void prefetchReviewSession(languageCode, limit);
     return bundle;
-  } catch (e) {
+  } catch (e: any) {
     // Live fetch failed (timeout / transport). A prefetch that landed during
     // the previous session is a slightly-stale fallback — better than a hard
     // "Network request failed" wall. forceFresh skips it.
+    const errorKind = classifyFetchError(e);
+    const { hadPrefetch, ageMs } = await inspectPrefetchSlot(languageCode);
     if (!opts.forceFresh) {
       const stale = await readCachedNextSession(languageCode);
       if (stale) {
         await clearCachedNextSession(languageCode);
+        reportSessionFetchEvent({
+          outcome: "recovered",
+          language_code: languageCode,
+          error_kind: errorKind,
+          error_message: e?.message,
+          force_fresh: false,
+          had_prefetch: hadPrefetch,
+          prefetch_age_ms: ageMs,
+          used_fallback: true,
+        });
         return stale;
       }
     }
+    reportSessionFetchEvent({
+      outcome: "failed",
+      language_code: languageCode,
+      error_kind: errorKind,
+      error_message: e?.message,
+      force_fresh: !!opts.forceFresh,
+      had_prefetch: hadPrefetch,
+      prefetch_age_ms: ageMs,
+      used_fallback: false,
+    });
     throw e;
   }
 }

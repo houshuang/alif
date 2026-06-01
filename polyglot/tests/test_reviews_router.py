@@ -248,6 +248,68 @@ def test_session_prefetch_suppresses_interaction_log(tmp_db, monkeypatch):
         _cleanup()
 
 
+def test_session_built_logs_build_ms(tmp_db, monkeypatch):
+    """The session_built log carries build_ms so a slow build (the client aborts
+    at 12s) can be told apart from a network failure when triaging a client
+    "couldn't load" report."""
+    import app.routers.reviews as reviews_router
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        reviews_router, "log_interaction", lambda **kw: calls.append(kw)
+    )
+
+    client, _ = _client(tmp_db)
+    try:
+        r = client.get("/api/reviews/session", params={"language_code": "el"})
+        assert r.status_code == 200
+        built = [c for c in calls if c["event"] == "session_built"]
+        assert len(built) == 1
+        assert isinstance(built[0]["build_ms"], int)
+        assert built[0]["build_ms"] >= 0
+        # A fast in-memory build never trips the slow-build warning.
+        assert not [c for c in calls if c["event"] == "session_build_slow"]
+    finally:
+        _cleanup()
+
+
+def test_session_fetch_event_logs_client_beacon(tmp_db, monkeypatch):
+    """The client beacon for a failed/recovered session fetch lands as an
+    interaction event with its classification fields — the one record of a
+    failure that's otherwise observed only client-side."""
+    import app.routers.reviews as reviews_router
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        reviews_router, "log_interaction", lambda **kw: calls.append(kw)
+    )
+
+    client, _ = _client(tmp_db)
+    try:
+        r = client.post(
+            "/api/reviews/session-fetch-event",
+            json={
+                "outcome": "failed",
+                "language_code": "la",
+                "error_kind": "transport",
+                "error_message": "Network request failed",
+                "force_fresh": False,
+                "had_prefetch": True,
+                "prefetch_age_ms": 1200000,
+                "used_fallback": False,
+            },
+        )
+        assert r.status_code == 200
+        assert r.json() == {"logged": True}
+        assert len(calls) == 1
+        assert calls[0]["event"] == "session_fetch_failed"
+        assert calls[0]["error_kind"] == "transport"
+        assert calls[0]["had_prefetch"] is True
+        assert calls[0]["prefetch_age_ms"] == 1200000
+    finally:
+        _cleanup()
+
+
 def test_stats_reflects_acquisition_distribution(tmp_db):
     client, factory = _client(tmp_db)
     try:
