@@ -278,11 +278,15 @@ def cmd_apply(args) -> None:
             try:
                 from app.services.activity_log import log_activity
                 log_activity(
-                    db, "manual_action",
-                    f"Latin/{args.language} gloss re-audit: "
-                    f"{actions.get('reglossed',0)} reglossed, "
-                    f"{actions.get('pos_filled',0)} pos-filled",
+                    db,
+                    event_type="gloss_regloss_applied",
+                    summary=(
+                        f"{args.language} gloss re-audit: "
+                        f"{actions.get('reglossed',0)} reglossed, "
+                        f"{actions.get('pos_filled',0)} pos-filled"
+                    ),
                     detail=dict(actions),
+                    language_code=args.language,
                 )
                 db.commit()
             except Exception as e:
