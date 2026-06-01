@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-01: First confusion-capture analysis (21 captures) → matcher gains rime + metathesis signals; faster capture UX
+
+**Context.** The confusion-capture feature (PR #167, 2026-05-27) has been collecting passively. First analysis pass at 21 captures (below the ≥50 the original plan set for the full verification, but the patterns are already clear). Split: **14 `suggested_pick` / 7 `free_text`**, all `rating=2`. Capture rate **10.5%** (21 saved / 200 `confusion_help` yellow-tap analyses).
+
+**Finding — did the algorithm offer the real confusion?** Re-ran the live matcher against all 7 free-text cases. The word the user typed **exists in the studied vocabulary in all 7** (`_query_vocabulary` scans the whole vocab — no prefilter), so every miss was a *ranking* failure, not a candidate-pool failure. Of the 7: 1 effectively shown (same-root sibling at #1: حساب→"computer" via حسب), 2 just below the shown cutoff as **rhymes** (حرث→ورث #7; نام→صام ~#11), 1 **metathesis** out of reach (جحر→جرح), 3 unreachable by any surface metric (واضح extra-alif; سادة→"hunter" and ربطة→"frog" = semantic/contextual priming). The semantic cases re-confirm the `cluster-detection-limit` finding: some real confusions live entirely outside spelling space.
+
+**Pedagogy finding.** All 21 captures are a *specific single word* — zero fuzzy "groups". The "group I can't pin down" feeling manifests as dense derivational families confused **bidirectionally** (مُسْتَقْبَل↔اِسْتِقْبَال↔اِسْتَقْبَلَ, all ق-ب-ل+است-, across different days). Dominant mode = minimal pairs (هتف/هدف, وظيفة/نظيف, قانت/قانص), which the visual matcher already nails (all 14 picks). Observed-pair contrastive cards deferred until ~50 captures, per plan; will use *observed* pairs only, never auto-clusters.
+
+**Change (algorithm).** `confusion_service.py` `find_similar_words`: added two linguistically-principled ranking signals the old edit-distance + rasm + same-root scorer underweighted — (1) **adjacent transposition** (`_is_adjacent_transposition`): same letters with one adjacent pair swapped → score −12, reason "letters swapped", always eligible. (2) **shared rime** (`_shares_rime`): same final 2 letters, different first letter → score −6, reason "rhymes", eligible at len_gap≤1 & edit≤3. Tests in `test_confusion_service.py` (`TestTranspositionAndRime`, `TestSurfacesRealFreeTextConfusions`) prove صام now outranks the dot-variant دمّ for نام, and جحر surfaces for جرح as "letters swapped". 54/54 pass.
+
+**Change (UX).** Addressed the three frictions the user named: (a) confusion chips in `WordInfoCard` now render as clearly-tappable bordered cards with a trailing add-circle→check affordance and double confirmation (chip check + "Will record:" row); (b) `ConfusionPicker` free-text is now always-visible (type + Save, no expand step, no keyboard auto-pop); (c) the matcher fix raises the chance the real word is a pickable chip rather than a free-text fallback.
+
+**Verification.** After deploy, expect the `suggested_pick`/`free_text` ratio to rise (more real confusions are pickable chips), and capture rate to climb above 10.5%. Re-run the analysis at ~50 captures and check candidate-hit-rate on the remaining free-text.
+
+---
+
 ## 2026-05-29: Targeted generation refills the due-cohort coverage deficit + structural finding on salvage threshold
 
 **Context.** After the reverify sweep (entry below) lifted due-cohort coverage to 78%, 99 due+cohort words still had no reviewable sentence (5 more in generation backoff). Breakdown: 83 had only *inactive* (retired) sentences, 11 still `active_stale` (skipped by the reverify because their token-mappings were empty), 1 corpus sentinel, 4 with no sentence at all. 87 of the 99 were FSRS-`known`.

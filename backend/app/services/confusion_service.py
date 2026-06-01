@@ -57,6 +57,34 @@ def edit_distance(a: str, b: str) -> int:
     return prev[-1]
 
 
+def _is_adjacent_transposition(a: str, b: str) -> bool:
+    """True if b is a with exactly one pair of adjacent letters swapped.
+
+    Catches metathesis confusions like جرح (wound) / جحر (burrow) that plain
+    Levenshtein scores as distance 2 even though it's the same letters reordered.
+    """
+    if len(a) != len(b) or a == b:
+        return False
+    diffs = [i for i in range(len(a)) if a[i] != b[i]]
+    if len(diffs) != 2:
+        return False
+    i, j = diffs
+    return j == i + 1 and a[i] == b[j] and a[j] == b[i]
+
+
+def _shares_rime(a: str, b: str, n: int = 2) -> bool:
+    """True if two bare forms share their final n letters but differ at the onset.
+
+    Catches rhyme confusions like نام (sleep) / صام (fast) and حرث (plow) /
+    ورث (inherit) — same ending, different first letter. Plain edit distance
+    ranks these no better than a dot-variant, so they get truncated out of the
+    list; the rime signal pulls the cohort up.
+    """
+    if len(a) < n or len(b) < n or a == b:
+        return False
+    return a[-n:] == b[-n:] and a[0] != b[0]
+
+
 def _restore_taa_marbuta(stem: str, target: str) -> bool:
     """Check if stem matches target when accounting for taa marbuta (ة↔ت)."""
     if stem == target:
@@ -425,10 +453,16 @@ def _is_match_eligible(
     candidate_pos: str | None,
     target_bare: str,
     candidate_bare: str,
+    transposed: bool = False,
+    rime_match: bool = False,
 ) -> bool:
     if edit_dist == 0:
         return True
+    if transposed:
+        return True
     if len_gap <= 1 and edit_dist <= 2:
+        return True
+    if rime_match and len_gap <= 1 and edit_dist <= 3:
         return True
     if is_form_or_surface_match and len_gap <= 2 and edit_dist <= 2:
         return True
@@ -455,13 +489,19 @@ def _match_reason(
     candidate_pos: str | None,
     target_bare: str,
     candidate_bare: str,
+    transposed: bool = False,
+    rime_match: bool = False,
 ) -> str:
     if edit_dist == 0:
         if target_source == "surface" or candidate_form_key:
             return "same exposed form"
         return "same spelling"
+    if transposed:
+        return "letters swapped"
     if same_root:
         return "same root"
+    if rime_match:
+        return "rhymes"
     if (
         target_pos == "verb"
         and candidate_pos == "verb"
@@ -486,14 +526,24 @@ def _score_match(
     candidate_pos: str | None,
     target_bare: str,
     candidate_bare: str,
+    transposed: bool = False,
+    rime_match: bool = False,
 ) -> int:
     score = edit_dist * 8 + rasm_dist * 6 + len_gap * 2
     if edit_dist == 0:
         score -= 20
+    if transposed:
+        # Metathesis (same letters reordered) is a strong confusion signal that
+        # plain edit distance underweights — treat it nearly like a dot-variant.
+        score -= 12
     if rasm_dist == 0:
         score -= 8
     if same_root:
         score -= 7
+    if rime_match:
+        # Shared ending, different onset — pulls the rhyme cohort above
+        # equidistant dot-variants so the user's near-miss isn't truncated.
+        score -= 6
     if candidate_form_key or target_source == "surface":
         score -= 5
     if target_pos and target_pos == candidate_pos:
@@ -539,6 +589,8 @@ def find_similar_words(
                 len_gap = abs(len(candidate_bare) - len(target_bare))
                 ed = edit_distance(target_bare, candidate_bare)
                 rasm_ed = edit_distance(target_rasm, to_rasm(candidate_bare))
+                transposed = _is_adjacent_transposition(target_bare, candidate_bare)
+                rime_match = _shares_rime(target_bare, candidate_bare)
                 is_form_or_surface_match = bool(candidate_form["key"]) or target["source"] == "surface"
                 if not _is_match_eligible(
                     ed,
@@ -550,6 +602,8 @@ def find_similar_words(
                     lemma.pos,
                     target_bare,
                     candidate_bare,
+                    transposed,
+                    rime_match,
                 ):
                     continue
                 score = _score_match(
@@ -563,6 +617,8 @@ def find_similar_words(
                     lemma.pos,
                     target_bare,
                     candidate_bare,
+                    transposed,
+                    rime_match,
                 )
                 match = {
                     "score": score,
@@ -570,6 +626,8 @@ def find_similar_words(
                     "rasm_distance": rasm_ed,
                     "target": target,
                     "candidate_form": candidate_form,
+                    "transposed": transposed,
+                    "rime_match": rime_match,
                 }
                 if best is None or (
                     match["score"],
@@ -606,6 +664,8 @@ def find_similar_words(
             lemma.pos,
             target["bare"],
             candidate_form["bare"],
+            best.get("transposed", False),
+            best.get("rime_match", False),
         )
 
         results.append({

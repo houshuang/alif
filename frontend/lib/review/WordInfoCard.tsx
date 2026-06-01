@@ -422,11 +422,9 @@ function RevealedView({
               : null;
             const hint = sw.match_reason ? `${sw.match_reason}${formHint}` : diffHint;
             const picked = pickedConfusionLemmaId === sw.lemma_id;
+            const tappable = !!onPickConfusion;
             const itemContent = (
-              <View style={[styles.confusionItemRow, picked && styles.confusionItemRowPicked]}>
-                {picked && (
-                  <Ionicons name="checkmark-circle" size={18} color={colors.confused} />
-                )}
+              <View style={styles.confusionItemRow}>
                 <HighlightedArabic
                   text={sw.lemma_ar}
                   diffPositions={diffSet}
@@ -446,17 +444,25 @@ function RevealedView({
                     <Text style={styles.dotsPillText}>dots only</Text>
                   </View>
                 )}
+                {tappable && (
+                  <Ionicons
+                    name={picked ? "checkmark-circle" : "add-circle-outline"}
+                    size={22}
+                    color={picked ? colors.confused : "rgba(243, 156, 18, 0.55)"}
+                  />
+                )}
               </View>
             );
-            return onPickConfusion ? (
+            return tappable ? (
               <Pressable
                 key={sw.lemma_id}
-                onPress={() => onPickConfusion(sw.lemma_id)}
+                onPress={() => onPickConfusion!(sw.lemma_id)}
                 style={({ pressed }) => [
-                  styles.confusionItem,
+                  styles.confusionItemTappable,
                   picked && styles.confusionItemPicked,
                   pressed && { opacity: 0.6 },
                 ]}
+                accessibilityRole="button"
               >
                 {itemContent}
               </Pressable>
@@ -481,11 +487,9 @@ function RevealedView({
           </View>
           {phoneticSimilar.slice(0, 3).map((pw) => {
             const picked = pickedConfusionLemmaId === pw.lemma_id;
+            const tappable = !!onPickConfusion;
             const itemContent = (
-              <View style={[styles.phoneticItem, picked && styles.phoneticItemPicked]}>
-                {picked && (
-                  <Ionicons name="checkmark-circle" size={18} color="#8e44ad" />
-                )}
+              <View style={styles.phoneticItem}>
                 <Text style={styles.phoneticAr}>{pw.lemma_ar}</Text>
                 <Text style={styles.confusionGloss} numberOfLines={1}>{pw.gloss_en ?? "?"}</Text>
                 {pw.confused_pairs.length > 0 && (
@@ -493,13 +497,26 @@ function RevealedView({
                     <Text style={styles.phoneticPairsText}>{pw.confused_pairs.join(" ")}</Text>
                   </View>
                 )}
+                {tappable && (
+                  <Ionicons
+                    name={picked ? "checkmark-circle" : "add-circle-outline"}
+                    size={22}
+                    color={picked ? "#8e44ad" : "rgba(142, 68, 173, 0.55)"}
+                    style={{ marginLeft: "auto" }}
+                  />
+                )}
               </View>
             );
-            return onPickConfusion ? (
+            return tappable ? (
               <Pressable
                 key={pw.lemma_id}
-                onPress={() => onPickConfusion(pw.lemma_id)}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+                onPress={() => onPickConfusion!(pw.lemma_id)}
+                style={({ pressed }) => [
+                  styles.phoneticItemTappable,
+                  picked && styles.phoneticItemPicked,
+                  pressed && { opacity: 0.6 },
+                ]}
+                accessibilityRole="button"
               >
                 {itemContent}
               </Pressable>
@@ -1071,6 +1088,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(243, 156, 18, 0.12)",
   },
+  confusionItemTappable: {
+    borderWidth: 1,
+    borderColor: "rgba(243, 156, 18, 0.35)",
+    borderRadius: 10,
+    backgroundColor: "rgba(243, 156, 18, 0.05)",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   confusionItemPicked: {
     backgroundColor: "rgba(243, 156, 18, 0.18)",
     borderRadius: 8,
@@ -1083,9 +1108,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-  },
-  confusionItemRowPicked: {
-    gap: 8,
   },
   pickHint: {
     marginLeft: "auto",
@@ -1133,6 +1155,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  phoneticItemTappable: {
+    borderWidth: 1,
+    borderColor: "rgba(142, 68, 173, 0.35)",
+    borderRadius: 10,
+    backgroundColor: "rgba(142, 68, 173, 0.05)",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   phoneticItemPicked: {
     backgroundColor: "rgba(142, 68, 173, 0.18)",

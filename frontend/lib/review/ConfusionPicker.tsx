@@ -22,7 +22,6 @@ export function ConfusionPicker({
   const [freeText, setFreeText] = useState<string>(
     existing?.capture_method === "free_text" ? existing.confused_with_text ?? "" : "",
   );
-  const [typing, setTyping] = useState<boolean>(false);
 
   const candidateIds = useMemo(() => {
     const seen = new Set<number>();
@@ -59,12 +58,10 @@ export function ConfusionPicker({
       confused_with_text: text,
       candidates_shown: candidateIds,
     });
-    setTyping(false);
   };
 
   const handleClearAll = () => {
     setFreeText("");
-    setTyping(false);
     onClear();
   };
 
@@ -92,43 +89,29 @@ export function ConfusionPicker({
     );
   }
 
-  if (!typing) {
-    return (
-      <Pressable
-        onPress={() => setTyping(true)}
-        style={({ pressed }) => [styles.collapsedLink, pressed && { opacity: 0.5 }]}
-        accessibilityRole="button"
-      >
-        <Text style={styles.collapsedText}>
-          Or type the word you thought it was ›
-        </Text>
-      </Pressable>
-    );
-  }
+  const canSave = freeText.trim().length > 0;
 
   return (
     <View style={styles.container}>
+      <Text style={styles.notListedLabel}>Not in the list? Type the word you thought it was:</Text>
       <View style={styles.textRow}>
         <TextInput
           value={freeText}
           onChangeText={setFreeText}
           onSubmitEditing={handleSubmitText}
-          placeholder="what word did you think it was?"
+          placeholder="e.g. “inherit” or وضع"
           placeholderTextColor={colors.textSecondary}
           style={styles.textInput}
-          autoFocus
           returnKeyType="done"
           blurOnSubmit
         />
         <Pressable
           onPress={handleSubmitText}
-          disabled={freeText.trim().length === 0}
-          style={[styles.saveButton, freeText.trim().length === 0 && styles.saveButtonDisabled]}
+          disabled={!canSave}
+          style={[styles.saveButton, !canSave && styles.saveButtonDisabled]}
+          accessibilityRole="button"
         >
           <Text style={styles.saveButtonText}>Save</Text>
-        </Pressable>
-        <Pressable onPress={() => { setTyping(false); setFreeText(""); }} hitSlop={8}>
-          <Text style={styles.cancelLink}>cancel</Text>
         </Pressable>
       </View>
     </View>
@@ -136,18 +119,6 @@ export function ConfusionPicker({
 }
 
 const styles = StyleSheet.create({
-  collapsedLink: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    marginTop: 4,
-    alignSelf: "flex-start",
-  },
-  collapsedText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontFamily: fontFamily.translitRegular,
-    textDecorationLine: "underline",
-  },
   container: {
     marginTop: 6,
     padding: 8,
@@ -155,6 +126,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(243, 156, 18, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(243, 156, 18, 0.25)",
+  },
+  notListedLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontFamily: fontFamily.translitRegular,
+    marginBottom: 6,
   },
   textRow: {
     flexDirection: "row",
@@ -187,12 +164,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fontFamily.translitRegular,
     fontWeight: "600" as const,
-  },
-  cancelLink: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: fontFamily.translitRegular,
-    paddingHorizontal: 4,
   },
   savedRow: {
     flexDirection: "row",
