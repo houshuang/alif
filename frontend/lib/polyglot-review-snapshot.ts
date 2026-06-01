@@ -24,7 +24,7 @@ import type {
   AcquisitionStats,
   ReviewSessionBundle,
 } from "./polyglot-api";
-import type { SessionSlot } from "./polyglot-review-helpers";
+import type { SessionSlot, SubmittedCard } from "./polyglot-review-helpers";
 
 export const REVIEW_SNAPSHOT_TTL_MS = 15 * 60 * 1000;
 
@@ -46,6 +46,12 @@ export type ReviewSnapshot = {
   glossWordIdx: number | null;
   sessionId: string;
   shownIntroLemmaIds: number[];
+  // Per-slot record of every sentence card already submitted this session,
+  // keyed by slot index. Lets a remount restore the back-navigation history so
+  // re-forwarding an unchanged card stays a server no-op (and a changed one
+  // still undoes the right review). Optional: snapshots written before
+  // back-navigation existed simply rehydrate an empty history.
+  submitted?: Record<number, SubmittedCard>;
   savedAt: number;
 };
 
