@@ -12,6 +12,7 @@ HTTP boundary, which keeps the engine testable without UI dependencies.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -528,6 +529,13 @@ def _intro_card_to_pydantic(card: IntroCardPayload) -> IntroCardOut:
     )
 
 
+# The client (`polyglot-api.ts`) aborts the live session fetch at
+# SESSION_TIMEOUT_MS=12s. `build_session` is meant to be DB-only and <1s, so a
+# build slower than this is the line between "we were slow" and "the network
+# died" when triaging a client "Network request failed".
+SESSION_BUILD_SLOW_MS = 4000
+
+
 @router.get("/session", response_model=SessionBundleOut)
 def session(
     language_code: str,
@@ -555,17 +563,30 @@ def session(
     """
     if not db.query(Language).filter(Language.code == language_code).first():
         raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
+    _build_start = perf_counter()
     bundle = build_session(db, language_code=language_code, limit=limit)
+    build_ms = int((perf_counter() - _build_start) * 1000)
     if prefetch:
         return SessionBundleOut(
             sentences=[_payload_to_pydantic(p) for p in bundle.sentences],
             intro_cards=[_intro_card_to_pydantic(c) for c in bundle.intro_cards],
+        )
+    if build_ms >= SESSION_BUILD_SLOW_MS:
+        log_interaction(
+            event="session_build_slow",
+            app="polyglot",
+            context="reviews/session",
+            language_code=language_code,
+            build_ms=build_ms,
+            requested_limit=limit,
+            selected_count=len(bundle.sentences),
         )
     log_interaction(
         event="session_built",
         app="polyglot",
         context="reviews/session",
         language_code=language_code,
+        build_ms=build_ms,
         requested_limit=limit,
         selected_count=len(bundle.sentences),
         intro_count=len(bundle.intro_cards),
@@ -597,6 +618,49 @@ def session(
         sentences=[_payload_to_pydantic(p) for p in bundle.sentences],
         intro_cards=[_intro_card_to_pydantic(c) for c in bundle.intro_cards],
     )
+
+
+class SessionFetchEventRequest(BaseModel):
+    outcome: Literal["failed", "recovered"]
+    language_code: str
+    # "timeout" (12s AbortController fired), "transport" (bare RN "Network
+    # request failed" — request never completed), or "http_<status>".
+    error_kind: Optional[str] = None
+    error_message: Optional[str] = None
+    force_fresh: bool = False
+    had_prefetch: bool = False
+    prefetch_age_ms: Optional[int] = None
+    used_fallback: bool = False
+    session_id: Optional[str] = None
+
+
+@router.post("/session-fetch-event")
+def session_fetch_event(req: SessionFetchEventRequest) -> dict:
+    """Record a client-observed session-fetch failure/recovery.
+
+    The live session fetch is the one place a "Network request failed" wall is
+    actually observed, and it's client-side — invisible to every server log
+    (a request the client aborts at 12s may still be running here with nothing
+    recording it; a prefetch failure is suppressed entirely). This beacon, sent
+    best-effort and fire-and-forget by ``getReviewSessionResilient``, captures
+    the classification needed to tell a timeout from a transport drop from a
+    stale-prefetch miss. No DB dependency so it can't itself fail under lock
+    contention.
+    """
+    log_interaction(
+        event=f"session_fetch_{req.outcome}",
+        app="polyglot",
+        context="reviews/session",
+        language_code=req.language_code,
+        error_kind=req.error_kind,
+        error_message=(req.error_message or "")[:300] or None,
+        force_fresh=req.force_fresh,
+        had_prefetch=req.had_prefetch,
+        prefetch_age_ms=req.prefetch_age_ms,
+        used_fallback=req.used_fallback,
+        session_id=req.session_id,
+    )
+    return {"logged": True}
 
 
 class ExperimentIntroAckRequest(BaseModel):
