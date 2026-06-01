@@ -84,6 +84,62 @@ _VOWELS = frozenset("aeiouy")
 _DISPLAY_OVERRIDES: dict[str, str] = {}
 
 
+# ── Homograph lemma overrides (2026-06-01) ──────────────────────────────────
+# LatinCy confidently assigns a CITATION lemma that contradicts the morphology
+# it tagged on the same token: e.g. `pilum` comes back lemma=`pilus` (a
+# *masculine* 2nd-decl noun = "hair") while the token is tagged Gender=Neut —
+# but the neuter form is `pilum` = "javelin". Likewise `tantum` lemma=`tantus`
+# (an adjective) while tagged pos=ADV (the adverb is `tantum`). These are flat
+# model errors, NOT genuine ambiguity, so they recur in every context and the
+# sentence-context verifier doesn't reliably catch them (a wrong-sense mapping
+# to a valid lemma looks structurally fine). We correct them deterministically
+# at the lemmatizer boundary — the single chokepoint every path flows through
+# (reading intake, generation validator, on-demand tap lookup).
+#
+# The override keys on LatinCy's OWN tag (Gender or pos), which is reliable here
+# even when its lemma is not, so the fix is correct in all contexts: a genuine
+# masc-acc `pilum` (= a hair) is tagged Gender=Masc and left as `pilus`. This is
+# why `pila` (fem ball vs neut-pl javelins) is deliberately ABSENT — LatinCy
+# disambiguates it correctly by context and it carries no lemma/tag contradiction.
+#
+# Each entry: surface bare form -> ordered list of (feature, expected, lemma).
+# `feature` is "Gender" (matched against morph feats) or "pos" (UPOS tag).
+# First matching rule wins; no match leaves LatinCy's lemma untouched. The
+# corrected lemma string flows through the normal display/bare pipeline, so it
+# must be a real lemma_bare present in the vocabulary.
+_LEMMA_OVERRIDES: dict[str, list[tuple[str, str, str]]] = {
+    "pilum":  [("Gender", "Neut", "pilum")],   # neuter javelin, not masc pilus/hair
+    "tantum": [("pos", "ADV", "tantum")],       # adverb "only", not adjective tantus
+    "malum":  [("pos", "NOUN", "malum")],       # noun evil/apple, not adjective malus
+    "solum":  [("pos", "NOUN", "solum")],       # noun ground/soil, not adjective solus
+}
+
+
+def override_surface_keys() -> frozenset[str]:
+    """Normalized-bare surface forms that carry a homograph override. The
+    generation pipeline uses this to refuse PR #165 observed-surface ingestion
+    of these surfaces (their stored mappings are exactly the ones the override
+    exists to distrust), so a corrected mapping can't be re-polluted."""
+    return frozenset(_LEMMA_OVERRIDES)
+
+
+def lemma_override(surface: str, pos: str | None, feats: dict | None) -> str | None:
+    """Return the corrected lemma for a known LatinCy homograph confusion, or
+    None when no override applies. Keyed on the normalized-bare surface and
+    discriminated by LatinCy's own pos/Gender tag. Pure — exported so the
+    generation pipeline can guard PR #165 observed-surface augmentation against
+    re-ingesting a mapping this override would flip."""
+    rules = _LEMMA_OVERRIDES.get(_normalize_latin(surface))
+    if not rules:
+        return None
+    feats = feats or {}
+    for feature, expected, correct in rules:
+        actual = pos if feature == "pos" else feats.get(feature)
+        if actual == expected:
+            return correct
+    return None
+
+
 def _to_modern_reading_orthography(form: str) -> str:
     """Convert a u-spelled Latin form to modern reading orthography (v).
 
@@ -278,7 +334,8 @@ class LatinProvider:
         if match is None:
             return surface, None, {}
         feats = {k: v for k, v in (match.morph.to_dict() or {}).items() if v}
-        return match.lemma_, match.pos_, feats
+        lemma = lemma_override(surface, match.pos_, feats) or match.lemma_
+        return lemma, match.pos_, feats
 
     def lemmatize(self, surface: str, context: str | None = None) -> LemmaCandidate:
         # Latin display policy (2026-05-26): display form is modern reading

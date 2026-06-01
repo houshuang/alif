@@ -7,7 +7,12 @@ real LatinCy model and only run under `pytest -m slow`.
 import pytest
 
 from app.services.languages.base import ProviderUnavailable
-from app.services.languages.la import LatinProvider, _to_modern_reading_orthography
+from app.services.languages.la import (
+    LatinProvider,
+    _to_modern_reading_orthography,
+    lemma_override,
+    override_surface_keys,
+)
 
 
 def test_normalize_bare_strips_macrons_and_folds_j_v():
@@ -173,3 +178,45 @@ def test_latincy_cum_pos_disambiguation():
     p = LatinProvider()
     assert p.analyze("Cum", "Cum amicis venit.").pos == "ADP"
     assert p.analyze("Cum", "Cum venisset, risit.").pos == "SCONJ"
+
+
+# ─── homograph lemma overrides (2026-06-01) ──────────────────────────────────
+
+
+@pytest.mark.parametrize("surface,pos,feats,want", [
+    # pilum: tagged Neut but LatinCy lemmas to masc pilus → force pilum/javelin
+    ("pilum", "NOUN", {"Gender": "Neut"}, "pilum"),
+    ("Pilum", "NOUN", {"Gender": "Neut"}, "pilum"),   # normalized, case-insensitive
+    # genuine masc-acc pilum (= a hair) is tagged Masc → leave LatinCy's pilus
+    ("pilum", "NOUN", {"Gender": "Masc"}, None),
+    # tantum: tagged ADV but lemma'd to adjective tantus → force adverb tantum
+    ("tantum", "ADV", {}, "tantum"),
+    ("tantum", "ADJ", {}, None),
+    # malum / solum keyed on a NOUN tag contradicting the adjective lemma
+    ("malum", "NOUN", {"Gender": "Neut"}, "malum"),
+    ("malum", "ADJ", {}, None),
+    ("solum", "NOUN", {}, "solum"),
+    ("solum", "ADV", {}, None),
+    # pila is deliberately absent — LatinCy disambiguates ball/javelins by context
+    ("pila", "NOUN", {"Gender": "Neut"}, None),
+    ("rosa", "NOUN", {}, None),
+])
+def test_lemma_override(surface, pos, feats, want):
+    assert lemma_override(surface, pos, feats) == want
+
+
+def test_override_surface_keys_are_normalized_bare():
+    p = LatinProvider()
+    for key in override_surface_keys():
+        assert p.normalize_bare(key) == key
+    assert "pila" not in override_surface_keys()
+
+
+@pytest.mark.slow
+def test_latincy_pilum_homograph_corrected_in_context():
+    """End-to-end: LatinCy mis-lemmatizes the javelin `pilum` to `pilus`/hair,
+    but the override (via _analyze_token) corrects it. Regression for the
+    2026-06-01 'is it javelin, hair, ball?' report."""
+    p = LatinProvider()
+    ctx = "Femina pilum sub lectica videt et ostiarium vocat."
+    assert p.lemmatize("pilum", ctx).lemma_bare == "pilum"

@@ -4,6 +4,10 @@
 
 ---
 
+## 🔵 [TODO 2026-06-01] Polyglot Latin: general gender/POS-contradiction lemma guard
+
+`la.py` `_LEMMA_OVERRIDES` (branch `sh/polyglot-latin-homograph-guard`) corrects LatinCy lemma errors whose hallmark is that the assigned lemma's morphological class **contradicts the POS/Gender LatinCy tagged on the same token** (`pilum`: tagged Neut, lemma'd to masculine `pilus`). Today this is a curated per-surface table. The general version would, for any token, detect when the assigned lemma's declension gender/POS disagrees with the tag and look up a same-stem homograph lemma of the matching class — catching the whole class without enumeration. **Blocked on data**: we don't store per-lemma gender/morph-class on `Lemma` rows. When we do (or can derive it from `forms_json`), generalize the override into a deterministic guard and shrink the table. Until then, extend `_LEMMA_OVERRIDES` per confirmed case and run `scripts/audit_homograph_mappings.py` as the discovery sweep.
+
 ## 🟡 [IN PROGRESS 2026-05-27] Root-showcase sentences — pack multi-derivation sentences from one root
 
 User idea: generate sentences that exploit as many forms of a single Arabic root as possible (e.g. *الكاتب كتب كتبًا للكتّاب في المكتب في المكتبة* for ك-ت-ب, or *المحاسب معي الحاسوب حسّب الحاسب* for ح-س-ب). The pedagogical wager: contrived wordplay sentences are memorable *precisely because* they're contrived, and they directly reinforce Arabic's root-pattern system — every reviewed surface form earns its own lemma credit (FOUNDATIONAL rule), so a single showcase sentence yields N reviews instead of 1.

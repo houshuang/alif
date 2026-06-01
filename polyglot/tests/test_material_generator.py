@@ -440,7 +440,9 @@ def test_verification_failure_discards_all(tmp_db, fake_claude):
 
 
 def test_verifier_wrong_verdict_discards_candidate(tmp_db, fake_claude):
-    """If Haiku flags any position as 'wrong', that candidate is rejected."""
+    """A 'wrong' content verdict whose correct_lemma does NOT exist in the
+    vocabulary still rejects the candidate (no auto-create from generation).
+    Here correct_lemma 'βιβλιά' is never seeded, so it can't be re-mapped."""
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
@@ -468,6 +470,87 @@ def test_verifier_wrong_verdict_discards_candidate(tmp_db, fake_claude):
 
     with tmp_db() as db:
         assert db.query(Sentence).count() == 0
+
+
+def test_verifier_wrong_verdict_remaps_to_existing_lemma(tmp_db, fake_claude):
+    """A 'wrong' content verdict whose correct_lemma EXISTS in the vocabulary
+    re-maps the SentenceWord (Alif apply_corrections behavior) and keeps the
+    sentence, instead of discarding it. Regression for the homograph-error
+    class (pilum→pilus) when the deterministic override doesn't fire."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        # μεγάλο maps here, but the verifier says the right lemma is καλό
+        # (which exists in the vocabulary) → re-map, don't discard.
+        wrong = _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        correct = _seed_known_scaffold(db, form="καλό", bare="καλο", gloss="good")
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+        wrong_id = wrong.lemma_id
+        correct_id = correct.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is good.")]),
+        _verify_response([
+            {"sentence_index": 0, "position": 1, "verdict": "ok"},
+            {"sentence_index": 0, "position": 2, "verdict": "ok"},
+            {"sentence_index": 0, "position": 3, "verdict": "wrong",
+             "correct_lemma": "καλό", "reason": "should be καλό not μεγάλο"},
+        ]),
+        _quality_response(),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+    with tmp_db() as db:
+        s = db.query(Sentence).one()
+        words = db.query(SentenceWord).filter(SentenceWord.sentence_id == s.id).all()
+        by_lemma = {w.lemma_id for w in words}
+        assert correct_id in by_lemma
+        assert wrong_id not in by_lemma
+
+
+def test_observed_surfaces_skips_latin_override_surfaces(tmp_db):
+    """PR #165 observed-surface augmentation must NOT ingest a surface that
+    carries a homograph override (e.g. Latin `pilum`), else a corrected mapping
+    gets re-polluted on the next generation pass. Non-override surfaces still
+    flow through."""
+    from datetime import datetime, timezone
+    from app.models import Language, Lemma, Sentence, SentenceWord
+
+    with tmp_db() as db:
+        db.add(Language(code="la", name="Latin", script="latin",
+                        direction="ltr", accent_display="macrons_off"))
+        pilus = Lemma(language_code="la", lemma_form="pilus", lemma_bare="pilus",
+                      gloss_en="hair", source="test")
+        rosa = Lemma(language_code="la", lemma_form="rosa", lemma_bare="rosa",
+                     gloss_en="rose", source="test")
+        db.add_all([pilus, rosa])
+        db.flush()
+        sent = Sentence(language_code="la", text="Femina pilum et rosam videt.",
+                        source="llm", is_active=True,
+                        mappings_verified_at=datetime.now(timezone.utc))
+        db.add(sent)
+        db.flush()
+        db.add_all([
+            SentenceWord(sentence_id=sent.id, position=1, surface_form="pilum",
+                         lemma_id=pilus.lemma_id),
+            SentenceWord(sentence_id=sent.id, position=3, surface_form="rosam",
+                         lemma_id=rosa.lemma_id),
+        ])
+        db.commit()
+        pilus_id, rosa_id = pilus.lemma_id, rosa.lemma_id
+
+    with tmp_db() as db:
+        observed = mg._observed_surfaces_for_lemmas(db, "la", {pilus_id, rosa_id})
+    assert "pilum" not in observed          # override surface — refused
+    assert observed.get("rosam") == rosa_id  # ordinary inflection — kept
 
 
 def test_verifier_wrong_same_lemma_does_not_discard_candidate(tmp_db, fake_claude):
