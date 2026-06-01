@@ -143,7 +143,8 @@ export default function PolyglotStats() {
           <PanelTitle label="Today" />
           <KV label="reviews" value={num(td.reviews)} unit="evt" />
           <KV label="sentences" value={num(td.sentence_reviews)} />
-          <KV label="verified" value={`+${num(td.graduated)}`} unit="wd" valueColor={C.verified} />
+          <KV label="confirmed" labelHint="read" value={`+${num(td.confirmed)}`} unit="wd" valueColor={C.verified} />
+          <KV label="graduated" labelHint="recall" value={`+${num(td.graduated)}`} unit="wd" valueColor={C.verified} />
           <KV label="new gaps" value={`+${num(td.marked_unknown)}`} unit="wd" valueColor={C.warning} last />
         </Panel>
       </View>
