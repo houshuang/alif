@@ -155,6 +155,38 @@ MAX_AVOID_WORDS = 30
 GENERATION_MIN_CANDIDATES_PER_TARGET = 8
 GENERATION_EXTRA_CANDIDATES_PER_TARGET = 5
 COMMON_SCAFFOLD_SAMPLE_SIZE = 180
+
+# Lever A — post-generation over-exposure preference. A scaffold word already
+# present in this many existing sentences is "over-exposed"; candidates leaning
+# on over-exposed scaffold are de-prioritised when trimming the surplus
+# candidate buffer to the requested count, so the generated corpus spreads
+# across vocabulary instead of re-piling onto saturated words. Mirrors Alif's
+# DIVERSITY_SENTENCE_THRESHOLD (sentence_generator.py). Alif rejects + retries
+# in its single-target loop; polyglot is batched with surplus, so this only
+# *re-ranks* — it can never drop a sentence a target still needs.
+DIVERSITY_SENTENCE_THRESHOLD = max(
+    1, int(os.environ.get("POLYGLOT_DIVERSITY_SENTENCE_THRESHOLD", "10"))
+)
+
+# Lever B — coverage generation for never-confirmed assumed-known words. The
+# confirmation sweep (PR #180) can only confirm assumed-known words that already
+# sit in a reviewable sentence; words in zero sentences are a structural blind
+# spot only generation can fill. This bounded, lower-priority warm-cache phase
+# plants such words into the generated corpus as targets so a later reading
+# session can confirm them as collateral. It never competes with the
+# retrieval-gap budget (its pool is disjoint by knowledge state).
+COVERAGE_GEN_ENABLED = os.environ.get(
+    "POLYGLOT_COVERAGE_GEN", "1"
+).strip().lower() not in ("0", "false", "no", "off")
+COVERAGE_MAX_LEMMAS = max(0, int(os.environ.get("POLYGLOT_COVERAGE_MAX_LEMMAS", "12")))
+# An assumed-known word in fewer than this many reviewable sentences is eligible
+# (default 1 → "plant every unconfirmed word into ≥1 reviewable sentence").
+COVERAGE_TARGET = max(1, int(os.environ.get("POLYGLOT_COVERAGE_TARGET", "1")))
+# Coverage is breadth, not depth — one sentence per word reaches the most
+# distinct unconfirmed words per LLM-budget pass.
+COVERAGE_SENTENCES_PER_TARGET = max(
+    1, int(os.environ.get("POLYGLOT_COVERAGE_SENTENCES_PER_TARGET", "1"))
+)
 HIGH_UTILITY_SCAFFOLD_WORDS_BY_LANG: dict[str, tuple[str, ...]] = {
     "el": (
         "είμαι", "έχω", "κάνω", "βλέπω", "λέω", "δίνω", "παίρνω",
@@ -967,6 +999,36 @@ def _content_sentence_counts(db: Session, language_code: str) -> dict[int, int]:
     return {lid: cnt for lid, cnt in rows}
 
 
+def _scaffold_overexposure_count(
+    mappings: list,
+    target_lemma_id: int,
+    sentence_counts: dict[int, int],
+    threshold: int | None = None,
+) -> int:
+    """How many distinct non-target content lemmas in this candidate already
+    appear in >= ``threshold`` existing sentences. Lower = fresher scaffold.
+
+    Mirrors the over-exposure measure in Alif's ``_check_scaffold_diversity``.
+    Alif rejects + regenerates in its single-target retry loop; polyglot is
+    batched with surplus candidates, so this ranks the candidate buffer before
+    the per-target trim (prefer fresh scaffold) — a soft preference that can
+    never reduce yield. Punctuation / function-word mappings carry no lemma_id
+    and are skipped by the ``lid is None`` guard.
+    """
+    if threshold is None:
+        threshold = DIVERSITY_SENTENCE_THRESHOLD
+    counted: set[int] = set()
+    n = 0
+    for m in mappings:
+        lid = getattr(m, "lemma_id", None)
+        if lid is None or lid == target_lemma_id or lid in counted:
+            continue
+        counted.add(lid)
+        if sentence_counts.get(lid, 0) >= threshold:
+            n += 1
+    return n
+
+
 def _sample_known_words_weighted(
     pool: list[dict],
     counts: dict[int, int],
@@ -1502,6 +1564,16 @@ def batch_generate_material(
             "words_covered": 0,
             "words_failed": target_indexed_ids,
         }
+    # Lever A: prefer candidates whose scaffold is least over-exposed so the
+    # generated corpus spreads across vocabulary instead of re-piling onto
+    # saturated words. Stable sort keeps generation order within a tie, and the
+    # per-target cap below still keeps `sentences_per_target` per word — this
+    # only reorders the surplus, never drops a sentence a target needs.
+    accepted.sort(
+        key=lambda cand: _scaffold_overexposure_count(
+            cand["mappings"], cand["target_lemma_id"], sentence_counts
+        )
+    )
     selected: list[dict] = []
     per_target_selected: dict[int, int] = {t.lemma_id: 0 for t in targets}
     for cand in accepted:
@@ -1685,14 +1757,113 @@ def _due_lemmas_missing_material(
     return gap_ids
 
 
+def _coverage_lemmas_missing_material(
+    db: Session,
+    language_code: str,
+    target_count: int,
+    limit: int,
+) -> list[int]:
+    """Lever B — never-confirmed assumed-known content lemmas in fewer than
+    ``target_count`` reviewable sentences.
+
+    The confirmation sweep (PR #180) can only confirm an assumed-known word that
+    already appears in a reviewable sentence; words in zero sentences are a
+    structural blind spot only generation can fill. Planting them into the
+    generated corpus as targets lets a later reading session confirm them as
+    collateral.
+
+    Assumed-known := ``knowledge_state='known'`` with no FSRS card and
+    ``confirmed_at IS NULL`` — exactly the pool stats reports as
+    ``assumed_unconfirmed``. These are NOT retrieval targets (no card), so this
+    pool is disjoint from ``_due_lemmas_missing_material``: coverage never
+    competes for the retrieval-gap budget.
+
+    Ordered zero-coverage first, then by ``frequency_rank`` ASC so the most
+    useful unconfirmed words (most likely to recur in reading) are planted
+    first. Variant / non-content / glossless lemmas are filtered out — the same
+    eligibility the generator and picker enforce downstream.
+    """
+    sentence_counts = _content_sentence_counts(db, language_code)
+    rows = (
+        db.query(Lemma, UserLemmaKnowledge)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            Lemma.canonical_lemma_id.is_(None),
+            UserLemmaKnowledge.knowledge_state == "known",
+            UserLemmaKnowledge.fsrs_card_json.is_(None),
+            UserLemmaKnowledge.confirmed_at.is_(None),
+            (Lemma.word_category.is_(None) | Lemma.word_category.notin_(
+                ["function_word", "proper_name", "not_word"]
+            )),
+            Lemma.gloss_en.isnot(None),
+            func.length(func.trim(Lemma.gloss_en)) > 0,
+        )
+        .all()
+    )
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+    rows = [
+        (lemma, ulk)
+        for lemma, ulk in rows
+        if not is_noncontent_lemma(
+            lemma,
+            language_code=language_code,
+            function_words=function_words,
+        )
+    ]
+
+    def _coverage_sort_key(item):
+        lemma, _ulk = item
+        coverage = sentence_counts.get(lemma.lemma_id, 0)
+        rank = lemma.frequency_rank if lemma.frequency_rank is not None else 10**9
+        return (coverage, rank, lemma.lemma_id)
+
+    rows.sort(key=_coverage_sort_key)
+
+    gap_ids: list[int] = []
+    for lemma, _ulk in rows:
+        if sentence_counts.get(lemma.lemma_id, 0) >= target_count:
+            continue
+        gap_ids.append(lemma.lemma_id)
+        if len(gap_ids) >= limit:
+            break
+    return gap_ids
+
+
+def _generate_for_gap_batches(
+    language_code: str,
+    gap_ids: list[int],
+    sentences_per_target: int,
+) -> tuple[int, int, list[int]]:
+    """Run ``batch_generate_material`` over ``gap_ids`` in BATCH_WORD_SIZE
+    chunks. Returns ``(generated, words_covered, words_failed)``."""
+    total_generated = 0
+    total_covered = 0
+    failed_ids: list[int] = []
+    for i in range(0, len(gap_ids), BATCH_WORD_SIZE):
+        batch = gap_ids[i:i + BATCH_WORD_SIZE]
+        result = batch_generate_material(
+            language_code=language_code,
+            lemma_ids=batch,
+            sentences_per_target=sentences_per_target,
+        )
+        total_generated += int(result.get("generated", 0))
+        total_covered += int(result.get("words_covered", 0))
+        failed_ids.extend(result.get("words_failed", []))
+    return total_generated, total_covered, failed_ids
+
+
 def warm_sentence_cache(
     language_code: str = "el",
     *,
     max_lemmas: int = 16,
     sentences_per_target: int = SENTENCES_PER_TARGET,
+    coverage_max_lemmas: int = COVERAGE_MAX_LEMMAS,
 ) -> dict:
     """Background task: top up generated material for any due lemma below
-    ``ACTIVE_TARGET`` sentences.
+    ``ACTIVE_TARGET`` sentences (retrieval gaps), then — bounded and lower
+    priority — plant never-confirmed assumed-known words into the corpus so the
+    confirmation sweep can reach them (Lever B coverage).
 
     Locked so concurrent calls don't double-spend Claude budget on the same
     gaps. Caller (cron wrapper / endpoint) just calls; returns a small dict
@@ -1703,6 +1874,7 @@ def warm_sentence_cache(
 
     run_id = uuid.uuid4().hex[:8]
     started = time.monotonic()
+    coverage_enabled = COVERAGE_GEN_ENABLED and coverage_max_lemmas > 0
     try:
         db = database.SessionLocal()
         try:
@@ -1712,30 +1884,45 @@ def warm_sentence_cache(
                 target_count=ACTIVE_TARGET,
                 limit=max_lemmas,
             )
+            coverage_ids: list[int] = []
+            if coverage_enabled:
+                coverage_ids = _coverage_lemmas_missing_material(
+                    db=db,
+                    language_code=language_code,
+                    target_count=COVERAGE_TARGET,
+                    limit=coverage_max_lemmas,
+                )
         finally:
             db.close()
 
-        if not gap_ids:
+        if not gap_ids and not coverage_ids:
             _log_pipeline({
                 "event": "warm_cache_no_gaps",
                 "language_code": language_code,
                 "run_id": run_id,
             })
-            return {"run_id": run_id, "gap_count": 0, "generated": 0}
+            return {
+                "run_id": run_id,
+                "gap_count": 0,
+                "generated": 0,
+                "coverage_gap_count": 0,
+                "coverage_generated": 0,
+            }
 
-        total_generated = 0
-        total_covered = 0
-        failed_ids: list[int] = []
-        for i in range(0, len(gap_ids), BATCH_WORD_SIZE):
-            batch = gap_ids[i:i + BATCH_WORD_SIZE]
-            result = batch_generate_material(
-                language_code=language_code,
-                lemma_ids=batch,
-                sentences_per_target=sentences_per_target,
+        # Phase 1: retrieval gaps — priority, full budget.
+        total_generated, total_covered, failed_ids = _generate_for_gap_batches(
+            language_code, gap_ids, sentences_per_target,
+        )
+
+        # Phase 2 (Lever B): coverage — bounded breadth pass for unconfirmed
+        # assumed-known words. Runs after retrieval gaps so it can never starve
+        # them of budget.
+        coverage_generated = 0
+        coverage_covered = 0
+        if coverage_ids:
+            coverage_generated, coverage_covered, _ = _generate_for_gap_batches(
+                language_code, coverage_ids, COVERAGE_SENTENCES_PER_TARGET,
             )
-            total_generated += int(result.get("generated", 0))
-            total_covered += int(result.get("words_covered", 0))
-            failed_ids.extend(result.get("words_failed", []))
 
         elapsed = time.monotonic() - started
         _log_pipeline({
@@ -1746,6 +1933,9 @@ def warm_sentence_cache(
             "generated": total_generated,
             "words_covered": total_covered,
             "words_failed": failed_ids,
+            "coverage_gap_count": len(coverage_ids),
+            "coverage_generated": coverage_generated,
+            "coverage_covered": coverage_covered,
             "elapsed_s": round(elapsed, 1),
         })
         return {
@@ -1754,6 +1944,9 @@ def warm_sentence_cache(
             "generated": total_generated,
             "words_covered": total_covered,
             "words_failed": failed_ids,
+            "coverage_gap_count": len(coverage_ids),
+            "coverage_generated": coverage_generated,
+            "coverage_covered": coverage_covered,
         }
     finally:
         _warm_cache_lock.release()

@@ -74,6 +74,13 @@ LANGUAGES="${POLYGLOT_LANGUAGES:-${POLYGLOT_WARM_LANGUAGE:-el}}"
 MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-64}"
 SENTENCES_PER_TARGET="${POLYGLOT_WARM_SENTENCES_PER_TARGET:-3}"
 export POLYGLOT_ACTIVE_TARGET="${POLYGLOT_ACTIVE_TARGET:-5}"
+# Lever B (coverage): after retrieval gaps, plant this many never-confirmed
+# assumed-known words into the corpus per pass so the confirmation sweep can
+# reach words currently in zero reviewable sentences. Lower priority than
+# retrieval gaps and disjoint by knowledge state, so it never starves them.
+# 24/run × 8 runs/day chips through the unconfirmed-in-zero-sentences tail
+# (~459 Greek / ~553 Latin at last count) without dominating LLM budget.
+COVERAGE_MAX_LEMMAS="${POLYGLOT_WARM_COVERAGE_MAX_LEMMAS:-24}"
 # 64 lemmas / BATCH_WORD_SIZE=4 = 16 Sonnet+verify+quality batches. Give the
 # phase 45 minutes so slow LLM calls don't truncate an otherwise healthy pass.
 TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-2700}"
@@ -154,7 +161,8 @@ for LANGUAGE in $LANGUAGES; do
     "$VENV" scripts/warm_sentence_cache.py \
     --language "$LANGUAGE" \
     --max-lemmas "$MAX_LEMMAS" \
-    --sentences-per-target "$SENTENCES_PER_TARGET"
+    --sentences-per-target "$SENTENCES_PER_TARGET" \
+    --coverage-max-lemmas "$COVERAGE_MAX_LEMMAS"
 
   run_phase "$LANGUAGE translate_sentences" timeout "$TRANSLATE_TIMEOUT_SECONDS" \
     "$VENV" scripts/translate_sentences.py \

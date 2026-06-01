@@ -857,10 +857,11 @@ def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude
 # ─── Warm-cache tests ────────────────────────────────────────────────────────
 
 
-def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
+def test_warm_cache_fills_only_below_target(tmp_db, fake_claude, monkeypatch):
     """warm_sentence_cache picks lemmas with fewer than ACTIVE_TARGET generated
     quality-approved sentences. Lemmas already meeting the generated target are
     skipped."""
+    monkeypatch.setattr(mg, "COVERAGE_GEN_ENABLED", False)  # retrieval-phase test
     with tmp_db() as db:
         needy = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, needy.lemma_id)
@@ -929,9 +930,11 @@ def test_warm_cache_no_op_when_no_gaps(tmp_db, fake_claude):
     assert fake_claude["calls"] == []
 
 
-def test_warm_cache_skips_assumed_known_cognates_without_card(tmp_db, fake_claude):
-    """Cognate-known rows are scaffold vocabulary, not retrieval targets, until
-    the learner misses them and they enter acquisition/FSRS."""
+def test_warm_cache_skips_assumed_known_cognates_without_card(tmp_db, fake_claude, monkeypatch):
+    """Cognate-known rows are scaffold vocabulary, not *retrieval* targets, until
+    the learner misses them and they enter acquisition/FSRS. (Lever B coverage,
+    disabled here, separately plants them — see the coverage tests below.)"""
+    monkeypatch.setattr(mg, "COVERAGE_GEN_ENABLED", False)
     with tmp_db() as db:
         cognate = _seed_lemma(db, form="φιλοσοφία", bare="φιλοσοφια", gloss="philosophy")
         _seed_known(
@@ -949,9 +952,10 @@ def test_warm_cache_skips_assumed_known_cognates_without_card(tmp_db, fake_claud
     assert fake_claude["calls"] == []
 
 
-def test_warm_cache_includes_fsrs_known_card(tmp_db, fake_claude):
+def test_warm_cache_includes_fsrs_known_card(tmp_db, fake_claude, monkeypatch):
     """A known word with an FSRS card is a review target and should get
     generated material when below coverage."""
+    monkeypatch.setattr(mg, "COVERAGE_GEN_ENABLED", False)  # retrieval-phase test
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_known(
@@ -1182,9 +1186,190 @@ def test_translate_batch_failure_writes_nothing(tmp_db, fake_claude):
         assert row.translation_en is None
 
 
-def test_warm_cache_does_not_count_harvested_sentenceword_coverage(tmp_db, fake_claude):
+# ─── Lever A: post-gen over-exposure preference ──────────────────────────────
+
+
+def test_scaffold_overexposure_count_counts_distinct_nontarget_overused():
+    from app.services.sentence_validator import Mapping
+
+    counts = {2: 12, 3: 1, 4: 10}  # lemmas 2 and 4 are over-exposed (>=10)
+    mappings = [
+        Mapping(position=0, surface_form="το", lemma_id=None),     # function word
+        Mapping(position=1, surface_form="X", lemma_id=1),         # the target
+        Mapping(position=2, surface_form="A", lemma_id=2),         # over-exposed
+        Mapping(position=3, surface_form="B", lemma_id=3),         # fresh
+        Mapping(position=4, surface_form="C", lemma_id=4),         # over-exposed
+        Mapping(position=5, surface_form="A2", lemma_id=2),        # dup of 2 — counts once
+    ]
+    n = mg._scaffold_overexposure_count(
+        mappings, target_lemma_id=1, sentence_counts=counts, threshold=10,
+    )
+    assert n == 2
+
+
+def test_lever_a_prefers_fresh_scaffold_when_trimming(tmp_db, fake_claude, monkeypatch):
+    """Two equally-valid candidates for one target, one leaning on an
+    over-exposed scaffold word. With sentences_per_target=1, the fresher
+    candidate must be the one stored."""
+    monkeypatch.setattr(mg, "DIVERSITY_SENTENCE_THRESHOLD", 1)
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_known_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_known_scaffold(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        saturated = _seed_known_scaffold(db, form="παλιό", bare="παλιος", gloss="old")
+        # One existing verified sentence pushes παλιό to coverage 1 (== the
+        # monkeypatched threshold), so any candidate using it is "over-exposed".
+        prior = Sentence(
+            language_code="el",
+            text="το σπίτι είναι παλιό",
+            source="llm",
+            is_active=True,
+            mappings_verified_at=datetime.now(timezone.utc),
+        )
+        db.add(prior)
+        db.flush()
+        db.add(SentenceWord(
+            sentence_id=prior.id, position=3, surface_form="παλιό",
+            lemma_id=saturated.lemma_id,
+        ))
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([
+            (0, "το βιβλίο είναι παλιό.", "The book is old."),    # over-exposed first
+            (0, "το βιβλίο είναι μεγάλο.", "The book is big."),   # fresh second
+        ]),
+        _verify_ok_response_for_candidates(2),
+        _quality_response([
+            {"id": 0, "natural": True, "translation_correct": True, "reason": "ok"},
+            {"id": 1, "natural": True, "translation_correct": True, "reason": "ok"},
+        ]),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+    with tmp_db() as db:
+        stored = db.query(Sentence).filter(
+            Sentence.target_lemma_id == target_id,
+            Sentence.source == "llm",
+        ).all()
+        assert len(stored) == 1
+        # The fresh-scaffold candidate won the trim despite being generated 2nd.
+        assert stored[0].text == "το βιβλίο είναι μεγάλο."
+
+
+# ─── Lever B: coverage generation for unconfirmed assumed-known words ─────────
+
+
+def _seed_confirmed_scaffold(db, **kwargs) -> Lemma:
+    """Known, no FSRS card, but already confirmed by exposure — engaged scaffold
+    that is NOT a coverage candidate."""
+    lemma = _seed_lemma(db, **kwargs)
+    ulk = _seed_known(db, lemma.lemma_id)
+    ulk.confirmed_at = datetime.now(timezone.utc)
+    db.flush()
+    return lemma
+
+
+def test_coverage_gap_selects_only_unconfirmed_assumed_known(tmp_db):
+    with tmp_db() as db:
+        # Eligible: known, no card, unconfirmed, zero coverage.
+        wanted = _seed_lemma(db, form="νερό", bare="νερο", gloss="water")
+        _seed_known(db, wanted.lemma_id)
+        # Excluded: confirmed already.
+        confirmed = _seed_lemma(db, form="φως", bare="φως", gloss="light")
+        ulk_c = _seed_known(db, confirmed.lemma_id)
+        ulk_c.confirmed_at = datetime.now(timezone.utc)
+        # Excluded: has an FSRS card (retrieval target, not assumed-known).
+        carded = _seed_lemma(db, form="δέντρο", bare="δεντρο", gloss="tree")
+        _seed_known(db, carded.lemma_id, fsrs_card_json={"due": "2026-01-01"})
+        # Excluded: acquiring (retrieval target).
+        acq = _seed_lemma(db, form="πέτρα", bare="πετρα", gloss="stone")
+        _seed_acquiring(db, acq.lemma_id)
+        # Excluded: non-content function word.
+        fw = _seed_lemma(db, form="και", bare="και", gloss="and",
+                         word_category="function_word")
+        _seed_known(db, fw.lemma_id)
+        # Excluded: unconfirmed assumed-known but already at coverage target.
+        covered = _seed_lemma(db, form="ουρανός", bare="ουρανος", gloss="sky")
+        _seed_known(db, covered.lemma_id)
+        s = Sentence(
+            language_code="el", text="ο ουρανός είναι μεγάλος", source="llm",
+            is_active=True, mappings_verified_at=datetime.now(timezone.utc),
+        )
+        db.add(s)
+        db.flush()
+        db.add(SentenceWord(sentence_id=s.id, position=1, surface_form="ουρανός",
+                            lemma_id=covered.lemma_id))
+        db.commit()
+        wanted_id = wanted.lemma_id
+
+    with tmp_db() as db:
+        gaps = mg._coverage_lemmas_missing_material(
+            db, "el", target_count=1, limit=50,
+        )
+    assert gaps == [wanted_id]
+
+
+def test_warm_cache_coverage_phase_plants_unconfirmed_assumed_known(tmp_db, fake_claude):
+    """With no retrieval gaps, the coverage phase generates a sentence targeting
+    an unconfirmed assumed-known word so the sweep can later confirm it."""
+    with tmp_db() as db:
+        wanted = _seed_lemma(db, form="νερό", bare="νερο", gloss="water")
+        _seed_known(db, wanted.lemma_id)  # unconfirmed assumed-known
+        # Confirmed scaffold: engaged but neither a retrieval gap nor a coverage
+        # candidate, so the only gap is `wanted`.
+        _seed_confirmed_scaffold(db, form="είναι", bare="ειμαι", gloss="to be")
+        _seed_confirmed_scaffold(db, form="καλό", bare="καλος", gloss="good")
+        db.commit()
+        wanted_id = wanted.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το νερό είναι καλό.", "The water is good.")]),
+        _verify_ok_response((1, 2, 3)),
+        _quality_response(),
+    ]
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
+                                    coverage_max_lemmas=10)
+    assert result["gap_count"] == 0
+    assert result["coverage_gap_count"] == 1
+    assert result["coverage_generated"] == 1
+
+    with tmp_db() as db:
+        assert db.query(Sentence).filter(
+            Sentence.target_lemma_id == wanted_id,
+            Sentence.source == "llm",
+        ).count() == 1
+
+
+def test_warm_cache_coverage_disabled_skips_assumed_known(tmp_db, fake_claude, monkeypatch):
+    """POLYGLOT_COVERAGE_GEN=0 → no coverage phase, no LLM spend on scaffold."""
+    monkeypatch.setattr(mg, "COVERAGE_GEN_ENABLED", False)
+    with tmp_db() as db:
+        wanted = _seed_lemma(db, form="νερό", bare="νερο", gloss="water")
+        _seed_known(db, wanted.lemma_id)
+        db.commit()
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
+                                    coverage_max_lemmas=10)
+    assert result["gap_count"] == 0
+    assert result["coverage_gap_count"] == 0
+    assert result["coverage_generated"] == 0
+    assert fake_claude["calls"] == []
+
+
+def test_warm_cache_does_not_count_harvested_sentenceword_coverage(tmp_db, fake_claude, monkeypatch):
     """Textbook sentences are review fallbacks; they do not satisfy the
     generated-material target."""
+    monkeypatch.setattr(mg, "COVERAGE_GEN_ENABLED", False)  # retrieval-phase test
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
