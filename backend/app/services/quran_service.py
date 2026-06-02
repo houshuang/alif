@@ -25,6 +25,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     lookup_lemma,
     normalize_alef,
+    normalize_quranic_to_msa,
     resolve_existing_lemma,
     strip_diacritics,
     strip_tatweel,
@@ -42,6 +43,20 @@ def _normalize_quran(text: str) -> str:
     # Collapse double alef from hamza normalization: اا → ا
     text = text.replace("اا", "ا")
     return text
+
+
+def _quran_bare(text: str) -> str:
+    """Quran surface form → normalized bare key.
+
+    Converts Mushaf presentation letters (notably the dagger alef U+0670 → ا)
+    BEFORE stripping diacritics. The dagger alef sits in the diacritic range, so
+    a plain strip_diacritics() deletes the long ā and collapses the word onto a
+    bare consonant skeleton that can be a *different* word — e.g. خَٰلِدُونَ
+    "abiding forever" → خلدون, which is the proper name Khaldūn (ابن خلدون).
+    See normalize_quranic_to_msa().
+    """
+    text = normalize_quranic_to_msa(text)
+    return _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(text))))
 
 # Quranic function words not in the standard FUNCTION_WORD_GLOSSES
 _QURAN_FUNCTION_GLOSSES: dict[str, str] = {
@@ -191,13 +206,13 @@ def _fill_glosses_llm(
             )
             if isinstance(result, dict):
                 for ar, en in result.items():
-                    bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(ar))))
+                    bare = _quran_bare(ar)
                     _llm_gloss_cache[ar] = str(en)
                     _llm_gloss_cache[bare] = str(en)
                 # Also map by surface form directly
                 for sf in surface_forms:
                     if sf not in _llm_gloss_cache:
-                        bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(sf))))
+                        bare = _quran_bare(sf)
                         if bare in _llm_gloss_cache:
                             _llm_gloss_cache[sf] = _llm_gloss_cache[bare]
         except Exception as e:
@@ -353,7 +368,7 @@ def select_verse_cards(
             gloss = lemma.gloss_en if lemma else None
             resolved_lemma = lemma
             if not gloss:
-                bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form))))
+                bare = _quran_bare(vw.surface_form)
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
                 if not gloss:
                     gloss = _gloss_with_pronoun_suffix(bare)
@@ -599,14 +614,20 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
 
         for pos, surface in enumerate(tokens):
             clean = strip_diacritics(surface)
-            bare_norm = normalize_alef(strip_tatweel(clean))
+            # Dagger alef → alef for the *content* skeleton, so خَٰلِدُونَ resolves
+            # as the participle خالدون rather than the proper-name skeleton خلدون
+            # (= Khaldūn). Silent-alef demonstratives where MSA omits the alef
+            # (هَٰذَا→هذا, ذَٰلِكَ→ذلك) are function words, matched below on `clean`,
+            # so over-generating their alef here is harmless.
+            clean_msa = strip_diacritics(normalize_quranic_to_msa(surface))
+            bare_norm = normalize_alef(strip_tatweel(clean_msa))
             is_func = _is_function_word(clean)
 
             lemma_id = None
             if not is_func:
                 lemma_id = lookup_lemma(bare_norm, lemma_lookup)
                 if not lemma_id:
-                    match = find_best_db_match(clean, known_bare_forms)
+                    match = find_best_db_match(clean_msa, known_bare_forms)
                     if match:
                         lex_norm = normalize_alef(match["lex_bare"])
                         lemma_id = lemma_lookup.get(lex_norm)
@@ -698,13 +719,17 @@ def _camel_canonicalize_unknowns(
         return already_resolved, canonical_groups, dict(unknown_forms)
 
     for surface_bare, surface in unknown_forms.items():
-        mle = get_best_lemma_mle(surface) or get_best_lemma_mle(strip_diacritics(surface))
+        # Convert Mushaf presentation letters (dagger alef → ا) before CAMeL sees
+        # them, else a dropped long vowel makes CAMeL pick a proper-name analysis
+        # (خَٰلِدُونَ → خلدون → Khaldūn) instead of the participle خالِد.
+        surface_msa = normalize_quranic_to_msa(surface)
+        mle = get_best_lemma_mle(surface_msa) or get_best_lemma_mle(strip_diacritics(surface_msa))
         lex = (mle or {}).get("lex") or ""
         if not lex:
             fallback_forms[surface_bare] = surface
             continue
 
-        lex_bare = normalize_alef(strip_diacritics(lex))
+        lex_bare = normalize_alef(strip_diacritics(normalize_quranic_to_msa(lex)))
         if not lex_bare:
             fallback_forms[surface_bare] = surface
             continue
@@ -885,7 +910,7 @@ def _create_unknown_quran_lemmas(
             continue
 
         lemma = _create_lemma(
-            lemma_ar=info["lex_vocalized"],
+            lemma_ar=normalize_quranic_to_msa(info["lex_vocalized"]),
             lemma_ar_bare=canon_bare,
             gloss=gloss,
             pos=pos,
@@ -914,7 +939,7 @@ def _create_unknown_quran_lemmas(
             continue
 
         lemma = _create_lemma(
-            lemma_ar=surface,
+            lemma_ar=normalize_quranic_to_msa(surface),
             lemma_ar_bare=surface_bare,
             gloss=gloss,
             pos=pos,

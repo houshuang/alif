@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-02: Quran import — dagger-alef (U+0670) collapse mis-lemmatized خَٰلِدُونَ → Khaldūn
+
+**Symptom.** An intro card showed خَلِدُونَ ("abiding forever", *khalidūna*) — a malformed headword: no medial alif, transliteration `khalidūna`, etymology claiming a "fuʿlūn" pattern and citing Ibn Khaldūn (ابن خلدون). Lemma `#2887`, `source='quran'`, freq-core rank #1729, in active acquisition.
+
+**Root cause.** The Uthmani spelling is خَٰلِدُونَ — the long ā is a **dagger alef (ٰ, U+0670)**, which lives in the Unicode diacritic range. `quran_service.py` normalized surface forms with `strip_diacritics(...)` *innermost* (lines 194/200/356 and the main lemmatization loop ~601), which **deletes** the dagger before anything promotes it. خَٰلِدُونَ → خلدون — and خلدون (no alif) is the proper name **Khaldūn**, not the participle خالِد. CAMeL confirms: `خلدون → lex خَلْدُون, noun_prop`; `خالدون → lex خالِد, adj`. Downstream enrichment then chimerized it (gloss = participle, forms = خَالِدُون with alif, etymology = Ibn Khaldūn). The codebase already had `normalize_quranic_to_msa()` (converts ٰ→ا and is documented as "must run before strip_diacritics") wired into `normalize_arabic()` — the Quran import simply never used it.
+
+**Why nothing caught it.** Chimera audit D1–D6 all miss this shape (D5's "different root" needs a ≥5-char length gap; here it's 1 alif; D6 needs loanword-mode etymology). Two prototyped generalizable detectors were **measured and rejected** as unusable: "headword bare missing a mater its forms share" → 1,139 false positives (every hollow/sound-plural verb); "CAMeL tags bare as noun_prop" → 227 hits, mostly legit (نور, سعيد, طالب… common words that double as names). The durable fix is the source normalization, not a heuristic gate.
+
+**Change (PR, `quran_service.py` + tests).** New `_quran_bare()` helper runs `normalize_quranic_to_msa` before stripping; main loop computes a content-skeleton `clean_msa` (dagger→alef) for lemma lookup/creation while keeping the function-word check on the raw-stripped `clean` (so silent-alef demonstratives هَٰذَا→هذا, ذَٰلِكَ→ذلك, ولكن — where MSA omits the alef — are still matched as function words and not over-generated). CAMeL canonicalization now sees the MSA-converted surface (so خالدون lemmatizes to خالِد, not Khaldūn); stored `lemma_ar` display forms get the same conversion. Tests: `test_quran_normalization.py`, `TestNormalizeQuranicToMsa`.
+
+**Audit + repair.** `scripts/audit_quran_dagger_alef.py` re-normalizes the original Uthmani surfaces (preserved in `QuranicVerseWord.surface_form`) the correct way and reports lemmas minted from the collapsed skeleton — **13 found; 3 are false positives** (silent-alef function words ولكن/هؤلاء/أولئك, correctly spelled as-is), **10 genuinely damaged**. Of the 10, only 4 leaked into general study (#2887, #2881, #2885, #2897); 6 are NO-ULK Quran-only (Quran mode suspended). `scripts/fix_quran_dagger_alef_lemmas.py` repaired the 2 no-collision cases in place (re-headword → clear corrupt enrichment → `run_quality_gates`): #2887 خَلِدُونَ→خَالِد, #2897 أَموَتا→مَيِّت, plus #2887's freq-core display_form. **Deferred:** #2881/#2885/#2863 are duplicates needing canonical merges into #2542/#2608/#3448; the 5 clitic chimeras (شيطينهم→شيطان+هم …) need decomposition. Re-run the audit to pick these up.
+
+---
+
 ## 2026-06-01: Polyglot — coverage generation (Lever A + Lever B), the planter to the confirmation sweep
 
 **Context.** The confirmation sweep (prior entry, PR #180) made sentence review an active breadth-confirmation engine — but it only *set-covers existing reviewable sentences*. Following its deferred-idea analysis on a copy of prod `polyglot.db`: the sweep reaches **651/1,110 (59%)** never-confirmed Greek assumed-knowns and **177/730 (24%)** Latin; the remaining **459 Greek / 553 Latin sit in ZERO reviewable sentences** (mostly LLPSI/Roma-Aeterna seed vocab never given a generated sentence), structurally unreachable by selection no matter how many sessions. The sweep is the *harvester*; only generation can be the *planter*.
