@@ -729,7 +729,12 @@ def _camel_canonicalize_unknowns(
             fallback_forms[surface_bare] = surface
             continue
 
-        lex_bare = normalize_alef(strip_diacritics(normalize_quranic_to_msa(lex)))
+        # NB: strip (not convert) any dagger alef in CAMeL's lex. CAMeL spells
+        # silent-alef words with a dagger (لكن → lex لٰكِنَّ); converting it to a
+        # full alef would yield لاكن and miss the MSA-spelled DB lemma لكن. The
+        # خالدون fix lives on the surface side above, where CAMeL already returns
+        # the full-alef lex خالِد.
+        lex_bare = normalize_alef(strip_diacritics(lex))
         if not lex_bare:
             fallback_forms[surface_bare] = surface
             continue
@@ -910,7 +915,11 @@ def _create_unknown_quran_lemmas(
             continue
 
         lemma = _create_lemma(
-            lemma_ar=normalize_quranic_to_msa(info["lex_vocalized"]),
+            # CAMeL's lex is the display form; its bare (canon_bare) is strip-only,
+            # so keep the lex verbatim to stay consistent (don't convert a dagger
+            # the bare dropped). The surface-side conversion above is what makes
+            # CAMeL return the right lex (خالِد, already full-alef) in the first place.
+            lemma_ar=info["lex_vocalized"],
             lemma_ar_bare=canon_bare,
             gloss=gloss,
             pos=pos,
