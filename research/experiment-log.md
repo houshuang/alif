@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-02: Imported stories get a book-like intro tier (+195); fiction vocab now flows
+
+**Symptom.** Two imported stories the user is actively reading — #75 "A Night of Medical Betrayal" and #76 "A Night in the Private Hospital" — had ~98 fully-gated, unintroduced candidate words between them (#75: 37 eligible, #76: 61), yet **0 intros with source `story_import`/`active_story` in the last 21 days.** Every daily-cap slot went to textbook_scan, frequency_core, collateral, leech_reintro, quran, book, duolingo.
+
+**Audit (prod, 2026-06-02).** Textbook backlog is largely drained: 1,578 textbook_scan ULKs, 1,434 known (91%), only 37 encountered + 48 gated-pending eligible canonical lemmas remain (0 ungated). Textbook is still the top *flowing* source (121 intros/21d) at tier +220. The story words weren't flowing because `source='imported'` stories route through `_active_story_lemma_ids()` → the weak `_TIER_STORY = +10` `active_story` tier (not the `book_ocr` +200 page tier, which filters `Story.source == "book_ocr"` and also needs `page_number`, which imported StoryWords lack). At +10 they can't out-compete textbook (+220) / frequency-core for the cap-limited slots.
+
+**Why +10 existed (prior work, 2026-02-12 incident, experiment-log).** Imported stories historically carried obscure classical vocab (دِمْنَة "ruin remains", نواشر "forearm veins" from Kalila wa Dimna) that drowned out common words; the deliberate +10 tier suppressed that, and classical stories 3/4 were marked `too_difficult`. So a blind tier bump was rejected first.
+
+**Reframe.** Checked the frequency profile of the pending words: قُبْلة "kiss" ranks #15,916; قَضِيب #30,505; كُسّ #8,574; قَسْطَر/خُرْطُوم/بَوْل have *no* frequency data (45 of 61 in #76). These read as "obscure" only because the frequency lists are built from formal/news MSA, which systematically under-counts fiction/intimate/bodily/narrative vocabulary. For a reader of this genre those words are exactly the high-utility ones. **Quality is uniform** — every candidate passed the same `run_quality_gates()` regardless of pathway (hard invariant; `select_next_words` filters `gates_completed_at IS NULL`) — so the source tier is a *frequency/usefulness* signal, not a quality one. The honest fix: treat an imported story as a deliberate intent-to-read signal (like `book_ocr`), not as low-quality content.
+
+**Change (`word_selector.py` + `test_word_selector.py`).** New `_TIER_STORY_IMPORTED = 195.0`. `_active_story_lemma_ids()` now returns each candidate's `Story.source` (imported membership wins over generated when a word is in both). Scoring applies +195 when source is `imported`, else keeps +10. Placement: below truly-common core (top-1000 = 210) and textbook course vocab (220), above generic mid/low-frequency words (freq_core rank 2000+ = 170/120) — so a reader's genre vocabulary flows without displacing the most common words. Scoped to `source='imported'` only (2 active stories; the 56 maintenance passages and 4 generated stories are untouched). Off-switch is per-story status (`too_difficult`/`skipped`). Tests: `test_imported_story_word_flows_above_generic_frequency`, `test_generated_story_word_stays_deprioritized`.
+
+**Expected effect.** The ~98 pending words from #75/#76 begin flowing into daily intros (throttled by `DAILY_INTRO_CAP`/recovery budget; box-1 backlog is 32 < 60 so the low-tier gate is inactive), tagged `active_story` at priority_bonus 195, still behind textbook (+220) and top-1000 core. **Verify** after deploy: `select_next_words` top results include #75/#76 words at tier `active_story`/195; over the following days `acquisition_started_at` shows `story_import` intros > 0.
+
+---
+
 ## 2026-06-02: Quran import — dagger-alef (U+0670) collapse mis-lemmatized خَٰلِدُونَ → Khaldūn
 
 **Symptom.** An intro card showed خَلِدُونَ ("abiding forever", *khalidūna*) — a malformed headword: no medial alif, transliteration `khalidūna`, etymology claiming a "fuʿlūn" pattern and citing Ibn Khaldūn (ابن خلدون). Lemma `#2887`, `source='quran'`, freq-core rank #1729, in active acquisition.
