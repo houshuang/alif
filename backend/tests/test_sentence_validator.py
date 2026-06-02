@@ -64,6 +64,28 @@ class TestFinalAlefVariants:
         assert final_alef_variants("ها") == ["ها"]
 
 
+class TestNormalizeQuranicToMsa:
+    def test_dagger_alef_becomes_alef(self):
+        from app.services.sentence_validator import normalize_quranic_to_msa
+        # خَٰلِدُونَ (Uthmani, dagger alef U+0670) → خَالِدُونَ (full alef U+0627).
+        assert "ا" in normalize_quranic_to_msa("خَٰلِدُونَ")
+        assert "ٰ" not in normalize_quranic_to_msa("خَٰلِدُونَ")
+
+    def test_dagger_alef_must_run_before_strip(self):
+        # The bug that mislemmatized خَٰلِدُونَ → خلدون (= the name Khaldūn):
+        # stripping diacritics first deletes the dagger alef's long ā. Doing the
+        # Quranic→MSA conversion first preserves it as a full alef.
+        from app.services.sentence_validator import normalize_quranic_to_msa
+        surface = "خَٰلِدُونَ"
+        wrong = strip_diacritics(surface)                       # dagger lost
+        right = strip_diacritics(normalize_quranic_to_msa(surface))
+        assert wrong == "خلدون"        # collides with the proper name
+        assert right == "خالدون"       # the participle skeleton, preserved
+
+    def test_full_normalize_arabic_preserves_long_vowel(self):
+        assert normalize_arabic("خَٰلِدُونَ") == "خالدون"
+
+
 class TestNormalizeAlef:
     def test_hamza_above(self):
         assert normalize_alef("أحمد") == "احمد"
