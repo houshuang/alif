@@ -49,7 +49,14 @@ DEFAULT_BATCH_SIZE = 3
 _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
 _TIER_TEXTBOOK_SCAN = 220.0   # OCR provenance: user's textbook, ahead of mid-core/backfill
-_TIER_STORY = 10.0            # Active imported stories (non-book)
+_TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
+# Stories the user deliberately imported to *read* are active reading material,
+# like a book_ocr import. Ranked just below the truly-common core (top-1000 =
+# 210) and textbook course vocab (220), but above generic mid/low-frequency
+# words (freq_core rank 2000+), so a reader's genre vocabulary flows even when
+# corpus frequency under-counts it (e.g. fiction/intimate vocab ranking ~15k).
+# Off-switch is per-story status: mark too_difficult/skipped to stop the flow.
+_TIER_STORY_IMPORTED = 195.0
 _SOURCE_TIER_BONUS = {
     "textbook_scan": _TIER_TEXTBOOK_SCAN,
     "duolingo": 6.0,          # Curated beginner curriculum
@@ -156,7 +163,7 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
     bonus reaches the actual introduction candidates.
     """
     rows = (
-        db.query(StoryWord.lemma_id, Story.id, Story.title_en, Story.title_ar)
+        db.query(StoryWord.lemma_id, Story.id, Story.title_en, Story.title_ar, Story.source)
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -170,12 +177,17 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
     canon_map = _resolve_to_canonical(db, raw_ids)
 
     result: dict[int, dict] = {}
-    for lemma_id, story_id, title_en, title_ar in rows:
+    for lemma_id, story_id, title_en, title_ar, source in rows:
         effective_id = canon_map.get(lemma_id, lemma_id)
-        if effective_id not in result:
+        # A word can appear in several active stories; an "imported" membership
+        # (deliberate reading material) wins the tier over a generated one.
+        if effective_id not in result or (
+            source == "imported" and result[effective_id].get("source") != "imported"
+        ):
             result[effective_id] = {
                 "title": title_en or title_ar or "Story",
                 "story_id": story_id,
+                "source": source,
             }
     return result
 
@@ -607,9 +619,15 @@ def select_next_words(
         priority_bonus = _SOURCE_TIER_BONUS.get(priority_source, 0.0)
         priority_tier = priority_source or "other"
 
-        if lemma.lemma_id in story_lemmas and _TIER_STORY > priority_bonus:
-            priority_bonus = _TIER_STORY
-            priority_tier = "active_story"
+        if lemma.lemma_id in story_lemmas:
+            story_tier = (
+                _TIER_STORY_IMPORTED
+                if story_lemmas[lemma.lemma_id].get("source") == "imported"
+                else _TIER_STORY
+            )
+            if story_tier > priority_bonus:
+                priority_bonus = story_tier
+                priority_tier = "active_story"
         if lemma.lemma_id in book_pages:
             page = book_pages[lemma.lemma_id]["page"]
             book_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP

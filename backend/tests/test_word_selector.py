@@ -295,6 +295,60 @@ class TestSelectNextWords:
         assert result[0]["lemma_id"] == textbook.lemma_id
         assert result[0]["score_breakdown"]["priority_tier"] == "textbook_scan"
 
+    def _add_active_story(self, db, source, words):
+        """Create an active Story with StoryWords (word -> lemma_id)."""
+        from app.models import Story, StoryWord
+        story = Story(body_ar="نص", source=source, status="active",
+                      title_en=f"{source} story")
+        db.add(story)
+        db.flush()
+        for pos, (surface, lid) in enumerate(words):
+            db.add(StoryWord(
+                story_id=story.id, position=pos, surface_form=surface,
+                lemma_id=lid, is_function_word=False, is_known_at_creation=False,
+            ))
+        db.flush()
+        return story
+
+    def test_imported_story_word_flows_above_generic_frequency(self, db_session):
+        # A reader's genre vocabulary often ranks low in a formal corpus
+        # (e.g. fiction/intimate words). An imported story is deliberate reading
+        # material, so its words must outrank generic mid/low-frequency words.
+        imported_word = _create_lemma(db_session, "قبلة", "kiss", freq=15916)
+        generic = _create_lemma(db_session, "قول", "saying", freq=2500)
+        db_session.add(FrequencyCoreEntry(
+            core_rank=2500, lemma_id=generic.lemma_id,
+            lemma_key=f"lemma:{generic.lemma_id}", display_form=generic.lemma_ar,
+            score=70.0,
+        ))
+        self._add_active_story(db_session, "imported", [("قبلة", imported_word.lemma_id)])
+        db_session.commit()
+
+        result = select_next_words(db_session, count=2)
+        assert result[0]["lemma_id"] == imported_word.lemma_id
+        assert result[0]["score_breakdown"]["priority_tier"] == "active_story"
+        # Stays below the truly-common core and textbook (210 / 220).
+        assert result[0]["score_breakdown"]["priority_bonus"] == 195.0
+
+    def test_generated_story_word_stays_deprioritized(self, db_session):
+        # Auto-generated stories keep the weak +10 tier — they must not surface
+        # obscure vocab ahead of common words.
+        gen_word = _create_lemma(db_session, "دمنة", "ruin remains", freq=None)
+        common = _create_lemma(db_session, "بيت", "house", freq=50)
+        db_session.add(FrequencyCoreEntry(
+            core_rank=50, lemma_id=common.lemma_id,
+            lemma_key=f"lemma:{common.lemma_id}", display_form=common.lemma_ar,
+            score=100.0,
+        ))
+        self._add_active_story(db_session, "generated", [("دمنة", gen_word.lemma_id)])
+        db_session.commit()
+
+        result = select_next_words(db_session, count=2)
+        assert result[0]["lemma_id"] == common.lemma_id
+        gen = next(w for w in result if w["lemma_id"] == gen_word.lemma_id)
+        assert gen["score_breakdown"]["priority_tier"] == "active_story"
+        assert gen["score_breakdown"]["priority_bonus"] == 10.0
+
     def test_root_familiarity_boosts_score(self, db_session):
         root = _create_root(db_session, "ك.ت.ب")
         l1 = _create_lemma(db_session, "كتاب", "book", root, freq=100)

@@ -1545,9 +1545,10 @@ Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers wit
   OCR textbook_scan          — +220.0 (learning provenance, not fake frequency)
   Frequency core top 1000    — +210.0
   Active book words          — 200.0 − page × 2.0 (deterministic page order)
+  Imported stories           — +195.0 (deliberate reading material; see below)
   Frequency core top 2000    — +170.0
   Frequency core top 5000    — +120.0
-  Active stories             — +10.0
+  Active stories (generated) — +10.0
   Duolingo                   — +6.0
   AVP A1                     — +4.0
   Wiktionary/other           — +0.0 (strictly by frequency)
@@ -1562,6 +1563,18 @@ Textbook OCR priority reads `user_lemma_knowledge.source` first, then
 textbook priority when the learner actually encountered it in scanned course
 material. This preserves the real frequency rank while making OCR words flow
 through introduction ahead of lower-priority backfill.
+
+Imported-story priority (`Story.source == "imported"`): a story the user
+deliberately imported to read is active reading material, like a `book_ocr`
+import, and gets +195 (between the truly-common core and generic mid/low
+frequency). Generated and maintenance-passage stories keep the weak +10
+`active_story` tier. This is intentional: corpus frequency lists are built from
+formal/news MSA and systematically under-count genre vocabulary (fiction,
+intimate, bodily, narrative words can rank ~15k+), so a reader's own imported
+text is a better usefulness signal than rank for those words. Off-switch is
+per-story status — mark a story `too_difficult`/`skipped` to stop its words
+flowing. Set in `word_selector.py` (`_TIER_STORY_IMPORTED`,
+`_active_story_lemma_ids` returns `source`).
 ```
 
 #### Frequency Score (40%)
