@@ -28,6 +28,7 @@ from app.database import SessionLocal
 from app.models import Lemma, QuranicVerseWord
 from app.services.quran_service import _quran_bare
 from app.services.sentence_validator import (
+    _is_function_word,
     normalize_alef,
     strip_diacritics,
     strip_tatweel,
@@ -69,6 +70,14 @@ def main() -> None:
         for lemma_id, surfaces in by_lemma.items():
             lem = db.get(Lemma, lemma_id)
             if not lem:
+                continue
+            # Silent-alef demonstratives/particles (هذا/ذلك/ولكن/هؤلاء/أولئك) are a
+            # closed class where MSA *omits* the written alef, so the stored,
+            # alef-less spelling is correct and the "corrected" form over-generates.
+            # The import matches these as function words, not content — skip them.
+            if (lem.pos or "") in {"particle", "pron", "conj", "prep"} or _is_function_word(
+                normalize_alef(lem.lemma_ar_bare or "")
+            ):
                 continue
             stored = normalize_alef(lem.lemma_ar_bare or "")
             # The lemma is suspect when its stored bare equals the COLLAPSED
