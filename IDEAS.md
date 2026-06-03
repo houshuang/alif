@@ -577,6 +577,17 @@ no expected-vs-actual lemma-credit mismatches.
 
 Report: `research/analysis-2026-05-10-lemma-learning-projections.md`.
 Design spec: `research/spec-2026-05-10-learning-projection-interventions.md`.
+
+2026-06-03 passage-efficacy re-run follow-up: the `parent_card_type` attribution
+gap above is now partly closed — the offline sync-replay path was dropping
+`parent_card_type` from `sentence_review` logs, so it was `null` everywhere
+(fixed in #188). Open idea: **clip idle time from `response_ms` at submit.** 4 of
+13 passage cards in the 26-day window were left open 30–105 min (phone-down,
+not reading), so any mean-based time metric is polluted and the analysis had to
+idle-filter (<20 min) + use medians. Record active-read time (pause on
+background/blur, resume on focus) or cap `response_ms` client-side so time
+metrics are trustworthy without filtering. Applies to all card types, not just
+passages. Report: `research/analysis-2026-06-03-passage-efficacy.md`.
 Post-deploy audit: `research/analysis-2026-05-11-post-deploy-learning-health.md`.
 
 ---
