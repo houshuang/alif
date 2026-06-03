@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-03: Demand-scale the maintenance-passage generation cap + fix sync `parent_card_type`
+
+**Change 1 — demand-scaled passage cap** (`material_generator.py`, warm-cache phase 3e). Acting on the efficacy re-run below: the binding constraint on the (working) passage experiment was the flat generation throttle `MAINTENANCE_PASSAGE_MAX_RECENT = 2`/12h (≈4/day, ~0.5 cards/day actually shown). Replaced it with `_maintenance_passage_window_cap(high_stability_due)`: count due *comfortable* words (FSRS stability ≥ `MIN_STABILITY_DAYS=7.0`, in known/learning/lapsed), then allow `clamp(high_stability_due // DUE_PER_PASSAGE(8), FLOOR(2), CEILING(8))` passages per 12h — `0` when the pool is below `MIN_DUE_TARGETS=6`. So a small pool keeps the old cap of 2; a large due backlog scales up to 8/window. Cohesion is already enforced by `passage_generator.py` (1–3 cohesive targets, word-salad rejection), so the gate only governs supply. New observability: phase 3e logs `due comfortable words / window cap / generated this window / generate=`. Docs: `docs/scheduling-system.md` § Maintenance Passage. Test: `test_maintenance_passage_window_cap_demand_scaled`.
+
+**Change 2 — sync `parent_card_type` instrumentation** (`routers/review.py`). The efficacy re-run found `parent_card_type` was `null` in *every* review event because all reviews arrive via the offline sync-replay path, whose `sentence_review` log call dropped the field — even though the frontend already queues it (`api.ts:495`) and the direct endpoint sets it. One-liner: `parent_card_type=payload.get("parent_card_type")` in the sync branch. Future passage-vs-sentence rollups can now split on the field directly instead of the `len(sentence_ids)>=2` heuristic.
+
+**Verify (after deploy).** (1) `grep '"parent_card_type": "passage"' /opt/alif/backend/data/logs/interactions_*.jsonl` returns rows. (2) Watch `phase 3e — N due comfortable words, window cap C` in the backend log and confirm passage cards/day rises above the prior ~0.5. (3) Re-run `analyze_passages_v2/v3.py` in ~3 weeks; re-check the 21–60d stability band doesn't degrade as volume scales.
+
+## 2026-06-03: Maintenance-passage efficacy re-run — keep it, raise the cap (May-13 "4× slower" does not replicate)
+
+**What.** The scheduled re-run of the maintenance-passage experiment (3–5 connected sentences generated from comfortable, due FSRS words, shown as one reading block vs single short-sentence cards). The 2026-05-13 first-look (`passage-efficacy-2026-05-13.md`) said "too little data, 4× slower per word, re-measure early June." This is that re-measure. Full write-up: `analysis-2026-06-03-passage-efficacy.md`. No algorithm change in this entry — analysis + recommendations only.
+
+**Window/method.** Prod, 2026-05-08→2026-06-03 (~26d). Retention cohort: `review_log ⋈ sentences.source='passage'` (596 passage word-reviews vs 11,334 sentence), stability Δ parsed from `fsrs_log_json` (`pre_card.stability` → post `stability`), band-stratified by pre-review stability. Speed/ratings: `sentence_review` interaction events. **Label fix:** `parent_card_type` is `null` in every event — all reviews arrive via the offline sync-replay path (`source:"sync"`) which drops that field (the May-13 doc's #1 ask is therefore still unmet in practice). Passage-block cards identified by `len(sentence_ids)>=2` instead.
+
+**Findings.**
+- **Speed: the 4× claim does not replicate.** Idle-filtered (<20min/card) median ms/word: passage **4,103** (n=10) vs sentence **4,557** (n=1,185) — equal-to-marginally-faster. The old "4×" was n=8 + unfiltered idle: 4 of 13 passage cards were left open 30–105 min (phone-down, not reading).
+- **Throughput: ~3× words/card** — passage median 15 words vs sentence 5, at equal per-word cost → less per-card overhead per maintenance review.
+- **Retention: equal-or-better.** Median stability Δ matches/beats sentences in **4 of 5 pre-stability bands**; dead even in the dominant 60d+ band (passage 3.07 vs 3.03, 56% of passage reviews) with 4× fewer lapses (0.3% vs 1.2% Again). Only 21–60d underperforms (1.66 vs 3.62) — plausibly early/collateral reviews of not-yet-due words (FSRS diminishing returns), not waste.
+- **Accuracy:** passage 94.5% Good / 4.9% Again vs sentence 88.7% / 8.3% (partly because passages target comfortable words by design — see band table).
+
+**Verdict.** Neither 2026-05-13 kill condition holds (not slower, not regressing). **Keep.** Binding constraint is now the generation throttle, not the format: only ~0.5 passage cards/day shown (`MAINTENANCE_PASSAGE_MAX_RECENT=2`/12h, `MIN_DUE_TARGETS=6` in `material_generator.py`).
+
+**Recommended next steps (not yet applied).** (1) Raise `MAX_RECENT` 2→4–6 and/or shorten `RECENT_WINDOW`; re-check the 21–60d band after. (2) Pass `parent_card_type` through the sync payload + replay in `routers/review.py` so future rollups don't need the `sentence_ids` heuristic. (3) Clip/idle-cap `response_ms` at submit so backgrounded cards don't pollute time metrics.
+
 ## 2026-06-02: Imported stories get a book-like intro tier (+195); fiction vocab now flows
 
 **Symptom.** Two imported stories the user is actively reading — #75 "A Night of Medical Betrayal" and #76 "A Night in the Private Hospital" — had ~98 fully-gated, unintroduced candidate words between them (#75: 37 eligible, #76: 61), yet **0 intros with source `story_import`/`active_story` in the last 21 days.** Every daily-cap slot went to textbook_scan, frequency_core, collateral, leech_reintro, quran, book, duolingo.
