@@ -46,6 +46,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-03: Quran reading-corpus lemmatized from QAC + function/proper-name audit (data changes)
+
+Follow-ons to the Quran-frequency track entry below.
+
+**Full Quran reading corpus lemmatized (PR #196, deployed).** Quran reading mode's per-verse
+LLM/CAMeL pipeline had only lemmatized **40 of 6,236 verses** (898 `QuranicVerseWord` rows). Backfilled
+the whole corpus from the committed QAC v0.4 file (`scripts/lemmatize_quran_from_qac.py`), reusing the
+extracted `quran_frequency.resolve_qac_lemma`: **77,429 word rows**, 6,226/6,236 (99.8%) position-aligned
+to stored verse text, 39,339 content words mapped (78.1%), all verses stamped `lemmatized_at`. DB backed
+up first; no inbound FKs to the table. Verify: `select count(*) from quranic_verse_words` ≈ 77,429.
+
+**Function-word / proper-name audit (`scripts/audit_function_proper_words.py`).** Triggered by the
+reading-readiness work surfacing apparent leaks. Finding: the **gates are sound** (FUNCTION_WORDS=224;
+the `pos=noun_prop → word_category=proper_name` insert-listener + `word_category` filters stop new leaks).
+The residual is **mis-categorization in both directions**, a homograph/sense judgement → folded into the
+LLM word-value judge as a `proper_name_vs_content` consumer (IDEAS.md), NOT new gates. A proposed
+deterministic "backfill word_category from pos" pass was **inspected and rejected** — it would have
+suppressed 7 loanwords CAMeL mis-tagged `noun_prop` (papaya/jeans/cathedral…). One safe fix applied on
+prod: **شديد (#3498)** "severe" was a content adjective mis-tagged `proper_name` → `word_category=NULL`
+(un-suppressed; backed up + logged). Lesson: inspect before any blanket category flip.
+
+**Reading-readiness analyzer** (`scripts/reading_readiness.py`, research/analysis-2026-06-03-reading-readiness.md):
+LLM-free book coverage + biggest-unlock list. Hardened to classify by the **resolved lemma's**
+`word_category`/`_is_function_word` (surface-only leaked بعضهم→بعض). Key finding: reading a novel ≈
+advancing the frequency core to ~5,000 (92% of The Bamboo Stalk's in-vocab gaps are already in the core).
+New CLAUDE.md invariant: all text→lemma mapping goes through `build_comprehensive_lemma_lookup`+`lookup_lemma`.
+
+---
+
 ## 2026-06-03: Quran-frequency track — the `islamic` source finally populated (lemmatized)
 
 Step 3 of the frequency-core rebuild initiative (IDEAS.md). The `islamic` source had columns,
