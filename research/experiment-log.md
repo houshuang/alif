@@ -4,6 +4,81 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-03: Growth + maintenance program — diagnosis & plan (changes land in follow-up entries)
+
+Prompted by a 2-week health review (fresh prod pull, `research/analysis-2026-06-03-arabic-2week-health.md`).
+System is healthy: 2170 known, retention 92.8% (94.8% last 7d), median known-word stability 87d,
+115-day study streak. Two real findings drove a four-part program toward the user's goals (grow vocab
+fast, maintain what's learned):
+
+**Diagnosis (prod, 2026-06-03):**
+1. **Intros are gated, not supply-exhausted.** Daily intros run 5–11/day, not because the
+   high-frequency pool is drained but because **recovery mode is active** (`box1_unreviewed=6 ≥
+   trigger 5`), which drops the daily intro budget from `DAILY_INTRO_CAP=30` to an earned 4–8. A
+   5-word trigger is a very low bar for a 400–1000-reviews/day, 90%-accuracy learner.
+2. **Supply wall at rank 2000–3000.** 224 of 225 un-imported `frequency_core_entries ≤3000` are
+   flagged `needs_manual_review`; auto-intake skips them. Only ~50 gated+encountered words are ready.
+   Mid-freq words also sit at selection tier 120 (< textbook 220 / book 200 / story 195).
+3. **Due-coverage deficit (recurring).** 79 due FSRS words (66 known) have no reviewable sentence;
+   28 are ≥8d overdue. Root cause (per 2026-05-29 entry): retirement protects the *target* word's
+   active-sentence count, not *collateral* words; salvage requires `len(due_hits) >= 2`.
+4. **Stats display dishonest.** "Top frequency gaps" lists function words (ال), merged compounds
+   (اليوم→يوم), and suspended leeches — not genuine missing content.
+
+**Four-part plan:**
+- **A. Deficit fix (prevention + salvage).** Last-sentence guard keyed on *covered* FSRS words (target
+  + collateral) in `rotate_stale_sentences.py` and `update_material.py` cap-enforcement; relax
+  `salvage_due_dense_inactive_sentences` to reactivate single-due-word sentences for words currently
+  in deficit. Cron backstop for residue.
+- **B. Recovery throttle relax.** Raise the bar so an advanced 90%+-retention learner runs at the full
+  30/day cap. Candidate constants (being simulated): `RECOVERY_BOX1_UNREVIEWED_LIMIT 5→20`,
+  `RECOVERY_BOX2_DUE_LIMIT 30→60`, `RECOVERY_MID_INTRO_BUDGET 4→15`, `RECOVERY_FULL_INTRO_BUDGET 8→30`.
+- **C. LLM word-value judge (intake + leech + ordering).** One judge scoring each candidate on
+  artefact? / real+useful? / provenance (user's reading > raw frequency) / learnability. Drives:
+  intake (resolve the 224 `needs_manual_review`), leech reintro (artefact→drop forever; hard-but-real
+  low-freq→park until re-encountered; useful→steeper chronic escalation), and intro ordering. Replaces
+  frequency-only judgment (e.g. "kissing"@15000 wanted because user reads it; OCR artefact "juhri"
+  dropped).
+- **D. Stats honesty.** Classify gaps; exclude function/merged/excluded-artefact; show suspended
+  separately. Honest "% of top-N covered" denominator for the 2500→3000 goal.
+
+**Simulation (B).** Grid over (volume × accuracy) profiles × {baseline, raised} throttle, seeded from
+the prod DB starting 2026-06-04 (after prod data, so cards come due). Measures Δknown vs Box-1 backlog
+& leech rate. Caveats: LLM generation is mocked (intro counts bounded by existing sentence supply →
+relative dynamics only) and the student model has no per-word difficulty (leech counts are noise, not
+"hard words"). Early signal: with a due-review avalanche, intros are crowded out even in baseline —
+so the throttle may not be the sole binding constraint; session review-load matters too. Results +
+chosen constants to be appended when the grid completes.
+
+---
+
+## 2026-06-03: First confusion-capture analysis (no change yet — diagnosis)
+
+Analyzed all 36 `confusion_captures` rows (PR #167, 2026-05-27 → 06-03). Full write-up:
+`research/analysis-2026-06-03-confusion-captures.md`. No algorithm change shipped; this is the
+diagnostic that should precede tuning `confusion_service.py::find_similar_words`.
+
+**Key results.** Picker *precision* is strong (21/21 `suggested_pick` rows had the pick in-list,
+57% at rank 0, median rank 0). Picker *recall* is the weak point: of 15 `free_text` rows (user
+bypassed the picker and typed a meaning), the actually-confused word — resolved to a known lemma and
+re-ranked untruncated against prod vocab — had been **missed 12/15**. Misses: ed≤1 matches truncated
+at the 8-visual cutoff (نام/صام rank 9, بث/بحث rank 8, حرث/ورث rank 4 under the old 5-slot cap),
+same-root forms buried by `len_gap*2` (حساب/حاسوب rank 49), one un-modeled anagram (مبدأ/معبد,
+`_is_adjacent_transposition` only catches a single adjacent swap), one nisba data-quality mask
+(lemma stored as جُحْري not جُحْر), and 2 pure meaning-misses correctly not surfaced.
+
+**Mechanism mix (n=36):** 33% same-root derivational (Form I/IV/VIII, participle/maṣdar mix-ups),
+42% other visual (dots/rasm/rhyme/insert), 8% phonetic (س/ص), 6% pure meaning. Nearly every "Hard"
+the user flags is a *form/derivation* mix-up, not a blank.
+
+**Proposed follow-up changes (not yet made), priority order:** (1) force `edit_distance==1` visual
+matches into the visible top-8 (or raise visual `max_results` 8→10); (2) shrink the length-gap
+penalty when `same_root`; (3) add a `sorted(a)==sorted(b)` anagram signal; (4) ensure base-noun
+lemmas coexist with nisba forms. Pedagogical idea: root-family contrast cards for the dominant
+same-root confusions. Re-run after ≥100 captures for recurrence/confusion-leech signal.
+
+---
+
 ## 2026-06-03: Demand-scale the maintenance-passage generation cap + fix sync `parent_card_type`
 
 **Change 1 — demand-scaled passage cap** (`material_generator.py`, warm-cache phase 3e). Acting on the efficacy re-run below: the binding constraint on the (working) passage experiment was the flat generation throttle `MAINTENANCE_PASSAGE_MAX_RECENT = 2`/12h (≈4/day, ~0.5 cards/day actually shown). Replaced it with `_maintenance_passage_window_cap(high_stability_due)`: count due *comfortable* words (FSRS stability ≥ `MIN_STABILITY_DAYS=7.0`, in known/learning/lapsed), then allow `clamp(high_stability_due // DUE_PER_PASSAGE(8), FLOOR(2), CEILING(8))` passages per 12h — `0` when the pool is below `MIN_DUE_TARGETS=6`. So a small pool keeps the old cap of 2; a large due backlog scales up to 8/window. Cohesion is already enforced by `passage_generator.py` (1–3 cohesive targets, word-salad rejection), so the gate only governs supply. New observability: phase 3e logs `due comfortable words / window cap / generated this window / generate=`. Docs: `docs/scheduling-system.md` § Maintenance Passage. Test: `test_maintenance_passage_window_cap_demand_scaled`.

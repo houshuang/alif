@@ -223,14 +223,21 @@ def salvage_due_dense_inactive_sentences(
     known_lemma_ids: set[int],
     budget: int,
     dry_run: bool,
+    deficit_lemma_ids: set[int] | None = None,
 ) -> int:
     """Reactivate verified inactive sentences that cover multiple target words.
 
     This is deliberately conservative: only already-verified sentences whose
     non-function content is in the active known/acquiring set are considered,
     and non-dry runs still pass the Haiku quality gate before reactivation.
+
+    `deficit_lemma_ids` are target words with *zero* reviewable sentences. For
+    those, a single-coverage sentence is salvaged too (the usual >=2 threshold
+    would leave a churned known word stranded — its retired sentence covers only
+    1 due word, so it never qualifies; see experiment-log 2026-05-29).
     """
-    if budget <= 0 or len(target_lemma_ids) < 2:
+    deficit_lemma_ids = deficit_lemma_ids or set()
+    if budget <= 0 or (len(target_lemma_ids) < 2 and not deficit_lemma_ids):
         return 0
     from app.services.llm import review_sentences_quality
     from app.services.sentence_validator import _is_function_word, strip_diacritics
@@ -261,10 +268,18 @@ def salvage_due_dense_inactive_sentences(
             elif sw.lemma_id not in known_lemma_ids:
                 safe = False
                 break
-        if safe and len(due_hits) >= 2:
+        if safe and (len(due_hits) >= 2 or (due_hits & deficit_lemma_ids)):
             candidates.append((sent, due_hits))
 
-    candidates.sort(key=lambda item: (-len(item[1]), item[0].times_shown or 0, item[0].id))
+    # Deficit words first (they have zero reviewable coverage), then most-dense.
+    candidates.sort(
+        key=lambda item: (
+            0 if (item[1] & deficit_lemma_ids) else 1,
+            -len(item[1]),
+            item[0].times_shown or 0,
+            item[0].id,
+        )
+    )
     candidates = candidates[: min(MAX_DUE_DENSE_SALVAGE_PER_RUN, budget)]
     if not candidates:
         return 0
@@ -918,12 +933,18 @@ def step_backfill_sentences(
             .filter(UserLemmaKnowledge.knowledge_state.in_(["acquiring", "known", "learning", "lapsed"]))
             .all()
         }
+        from app.services.sentence_eligibility import reviewable_coverage_counts
+
+        needing_ids = {w["lemma_id"] for w in words_needing}
+        coverage = reviewable_coverage_counts(db, lemma_ids=needing_ids)
+        deficit_ids = {lid for lid in needing_ids if coverage.get(lid, 0) == 0}
         salvaged = salvage_due_dense_inactive_sentences(
             db=db,
-            target_lemma_ids={w["lemma_id"] for w in words_needing},
+            target_lemma_ids=needing_ids,
             known_lemma_ids=active_known_ids,
             budget=budget,
             dry_run=dry_run,
+            deficit_lemma_ids=deficit_ids,
         )
         if salvaged:
             budget -= salvaged
