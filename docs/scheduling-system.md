@@ -1259,6 +1259,18 @@ Two retirement paths run on every warm cache call:
 Floor per word is tier-based only (no min_active override): tier 1 ≥ 2, tier 2 ≥ 1,
 tier 3-4 ≥ 0.
 
+**Last-reviewable-sentence guard (2026-06-03)**: the per-target floor above protects
+only a sentence's *target* word. A `known`/`learning`/`lapsed` word that appears only
+as *collateral* could lose its last reviewable sentence when that sentence was retired
+for its target's sake, dropping the word into the due-coverage deficit. Both retirement
+paths (`rotate_stale_sentences.py` and Step 0 cap enforcement) now skip retiring a
+sentence when it is the last reviewable one covering **any** FSRS word it contains
+(target or collateral), via `reviewable_coverage_counts()` in `sentence_eligibility.py`.
+The complementary recovery path — `salvage_due_dense_inactive_sentences` — reactivates a
+single-coverage retired sentence for a word currently in deficit (0 reviewable
+sentences); previously it required ≥2 due-word coverage and stranded single-coverage
+known words. See experiment-log 2026-06-03.
+
 **Safety valve** (`update_material.py` Step 0): Hard cap of 2000 active sentences.
 Should never bind under normal operation — tier lifecycle keeps the pool at ~600-800.
 Step 0 retires down to `2000 - CAP_HEADROOM` (1950) if ever triggered. Unshown book
