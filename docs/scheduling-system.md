@@ -1718,6 +1718,19 @@ Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence
 
 **Viability gate** (`_is_viable_maintenance_passage_group`): a group is viable iff it has ≥ `PASSAGE_MIN_SENTENCES` sentences, covers ≥ `PASSAGE_MIN_DUE_WORDS` distinct due lemmas, has at least one due-covering member, and *every* due-covering member is a maintenance-passage candidate (all its due lemmas in `PASSAGE_REVIEW_STATES`).
 
+**Generation cap — demand-scaled** (`material_generator.py`, warm-cache phase 3e; 2026-06-03). Passages are LLM-generated in the background after sessions, so generation is throttled per rolling window. The old flat cap (`MAINTENANCE_PASSAGE_MAX_RECENT = 2` / 12h ≈ 4/day) starved the experiment (~0.5 passage cards/day shown). It's replaced by a cap that scales with the supply of due *comfortable* words, via `_maintenance_passage_window_cap(high_stability_due)`:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `MAINTENANCE_PASSAGE_RECENT_WINDOW` | 12h | Rolling window over which generated passages are counted |
+| `MAINTENANCE_PASSAGE_MIN_STABILITY_DAYS` | 7.0 | "Comfortable": only due words with FSRS stability ≥ this count toward supply (matches the experiment-design threshold; the band passages serve best per the 2026-06-03 efficacy re-run) |
+| `MAINTENANCE_PASSAGE_MIN_DUE_TARGETS` | 6 | Floor pool size; below it the cap is 0 (can't build a cohesive passage without word-salad) |
+| `MAINTENANCE_PASSAGE_DUE_PER_PASSAGE` | 8 | ~one passage allowed per this many due comfortable words |
+| `MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR` | 2 | Cap never drops below the prior flat value when a viable pool exists |
+| `MAINTENANCE_PASSAGE_MAX_RECENT_CEILING` | 8 | Upper bound on passages/window (LLM-spend safety) |
+
+Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_due // DUE_PER_PASSAGE, FLOOR, CEILING)`. Cohesion ("words that work naturally together") is enforced downstream by `passage_generator.py` (picks 1–3 cohesive due targets, rejects word-salad, sets a `cohesive` flag), so the gate only governs *supply*. Rationale + efficacy data: `research/analysis-2026-06-03-passage-efficacy.md`.
+
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 
 | Constant | Value | Purpose |

@@ -561,6 +561,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
+                        parent_card_type=payload.get("parent_card_type"),
                         source="sync",
                     )
                 results.append({"client_review_id": item.client_review_id, "status": status})

@@ -94,8 +94,39 @@ GENERATION_BACKOFF_DURATION = timedelta(days=7)
 # pre-generation for future introductions.
 ACQUIRING_RESCUE_SENTENCE_TARGET = 3
 MAINTENANCE_PASSAGE_RECENT_WINDOW = timedelta(hours=12)
+# Minimum pool of due, comfortable words needed before a cohesive passage is worth
+# building (below this the generator would have to force word-salad).
 MAINTENANCE_PASSAGE_MIN_DUE_TARGETS = 6
-MAINTENANCE_PASSAGE_MAX_RECENT = 2
+# "Comfortable" = FSRS stability at/above this many days. Matches the experiment
+# design threshold (experiment-passage-reading-speed.md) and the 2026-06-03
+# efficacy re-run, which found passages maintain high-stability words as well as
+# single sentences (research/analysis-2026-06-03-passage-efficacy.md).
+MAINTENANCE_PASSAGE_MIN_STABILITY_DAYS = 7.0
+# Roughly how many due comfortable words one passage exercises in flow. The
+# per-window cap scales with supply / this.
+MAINTENANCE_PASSAGE_DUE_PER_PASSAGE = 8
+# Floor preserves the prior cap whenever a viable pool exists; ceiling bounds LLM
+# spend per window.
+MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR = 2
+MAINTENANCE_PASSAGE_MAX_RECENT_CEILING = 8
+
+
+def _maintenance_passage_window_cap(high_stability_due: int) -> int:
+    """How many maintenance passages may be generated per RECENT_WINDOW given the
+    current supply of due, comfortable (high-stability) maintenance words.
+
+    Demand-scaled: ~one passage per DUE_PER_PASSAGE due comfortable words, with a
+    floor (don't regress below the prior flat cap when there's a viable pool) and
+    a ceiling (bound LLM spend). Returns 0 when the pool is too thin to build a
+    cohesive passage without forcing word-salad.
+    """
+    if high_stability_due < MAINTENANCE_PASSAGE_MIN_DUE_TARGETS:
+        return 0
+    scaled = high_stability_due // MAINTENANCE_PASSAGE_DUE_PER_PASSAGE
+    return max(
+        MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR,
+        min(MAINTENANCE_PASSAGE_MAX_RECENT_CEILING, scaled),
+    )
 MULTI_TARGET_VERIFY_BATCH_SIZE = max(
     1, int(os.environ.get("ALIF_MULTI_TARGET_VERIFY_BATCH_SIZE", "10"))
 )
@@ -2205,23 +2236,35 @@ def _warm_sentence_cache_impl(
                 )
                 .count()
             )
-            due_maintenance_count = 0
+            # Supply of due *comfortable* words (stability >= threshold). The
+            # per-window passage cap scales with this — more due high-stability
+            # words → more passages allowed — rather than a flat count.
+            high_stability_due = 0
             for ulk in db.query(UserLemmaKnowledge).filter(
                 UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "lapsed"]),
                 UserLemmaKnowledge.fsrs_card_json.isnot(None),
             ).all():
                 card = parse_json_column(ulk.fsrs_card_json)
-                due_raw = card.get("due") if isinstance(card, dict) else None
-                if not due_raw:
+                if not isinstance(card, dict):
+                    continue
+                due_raw = card.get("due")
+                stability = card.get("stability")
+                if not due_raw or stability is None:
+                    continue
+                if stability < MAINTENANCE_PASSAGE_MIN_STABILITY_DAYS:
                     continue
                 due = datetime.fromisoformat(due_raw)
                 if due.tzinfo is None:
                     due = due.replace(tzinfo=timezone.utc)
                 if due <= now:
-                    due_maintenance_count += 1
-            should_generate_passage = (
-                recent_count < MAINTENANCE_PASSAGE_MAX_RECENT
-                and due_maintenance_count >= MAINTENANCE_PASSAGE_MIN_DUE_TARGETS
+                    high_stability_due += 1
+            window_cap = _maintenance_passage_window_cap(high_stability_due)
+            should_generate_passage = recent_count < window_cap
+            logger.info(
+                "Warm cache %s: phase 3e — %d due comfortable words, window cap %d, "
+                "%d generated this window, generate=%s",
+                run_label, high_stability_due, window_cap, recent_count,
+                should_generate_passage,
             )
         finally:
             db.close()

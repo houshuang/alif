@@ -13,6 +13,27 @@ def test_default_batch_word_size_keeps_cron_shards_small():
     assert material_generator.BATCH_WORD_SIZE == 4
 
 
+def test_maintenance_passage_window_cap_demand_scaled():
+    cap = material_generator._maintenance_passage_window_cap
+    floor = material_generator.MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR
+    ceiling = material_generator.MAINTENANCE_PASSAGE_MAX_RECENT_CEILING
+    per = material_generator.MAINTENANCE_PASSAGE_DUE_PER_PASSAGE
+    min_pool = material_generator.MAINTENANCE_PASSAGE_MIN_DUE_TARGETS
+
+    # Too thin a pool → never generate.
+    assert cap(0) == 0
+    assert cap(min_pool - 1) == 0
+
+    # A viable-but-small pool never drops below the prior flat cap.
+    assert cap(min_pool) == floor
+    assert cap(per) == floor
+
+    # A large backlog scales up linearly...
+    assert cap(per * 5) == 5
+    # ...but is bounded by the ceiling.
+    assert cap(per * (ceiling + 4)) == ceiling
+
+
 def test_legacy_batch_is_default(monkeypatch):
     monkeypatch.delenv("ALIF_USE_LEGACY_BATCH", raising=False)
     assert material_generator._use_legacy_batch() is True
