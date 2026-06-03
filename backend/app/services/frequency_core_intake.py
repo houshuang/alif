@@ -113,6 +113,89 @@ def _map_entry_to_lemma(db: Session, entry: FrequencyCoreEntry, lemma_id: int) -
     return True
 
 
+def remap_variant_frequency_core_entries(db: Session, lemma_ids=None) -> dict:
+    """Re-point frequency-core entries that map to a *variant* lemma onto its
+    canonical, and exclude any that thereby duplicate the canonical's own entry.
+
+    Why this exists: an entry can become mis-mapped after it was created — variant
+    detection later links its lemma to a canonical (e.g. the inflected form نَزَّلنَا
+    → canonical نزل), so the entry lingers on the inflection and the stats card shows
+    "we sent down" as a top-1000 word. This is the invariant enforcer: NO active
+    frequency-core entry may point to a variant lemma. It is idempotent and is
+    called both at the variant-linking chokepoint (`mark_variants`) and as a cron
+    safety net (so direct `canonical_lemma_id =` assignments in scripts are healed
+    within a cycle too).
+
+    Pass `lemma_ids` to scope the entries acted on (the chokepoint passes the lemmas
+    it just marked); ownership/dedup is always computed against the full table.
+    """
+    redirect = {
+        lid: canon
+        for lid, canon in db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(Lemma.canonical_lemma_id.isnot(None))
+        .all()
+    }
+
+    def resolve(lid: int) -> int:
+        seen: set[int] = set()
+        while lid in redirect and lid not in seen:
+            seen.add(lid)
+            lid = redirect[lid]
+        return lid
+
+    q = db.query(FrequencyCoreEntry).filter(
+        FrequencyCoreEntry.excluded_reason.is_(None),
+        FrequencyCoreEntry.lemma_id.isnot(None),
+    )
+    if lemma_ids is not None:
+        ids = list(lemma_ids)
+        if not ids:
+            return {"remapped": 0, "excluded": 0}
+        q = q.filter(FrequencyCoreEntry.lemma_id.in_(ids))
+    targets = sorted(
+        (e for e in q.all() if resolve(e.lemma_id) != e.lemma_id),
+        key=lambda e: e.core_rank,
+    )
+    if not targets:
+        return {"remapped": 0, "excluded": 0}
+
+    all_active = (
+        db.query(FrequencyCoreEntry)
+        .filter(FrequencyCoreEntry.excluded_reason.is_(None), FrequencyCoreEntry.lemma_id.isnot(None))
+        .all()
+    )
+    by_canon: dict[int, list[FrequencyCoreEntry]] = {}
+    for e in all_active:
+        by_canon.setdefault(resolve(e.lemma_id), []).append(e)
+
+    now = datetime.now(timezone.utc)
+    remapped = excluded = 0
+    for e in targets:
+        canon = resolve(e.lemma_id)
+        owner_exists = any(
+            o.id != e.id and o.lemma_id == canon and o.excluded_reason is None
+            for o in by_canon.get(canon, [])
+        )
+        if owner_exists:
+            e.excluded_reason = "duplicate_variant_of_canonical"
+            e.gap_status = None
+            e.updated_at = now
+            excluded += 1
+        else:
+            canon_lemma = db.query(Lemma).filter(Lemma.lemma_id == canon).first()
+            if not canon_lemma:
+                continue
+            e.lemma_id = canon
+            e.lemma_key = f"lemma:{canon}"
+            e.display_form = canon_lemma.lemma_ar or e.display_form
+            e.gloss_en = canon_lemma.gloss_en
+            e.pos = canon_lemma.pos
+            e.gap_status = None
+            e.updated_at = now
+            remapped += 1
+    return {"remapped": remapped, "excluded": excluded}
+
+
 def _mark_needs_manual_review(entry: FrequencyCoreEntry, reason: str) -> None:
     flags = entry.source_flags_json if isinstance(entry.source_flags_json, dict) else {}
     flags = dict(flags)

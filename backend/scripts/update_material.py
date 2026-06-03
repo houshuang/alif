@@ -1361,6 +1361,22 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
     except Exception as exc:
         print(f"  Frequency-core intake failed: {exc}")
 
+    # Safety net: heal any frequency-core entries that drifted onto a variant
+    # lemma (e.g. an inflected form whose canonical was linked after mapping).
+    # Idempotent; covers paths that set canonical_lemma_id directly.
+    try:
+        from app.services.frequency_core_intake import remap_variant_frequency_core_entries
+        if not dry_run:
+            remap = remap_variant_frequency_core_entries(db)
+            if remap.get("remapped") or remap.get("excluded"):
+                db.commit()
+                print(
+                    "  Frequency-core variant remap: "
+                    f"remapped={remap['remapped']}, excluded_dupes={remap['excluded']}"
+                )
+    except Exception as exc:
+        print(f"  Frequency-core variant remap failed: {exc}")
+
     candidates = select_next_words(db, count=count)
     if not candidates:
         print("  No candidates available.")
