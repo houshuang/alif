@@ -22,11 +22,23 @@ ranked top-1000. This is the recurring lemmatization/data-cleanup pain, at the c
    Corpus) for lemmatization quality, classical/Quran coverage, licensing, obtainability.
 2. **Rebuild the core** from the best lemmatized sources + reweight away from children's-lit/news.
    A lemmatized source natively fixes the homograph/inflection conflation class.
-3. **Quran-frequency track (#1 from chat)** — compute real Quran word frequency from the imported
-   `QuranicVerseWord` corpus (the `islamic` source is empty) so Quran/classical vocab is prioritized
-   for the user's stated goal, instead of being ranked by news frequency.
-4. **Homograph conflation fixes (#2 from chat)** — re-attach surface counts to the right lemma
-   (آمر↔أمر first); folds into the value-judge / lemma-quality work.
+3. **Quran-frequency track (#1 from chat) — ✅ DONE 2026-06-03 (PR forthcoming).** Computed from the
+   **Quranic Arabic Corpus v0.4** (corpus.quran.com, GPL — genuinely lemmatized), NOT our own
+   `QuranicVerseWord` corpus (only 40/6,236 verses lemmatized — dead end). New
+   `app/services/quran_frequency.py` maps QAC lemmas → Alif rows (Quran-aware normalization +
+   POS-aware homograph disambiguation), populates `islamic_rank` (weight 150→700, penalty-exempt),
+   and drives a separate "Quran Core" stats track. 57.7% lemma / 84.7% token coverage; unmapped
+   residue = honest gaps. See experiment-log 2026-06-03.
+4. **Homograph conflation fixes (#2 from chat)** — partly addressed for the Quran track via QAC
+   POS-disambiguation (أَمَرَ verb vs أَمْر noun → different lemmas). The general MSA-side fix
+   (re-attach surface counts to the right lemma) still folds into the value-judge / lemma-quality work.
+5. **Classical/medieval LITERARY track (beyond Quran) — ❌ NO-GO for now (researched 2026-06-03).**
+   `research/analysis-2026-06-03-classical-literary-frequency-track.md`: no off-the-shelf lemmatized
+   classical frequency data exists; OpenITI is a usable raw-text base (CC-BY-NC-SA, ~2.25B words) but
+   ships no lemmatization, and **no validated classical Arabic lemmatizer exists** (CAMeL is MSA-only;
+   arabiCorpus untagged + retiring 2027; Shamela "already lemmatized" claims refuted). Deferred. The
+   viable build path is an LLM-in-context lemmatization pass over OpenITI samples (mirroring
+   polyglot's Greek/Latin approach) — revisit only if we invest in that pipeline + benchmark it.
 
 **Shipped already (2026-06-03):** variant→canonical remap (inflected-form entries, PR #193) + invariant
 guard; low-tier completion (199 promoted, 32 leeches reintroduced); stats honesty (function-word/variant

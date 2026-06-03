@@ -57,3 +57,25 @@ ALIF_SKIP_MIGRATIONS=1 PYTHONPATH=. .venv/bin/python3 scripts/build_frequency_co
   --hindawi-from-corpus \
   --news data/samer.tsv
 ```
+
+## Quran (islamic) source — genuinely lemmatized (2026-06-03)
+
+The `islamic` source is now populated from the **Quranic Arabic Corpus v0.4**
+(`quranic-corpus-morphology-0.4.txt` in this dir; Kais Dukes, corpus.quran.com,
+GPL, on Tanzil text — keep the attribution). Unlike the MSA surface-count
+sources, the QAC carries a manually-verified dictionary lemma (`LEM`) per token,
+so inflected forms are already grouped — and `app/services/quran_frequency.py`
+maps those lemmas onto Alif rows with Quran-aware normalization (dagger-alef
+U+0670, the QAC maddah caret U+005E, decomposed hamza+alef ءا) plus POS-aware
+homograph disambiguation (أَمَرَ verb vs أَمْر noun → different Alif lemmas). It
+is on by default in the rebuild above (weight raised 150 → 700, exempt from the
+single-source agreement penalty — a high Quran frequency is its own
+corroboration). Disable with `--no-quran`; override the file with
+`--quran-morphology PATH`.
+
+This drives a separate **"Quran Core"** progress track in the stats screen (rows
+carrying `islamic_rank`, ordered by Quran frequency). ~58% of QAC content lemmas
+map to existing Alif lemmas (84.7% token-weighted, ~1,290 distinct lemmas); the
+unmapped residue (divine attributes like رحيم/غفور, prophet names, rare classical
+roots) is reported as honest gaps — we never auto-create lemmas. See
+`scripts/analyze_quran_freq_mapping.py` for mapping diagnostics.

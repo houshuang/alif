@@ -706,20 +706,37 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
     )
 
 
-def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | None:
-    """Compute continuous and banded coverage of the ranked frequency core."""
+def _compute_frequency_core_progress(
+    db: Session,
+    *,
+    rank_field: str = "core_rank",
+    only_islamic: bool = False,
+    band_thresholds: tuple[int, ...] = (100, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000),
+) -> FrequencyCoreProgress | None:
+    """Compute continuous and banded coverage of a ranked frequency track.
+
+    Defaults to the unified frequency core ranked by ``core_rank``. Pass
+    ``rank_field="islamic_rank", only_islamic=True`` to compute the separate
+    Quran-core track — the same rows, restricted to those carrying a Quran
+    frequency rank and ordered by it (so #1 = the most frequent Quran word).
+    """
+    rank_col = getattr(FrequencyCoreEntry, rank_field)
+    base_filter = [FrequencyCoreEntry.excluded_reason.is_(None)]
+    if only_islamic:
+        base_filter.append(FrequencyCoreEntry.islamic_rank.isnot(None))
+
     total_entries = (
         db.query(func.count(FrequencyCoreEntry.id))
-        .filter(FrequencyCoreEntry.excluded_reason.is_(None))
+        .filter(*base_filter)
         .scalar() or 0
     )
     if total_entries == 0:
         return None
 
-    max_band = 5000
+    max_band = max(band_thresholds)
     rows = (
         db.query(
-            FrequencyCoreEntry.core_rank,
+            rank_col.label("core_rank"),
             FrequencyCoreEntry.lemma_id,
             FrequencyCoreEntry.display_form,
             FrequencyCoreEntry.gloss_en,
@@ -733,10 +750,10 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
             UserLemmaKnowledge.lemma_id == FrequencyCoreEntry.lemma_id,
         )
         .filter(
-            FrequencyCoreEntry.excluded_reason.is_(None),
-            FrequencyCoreEntry.core_rank <= max_band,
+            *base_filter,
+            rank_col <= max_band,
         )
-        .order_by(FrequencyCoreEntry.core_rank.asc())
+        .order_by(rank_col.asc())
         .all()
     )
 
@@ -811,7 +828,7 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
     bands: list[FrequencyCoreBand] = []
     # Denser at the frontier (2000-3000) so the active learning zone isn't hidden
     # by the old 2000->5000 jump; the frontend collapses completed leading tiers.
-    for top_n in (100, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000):
+    for top_n in band_thresholds:
         band_rows = [r for r in rows if r.core_rank <= top_n]
         if not band_rows:
             continue
@@ -960,6 +977,16 @@ def get_analytics(
     benchmarks = _compute_benchmarks(db)
     daily_goal = _get_daily_goal(db)
     frequency_core = _compute_frequency_core_progress(db)
+    # Separate Quran-core track: same rows that carry a Quran frequency rank,
+    # ordered by Quran frequency (a primary learning goal — surfaced on its own
+    # so progress isn't blended into the MSA core). Bands sized to the ~1.3k
+    # mapped Quran lemmas rather than the 5k MSA range.
+    quran_core = _compute_frequency_core_progress(
+        db,
+        rank_field="islamic_rank",
+        only_islamic=True,
+        band_thresholds=(50, 100, 250, 500, 750, 1000, 1500),
+    )
 
     return AnalyticsOut(
         stats=basic,
@@ -978,6 +1005,7 @@ def get_analytics(
         benchmarks=benchmarks,
         daily_goal=daily_goal,
         frequency_core=frequency_core,
+        quran_core=quran_core,
     )
 
 

@@ -4,6 +4,56 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-03: Quran-frequency track — the `islamic` source finally populated (lemmatized)
+
+Step 3 of the frequency-core rebuild initiative (IDEAS.md). The `islamic` source had columns,
+a loader, and a weight but was **0% populated** — so Quran/classical vocabulary was ranked only
+by news/children's-book MSA frequency, contrary to the user's primary Quran-reading goal.
+
+**Why not compute from our own corpus.** Option (b) — the imported `QuranicVerseWord` table —
+is a dead end: only **40 of 6,236 verses** were ever lemmatized (Quran Reading Mode was suspended
+2026-04-07), 898 word rows, and that tiny sample already showed the conflation bug (لَهِمٌ
+"greedy" = mis-mapped لـ+هم "for them"). Used option (a): the **Quranic Arabic Corpus v0.4**
+(corpus.quran.com, Kais Dukes, GPL) — a manually-verified per-token morphology file with a
+dictionary `LEM` per stem, so inflected forms are already grouped to a lemma.
+
+**The real work was the mapping, not the counts** (the recurring "external list is only as good
+as our lemma mapping" lesson). New `app/services/quran_frequency.py`:
+- bw2ar (CAMeL) to convert the Buckwalter `LEM` → Arabic.
+- Quran-aware normalization on top of `normalize_arabic`: strip the QAC maddah caret U+005E
+  (bw2ar leaves it unmapped — سَمَا^ء), fold decomposed hamza+alef ءا → ا (آية/آمن). These two
+  fixes alone took token-weighted coverage **78.5% → 84.7%** (آمن, 621 occ, was the top unmapped).
+- POS-aware homograph disambiguation using the QAC POS: 31 collisions corrected
+  (أَمَرَ verb → "to command" vs أَمْر noun → "matter"; أكل→eat-verb; عبد→worship-verb), with a
+  guard that skips switching to a derivationally-distant same-POS homograph (kept حكم→حكم,
+  عامل→worker rather than حكم→حكمة, عامل→تعمل).
+
+**Result:** 2,734/4,742 QAC content lemmas map (57.7%) → 1,292 distinct Alif lemmas with a real
+Quran frequency. Unmapped 42% are honest gaps (divine attributes رحيم/غفور, prophet names, rare
+roots) — **no lemmas auto-created**.
+
+**Wiring (chosen: both):** `build_frequency_core.py` feeds the QAC-mapped frequencies into the
+existing `islamic_rank` column (no migration), weight 150 → 700, exempt from the single-source
+agreement penalty (high Quran frequency is its own corroboration). AND a separate **"Quran Core"**
+track in the stats screen — `_compute_frequency_core_progress(rank_field="islamic_rank",
+only_islamic=True)` over the same rows ordered by Quran frequency. Top words: الله, قال, رب, آمن,
+أتى, علم, أرض, يوم, قوم. Quran track coverage 97.7% (top 50) → 80.3% (top 1500); Quran-frequent
+words also bubble up in the unified core (قوم→core#375, رسول→core#66).
+
+**Verify:** stats screen shows a "Quran Core" card with sensible top words; on prod after rebuild,
+`select count(*) from frequency_core_entries where islamic_rank is not null` ≈ 1,290.
+
+**Companion research (Task B, go/no-go on a CLASSICAL track beyond Quran):**
+`research/analysis-2026-06-03-classical-literary-frequency-track.md` — verdict: **no off-the-shelf
+lemmatized classical frequency data exists**; OpenITI is a usable raw-text base (CC-BY-NC-SA) but
+ships no lemmatization, and **no validated classical Arabic lemmatizer exists** (CAMeL is MSA-only).
+Deferred; the viable build path is an LLM-in-context lemmatization pass (like polyglot's Greek/Latin).
+
+Tests: `tests/test_quran_frequency.py` (normalization + POS-match). Mapping diagnostics:
+`scripts/analyze_quran_freq_mapping.py`.
+
+---
+
 ## 2026-06-03: Frequency-core data-quality pass — variant remap, stats honesty, tier completion, source audit
 
 Follow-on to the growth+maintenance program (entry below). Triggered by inspecting the stats
