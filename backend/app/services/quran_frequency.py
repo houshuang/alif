@@ -105,6 +105,52 @@ def parse_qac(path: Path | str = QAC_DEFAULT_PATH) -> dict[str, dict]:
     return lemmas
 
 
+def resolve_qac_lemma(
+    lem_bw: str,
+    qac_pos: str | None,
+    lemma_lookup,
+    lemmas_by_id: dict[int, Lemma],
+) -> tuple[int | None, bool]:
+    """Map one QAC Buckwalter lemma to an Alif lemma_id (None if function/unmapped).
+
+    Shared by map_quran_frequencies (frequency track) and the Quran reading
+    backfill (lemmatize_quran_from_qac). Returns (lemma_id, pos_corrected).
+    """
+    ar = _BW2AR(lem_bw)
+    bare = normalize_qac_lemma(ar)
+    if not bare or len(bare) < 2:
+        return None, False
+    if _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
+        return None, False
+
+    alts: list[int] = []
+    lemma_id = lookup_lemma(
+        bare, lemma_lookup, original_bare=strip_diacritics(ar), out_alternatives=alts,
+    )
+    # POS-aware homograph disambiguation: if the lookup's pick contradicts the
+    # QAC POS but a same-POS alternative exists AND is the same bare or a
+    # clitic/prefix relation (not a derivationally-distant homograph), switch.
+    corrected = False
+    if lemma_id is not None and alts:
+        chosen = lemmas_by_id.get(lemma_id)
+        if chosen is not None and not pos_match(qac_pos, chosen.pos):
+            for alt_id in alts:
+                alt = lemmas_by_id.get(alt_id)
+                if (alt is None or not pos_match(qac_pos, alt.pos)
+                        or _is_noise_lemma(alt)):
+                    continue
+                alt_bare = normalize_arabic(alt.lemma_ar_bare or "")
+                distant = (alt_bare != bare
+                           and not bare.endswith(alt_bare)
+                           and not alt_bare.endswith(bare))
+                if distant:
+                    continue
+                lemma_id = alt_id
+                corrected = True
+                break
+    return lemma_id, corrected
+
+
 def map_quran_frequencies(
     db,
     *,
@@ -137,42 +183,9 @@ def map_quran_frequencies(
     for lem_bw, rec in qac.items():
         ar = _BW2AR(lem_bw)
         bare = normalize_qac_lemma(ar)
-        if not bare or len(bare) < 2:
-            continue
-        # Quranic orthography spells many function words with final alef-maqsura
-        # (فِى, ٱلَّذِى) where _is_function_word only knows the ya spelling, so
-        # check the ى→ي variant too.
-        if _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
-            continue
-
-        alts: list[int] = []
-        lemma_id = lookup_lemma(
-            bare, lemma_lookup, original_bare=strip_diacritics(ar),
-            out_alternatives=alts,
+        lemma_id, corrected = resolve_qac_lemma(
+            lem_bw, rec.get("pos"), lemma_lookup, lemmas_by_id,
         )
-
-        # POS-aware homograph disambiguation: if the lookup's pick contradicts
-        # the QAC POS but a same-POS alternative exists AND is the same bare or a
-        # clitic/prefix relation (not a derivationally-distant homograph), switch.
-        corrected = False
-        if lemma_id is not None and alts:
-            chosen = lemmas_by_id.get(lemma_id)
-            qac_pos = rec.get("pos")
-            if chosen is not None and not pos_match(qac_pos, chosen.pos):
-                for alt_id in alts:
-                    alt = lemmas_by_id.get(alt_id)
-                    if (alt is None or not pos_match(qac_pos, alt.pos)
-                            or _is_noise_lemma(alt)):
-                        continue
-                    alt_bare = normalize_arabic(alt.lemma_ar_bare or "")
-                    distant = (alt_bare != bare
-                               and not bare.endswith(alt_bare)
-                               and not alt_bare.endswith(bare))
-                    if distant:
-                        continue
-                    lemma_id = alt_id
-                    corrected = True
-                    break
 
         if lemma_id is not None:
             by_lemma_id[lemma_id] += rec["count"]
@@ -188,7 +201,9 @@ def map_quran_frequencies(
                 mapped.append(entry)
                 if corrected:
                     pos_corrected.append(entry)
-        elif collect_report:
+        elif collect_report and bare and len(bare) >= 2 and not (
+            _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي"))
+        ):
             unmapped.append({"lem_bw": lem_bw, "ar": ar, "bare": bare,
                              "count": rec["count"], "pos": rec.get("pos"),
                              "root": rec.get("root")})
