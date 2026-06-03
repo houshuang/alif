@@ -81,6 +81,29 @@ real-data backtest. Artefact-filtering + intake are data-driven and shippable wi
 **Status:** design ready, branch not yet cut — its own focused session (new LLM subsystem + a prod
 intake run). Parts A (deficit fix) + B (throttle) shipped & deployed 2026-06-03 (PR #189).
 
+**Add a 4th consumer — `proper_name_vs_content` (folds in here; do NOT build separate proper-name infra).**
+Audit 2026-06-03 (`scripts/audit_function_proper_words.py`, triggered by the reading-readiness work): the function-word
+and proper-name **gates are sound** (FUNCTION_WORDS=224 is comprehensive; the `before_insert`
+`pos=noun_prop → word_category=proper_name` listener + `word_category` filters stop *new* leaks). The
+residual problem is **not leaks needing more gates — it's mis-categorization in both directions**, which
+is a homograph/sense judgement, exactly the judge's job:
+- **False-positive suppression (the real risk).** CAMeL mis-tags common **loanwords** as `noun_prop`
+  (papaya/jeans/pullover/tango/Viking/cathedral/hello — 7 found, currently `cat=None` so still learnable,
+  but the insert-listener would suppress any future such word as a fake "proper name"). Plus content
+  mis-tagged `proper_name`: شديد "severe" (fixed deterministically 2026-06-03) and the genuinely
+  **ambiguous name↔word homographs** صالح/قادر/بكر/منتش/نجحت (a blanket rule fails — needs the judge).
+- **Under-detection.** Only ~46 lemmas are tagged `proper_name` out of ~4,000; the reading-readiness OOV
+  was full of un-tagged names entering as content from corpus/book imports. The judge should flag these.
+- **Legacy ULK residue (low priority, cosmetic):** 46 function-word lemmas + ~20 genuine-name lemmas
+  carry old `known`/`acquiring` ULK rows (pre-filter Duolingo/leak residue). They mostly reflect reality
+  (the user does know كان، محمد) so they're not harmful — at most a stats-honesty `suspend` pass; let the
+  judge decide which to suspend rather than a blanket sweep.
+
+Verdict-schema add: `proper_name: bool` (with the existing `is_real_word`/`reason`). Wire into the same
+intake/quality-gate pass; the insert-listener should defer to the judge's verdict over CAMeL's
+`noun_prop` when they disagree. Lesson recorded: a deterministic "backfill word_category from pos" pass
+was inspected and **rejected** — it would have suppressed the 7 loanwords. Inspect before any blanket flip.
+
 ## 🔵 [TODO 2026-06-03] Stats display honesty (Part D)
 "Top frequency gaps" in the stats currently lists function words (ال), merged compounds (اليوم→يوم),
 and suspended leeches — not genuine missing content. Classify gaps: exclude function/merged/
