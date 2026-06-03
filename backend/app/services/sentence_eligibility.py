@@ -71,3 +71,33 @@ def reviewable_sentence_clauses():
         not_has_unmapped_words(),
         has_current_mapping_verification(),
     )
+
+
+def reviewable_coverage_counts(db, lemma_ids=None):
+    """Map lemma_id -> count of currently reviewable sentences covering it.
+
+    "Covering" means the lemma appears as any word in the sentence, not just
+    its target — this is what the review engine credits, and what determines
+    whether a word is in *deficit* (0 reviewable sentences). Both retirement
+    paths protect only the target's count, so collateral-only words can silently
+    drop to zero; this is the shared count that closes that hole.
+
+    Pass `lemma_ids` to restrict the count to a candidate set (cheaper).
+    """
+    from sqlalchemy import func
+    from sqlalchemy.orm import aliased
+
+    # Alias the outer SentenceWord so it does not auto-correlate with the
+    # SentenceWord inside reviewable_sentence_clauses()'s NOT EXISTS subquery.
+    sw = aliased(SentenceWord)
+    q = (
+        db.query(sw.lemma_id, func.count(func.distinct(Sentence.id)))
+        .join(Sentence, Sentence.id == sw.sentence_id)
+        .filter(sw.lemma_id.isnot(None), reviewable_sentence_clauses())
+    )
+    if lemma_ids is not None:
+        ids = list(lemma_ids)
+        if not ids:
+            return {}
+        q = q.filter(sw.lemma_id.in_(ids))
+    return {lemma_id: cnt for lemma_id, cnt in q.group_by(sw.lemma_id).all()}
