@@ -809,7 +809,9 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
         break
 
     bands: list[FrequencyCoreBand] = []
-    for top_n in (100, 250, 500, 1000, 2000, 5000):
+    # Denser at the frontier (2000-3000) so the active learning zone isn't hidden
+    # by the old 2000->5000 jump; the frontend collapses completed leading tiers.
+    for top_n in (100, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000):
         band_rows = [r for r in rows if r.core_rank <= top_n]
         if not band_rows:
             continue
