@@ -24,6 +24,21 @@ Top unlocks: شط (riverbank), تراب (soil), عاقبة (consequence), نهر
 the throat), اغتسل (to wash). A short, achievable gap — ~150 targeted words reach Nation's
 comfortable-reading threshold (~98%).
 
+### Saud al-Sanousi — *The Bamboo Stalk* (ساق البامبو, 2012), full novel (72,805 tokens)
+The contemporary target (IPAF 2013). Fetched via the AA member fast-download API.
+
+| metric | value |
+|---|---|
+| coverage now (function + known) | **82.4%** |
+| + in-progress vocab | 86.8% |
+| distinct gap words | 2,464 |
+| coverage curve | +50 → 85.7% · +150 → 87.8% · +300 → 89.5% · **+500 → 91.0%** |
+
+Top unlocks mix real content gaps and book-specific vocab: فيليبيني (Filipino — the
+half-Kuwaiti/half-Filipino protagonist, 73×), عاطفة (emotion), ملامح (features), أريكة (sofa),
+نداء (call), أحاط (to surround), plus some recurring names. Reaches ~91% after 500 targeted
+words — close to but short of comfortable reading.
+
 ### Ibrahim Ramzi — *Bab al-Qamar* (باب القمر, 1936), full novel (124,171 tokens)
 A sprawling **historical** novel set in early-Islamic Egypt.
 
@@ -35,20 +50,23 @@ A sprawling **historical** novel set in early-Islamic Egypt.
 | coverage curve | +50 → 83.1% · +150 → 85.1% · +300 → 86.8% · **+500 → 88.1%** |
 
 Top unlocks are dominated by **proper names** (اسكندرية Alexandria, هيلان, امبراطور emperor,
-بطريق patriarch, رؤبة, أوس) and **classical/historical vocabulary** (مولى, بعير camel, بطريق,
+بطريق patriarch, رؤبة, أوس) and **classical/historical vocabulary** (مولى, بعير camel,
 جنّد to conscript, التمس to seek). The curve stays far below the 95–98% threshold even after
 500 words.
 
-## The key insight: book *type* dominates the readiness curve
+## The key insight: register dominates the readiness curve, not vocab size
 
-Same learner, same vocabulary — wildly different curves. The Kanafani chapter reaches 96%
-after ~150 words; the historical novel is still at 88% after 500. The difference isn't
-vocabulary size, it's **register and name density**: contemporary spare prose has a short,
-steep unlock curve; a historical novel carries a long tail of low-frequency classical terms
-and a dense cast of proper names that no realistic study list closes. For the user's
-"genuinely-known words week over week" north star, this argues for **choosing first reading
-material by readiness curve shape, not prestige** — and the analyzer makes that curve
-visible per-book before committing.
+Comparing the **two full novels** (similar enough in size to control for the
+distinct-vocabulary-grows-with-length effect that flattered the short Kanafani excerpt):
+contemporary *Bamboo Stalk* reaches **91% after 500 words**, the 1936 historical
+*Bab al-Qamar* only **88%** — and its gap is a long tail of low-frequency classical terms and
+a dense cast of proper names that no realistic study list closes. Same learner, same
+vocabulary; the readiness curve is set by the **book's register and name density**, not by how
+many words you know. For the "genuinely-known words week over week" north star, this argues for
+**choosing first reading material by readiness-curve shape, not prestige** — the analyzer makes
+that curve visible per-book before committing. (The Kanafani chapter hitting 96% after 150
+words is partly an artifact of its small size — fewer distinct words to cover — so a full
+contemporary novel is the fairer benchmark: ~82% now, a few hundred words from comfortable.)
 
 ## Caveats (this is a cheap estimate, not ground truth)
 
@@ -56,10 +74,11 @@ visible per-book before committing.
   many names (اسكندرية, امبراطور, هيلان) leak into the OOV/gap list instead of being scored
   as readable. A reader recognizes a name without "learning" it, so true readability is higher
   than reported — especially for the name-heavy historical novel.
-- **Lemmatization noise.** The #1 *Bab al-Qamar* "unlock" راوند (297×) is almost certainly a
-  mis-lemmatized name, not a content word. A handful of common verbs (بقي, بكى, التمس) show as
-  OOV because CAMeL's lemma didn't match an Alif row — real gaps or lookup misses, hard to tell
-  cheaply.
+- **Lemmatization noise.** راوند ("curves") recurs as a phantom top-unlock in *both* novels
+  (297× / 85×) — a systematic CAMeL mis-lemmatization (likely a name/form collapsing to that
+  lemma), not a real content word. A handful of common verbs (بقي, بكى, التمس) show as OOV
+  because CAMeL's lemma didn't match an Alif row — real gaps or lookup misses, hard to tell
+  cheaply. Worth a one-off `_LEMMA_OVERRIDES`-style fix if the tool gets recurring use.
 - **Function-word floor.** Particles/names are counted as trivially readable (35% of tokens
   here), which is correct for comprehension but means the "content" gap is the real signal.
 
@@ -67,8 +86,7 @@ visible per-book before committing.
 
 `scripts/reading_readiness.py --text <file>` (accepts `.txt`/`.html`/`.epub`). No LLM; cost is
 CAMeL morphology over the OOV tokens (cached by surface). Texts were scanned for vocabulary
-only; no book content is stored in the repo. The contemporary-novel target originally intended
-(*The Bamboo Stalk*, al-Sanousi) could not be fetched in-environment — Anna's Archive
-fast-download needs a membership cookie and the slow/z-lib mirrors sit behind Cloudflare
-browser challenges — so a full original-Arabic novel from the open Hindawi corpus
-(HuggingFace) stood in for the full-length run.
+only; no book content is stored in the repo. *The Bamboo Stalk* was fetched via the Anna's
+Archive member fast-download API (the slow/z-lib mirrors sit behind Cloudflare browser
+challenges that scripted downloads can't pass); *Bab al-Qamar* came from the open Hindawi
+corpus (HuggingFace).
