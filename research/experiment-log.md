@@ -4,6 +4,43 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-03: Frequency-core data-quality pass — variant remap, stats honesty, tier completion, source audit
+
+Follow-on to the growth+maintenance program (entry below). Triggered by inspecting the stats
+High-Frequency Core card.
+
+**Shipped (deployed):**
+- **Stats honesty (PR #190).** `_compute_frequency_core_progress` reported function words (ال) and
+  variant/compound forms whose canonical is known (اليوم→يوم) as "missing"/"need intro". Now drops
+  function words (content-word coverage) and resolves entries to canonical before counting. Verified
+  live: top-2000 missing 0; gaps are content words.
+- **Variant→canonical FCE remap + invariant guard (PR #193).** 30 `frequency_core_entries` were mapped
+  to inflected-form *variant* lemmas (نَزَّلنَا→نزل, آمر→carrying أمر's count), 10 outright duplicates of
+  the canonical's own entry. Root cause: variant detection links a lemma to canonical *after* the entry
+  was mapped. New idempotent `remap_variant_frequency_core_entries()` re-points (or dedupes) and enforces
+  the invariant *no active FCE entry points to a variant lemma*; wired at the `mark_variants` chokepoint
+  AND the `update_material` cron (catches direct `canonical_lemma_id=` script assignments). One-off prod
+  heal: **20 re-pointed, 10 excluded.** Verified: 0 entries still on a variant. Test
+  `test_frequency_core_variant_remap.py`.
+- **Adaptive bands + tier-complete collapse (PR #194 + 6cccd6f).** Denser frontier bands
+  (1500/2500/3000/4000); frontend collapses completed leading tiers into "✓ Top N complete · M in
+  review". A tier is complete when nothing's left to introduce/import (lapsed = "in review", not blocking).
+- **Low-tier completion (one-off, prod).** Promoted every encountered/new core word + reintroduced every
+  suspended leech at rank ≤2000 (bypassing the cap): **199 promoted, 32 leeches reintroduced, 31 lapsed
+  left** to self-heal on review. Result: Top 100 = 100%, all tiers ≤2000 have 0 need-intro; frontier is
+  now Top 2500 (86.7%) / Top 3000 (74.2%).
+
+**Source audit (the root finding).** Only 3 of 7 designed-in frequency sources are loaded: camel (97%,
+raw surface counts), news (98%), hindawi (34%, *children's books*). The lemmatized learner sources —
+buckwalter, kelly, artenten — and islamic (Quran) are **0% populated** despite columns/loaders/weights.
+So the curriculum runs on un-lemmatized surface counts → counts land on the wrong lemma. **Deep-research
+sweep** (`research/analysis-2026-06-03-arabic-frequency-lists.md`): no single list serves a Quran+classical
+goal; Buckwalter has no downloadable data + is modern-only; the genuinely lemmatized free option is
+Quran-specific (corpus.quran.com, 3,680 ranked lemmas). Rebuild plan tracked as the 🔴 initiative in
+IDEAS.md (Quran track + Kelly scaffold + classical-track follow-up + homograph fixes). **Not yet built.**
+
+---
+
 ## 2026-06-03: Morphology bridge shipped (PR #192) — explain inflected forms on a confused/missed mark
 
 Implements win #1 from the confusion-capture analysis below (`research/analysis-2026-06-03-confusion-captures.md`).
