@@ -4,6 +4,133 @@
 
 ---
 
+## 🔵 [DESIGN READY 2026-06-03] LLM word-value judge (Part C of the growth+maintenance program)
+
+**Why.** Frequency rank is the wrong sole signal for what to learn. "kissing" (rank ~15000) is
+wanted because the user reads erotic stories; "juhri" / OCR garbage is an artefact to drop forever.
+The supply wall at rank 2000–3000 is **224 `frequency_core_entries` flagged `needs_manual_review`**
+(of 225 un-imported ≤3000) — the conservative first-pass judge `_classify_unmapped_entries`
+(`frequency_core_intake.py`) punted on them (requires `confidence=high` + morphological relation;
+anything needing sense/context → `action=skip`). This blocks the user's 2500→3000 goal.
+
+**Key design insight (grounded in the code):** do NOT build a parallel service. Extend the existing
+intake judge with a **richer, artefact-aware second pass** over the `needs_manual_review` backlog,
+and reuse the same verdict shape for the leech + ordering consumers.
+
+**Verdict schema (one judge):** `{is_artefact: bool, is_real_word: bool, usefulness: high|med|low,
+provenance: freq|book|ocr|story, recommended_action: map|create|exclude|defer, lemma_ar/bare/gloss,
+reason}`.
+
+**Three consumers:**
+1. **Intake (highest value, do first):** `judge_needs_manual_review_entries()` — second pass that
+   (a) sets `excluded_reason='artefact'` on OCR/junk so they stop being retried, (b) for real,
+   useful, context-dependent words makes a best-effort map/create (slightly more permissive than the
+   first pass but still `_related_to_source`-checked and routed through `run_quality_gates`),
+   (c) `defer` only when genuinely unresolvable. Run over rank ≤2500 first, then ≤3000.
+2. **Leech reintro (`leech_service.py`):** before timer-based reintro, judge: artefact → drop
+   permanently; hard-but-real low-freq → event-driven reintro (only on re-encounter, not timer);
+   useful → steeper chronic escalation. Pairs with the existing low-priority 60-day cap.
+3. **Intro ordering (`word_selector.py`):** provenance/usefulness boosts so a user-content word
+   (story/OCR) outranks raw frequency, and a hard word doesn't overshadow easier ones.
+
+**Caveat:** leech *timing* params can't be validated by the simulator (no per-word difficulty); use
+real-data backtest. Artefact-filtering + intake are data-driven and shippable without the sim.
+
+**Status:** design ready, branch not yet cut — its own focused session (new LLM subsystem + a prod
+intake run). Parts A (deficit fix) + B (throttle) shipped & deployed 2026-06-03 (PR #189).
+
+## 🔵 [TODO 2026-06-03] Stats display honesty (Part D)
+"Top frequency gaps" in the stats currently lists function words (ال), merged compounds (اليوم→يوم),
+and suspended leeches — not genuine missing content. Classify gaps: exclude function/merged/
+`excluded_reason` artefacts, show suspended separately, so "% of top-N covered" is an honest
+denominator for the 2500→3000 goal. Small; backend `learning_analysis.py` frequency-coverage section
++ the frontend stats screen.
+
+---
+
+## 🟡 [ANALYSIS DONE 2026-06-03] Confusion + Hard-flag pedagogy — wins & experiments
+
+First full analysis of the confusion-capture data (the planned pass from the PR #167 entry below) **plus**
+the broader `was_confused` / `variant_stats_json` corpus. Full write-up:
+`research/analysis-2026-06-03-confusion-captures.md`. Headline findings:
+
+- **Picker precision is strong, recall is the gap.** 21/21 suggested-picks were in the offered list
+  (57% rank-0, median 0). But of 15 free-text captures, the actually-confused word had been **missed
+  12/15** — that's why the user typed. Misses: ed≤1 matches truncated at the 8-visual cutoff (نام/صام
+  rank 9, بث/بحث rank 8), same-root forms buried by the `len_gap*2` penalty (حساب/حاسوب rank 49), one
+  un-modeled anagram (مبدأ/معبد), one nisba data-quality mask (جُحْري vs جُحْر), 2 pure meaning-misses.
+- **Most "Hard" flags are *form recognition*, not word-identity confusion.** Of 943 `was_confused`
+  reviews only 36 named another word; on the 125 post-picker flags, **85% were on a non-dictionary
+  (inflected/clitic) form**, only 6% were the bare dictionary form. Confused words took ~60% longer
+  (37.6s vs 23.4s). Verb conjugation ~28%, noun/adj inflection ~24%, ال/case ~23% (likely just
+  forgetting — *don't* grammar-treat these), prepositions ~15%. Hardest sub-class: derivational
+  nominalization mapped back to a verb (التخطيط→خطط, اللاعب→لعب, المسروقة→سرق).
+- **Mechanism taxonomy (n=36):** 33% same-root derivation, 42% other visual (dots/rasm/rhyme/insert),
+  8% phonetic (س/ص), 6% pure meaning.
+- **The morphology bridge already exists** in `WordInfoCard` (clitic→stem→suffix color bands via
+  `decompose_surface`, lib/review/WordInfoCard.tsx:530) but is **pull (tap), not push**.
+- **`variant_stats_json` already collects per-surface `{seen,missed,confused,form_key}`** on the
+  canonical ULK — exactly the per-form confusion signal — but is **write-only; nothing reads it**, and
+  it is **not query-ready**: only 7% of confused surfaces carry a `form_key` (the tagger
+  `_match_surface_form` only matches strings already in `forms_json` after stripping ال). Running the
+  stronger `decompose_surface` recovers ~45% of the untagged into real form types; ~55% (irregulars,
+  broken plurals, true identity) resist without CAMeL or richer `forms_json`.
+
+### OBVIOUS WINS (data-backed, mostly reuse existing code)
+
+1. **[BIGGEST] Push the morphology bridge on a Hard/confused mark, branching on cause.** When a word is
+   rated confused and `surface_bare != lemma_bare` and it's not ال/case-only, auto-reveal the existing
+   `WordInfoCard` decomposition ("يُفْسِدُ = present of أَفْسَدَ 'to spoil'"). If surface == dictionary or
+   ال-only → skip (that's recall; handle with SRS timing). 85% of Hard flags are form-related and the
+   engine already explains the form — it just isn't shown at the moment of difficulty. Wiring, not new logic.
+2. **Confusion-picker recall fixes** (`confusion_service.find_similar_words`): (a) force `edit_distance==1`
+   visual matches into the visible top-8, or raise visual `max_results` 8→10; (b) shrink the `len_gap*2`
+   penalty when `same_root`; (c) add a non-adjacent anagram signal (`sorted(a)==sorted(b)`). Each maps to
+   a specific documented miss.
+3. **Name the pattern (wazn) in the decomposition label** — extend `FORM_KEY_LABELS`/pattern naming so
+   active participle (فاعِل), passive participle (مَفْعول), maṣdar patterns are spelled out instead of a bare
+   stem. The derivational cases are the hardest and currently the least explained.
+4. **Classify `variant_stats_json` at WRITE time with `decompose_surface`** (not the weak
+   `_match_surface_form`); store `form_key` + clitic-type per entry. Then "which form is most confused
+   across all lemmas" becomes a real `GROUP BY` instead of compute-on-read over raw strings.
+5. **Add `surface_form` column to `ConfusionCapture`** — cheap; makes explicit captures self-contained
+   (today the form is only join-recoverable via `sentence_id`).
+
+### EXPERIMENTS (need design + measurement; payoff uncertain)
+
+- **Reason chips on the confused card** — one tap: "mixed up with another word" (→ picker) / "didn't
+  recognize the form" (→ records `reason=grammar`, auto-expands decomposition) / "just forgot it"
+  (→ `reason=recall`). Gives the *causal* label the surface form can't, and unifies win #1 with data
+  capture. Risk: friction lowers capture rate — A/B vs current.
+- **Root-derivation family card** (لَعِبَ→لَعِب→لاعِب→مَلْعَب with pattern labels). Teaches the verb↔noun
+  derivation 24%+ of misses turn on; also answers the 33% same-root picker confusions. Ties into the
+  in-progress **Root-showcase sentences** idea below.
+- **Pattern grammar-features + micro-lessons** via the existing `grammar_features` system: tag verb-form
+  (I–X) / participle / maṣdar patterns, slot a tiny lesson after N stumbles on a pattern. Data-driven
+  priorities: present conjugation, maṣdar nominalization, broken plurals.
+- **Contrastive pairing / contrast drills** for captured confusion pairs (قدِم/قدَم, شهير/شهري) — schedule
+  both in one generated sentence or adjacent cards. (Already floated in the PR #167 entry below; now
+  data-supported for the same-root cohort.)
+- **Per-form scaffolding/leech**: when `variant_stats_json[form].confused` is high while the canonical is
+  "known", schedule a sentence using *that* form or surface its derivation. Blocked on win #4 (queryable
+  data) and on more volume — at 448 confused events, mostly count=1, it's enough to prioritize *which
+  patterns to teach*, not to gate individual cards.
+
+### ENABLERS / DATA QUALITY
+
+- **CAMeL morphology** (already a dependency) to classify the ~55% of confused surfaces `decompose_surface`
+  can't, including irregular/broken-plural forms — pushes form-tagging toward complete.
+- **Base-noun lemmas alongside nisba/derived forms** (جُحْر vs جُحْري) so metathesis/identity pairs aren't masked.
+- **wazn backfill** (see Root-showcase entry's `Lemma.wazn`-NULL caveat) — helps pattern naming (win #3),
+  root-family cards, and per-form analysis alike.
+
+### CAVEATS carried forward
+- n=36 captures / 125 post-picker flags, single-user — percentages are directional.
+- Pre-2026-05-27 `was_confused`/`confused` counts are noisy (predate the picker; could be forget/grammar/
+  confusion) — use only for surface-form distribution, never intent.
+
+---
+
 ## 🔵 [TODO 2026-06-01] Polyglot Latin: general gender/POS-contradiction lemma guard
 
 `la.py` `_LEMMA_OVERRIDES` (branch `sh/polyglot-latin-homograph-guard`) corrects LatinCy lemma errors whose hallmark is that the assigned lemma's morphological class **contradicts the POS/Gender LatinCy tagged on the same token** (`pilum`: tagged Neut, lemma'd to masculine `pilus`). Today this is a curated per-surface table. The general version would, for any token, detect when the assigned lemma's declension gender/POS disagrees with the tag and look up a same-stem homograph lemma of the matching class — catching the whole class without enumeration. **Blocked on data**: we don't store per-lemma gender/morph-class on `Lemma` rows. When we do (or can derive it from `forms_json`), generalize the override into a deterministic guard and shrink the table. Until then, extend `_LEMMA_OVERRIDES` per confirmed case and run `scripts/audit_homograph_mappings.py` as the discovery sweep.
@@ -31,6 +158,8 @@ Showcase sentences drop into the regular session pool — each surface form earn
 User observed that real confusions don't match algorithmic clusters (same-root, gloss-keyword overlap, surface-prefix). Algorithm-driven cluster-aware features would target the wrong pairs. Built a passive capture layer: on yellow ("did not recognize") taps, a small collapsed "Confused with another word?" link below WordInfoCard expands into 5 similar/phonetic candidate chips + a free-text input. Each capture stored to new `confusion_captures` table with explicit `capture_method` ('suggested_pick' | 'free_text') and `candidates_shown_json` (so later analysis can answer "did the algorithm guess right?"). No scheduling change yet — pure data collection. Migration `f8a9b0c1d234`. Tests `TestConfusionCapture` in `test_sentence_review.py`.
 
 After ~50+ captures, an ad-hoc Claude analysis pass will: (a) compute capture rate among yellow taps, (b) compute `suggested_pick` vs `free_text` ratio (algorithm-precision proxy), (c) batch-resolve free-text entries against the lemma DB to compute candidate-hit rate (% of confusions where the actual word was in `candidates_shown_json`). Low candidate-hit rate empirically confirms the user's claim and unlocks replacement strategies. High candidate-hit rate means current similarity heuristics are mostly OK and the issue is elsewhere (e.g., user attention / context cues).
+
+> **Analysis done 2026-06-03** (at 36 captures) → see the top entry "Confusion + Hard-flag pedagogy — wins & experiments" and `research/analysis-2026-06-03-confusion-captures.md`. Verdict: precision high, recall is the gap; and most Hard flags are *form recognition*, not word confusion.
 
 **Downstream ideas (pre-data, not yet decided):**
 - Contrastive pairing in `sentence_selector`: if A and B are observed-confused often, schedule them together with ≥5 cards between.
