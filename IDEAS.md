@@ -4,6 +4,36 @@
 
 ---
 
+## 🔴 [INITIATIVE 2026-06-03] Rebuild the frequency core on properly-lemmatized sources
+
+**Root finding.** The frequency core's quality problems all trace to **un-lemmatized source data**.
+Of the 7 designed-in sources, only 3 are loaded: `camel` (97%, raw morphological-analyzer SURFACE
+counts), `news` (98%), `hindawi` (34%, **children's books** — not classical lit). The
+learner-grade *lemmatized* sources are **0% populated despite columns/loaders/weights existing**:
+`buckwalter` (Buckwalter & Parkinson *A Frequency Dictionary of Arabic* — canonical 5k-lemma learner
+list, sense-disambiguated), `kelly` (Leeds Kelly M3, CEFR-tagged), `artenten`, and `islamic` (Quran).
+Because counts are surface-form, they land on the wrong lemma: آمر "to command" sits at **#10**
+carrying the frequency of the noun أمر "matter" (which itself sits at #1384); نَزَّلنَا (inflection)
+ranked top-1000. This is the recurring lemmatization/data-cleanup pain, at the curriculum's root.
+
+**Plan (in order):**
+1. **Deep-research sweep (LAUNCHED 2026-06-03, wf_bc3c3923)** — vet/locate high-quality LEMMATIZED
+   Arabic frequency lists (Buckwalter&Parkinson, Kelly, Aralex, arTenTen, SUBTLEX-AR, Quranic Arabic
+   Corpus) for lemmatization quality, classical/Quran coverage, licensing, obtainability.
+2. **Rebuild the core** from the best lemmatized sources + reweight away from children's-lit/news.
+   A lemmatized source natively fixes the homograph/inflection conflation class.
+3. **Quran-frequency track (#1 from chat)** — compute real Quran word frequency from the imported
+   `QuranicVerseWord` corpus (the `islamic` source is empty) so Quran/classical vocab is prioritized
+   for the user's stated goal, instead of being ranked by news frequency.
+4. **Homograph conflation fixes (#2 from chat)** — re-attach surface counts to the right lemma
+   (آمر↔أمر first); folds into the value-judge / lemma-quality work.
+
+**Shipped already (2026-06-03):** variant→canonical remap (inflected-form entries, PR #193) + invariant
+guard; low-tier completion (199 promoted, 32 leeches reintroduced); stats honesty (function-word/variant
+exclusion, PR #190); adaptive bands + tier-complete collapse (PR #194 + follow-up).
+
+---
+
 ## 🔵 [DESIGN READY 2026-06-03] LLM word-value judge (Part C of the growth+maintenance program)
 
 **Why.** Frequency rank is the wrong sole signal for what to learn. "kissing" (rank ~15000) is
