@@ -18,7 +18,16 @@ Usage:
   PYTHONPATH=. python3 scripts/reading_readiness.py --text /path/to/book.txt \
       [--title "The Bamboo Stalk"] [--top 40] [--json out.json]
 
-Takes a plain-text file. No text content or provenance is stored in this repo.
+Takes a text/HTML/EPUB file. No text content or provenance is stored in this repo.
+
+CANONICAL TEXT→LEMMA PATH (reuse this; do NOT hand-roll). Mapping goes through
+the production-hardened lookup — `build_comprehensive_lemma_lookup` +
+`lookup_lemma` (clitic stripping + CAMeL disambiguation + collision handling) —
+and every token is classified by the RESOLVED lemma's production attributes
+(`_is_function_word` on the lemma bare, `word_category` for proper names), NOT by
+surface-only guesses. A surface-only function check misses clitic-attached forms
+(بعضهم → lemma بعض) and silently inflates the gap list. Future text-scanning work
+should call `analyze()` / this same lookup, not re-implement tokenize+normalize+classify.
 """
 
 from __future__ import annotations
@@ -111,7 +120,9 @@ def analyze(db, text: str, top: int) -> dict:
     )
     glosses = dict(db.query(Lemma.lemma_id, Lemma.gloss_en).all())
     bares = dict(db.query(Lemma.lemma_id, Lemma.lemma_ar).all())
+    lemma_bares = dict(db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all())
     poss = dict(db.query(Lemma.lemma_id, Lemma.pos).all())
+    cats = dict(db.query(Lemma.lemma_id, Lemma.word_category).all())
     camel_cache: dict = {}
 
     tokens = tokenize(text)
@@ -150,9 +161,18 @@ def analyze(db, text: str, top: int) -> dict:
                 counts["unmapped"] += 1
                 unmapped_surface_freq[camel_lemma] += 1
             continue
-        # A mapped lemma whose POS is a particle is really a function word.
-        if poss.get(lemma_id) == "particle":
+        # Classify by the RESOLVED lemma using production-hardened truth, not the
+        # raw surface: the surface function-word check above misses clitic-attached
+        # forms (بعضهم → lemma بعض), and word_category is the authoritative
+        # proper-name signal (not a CAMeL POS guess). This keeps the analysis
+        # consistent with how the live pipeline filters words.
+        lemma_bare = lemma_bares.get(lemma_id) or ""
+        if (poss.get(lemma_id) == "particle"
+                or _is_function_word(normalize_alef(strip_diacritics(lemma_bare)))):
             counts["function"] += 1
+            continue
+        if cats.get(lemma_id) in {"proper_name", "onomatopoeia"}:
+            counts["function"] += 1  # readable, inert — never a learning gap
             continue
         state = states.get(lemma_id)
         if state in KNOWN:
@@ -202,7 +222,36 @@ def analyze(db, text: str, top: int) -> dict:
         },
         "top_unlocks": gaps[:top],
         "coverage_curve": curve,
+        "gaps_full": [{"lemma_id": g["lemma_id"], "kind": g["kind"],
+                       "display": g["display"], "count": g["count"]} for g in gaps],
     }
+
+
+def _compare_to_core(db, result: dict, top_n: int) -> dict:
+    """How many of the top-N in-vocab gap words are in frequency_core_entries?"""
+    from app.models import FrequencyCoreEntry
+    invocab = [g for g in result["gaps_full"] if g["kind"] == "new_in_vocab"][:top_n]
+    ids = [g["lemma_id"] for g in invocab if g["lemma_id"] is not None]
+    core_rank = dict(
+        db.query(FrequencyCoreEntry.lemma_id, FrequencyCoreEntry.core_rank)
+        .filter(FrequencyCoreEntry.lemma_id.in_(ids)).all()
+    ) if ids else {}
+    bands = [("core ≤500", 500), ("core ≤1000", 1000), ("core ≤2000", 2000),
+             ("core ≤5000", 5000)]
+    counts = {label: 0 for label, _ in bands}
+    not_in_core = []
+    for g in invocab:
+        rk = core_rank.get(g["lemma_id"])
+        if rk is None:
+            not_in_core.append(g)
+            continue
+        for label, hi in bands:
+            if rk <= hi:
+                counts[label] += 1
+                break
+    oov = [g for g in result["gaps_full"] if g["kind"] == "unmapped"]
+    return {"invocab_considered": len(invocab), "band_counts": counts,
+            "not_in_core": not_in_core, "oov_total": len(oov)}
 
 
 def main() -> None:
@@ -211,12 +260,15 @@ def main() -> None:
     ap.add_argument("--title", default=None, help="Display title for the report")
     ap.add_argument("--top", type=int, default=40, help="How many top unlocks to show")
     ap.add_argument("--json", type=Path, default=None, help="Write full result JSON here")
+    ap.add_argument("--compare-core", type=int, default=0, metavar="N",
+                    help="Compare the top-N in-vocab gap words against frequency_core_entries")
     args = ap.parse_args()
 
     text = load_text(args.text)
     db = SessionLocal()
     try:
         r = analyze(db, text, args.top)
+        core_cmp = _compare_to_core(db, r, args.compare_core) if args.compare_core else None
     finally:
         db.close()
 
@@ -247,6 +299,22 @@ def main() -> None:
     print(f"\n=== COVERAGE CURVE (learn top-N gap words → coverage) ===")
     for pt in r["coverage_curve"]:
         print(f"  +{pt['words_learned']:4d} words → {pt['coverage_pct']:5.1f}%")
+
+    if core_cmp:
+        cc = core_cmp
+        inc = max(cc["invocab_considered"], 1)
+        in_core = sum(cc["band_counts"].values())
+        print(f"\n=== VS FREQUENCY CORE (top {cc['invocab_considered']} in-vocab gaps) ===")
+        print(f"  already in the frequency core: {in_core}/{cc['invocab_considered']} "
+              f"({in_core/inc*100:.0f}%) — the existing intro pipeline reaches these")
+        for label, n in cc["band_counts"].items():
+            print(f"     {label:12}: {n}")
+        print(f"  NOT in the core (book-specific): {len(cc['not_in_core'])} "
+              f"({len(cc['not_in_core'])/inc*100:.0f}%)")
+        print(f"  + OOV words not in Alif vocab at all: {cc['oov_total']} "
+              f"(names + new content — none in the core)")
+        print(f"  book-specific in-vocab examples: "
+              + ", ".join(g['display'] for g in cc['not_in_core'][:15]))
 
     if args.json:
         args.json.write_text(json.dumps(r, ensure_ascii=False, indent=2), encoding="utf-8")

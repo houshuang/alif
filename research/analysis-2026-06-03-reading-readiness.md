@@ -29,10 +29,14 @@ The contemporary target (IPAF 2013). Fetched via the AA member fast-download API
 
 | metric | value |
 |---|---|
-| coverage now (function + known) | **82.4%** |
-| + in-progress vocab | 86.8% |
+| coverage now (function + known) | **83.7%** |
+| + in-progress vocab | 87.8% |
 | distinct gap words | 2,464 |
-| coverage curve | +50 → 85.7% · +150 → 87.8% · +300 → 89.5% · **+500 → 91.0%** |
+| coverage curve | +50 → 86.5% · +150 → 88.4% · +300 → 90.0% · **+500 → 91.5%** |
+
+(Numbers reflect the production-hardened classification: tokens are classified by the
+**resolved** lemma's `word_category`/`_is_function_word`, so clitic-attached function words
+like بعضهم→بعض count as readable rather than leaking into the gap list.)
 
 Top unlocks mix real content gaps and book-specific vocab: فيليبيني (Filipino — the
 half-Kuwaiti/half-Filipino protagonist, 73×), عاطفة (emotion), ملامح (features), أريكة (sofa),
@@ -53,6 +57,20 @@ Top unlocks are dominated by **proper names** (اسكندرية Alexandria, هي
 بطريق patriarch, رؤبة, أوس) and **classical/historical vocabulary** (مولى, بعير camel,
 جنّد to conscript, التمس to seek). The curve stays far below the 95–98% threshold even after
 500 words.
+
+## The book's gaps vs the frequency core (the plan-deciding comparison)
+
+Of *The Bamboo Stalk*'s ~327 **introduce-ready** (in-vocab) gap lemmas, **92% (300) are
+already in the frequency core** — concentrated at **core rank 2,000–5,000** (89 ≤2000, 206
+≤5000; only 5 in the top 1,000), i.e. exactly the user's current learning frontier. Only ~27
+are genuinely book-specific (real content like منخر "nostril", معصم "wrist", فقس "to hatch").
+The other ~2,100 distinct gaps are **OOV** — proper names + words Alif has no lemma for.
+
+**Conclusion for "the plan with the 500 words": reading this novel ≈ finishing the frequency
+core out to ~5,000, not a separate vocabulary project.** The existing frequency-core intro
+pipeline (gated at 30/day) is the right lever; a book-specific "reading-target" lane would only
+front-load the ~200 core words this book leans on + create a handful of genuine OOV content
+words — marginal. The 91% ceiling is dominated by names/OOV, inherent to the book.
 
 ## The key insight: register dominates the readiness curve, not vocab size
 

@@ -37,6 +37,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 ## Alif — Arabic NLP gotchas
 - [CAMeL MLE feminine ة → 3ms_poss misread](feedback_camel_mle_fem_ta_marbuta_misread.md) — any LLM gate over CAMeL MLE output must warn about this; 22/33 false "valid" canonicals.
 - [Quran dagger-alef (U+0670) strip-order bug](feedback_quran_dagger_alef_normalization.md) — normalize before stripping or خَٰلِدُونَ collapses to the name Khaldūn. PR #186.
+- [Text→lemma mapping: reuse the hardened path](feedback_text_to_lemma_hardened_path.md) — for any Arabic-text→lemma scan use `build_comprehensive_lemma_lookup`+`lookup_lemma` and classify by the RESOLVED lemma's `word_category`/`_is_function_word`, never surface-only. Ref impl: `scripts/reading_readiness.py`. (Surface-only fw check leaked بعضهم→بعض; caught 2026-06-03.)
 - [Quran frequency track (islamic source)](project_quran_frequency_track.md) — `islamic_rank` from the committed QAC v0.4 file via `quran_frequency.py`; rebuild the core after deploy to populate it. NOT from QuranicVerseWord (dead end). Classical track = no-go. PR #195.
 
 ## Polyglot — rules & gotchas
