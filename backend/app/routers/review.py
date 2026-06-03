@@ -985,6 +985,7 @@ def confusion_help(
         ],
         phonetic_lemma_ids=[w.get("lemma_id") for w in result.get("phonetic_similar", [])],
         has_decomposition=result.get("decomposition") is not None,
+        morph_category=(result.get("morphology") or {}).get("category"),
     )
 
     return result

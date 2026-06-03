@@ -776,6 +776,77 @@ def find_phonetically_similar(
     return results[:max_results]
 
 
+# مضارع (present-tense) subject prefixes. أ is included but only fires when the
+# lemma (stored as past) doesn't itself start with it — guards Form-IV pasts (أفسد).
+_PRESENT_PREFIXES = ("ي", "ت", "ن", "أ")
+_PROCLITICS_LONGEST_FIRST = ("وال", "بال", "فال", "كال", "لل", "و", "ف", "ب", "ل", "ك")
+
+
+def classify_surface_morphology(surface_bare: str, lemma: "Lemma | None") -> dict | None:
+    """Classify how an inflected surface differs from its dictionary lemma.
+
+    Returns None when the surface IS the dictionary form (no gap) or carries only
+    the definite article (trivial — not worth a bridge). Otherwise returns:
+
+        {"category": "verb_present" | "verb_other" | "derived_form"
+                     | "proclitic" | "enclitic" | "inflection",
+         "form_key": <forms_json key matched by decompose_surface, or None>,
+         "explanation": <one-line surface->lemma bridge, or None>}
+
+    `explanation` is populated only for the verb-tense cases that
+    `decompose_surface` (and therefore the WordInfoCard color bands) cannot
+    render; for proclitic/enclitic/derived_form the bands already show the
+    breakdown, so we leave it None to avoid a redundant line. Used to (a) push
+    the morphology bridge in review, (b) populate `variant_stats_json`, (c) log
+    the morphological cause of a confusion.
+    """
+    if not lemma or not surface_bare:
+        return None
+    lemma_bare = lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar or "")
+    if not lemma_bare or surface_bare == lemma_bare:
+        return None
+
+    decomp = decompose_surface(surface_bare, lemma_bare, getattr(lemma, "forms_json", None))
+    prefix_clitics = decomp.get("prefix_clitics") if decomp else []
+    suffix_clitics = decomp.get("suffix_clitics") if decomp else []
+    form_key = decomp.get("matched_form_key") if decomp else None
+
+    # Pure definite article (ال + stem == lemma) — trivial, suppress the bridge.
+    if (
+        decomp
+        and not suffix_clitics
+        and not form_key
+        and [c.get("text") for c in prefix_clitics] == ["ال"]
+    ):
+        return None
+
+    gloss = (lemma.gloss_en or "").strip()
+    lemma_ar = lemma.lemma_ar or lemma_bare
+    of_lemma = f"“{gloss}” ({lemma_ar})" if gloss else f"({lemma_ar})"
+
+    # Verb tense — only when decompose didn't already match a stored form.
+    if lemma.pos == "verb" and not form_key:
+        core = surface_bare
+        for pro in _PROCLITICS_LONGEST_FIRST:
+            if core.startswith(pro) and len(core) > len(pro) + 1:
+                core = core[len(pro):]
+                break
+        if core and core[0] in _PRESENT_PREFIXES and not lemma_bare.startswith(core[0]):
+            return {"category": "verb_present", "form_key": None,
+                    "explanation": f"present-tense form of {of_lemma}"}
+        return {"category": "verb_other", "form_key": None,
+                "explanation": f"a conjugated form of {of_lemma}"}
+
+    if form_key:
+        return {"category": "derived_form", "form_key": form_key, "explanation": None}
+    if suffix_clitics:
+        return {"category": "enclitic", "form_key": None, "explanation": None}
+    if prefix_clitics:
+        return {"category": "proclitic", "form_key": None, "explanation": None}
+    # Surface differs but nothing matched (irregular / broken plural not in forms_json).
+    return {"category": "inflection", "form_key": None, "explanation": None}
+
+
 def analyze_confusion(
     db: Session,
     lemma_id: int,
@@ -815,8 +886,13 @@ def analyze_confusion(
     # 3. Prefix disambiguation hint
     prefix_hint = _build_prefix_hint(surface_bare, lemma_bare, lemma.root, decomposition)
 
-    # Determine confusion type
-    has_morph = decomposition is not None
+    # 4. Morphology classification — coarse category + a one-line surface->lemma
+    #    explanation for the verb-tense cases the color-band decomposition can't show.
+    morphology = classify_surface_morphology(surface_bare, lemma)
+
+    # Determine confusion type. A verb-tense explanation counts as morphological
+    # even when decompose_surface returned nothing (so the bridge data still flows).
+    has_morph = decomposition is not None or bool(morphology and morphology.get("explanation"))
     has_visual = len(similar_words) > 0
 
     if has_morph and has_visual:
@@ -835,6 +911,7 @@ def analyze_confusion(
         "lemma_ar": lemma.lemma_ar,
         "gloss_en": lemma.gloss_en,
         "decomposition": decomposition,
+        "morphology": morphology,
         "similar_words": similar_words,
         "phonetic_similar": phonetic_similar,
         "prefix_hint": prefix_hint,

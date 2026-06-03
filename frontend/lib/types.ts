@@ -1101,6 +1101,18 @@ export interface PrefixHint {
   hint_text: string;
 }
 
+export interface SurfaceMorphology {
+  category:
+    | "verb_present"
+    | "verb_other"
+    | "derived_form"
+    | "proclitic"
+    | "enclitic"
+    | "inflection";
+  form_key: string | null;
+  explanation: string | null;
+}
+
 export interface ConfusionAnalysis {
   confusion_type: "morphological" | "visual" | "both" | null;
   surface_form: string;
@@ -1108,6 +1120,7 @@ export interface ConfusionAnalysis {
   lemma_ar: string;
   gloss_en: string | null;
   decomposition: MorphDecomposition | null;
+  morphology: SurfaceMorphology | null;
   similar_words: SimilarWordItem[];
   phonetic_similar: PhoneticSimilarItem[];
   prefix_hint: PrefixHint | null;

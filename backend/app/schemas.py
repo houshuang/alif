@@ -914,6 +914,12 @@ class PrefixHint(BaseModel):
     root_meaning: str | None = None
     hint_text: str
 
+class SurfaceMorphology(BaseModel):
+    category: str  # verb_present | verb_other | derived_form | proclitic | enclitic | inflection
+    form_key: str | None = None
+    explanation: str | None = None
+
+
 class ConfusionAnalysisOut(BaseModel):
     confusion_type: str | None  # "morphological" | "visual" | "both" | None
     surface_form: str
@@ -921,6 +927,7 @@ class ConfusionAnalysisOut(BaseModel):
     lemma_ar: str
     gloss_en: str | None = None
     decomposition: MorphDecomposition | None = None
+    morphology: SurfaceMorphology | None = None
     similar_words: list[SimilarWord] = []
     phonetic_similar: list[PhoneticSimilarWord] = []
     prefix_hint: PrefixHint | None = None
