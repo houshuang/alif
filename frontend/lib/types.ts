@@ -631,6 +631,7 @@ export interface Analytics {
   benchmarks?: ProgressBenchmarks | null;
   daily_goal?: DailyGoal | null;
   frequency_core?: FrequencyCoreProgress | null;
+  quran_core?: FrequencyCoreProgress | null;
 }
 
 export interface GraduatedWord {

@@ -233,6 +233,7 @@ class AnalyticsOut(BaseModel):
     benchmarks: Optional[ProgressBenchmarks] = None
     daily_goal: Optional[DailyGoalOut] = None
     frequency_core: Optional[FrequencyCoreProgress] = None
+    quran_core: Optional[FrequencyCoreProgress] = None
 
 
 class StabilityBucket(BaseModel):

@@ -66,7 +66,11 @@ SOURCE_WEIGHTS = {
     "kelly": 650.0,
     "hindawi": 850.0,
     "news": 750.0,
-    "islamic": 150.0,
+    # Quran (Quranic Arabic Corpus, lemmatized) — a primary learning goal, so it
+    # leads the weighting rather than trailing it. Raised 150 → 700 (2026-06-03)
+    # when the islamic source was finally populated from real, genuinely
+    # lemmatized Quran frequencies (was 0% populated; see quran_frequency.py).
+    "islamic": 700.0,
 }
 BROAD_FREQUENCY_SOURCES = {"camel", "buckwalter", "artenten", "kelly"}
 FREQUENCY_SOURCES = set(SOURCE_WEIGHTS)
@@ -566,7 +570,11 @@ def apply_source_agreement_penalty(cand: CoreCandidate) -> None:
     strong_sources = count_strong_frequency_sources(cand)
 
     has_curriculum_boost = any(f"db_{source}" in cand.source_flags for source in DB_SOURCE_BOOST)
-    if strong_sources >= 2 or has_curriculum_boost:
+    # A high Quran frequency is its own corroboration for the user's
+    # Quran/classical goal — don't downrank a Quran-frequent word just because
+    # the modern MSA corpora (news/camel) don't also rank it.
+    quran_evidence = cand.islamic_rank is not None and cand.islamic_rank <= STRONG_SOURCE_RANK_LIMITS["islamic"]
+    if strong_sources >= 2 or has_curriculum_boost or quran_evidence:
         return
 
     cand.score *= SOURCE_AGREEMENT_PENALTY
@@ -685,6 +693,29 @@ def build_candidates(args: argparse.Namespace) -> list[CoreCandidate]:
                     count=count,
                     include_function_words=args.include_function_words,
                 )
+
+        if not args.no_quran:
+            from app.services.quran_frequency import QAC_DEFAULT_PATH, map_quran_frequencies
+            quran_path = args.quran_morphology or QAC_DEFAULT_PATH
+            if Path(quran_path).exists():
+                ranked, _ = map_quran_frequencies(
+                    db, lemma_lookup=lemma_lookup, lemmas_by_id=lemmas_by_id,
+                    path=quran_path,
+                )
+                for lemma_id, rank, count in ranked:
+                    lemma = lemmas_by_id.get(lemma_id)
+                    if lemma is None:
+                        continue
+                    add_source_for_lemma(
+                        candidates,
+                        lemma=lemma,
+                        source="islamic",
+                        rank=rank,
+                        count=count,
+                        include_function_words=args.include_function_words,
+                    )
+            else:
+                print(f"  Quran morphology file not found at {quran_path}; skipping islamic source")
 
         add_db_source_boosts(candidates, lemmas, args.include_function_words)
         for cand in candidates.values():
@@ -810,6 +841,15 @@ def main() -> None:
     )
     parser.add_argument("--news", type=Path, default=None, help="Optional news/OSIAN ranked TSV/CSV")
     parser.add_argument("--islamic", type=Path, default=None, help="Optional Islamic/classical ranked TSV/CSV")
+    parser.add_argument(
+        "--quran-morphology",
+        type=Path,
+        default=None,
+        help="Quranic Arabic Corpus morphology file (Buckwalter); defaults to "
+             "data/frequency_sources/quranic-corpus-morphology-0.4.txt. Feeds the "
+             "lemmatized 'islamic' source via app.services.quran_frequency.",
+    )
+    parser.add_argument("--no-quran", action="store_true", help="Do not derive the islamic source from the Quran corpus")
     args = parser.parse_args()
 
     entries = build_candidates(args)

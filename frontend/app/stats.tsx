@@ -106,6 +106,15 @@ export default function StatsScreen() {
         <FrequencyCoreCard data={analytics.frequency_core} />
       )}
 
+      {analytics.quran_core && (
+        <FrequencyCoreCard
+          data={analytics.quran_core}
+          title="Quran Core"
+          subtitleSuffix="of the Quran"
+          gapTitle="Next Quran introduction candidates"
+        />
+      )}
+
       {/* Acquisition Pipeline */}
       {deepAnalytics?.acquisition_pipeline && (
         <AcquisitionPipelineCard pipeline={deepAnalytics.acquisition_pipeline} insights={deepAnalytics?.insights} />
@@ -503,7 +512,17 @@ function WordLifecycleFunnel({
   );
 }
 
-function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
+function FrequencyCoreCard({
+  data,
+  title = "High-Frequency Core",
+  subtitleSuffix,
+  gapTitle = "Next core introduction candidates",
+}: {
+  data: FrequencyCoreProgress;
+  title?: string;
+  subtitleSuffix?: string;
+  gapTitle?: string;
+}) {
   // Headline auto-advances: smallest band still under 95% learned, falling back
   // to the largest available band when every smaller tier is near-complete.
   const sortedBands = [...data.bands].sort((a, b) => a.top_n - b.top_n);
@@ -535,9 +554,9 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
     <View style={styles.freqCoreCard}>
       <View style={styles.freqCoreHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.freqCoreTitle}>High-Frequency Core</Text>
+          <Text style={styles.freqCoreTitle}>{title}</Text>
           <Text style={styles.freqCoreSubtitle}>
-            top {focusBand.top_n}: {focusBand.learned_count} learned · {focusBand.not_introduced_count} need intro
+            top {focusBand.top_n}{subtitleSuffix ? ` ${subtitleSuffix}` : ""}: {focusBand.learned_count} learned · {focusBand.not_introduced_count} need intro
           </Text>
         </View>
         <View style={styles.freqCoreBadge}>
@@ -614,7 +633,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
       {gaps.length > 0 && (
         <View style={styles.freqCoreGaps}>
-          <Text style={styles.freqCoreGapTitle}>Next core introduction candidates</Text>
+          <Text style={styles.freqCoreGapTitle}>{gapTitle}</Text>
           {gaps.map((gap) => (
             <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
               <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
