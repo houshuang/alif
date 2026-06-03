@@ -511,10 +511,11 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
     sortedBands.find((b) => b.coverage_pct < 95) ??
     sortedBands[sortedBands.length - 1];
   // Collapse completed leading tiers into one "✓" summary; show the frontier
-  // tier onward in full per-band detail. A tier is complete when nothing is left
-  // to do in it (no words needing intro and none missing).
+  // tier onward in full per-band detail. A tier is complete once there's nothing
+  // left to learn or import in it — no words needing intro and none missing.
+  // Lapsed words (already learned, just due for review) don't block completion.
   const bandComplete = (b: (typeof sortedBands)[number]) =>
-    b.not_introduced_count === 0 && b.unmapped_count === 0 && b.coverage_pct >= 99.5;
+    b.not_introduced_count === 0 && b.unmapped_count === 0;
   const frontierIdx = sortedBands.findIndex((b) => !bandComplete(b));
   const completedSummary =
     frontierIdx === -1
@@ -573,6 +574,9 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
               </Text>
               <Text style={styles.freqCoreBandCount}>
                 {completedSummary.learned_count.toLocaleString()} learned
+                {completedSummary.total_count - completedSummary.learned_count > 0
+                  ? ` · ${completedSummary.total_count - completedSummary.learned_count} in review`
+                  : ""}
               </Text>
             </View>
             <View style={styles.freqCoreTrack}>
