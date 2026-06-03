@@ -510,7 +510,19 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
   const focusBand =
     sortedBands.find((b) => b.coverage_pct < 95) ??
     sortedBands[sortedBands.length - 1];
-  const visibleBands = sortedBands;
+  // Collapse completed leading tiers into one "✓" summary; show the frontier
+  // tier onward in full per-band detail. A tier is complete when nothing is left
+  // to do in it (no words needing intro and none missing).
+  const bandComplete = (b: (typeof sortedBands)[number]) =>
+    b.not_introduced_count === 0 && b.unmapped_count === 0 && b.coverage_pct >= 99.5;
+  const frontierIdx = sortedBands.findIndex((b) => !bandComplete(b));
+  const completedSummary =
+    frontierIdx === -1
+      ? sortedBands[sortedBands.length - 1]
+      : frontierIdx > 0
+      ? sortedBands[frontierIdx - 1]
+      : null;
+  const detailBands = frontierIdx === -1 ? [] : sortedBands.slice(frontierIdx);
   const gaps = data.next_gaps.slice(0, 6);
 
   if (!focusBand) return null;
@@ -553,7 +565,22 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
       </View>
 
       <View style={styles.freqCoreBands}>
-        {visibleBands.map((band) => {
+        {completedSummary && (
+          <View style={styles.freqCoreBand}>
+            <View style={styles.freqCoreBandTop}>
+              <Text style={[styles.freqCoreBandLabel, { color: colors.good }]}>
+                ✓ Top {completedSummary.top_n.toLocaleString()} complete
+              </Text>
+              <Text style={styles.freqCoreBandCount}>
+                {completedSummary.learned_count.toLocaleString()} learned
+              </Text>
+            </View>
+            <View style={styles.freqCoreTrack}>
+              <View style={[styles.freqCoreLearnedFill, { width: "100%" }]} />
+            </View>
+          </View>
+        )}
+        {detailBands.map((band) => {
           const learnedPct = Math.min(band.coverage_pct, 100);
           const introducedPct = Math.min((band.introduced_count / Math.max(band.total_count, 1)) * 100, 100);
           const missingPct = Math.min((band.unmapped_count / Math.max(band.total_count, 1)) * 100, 100);
