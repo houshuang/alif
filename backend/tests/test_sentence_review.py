@@ -345,6 +345,78 @@ class TestConfused:
         assert events[-1]["confusion_candidate_lemma_ids"] == {2: [1]}
 
 
+class TestVariantStatsMorphology:
+    """The confused/missed write path classifies the surface form and stores
+    category + form_key on the canonical ULK's variant_stats_json (PR: morphology bridge)."""
+
+    def _seed_verb_sentence(self, db, surface):
+        # primary noun + a verb whose sentence surface is an inflected form
+        _seed_word(db, 1, "كتاب", "book")
+        verb = Lemma(
+            lemma_id=2, lemma_ar="أَفْسَدَ", lemma_ar_bare="أفسد",
+            pos="verb", gloss_en="to spoil",
+        )
+        db.add(verb)
+        db.flush()
+        db.add(UserLemmaKnowledge(
+            lemma_id=2, knowledge_state="learning", fsrs_card_json=_make_card(),
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=10),
+            last_reviewed=datetime.now(timezone.utc) - timedelta(hours=1),
+            source="study",
+        ))
+        sent = Sentence(id=1, arabic_text="x", english_translation="x",
+                        target_lemma_id=1, mappings_verified_at=datetime.now(timezone.utc))
+        db.add(sent)
+        db.flush()
+        db.add(SentenceWord(sentence_id=1, position=0, surface_form=surface, lemma_id=2))
+        db.add(SentenceWord(sentence_id=1, position=1, surface_form="كتاب", lemma_id=1))
+        db.flush()
+        db.commit()
+
+    def test_confused_present_verb_records_category(self, db_session):
+        self._seed_verb_sentence(db_session, "يُفْسِدُ")  # present tense of أفسد
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", confused_lemma_ids=[2], session_id="t",
+        )
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).first()
+        entry = ulk.variant_stats_json["يفسد"]
+        assert entry["confused"] == 1
+        assert entry["category"] == "verb_present"
+
+    def test_derived_form_records_form_key(self, db_session):
+        # plural in forms_json -> derived_form with form_key
+        _seed_word(db_session, 1, "كتاب", "book")
+        noun = Lemma(
+            lemma_id=2, lemma_ar="وَرَقَة", lemma_ar_bare="ورقة", pos="noun",
+            gloss_en="paper", forms_json={"plural": "أَوْرَاق"},
+        )
+        db_session.add(noun)
+        db_session.flush()
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=2, knowledge_state="learning", fsrs_card_json=_make_card(),
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=10),
+            source="study",
+        ))
+        sent = Sentence(id=1, arabic_text="x", english_translation="x",
+                        target_lemma_id=1, mappings_verified_at=datetime.now(timezone.utc))
+        db_session.add(sent)
+        db_session.flush()
+        db_session.add(SentenceWord(sentence_id=1, position=0, surface_form="أَوْرَاق", lemma_id=2))
+        db_session.add(SentenceWord(sentence_id=1, position=1, surface_form="كتاب", lemma_id=1))
+        db_session.flush()
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", confused_lemma_ids=[2], session_id="t",
+        )
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).first()
+        entry = ulk.variant_stats_json["أوراق"]
+        assert entry["category"] == "derived_form"
+        assert entry["form_key"] == "plural"
+
+
 class TestNoIdea:
     def test_all_words_get_rating_1(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")

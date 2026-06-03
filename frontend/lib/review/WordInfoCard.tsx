@@ -337,6 +337,7 @@ function RevealedView({
   });
 
   const decomp = confusionData?.decomposition;
+  const morphExplanation = confusionData?.morphology?.explanation;
   const similarWords = confusionData?.similar_words;
   const phoneticSimilar = confusionData?.phonetic_similar;
   const prefixHint = confusionData?.prefix_hint;
@@ -562,6 +563,15 @@ function RevealedView({
           </View>
         );
       })()}
+
+      {/* Morphology bridge — one-line surface->lemma link for verb-tense forms the
+          color bands can't decompose (e.g. "present-tense form of «to spoil»"). */}
+      {morphExplanation && (
+        <View style={styles.morphBridge}>
+          <Ionicons name="git-compare-outline" size={13} color={colors.accent} />
+          <Text style={styles.morphBridgeText}>{morphExplanation}</Text>
+        </View>
+      )}
 
       {/* Forms strip */}
       <FormsStrip
@@ -1222,6 +1232,21 @@ const styles = StyleSheet.create({
   decompLegendText: {
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  morphBridge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(100, 140, 180, 0.06)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  morphBridgeText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: fontFamily.translitRegular,
   },
 });
 

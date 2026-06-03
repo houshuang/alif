@@ -11,11 +11,13 @@ from app.services.confusion_service import (
     find_similar_words,
     find_phonetically_similar,
     analyze_confusion,
+    classify_surface_morphology,
     _build_prefix_hint,
     _is_adjacent_transposition,
     _shares_rime,
     RASM_MAP,
 )
+from app.services.sentence_validator import strip_diacritics
 
 
 class TestEditDistance:
@@ -509,3 +511,80 @@ class TestPhonetic:
             db, 1, "كلب", {10}, candidates=[(word, "known")],
         )
         assert len(results) == 0
+
+
+def _mk_lemma(lemma_ar, bare, pos, gloss="x", forms=None):
+    m = MagicMock()
+    m.lemma_ar = lemma_ar
+    m.lemma_ar_bare = bare
+    m.pos = pos
+    m.gloss_en = gloss
+    m.forms_json = forms
+    return m
+
+
+class TestClassifySurfaceMorphology:
+    def test_identity_returns_none(self):
+        lem = _mk_lemma("سَيّارة", "سيارة", "noun", "car")
+        assert classify_surface_morphology("سيارة", lem) is None
+
+    def test_definite_only_suppressed(self):
+        # ال + stem == lemma is trivial; no bridge.
+        lem = _mk_lemma("سَيّارة", "سيارة", "noun", "car")
+        assert classify_surface_morphology("السيارة", lem) is None
+
+    def test_verb_present_not_in_forms(self):
+        # يفسد is the present of أفسد; forms_json lacks it -> still classified.
+        lem = _mk_lemma("أَفْسَدَ", "افسد", "verb", "to spoil")
+        out = classify_surface_morphology("يفسد", lem)
+        assert out["category"] == "verb_present"
+        assert "present-tense" in out["explanation"]
+        assert "to spoil" in out["explanation"]
+
+    def test_verb_present_after_proclitic(self):
+        # لِيُعْطِيَ -> li + present of أعطى
+        lem = _mk_lemma("أَعْطَى", "اعطى", "verb", "to give")
+        out = classify_surface_morphology("ليعطي", lem)
+        assert out["category"] == "verb_present"
+
+    def test_form_iv_past_is_identity_not_present(self):
+        # The lemma itself (أفسد) must never classify as its own present tense.
+        lem = _mk_lemma("أَفْسَدَ", "افسد", "verb", "to spoil")
+        assert classify_surface_morphology("افسد", lem) is None  # identity
+
+    def test_verb_other_conjugation(self):
+        lem = _mk_lemma("وَقَعَ", "وقع", "verb", "to happen")
+        out = classify_surface_morphology("وقعت", lem)  # past 3fs
+        assert out["category"] == "verb_other"
+        assert out["explanation"] is not None
+
+    def test_derived_form_matches_forms_json(self):
+        lem = _mk_lemma("خَطَّط", "خطط", "verb", "to plan", {"masdar": "تَخْطِيط"})
+        out = classify_surface_morphology("التخطيط", lem)
+        assert out["category"] == "derived_form"
+        assert out["form_key"] == "masdar"
+        # bands render this case, so no redundant explanation line
+        assert out["explanation"] is None
+
+    def test_plural_derived_form(self):
+        lem = _mk_lemma("وَرَقَة", "ورقة", "noun", "paper", {"plural": "أَوْرَاق"})
+        # surface bare keeps hamza (strip_diacritics does not normalize it), matching forms_json
+        out = classify_surface_morphology(strip_diacritics("أَوْرَاق"), lem)
+        assert out["category"] == "derived_form"
+        assert out["form_key"] == "plural"
+
+    def test_proclitic_noun(self):
+        lem = _mk_lemma("نُور", "نور", "noun", "light")
+        out = classify_surface_morphology("بنور", lem)  # bi- + light
+        assert out["category"] == "proclitic"
+        assert out["explanation"] is None
+
+    def test_inflection_unknown(self):
+        # Surface differs, decompose can't explain, not a verb -> bridge-less category.
+        lem = _mk_lemma("أَبْيَض", "ابيض", "adj", "white")
+        out = classify_surface_morphology("بيضاء", lem)
+        assert out["category"] == "inflection"
+        assert out["explanation"] is None
+
+    def test_none_lemma_safe(self):
+        assert classify_surface_morphology("xyz", None) is None
