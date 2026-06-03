@@ -740,6 +740,63 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
         .all()
     )
 
+    # Honesty pass (2026-06-03): the raw entries include function words (e.g. ال)
+    # and variant/compound forms whose canonical is already known (e.g. اليوم →
+    # يوم). Both used to surface as "missing"/"need intro" gaps, overstating the
+    # remaining work. Drop function words entirely (frequency coverage is a
+    # content-word metric) and resolve each entry to its canonical lemma so a
+    # known canonical counts the variant as learned.
+    from types import SimpleNamespace
+    from app.services.sentence_validator import _is_function_word, strip_diacritics
+
+    func_ids = _get_func_word_ids(db)
+    entry_lemma_ids = {r.lemma_id for r in rows if r.lemma_id is not None}
+    redirect: dict[int, int] = {}
+    if entry_lemma_ids:
+        for lid, canon in (
+            db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+            .filter(Lemma.lemma_id.in_(entry_lemma_ids))
+            .all()
+        ):
+            if canon:
+                redirect[lid] = canon
+    need_ids = entry_lemma_ids | set(redirect.values())
+    ulk_state: dict[int, tuple] = {}
+    if need_ids:
+        for u in (
+            db.query(
+                UserLemmaKnowledge.lemma_id,
+                UserLemmaKnowledge.knowledge_state,
+                UserLemmaKnowledge.introduced_at,
+            )
+            .filter(UserLemmaKnowledge.lemma_id.in_(need_ids))
+            .all()
+        ):
+            ulk_state[u.lemma_id] = (u.knowledge_state, u.introduced_at)
+
+    def _is_func_row(r) -> bool:
+        if r.lemma_id is not None:
+            return redirect.get(r.lemma_id, r.lemma_id) in func_ids or r.lemma_id in func_ids
+        return _is_function_word(strip_diacritics(r.display_form or ""))
+
+    norm_rows = []
+    for r in rows:
+        if _is_func_row(r):
+            continue
+        canon = redirect.get(r.lemma_id, r.lemma_id) if r.lemma_id is not None else None
+        state, introduced_at = ulk_state.get(canon, ulk_state.get(r.lemma_id, (None, None)))
+        norm_rows.append(SimpleNamespace(
+            core_rank=r.core_rank,
+            lemma_id=r.lemma_id,
+            display_form=r.display_form,
+            gloss_en=r.gloss_en,
+            confidence_tier=r.confidence_tier,
+            gap_status=r.gap_status,
+            knowledge_state=state,
+            introduced_at=introduced_at,
+        ))
+    rows = norm_rows
+
     learned_states = {"known", "learning", "acquiring"}
     pipeline_states = learned_states | {"lapsed", "encountered"}
     introduced_states = learned_states | {"lapsed", "suspended"}
