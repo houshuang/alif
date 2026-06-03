@@ -49,6 +49,24 @@ from app.services.sentence_validator import (
 ARABIC_TOKEN_RE = re.compile(r"[ء-يٰ-ۿݐ-ݿ]+")
 
 
+def load_text(path: Path) -> str:
+    """Read plain text, or extract it from an EPUB/HTML (zip of XHTML) file."""
+    suffix = path.suffix.lower()
+    if suffix == ".epub":
+        import zipfile
+        chunks = []
+        with zipfile.ZipFile(path) as zf:
+            for name in zf.namelist():
+                if name.lower().endswith((".xhtml", ".html", ".htm")):
+                    html = zf.read(name).decode("utf-8", errors="replace")
+                    chunks.append(re.sub(r"<[^>]+>", " ", html))
+        return "\n".join(chunks)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if suffix in (".html", ".htm"):
+        text = re.sub(r"<[^>]+>", " ", text)
+    return text
+
+
 def tokenize(text: str) -> list[str]:
     return ARABIC_TOKEN_RE.findall(text)
 
@@ -189,13 +207,13 @@ def analyze(db, text: str, top: int) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Reading-readiness coverage analysis")
-    ap.add_argument("--text", required=True, type=Path, help="Plain-text file to analyze")
+    ap.add_argument("--text", required=True, type=Path, help="Text/HTML/EPUB file to analyze")
     ap.add_argument("--title", default=None, help="Display title for the report")
     ap.add_argument("--top", type=int, default=40, help="How many top unlocks to show")
     ap.add_argument("--json", type=Path, default=None, help="Write full result JSON here")
     args = ap.parse_args()
 
-    text = args.text.read_text(encoding="utf-8", errors="replace")
+    text = load_text(args.text)
     db = SessionLocal()
     try:
         r = analyze(db, text, args.top)
