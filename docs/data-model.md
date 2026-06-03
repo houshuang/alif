@@ -33,6 +33,8 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 ## System
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)
 - `activity_log` — System events: event_type, summary, detail_json
+- `material_jobs` — Background material-generation queue: kind, status (queued/…), priority, dedupe_key, payload_json, attempts/max_attempts, not_before, lease_owner/lease_until (worker leasing), last_error, result_json, completed_at. Drives async sentence/material generation off the request path.
+- `pipeline_snapshots` — Daily acquisition-pipeline state: date (YYYY-MM-DD, unique), box_1_count, box_2_count, box_3_count. One row/day, tracks Leitner-box population over time.
 - `variant_decisions` — LLM variant cache: word_bare, base_bare, is_variant, reason
 - `chat_messages` — AI conversations: conversation_id, role, content
 - `learner_settings` — Singleton row: active_topic, topic_started_at, words_introduced_in_topic, topic_history_json, tashkeel_mode (always/fade/never), tashkeel_stability_threshold (float, default 30.0)

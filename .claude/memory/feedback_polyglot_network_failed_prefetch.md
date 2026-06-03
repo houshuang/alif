@@ -1,0 +1,16 @@
+---
+name: feedback_polyglot_network_failed_prefetch
+description: "Diagnosing polyglot \"network failed\" on iOS — usually client-side session-transition, not the backend"
+metadata: 
+  node_type: memory
+  type: feedback
+  originSessionId: 506b5ea7-a1e2-4885-a29b-1440e4fa978c
+---
+
+When the user reports polyglot "network failed" (especially on the iOS dev build) and the backend checks out healthy (no 5xx/timeouts in `journalctl -u alif-backend`, sub-100ms on direct/proxy/public curl), the failure is almost always **client-side at the session→session transition**, not the server.
+
+**Why:** polyglot's review screen historically did a single cold `getReviewSession` fetch for the *next* session at the exact moment the current one finished — no timeout, retry, or cache. A transient mobile-data hiccup there throws React Native's bare `Network request failed`. Alif never had this because it prefetches sessions; polyglot shipped without porting that (an Alif-mirror divergence).
+
+**How to apply:** Fixed 2026-05-29 (PR #175) by porting Alif's session-cache + background prefetch into `frontend/lib/polyglot-api.ts` — `prefetchReviewSession` warms `@polyglot:nextSession:{lang}` via `GET /api/reviews/session?prefetch=true` (the `prefetch` flag suppresses the `session_built` log), and `getReviewSessionResilient` serves cache-first with a 12s `AbortController` timeout + cache fallback. The polyglot proxy lives inside `alif-backend` (`backend/app/routers/polyglot_proxy.py`): 502 = couldn't connect to :3002 (down/restarting), 504 = LLM gate ran >300s. When triaging future polyglot client errors, check for missing resilience layers (timeout / prefetch / stale-cache fallback) that Alif's `lib/api.ts` has — see [[feedback_polyglot_mirror_alif]].
+
+**Telemetry now exists — read it FIRST before theorizing (2026-06-01, PR #185, deployed 2026-06-02).** The mid-session recurrence ("done several sessions, then network-failed, retry works" — NOT the cold-first-fetch case) was undiagnosable because the failure is observed only client-side (`getReviewSessionResilient`'s catch did `setError(message)` and nothing else) and the backend logged only the *successful, consumed* `session_built` (prefetch suppressed; aborted live fetch leaves no record). Instrumentation added, not a fix: (1) `session_built` now carries `build_ms` + a `session_build_slow` event when `build_session` > `SESSION_BUILD_SLOW_MS=4000` (separates "slow build" from "network died" — baseline on prod is ~40ms so a slow build is anomalous); (2) a fire-and-forget client beacon `POST /api/reviews/session-fetch-event` logs `session_fetch_failed`/`session_fetch_recovered` with `error_kind` (`timeout`=12s abort / `transport`=bare RN "Network request failed" / `http_<status>`), `had_prefetch` + `prefetch_age_ms` (un-gated — surfaces "prefetch existed but was N min stale so the 15-min gate dropped it", the leading hypothesis), `used_fallback`, `force_fresh`. Triage: `ssh alif "grep -h session_fetch /opt/alif/polyglot/data/logs/interactions_*.jsonl | tail -20"`. Once events accumulate, the likely fix is refreshing/extending the prefetch so the fallback survives a long card, and/or a single auto-retry on the live fetch — decide from the `error_kind` + `prefetch_age_ms` distribution, don't guess.

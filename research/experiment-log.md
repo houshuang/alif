@@ -2,7 +2,49 @@
 
 Running lab notebook for Alif's learning algorithm. Each entry documents what changed, why, what we expect, and how to verify.
 
+**Navigation.** Append-only, newest-first. New entries go directly below the `ENTRIES (newest first)` marker — never above the index. The index below maps the *load-bearing* entries by area: search the quoted `date "title fragment"` to jump to one (line numbers drift on every append, so the index cites titles, not lines). Update the index only when a new entry becomes the **definitive reference** for an area (or opens a new area) — not on every append. Current-state **synthesis** lives elsewhere — `docs/scheduling-system.md` (scheduling/constants), `docs/design-principles.md` (feature decisions), `polyglot/CLAUDE.md` (Polyglot rules + gates audit); this log is the **why / audit trail** those docs distill. Per CLAUDE.md Rule #14, grep here before proposing fixes in any iterated area.
+
+## 📑 Index by area
+
+**Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
+
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+
+**FSRS / lapse / leech** — `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
+
+**Session building / selection / comprehensibility** — `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
+
+**Sentence generation pipeline** — `2026-03-21 "Unify Sentence Generation Through Verified Pipeline"` (single-pipeline invariant) · `2026-05-10 "Batch material now has a mandatory quality gate"` · `2026-04-20 "Self-correcting batch sentence generation"` (⚠ later gated OFF — current default is legacy batch, `ALIF_USE_LEGACY_BATCH=1`) · `2026-05-04 "Backoff-aware multi-target"` · `2026-05-03 "Generation-pipeline investigation — three concurrent bugs"`.
+
+**Corrections / same_lemma / no-auto-create (load-bearing — don't weaken)** — `2026-03-17 "Stop Auto-Creating Lemmas from Mapping Corrections"` · `2026-04-09 "Fix Same-Lemma Correction Silent Pass-Through"` · `2026-04-16 "Corpus sentence mapping bug — 63/74"`.
+
+**Mapping verification / reviewability gate** — `2026-05-12 "Tighten reviewability gate"` · `2026-05-13 "Comprehensive reverification sweep + continuous rolling"` · `2026-05-29 "Manual reverify sweep clears the stale-gated"` (sweep after a cutoff bump) · `2026-04-14 "Fix Silent JSON Parse Failure in Mapping Verification"`.
+
+**Lemma quality / decomposition / canonicalization** — `2026-04-01 "Centralized Quality Gate Pipeline — run_quality_gates()"` · `2026-04-24 … 2026-04-27 "Lemma decomposition Phase 1 … Phase 2 step 4c"` (the audit arc) · `2026-05-06 "Broadened clitic-leftover audit"` · `2026-05-21 "Chimera cleanup + prevention"` · `2026-05-17 "Sense-aware correction resolver"`.
+
+**Frequency core / curriculum** (active initiative — see IDEAS.md) — `2026-05-08 "Frequency-core stats gap list now means not introduced"` · `2026-05-13 "Restore frequency-core intro supply chain — drought"` · `2026-05-07 "Capped intake for unmapped frequency-core rows"` · `2026-06-03 "Frequency-core data-quality pass"`.
+
+**Quran** — `2026-04-03 "Quran Lemma Promotion — Encountered → Acquiring"` · `2026-05-15 "Quran + OCR lemma canonicalization rewrite"` · `2026-06-02 "dagger-alef (U+0670) collapse"` · `2026-06-03 "Quran-frequency track — the islamic source finally populated"`.
+
+**Imports — OCR / textbook / corpus** — `2026-02-14 "Book Import — OCR Pipeline for Children's Books"` · `2026-04-12 "Hindawi Corpus Import + Enrichment Pipeline"` · `2026-05-18 "Treat textbook imports as high-priority new words"` · `2026-05-20 "Letter-free OCR tokens rejected at import"` · `2026-04-16 "Book Sentence Lifecycle — Reactivation + Retirement"`.
+
+**Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
+
+**Confusion capture / confusors** — `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+
+**Stories / podcast / listening / maintenance passages** — `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+
+**Display — tashkeel / fonts** — `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
+
+**Infra — write-lock / LLM provider / quota** — `2026-04-17 "Write-lock refactor — release SQLite write lock across LLM calls"` · `2026-05-07 "Claude quota fallback, material lock coordination"` · `2026-05-26 "Codex gpt-5.5 vs Claude"` (A/Bs: enrichment→Codex, sentence-gen stays Sonnet) · `2026-04-14 "Fix Silent JSON Parse Failure"`.
+
+**Polyglot** (history only — current-state authority is `polyglot/CLAUDE.md`) — `2026-05-25 "scaffold confirmation (assumed-known → exposure-verified)"` · `2026-05-24 "Polyglot sentence generation stabilized"` · `2026-05-26 "display orthography flipped to LLPSI / OUP"` · `2026-06-01 "coverage generation (Lever A + Lever B)"` + `"collateral-diversity + reserved confirmation sweep"`.
+
+**Rejected / re-triaged experiments (don't re-propose)** — `2026-05-22 "Triaged five abandoned 2026-03-21 experiment PRs"` · `2026-05-22 "Memory-hook mnemonics DISABLED"` · `2026-05-04 "Aggressive frequency-core acquisition experiment"` · `2026-03-03 "A/B Experiment — Intro Card vs Sentence-First Acquisition"`.
+
 ---
+
+═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
 ## 2026-06-03: Quran-frequency track — the `islamic` source finally populated (lemmatized)
 

@@ -13,10 +13,8 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 ## Review
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/review/next?limit=10` | Due review cards (legacy word-only) |
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
 | GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown. Response also includes `verse_cards` (Quran verses with word data for tap-to-lookup, reading mode only) |
-| POST | `/api/review/submit` | Submit single-word review (legacy) |
 | POST | `/api/review/submit-sentence` | Submit sentence review. Schedulable content lemmas get FSRS/acquisition credit; function words and proper-name lemmas are lookup-only and ignored for scheduling/review credit. Accepts `missed_lemma_ids`, `confused_lemma_ids`, optional `confusion_candidate_lemma_ids` telemetry from the yellow-tap help panel, and optional `confusion_captures` (array of `{failed_lemma_id, capture_method: 'suggested_pick' \| 'free_text', confused_with_lemma_id?, confused_with_text?, candidates_shown}`) — explicit user-picked confusions persisted to the `confusion_captures` table for later analysis. Optional `parent_card_type` (`"passage"`/`"sentence"`/`"wrapup"`) tags the review with its parent card so analytics can split passage-internal reviews from standalone ones. |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
@@ -71,8 +69,6 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/stories/generate` | Generate story (LLM) |
 | POST | `/api/stories/import` | Import Arabic text as story |
 | POST | `/api/stories/{id}/complete` | Complete story (FSRS credit for all words) |
-| POST | `/api/stories/{id}/skip` | Skip story |
-| POST | `/api/stories/{id}/too-difficult` | Mark story too difficult |
 | POST | `/api/stories/{id}/lookup` | Look up word in story |
 | GET | `/api/stories/{id}/readiness` | Recalculate readiness |
 | POST | `/api/stories/{id}/archive` | Toggle archive (sets/clears archived_at) |

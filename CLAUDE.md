@@ -3,6 +3,8 @@
 ## Project Overview
 A personal Arabic (MSA/fusha) learning app focused exclusively on reading and listening comprehension. No production/writing exercises. Tracks word knowledge at root, lemma, and conjugation levels using FSRS spaced repetition. Combines LLM sentence generation with deterministic rule-based validation (clitic stripping + known-form matching).
 
+**North-star metric:** genuinely-known words growing week over week (not activity/review volume). **The user's end goal is classical-literature breadth** — Quran, commentaries, medieval poetry, the full literary tradition — not just MSA. Curriculum and content choices should serve that, not generic frequency lists alone.
+
 ## Quick Start
 ```bash
 # Backend
@@ -69,7 +71,7 @@ These rules have all caused production bugs or data corruption when violated. Fo
 - **All import paths must call `run_quality_gates()`** — centralized post-creation pipeline in `lemma_quality.py`. Runs: finalize -> variant detection -> enrichment -> stamps `gates_completed_at`. **Model-level guard**: `select_next_words()` and `_build_reintro_cards()` filter out lemmas where `gates_completed_at IS NULL` — ungated lemmas never appear in sessions.
 - **Every sentence_word must have a lemma_id at *display* time** — two distinct gates:
   - **Storage gate**: book/corpus imports MAY persist `SentenceWord` rows with `lemma_id IS NULL` for surface forms not in the vocabulary at import time, so authentic passages aren't lost. This is the only path allowed to do so.
-  - **Reviewability gate**: every selection query that returns a sentence to the user adds `reviewable_sentence_clauses()` from `app/services/sentence_eligibility.py`. A sentence with any NULL lemma_id, missing `mappings_verified_at`, stale pre-2026-04-16 verification, or the corpus sentinel `2000-01-01` is invisible to the review pipeline until its words are remapped/reverified, regardless of `is_active`.
+  - **Reviewability gate**: every selection query that returns a sentence to the user adds `reviewable_sentence_clauses()` from `app/services/sentence_eligibility.py`. A sentence with any NULL lemma_id, missing `mappings_verified_at`, stale verification before `MAPPING_VERIFICATION_MIN_AT` (currently 2026-05-17 18:59, in `sentence_eligibility.py`), or the corpus sentinel `2000-01-01` is invisible to the review pipeline until its words are remapped/reverified, regardless of `is_active`.
   - **Healing**: `update_material.py` step 0b runs `fix_null_lemma_ids.remap_unmapped_sentence_words` every cron pass — re-tries comprehensive lookup, and auto-creates `word_category="proper_name"` lemmas for residual unmapped surface forms detected as proper names. New common-word imports activate stuck sentences automatically on the next pass. Mapping uses `build_comprehensive_lemma_lookup()`.
   - **Proper-name lemmas** are inert: filtered from `word_selector` (no auto-introduction), excluded from comprehensibility scaffold count in `sentence_selector`, and skipped in `sentence_review_service` (no FSRS / acquisition credit). They exist solely so the SentenceWord row carries a real `lemma_id`. **Filter sites all key on `word_category='proper_name'`, not on `pos='noun_prop'`** — these are independent fields, and CAMeL-driven imports populated only `pos`. A `before_insert` listener in `models.py` (2026-05-06) now forces `word_category='proper_name'` whenever `pos='noun_prop'` and category is NULL, so the two fields can't drift apart at row creation. Past leak: 101 lemmas including Thameena, Al-Razi, Bakr, Zakariya appeared as full intro cards before the fix.
 - **No auto-created lemmas from corrections, with one frequency-gated exception** — `correct_mapping()` and flag resolution only use existing DB lemmas. If the correct lemma isn't in the vocabulary, the sentence is rejected/retired. This prevents orphan lemmas that bypass quality gates. **All correction application must go through `apply_corrections()`** in `sentence_validator.py` — the single shared function for the correct_mapping → 3-way check pattern. Never duplicate this loop inline; the "fix one site, miss the clones" pattern caused 63 bad corpus sentences (2026-04-16). **Exception (2026-05-13)**: `mapping_rescue.py` may create a Lemma when the verifier proposal matches a `FrequencyCoreEntry` row whose `lemma_id IS NULL` — but only via `_try_frequency_gated_proposal()`, which immediately routes the new lemma through `run_quality_gates()` (so enrichment + variant detection + `gates_completed_at` stamp all fire) and links the FCE row. Proposals without an FCE match are logged and the sentence stays stale. This is the only sanctioned auto-create path; do not generalise it elsewhere without an equivalent vocabulary-driven gate.
@@ -105,11 +107,12 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 ### 5. Experiment Tracking — Document Everything
 - `docs/scheduling-system.md`: Update on ANY scheduling change
 - `research/experiment-log.md`: Add entry BEFORE algorithm changes
-- `research/experiment-log.md` is **append-only** — NEVER delete existing entries. New entries go at the top (after the header).
+- `research/experiment-log.md` is **append-only** — NEVER delete existing entries. New entries go at the top, directly **below the `ENTRIES (newest first)` marker** (i.e. after the header + the `📑 Index by area`, never above the index). When an entry becomes the definitive reference for an area, add/update its line in that index.
 - `research/research-hub.html`: Update when adding new research documents (add doc-row entry in appropriate category section)
 - `research/README.md`: Update when adding new research documents
 - `research/analysis-YYYY-MM-DD.md`: Save analysis findings
 - **All reports and analysis HTML pages go inside the repo** (in `research/`), not in external dirs like `~/.agent/diagrams/`. Link them from the experiment log entry that prompted them.
+- **Update `CLAUDE.md` itself and `docs/` after EVERY change** — new/renamed services, endpoints, scripts, tables, constants, architecture. Stale docs are the user's #1 documented frustration (complained 15+ times). Do this proactively, without being asked.
 
 ### 6. Git Diff Discipline — Prevent Silent Reverts
 **CRITICAL**: Before every commit, run `git diff --stat HEAD` and review what changed. Watch for:
@@ -148,6 +151,7 @@ When changing how words move between states (encountered -> acquiring -> FSRS) o
 - TypeScript: strict mode, functional components
 - No test plans or checklists in PR descriptions
 - Branch prefix: `sh/` for all GitHub branches
+- **Never leak the user's other projects into Alif** — don't put paths, keys, or details from unrelated projects (tana, polaris, etc.) into Alif docs, scripts, or commit messages. If a borrowed key/config is needed, use it silently; don't document its origin. (The bookifier RUNBOOK link in Reference Docs is a deliberate, sanctioned dependency — this rule is about not introducing *new* cross-project leakage.)
 
 ### 10. SQLite Write Lock Discipline — Never Hold During Slow Calls
 **CRITICAL**: SQLite WAL mode allows only one writer at a time. `db.flush()` and `db.add()`+autoflush acquire the write lock, which is held until `db.commit()` or `db.rollback()`. If an LLM call (5-90s), TTS call, or any network I/O runs between flush and commit, **every other writer in the app blocks for that duration**, causing "database is locked" errors.

@@ -1,163 +1,79 @@
 # Memory
 
-## Algorithm Redesign (2026-02-12) — Deployed
-- **Status**: Backend + frontend complete, deployed to production. OCR cards reset (393 -> encountered).
-- **Entry point**: `research/README.md` (read-order index of all files)
-- **Scheduling reference**: `docs/scheduling-system.md` — complete doc covering word lifecycle, session building, all constants, divergence analysis. **Must be updated on any scheduling change.**
-- **Key files**: `research/learner-profile-2026-02-12.md` (user interview), `research/deep-research-compilation-2026-02-12.md` (8-agent deep research), `research/learning-algorithm-redesign-2026-02-12.md` (original plan + codebase change points)
-- **Core change**: Three-phase word lifecycle: Encountered -> Acquiring (Leitner 3-box: 4h->1d->3d) -> FSRS-6
-- **North star metric**: genuinely known words growing week over week
-- **py-fsrs**: v6.3.0, pinned `>=6.0.0`. Same-day review support via w17-w19.
+Index of durable memories — one line per file in this directory, grouped by intent. **Always-loaded project rules live in `CLAUDE.md`, not here.** Orientation at start of work: `docs/scheduling-system.md` (word lifecycle + all constants), `research/README.md` (research read-order), `research/experiment-log.md` (append-only lab notebook, newest-first), `IDEAS.md` (master idea list). North-star metric: genuinely-known words growing week over week.
 
-## Local Dev Environment
-- **Use `python3`** not `python` — macOS `python` resolves to Python 2.7
-- Run tests: `cd backend && python3 -m pytest`
+## Working process & preferences (how to work)
+- [PR self-review & merge without asking](feedback_pr_self_review_merge.md) — own the full PR lifecycle; self-review IS the gate; never pause for merge approval. Deploy is a separate decision.
+- [Check prior work before pipeline fixes](feedback_check_prior_work_first.md) — for long-iterated areas: `git log -3mo` + grep IDEAS/scripts-catalog/experiment-log + `ls scripts/` BEFORE drafting. CLAUDE.md Rule #14.
+- [Verify before recommending](feedback_verify_before_recommending.md) — check crontab before "you should run X"; check denominator symmetry before quoting a ratio.
+- [Ask before changing design decisions](feedback_ask_before_changing.md) — don't alter intentional architecture (e.g. API-vs-CLI for chat speed) without asking first.
+- [Prefer in-session work over `claude -p`](feedback_in_session_vs_cli_subprocess.md) — for transforms I can do directly (vocalize/translate/align/classify), write the output myself; don't delegate to a subprocess.
+- [Don't trust bg-task exit 0 alone](feedback_bg_task_exit_code_misleading.md) — tail the output even on "passing" notifications.
+- [Prefer focused sessions](feedback_focused_sessions.md) — multi-feature sessions repeatedly blow the context window; split 4+-part tasks.
+- [DB query gotchas](feedback_db_queries.md) — read `docs/data-model.md` before ad-hoc scripts; key table/column name traps.
+- [gh CLI / Go-binary TLS error in sandbox](feedback_gh_sandbox_tls.md) — `OSStatus -26276` = sandbox blocking trustd; retry with `dangerouslyDisableSandbox: true`.
 
-## Backups
-- **Server-side**: cron every 6h, script at `/opt/alif-backup.sh`, backups in `/opt/alif-backups/`
-- **Local**: `./scripts/backup.sh` pulls DB + logs to `~/alif-backups/`
-- **Retention (GFS)**: daily 7 days, weekly (Sundays) 4 weeks, monthly (1st) forever
-- **Log rotation**: compress after 7 days, delete after 90 days
-- **Restore**: `scp backup.db alif:/tmp/ && ssh alif "cp /tmp/backup.db /opt/alif/backend/data/alif.db && systemctl restart alif-backend"`
+## Deploy & ops (how to ship safely)
+- [Always deploy from main](feedback_always_deploy_from_main.md) — verify server branch + HEAD commit + the actual effect, not just `systemctl is-active`.
+- [Frontend deploy needs Metro cache cleared](feedback_expo_metro_cache_deploy.md) — a bare `restart alif-expo` serves a stale bundle; `rm -rf /tmp/metro-* …` first.
+- [Don't scp files into the server working tree](feedback_no_scp_to_server_workdir.md) — untracked files block `git pull`, then restart runs stale code silently.
+- [Local DBs are stale — fetch prod for analysis](feedback_polyglot_local_db_stale.md) — local alif.db/polyglot.db are dev copies; real review data lives on prod (`ssh alif`).
+- [Backups & restore](reference_backups.md) — server cron 6h + local `scripts/backup.sh` + GFS retention; back up before any manual data change.
+- [Deploy & LLM gotchas](reference_deployment_gotchas.md) — valid model IDs, alembic-on-fresh-DB, `.env` key names, TTS model.
+- [Activity logging](reference_activity_logging.md) — batch scripts + manual Claude actions log to ActivityLog; event-type list + the manual CLI command.
 
-## Deployment Lessons (non-obvious gotchas)
-- Fresh DB + alembic: if initial migration is empty (pass), `create_all` then `stamp head`. Or better: consolidate into one real migration.
-- `ALIF_SKIP_MIGRATIONS=1` when generating new alembic revisions
-- LLM model names: use `gemini/gemini-3-flash-preview` (not `gemini-3-flash`), `gpt-5.2`, `gpt-5.5` (Codex, Polyglot primary), `claude-haiku-4-5`, `claude-opus-4-6`, `claude-sonnet-4-5-20250929`. Alif uses Claude CLI; Polyglot uses Codex `gpt-5.5`-primary + Claude-failover (`polyglot/app/services/llm_cli.py`).
-- Anthropic returns JSON wrapped in markdown fences — strip with regex before json.loads()
-- Code expects `ANTHROPIC_API_KEY` and `ELEVENLABS_API_KEY` (see .env.example). User's `.env` uses `ELEVENLABS_KEY` (no _API suffix). The TTS-only key (`sk_2cea...`) can generate audio but NOT manage voices. Full-permission key (`sk_6952...`) needed for voice cloning API.
-- TTS model: `eleven_multilingual_v2` with learner-tuned pauses (stability 0.85, similarity 0.75)
-- SQLite busy_timeout: 30s. `warm_sentence_cache` has concurrency guard (threading lock prevents overlapping runs). Chat + story detail commits are best-effort to survive lock contention.
+## Alif — learning-engine rules & gotchas
+- [Target & collateral words are equal](feedback_target_collateral_equal.md) — no distinction for credit, learning, or intro cards. Repeated user feedback.
+- [System-wide caps belong at the chokepoint](feedback_intro_cap_chokepoint.md) — put caps inside `start_acquisition()`, not in one caller that others bypass.
+- [Intro-card overload (fixed)](feedback_intro_card_overload.md) — interleave intros among sentences, dynamic cap; never front-load.
+- [Never weaken the same_lemma gate](feedback_dont_weaken_same_lemma_gate.md) — intentional hardening (8+ commits); I keep trying to "fix" it. It is not broken.
+- [Verification-cutoff bumps orphan pre-cutoff sentences](feedback_stale_verification_gate_orphans.md) — after bumping `MAPPING_VERIFICATION_MIN_AT`, run a manual `reverify_all_active_sentences` sweep.
+- [Due-coverage deficit recurs](feedback_due_coverage_deficit_recurs.md) — known words lose their only sentence; refill `(due ∩ cohort) − reviewable` via `batch_generate_material`.
+- [No book sentences for acquiring lemmas](feedback_no_book_sentences_for_acquiring.md) — textbook fallback is too hard for Box-1 words; skip rather than serve. (Alif + Polyglot.)
+- [Lemma-deletion scripts must enumerate inbound FKs](feedback_lemma_deletion_fks.md) — `ReviewLog.lemma_id` NOT NULL + 6 nullable FKs; grep `ForeignKey("lemmas.lemma_id")` first.
+- [Use json_schema= not json_mode for CLI](feedback_json_schema_cli.md) — old parser silently dropped Sonnet's answers and fell back to weak API Haiku.
+- [Confusion-capture feature live](feedback_cluster_detection_limit.md) — `confusion_captures` table + picker (PR #167); analysis after ≥50 captures.
 
-## Activity Logging
-- **All batch scripts log to ActivityLog** via `app.services.activity_log.log_activity()`
-- **Manual logging from Claude**: `ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/log_activity.py EVENT_TYPE 'Summary text' --detail '{\"key\": \"val\"}'"`
-- **When doing manual backfills/fixes from Claude, always log the action** using the CLI tool above
-- Event types: `manual_action`, `material_updated`, `sentences_generated`, `audio_generated`, `sentences_retired`, `frequency_backfill_completed`, `grammar_backfill_completed`, `examples_backfill_completed`, `variant_cleanup_completed`, `flag_resolved`
-- Logs visible in app's More tab -> Activity section
+## Alif — Arabic NLP gotchas
+- [CAMeL MLE feminine ة → 3ms_poss misread](feedback_camel_mle_fem_ta_marbuta_misread.md) — any LLM gate over CAMeL MLE output must warn about this; 22/33 false "valid" canonicals.
+- [Quran dagger-alef (U+0670) strip-order bug](feedback_quran_dagger_alef_normalization.md) — normalize before stripping or خَٰلِدُونَ collapses to the name Khaldūn. PR #186.
+- [Quran frequency track (islamic source)](project_quran_frequency_track.md) — `islamic_rank` from the committed QAC v0.4 file via `quran_frequency.py`; rebuild the core after deploy to populate it. NOT from QuranicVerseWord (dead end). Classical track = no-go. PR #195.
 
-## CRITICAL: Never Reference User's Other Projects
-Never mention paths, keys, or details from user's other projects (e.g. tana, polaris, bookifier) in Alif documentation, scripts, or commit messages. If a key or config is found in another project, use it silently but don't document where it came from.
+## Polyglot — rules & gotchas
+- [Polyglot mirrors Alif's design & code](feedback_polyglot_mirror_alif.md) — read Alif's equivalent file FIRST; divergence needs a specific Greek/Latin reason.
+- [Typography: EB Garamond, never italic](feedback_polyglot_typography_eb_garamond.md) — reference fonts by registered constant (EBGaramond_400Regular); wrong name = silent Georgia fallback.
+- ["Network failed" on iOS = client session transition](feedback_polyglot_network_failed_prefetch.md) — not backend; grep `session_fetch` telemetry (PR #185) FIRST.
+- [regloss/runon apply globs stale checkpoint shards](feedback_polyglot_regloss_stale_checkpoints.md) — old shards sort after + override fresh verdicts; move them aside before apply.
+- [Latin LatinCy homograph mis-lemmatization](feedback_polyglot_latin_homograph_override.md) — fix at `la.py` `_LEMMA_OVERRIDES` keyed on LatinCy's own tag; "surface→>1 lemma" is discovery, not fix, signal.
+- [Page-resplit gotchas](feedback_polyglot_resplit_gotchas.md) — null `page_id` on inactive sentences too; polyglot `log_activity` signature ≠ Alif's.
+- [Validator: PageWord/SentenceWord = forms_json equivalent](feedback_polyglot_validator_forms_json_equivalent.md) — augment known forms with observed surface→lemma rows when LatinCy mis-lemmatizes.
+- [review_log mixes scaffold-confirmations & real recall](reference_polyglot_review_event_classes.md) — filter `fsrs_log_json.scaffold_confirmation` before any retention/curve analysis.
+- [Progress metrics = verified words, not activity](feedback_progress_metrics_verified_not_activity.md) — lead with verified word counts; exclude scaffold_confirmation from recall accuracy. (Cross-app principle.)
+- [Codex CLI is free (like Claude Max)](feedback_codex_cli_free.md) — default to Codex for Polyglot LLM work; choose on speed/quality not cost. Alif stays Claude-CLI-primary.
+- [Audit a "translation" complaint = check glosses too](feedback_audit_translation_check_glosses_too.md) — check BOTH `sentences.translation_en` AND `lemmas.gloss_en` (the lookup-card surface).
 
-## CRITICAL: Always Update Docs After Changes
-The user has complained 15+ times about Claude forgetting to update docs. This is the #1 source of frustration.
-After EVERY implementation change, proactively update:
-- CLAUDE.md (data model, new services, new endpoints, new scripts, architecture changes)
-- research/experiment-log.md (algorithm changes, data changes)
-- IDEAS.md (any new ideas discovered)
-DO NOT wait to be asked. DO NOT skip this. The user considers this a critical failure when missed.
+## Active / in-flight projects
+- [Lemma decomposition audit](project_lemma_decomposition_audit.md) — 🟡 Phase 1 + Phase 2 steps 1–4c + 6 done; steps 7 (re-gloss ت.ر.ك #305) + 8 (Quran spot-check) OPEN.
+- [Polyglot Latin live](project_polyglot_latin_live.md) — shipped 2026-05-25 (PR #140); LatinCy + LLPSI/Roma Aeterna seed + Eutropius reader.
+- [Polyglot Latin picker exhaustion](project_polyglot_latin_picker_exhaustion.md) — diagnosed 2026-05-26; open levers (Coverage Reader / warm-on-intake / raise per-pass target). Revisit when more Latin lemmas due.
+- [Bookify Arabic](project_bookify_arabic.md) — reading-aid PDF tool; Kalila dove chapter shipped; `introduce` subcommand imports top-N to Alif.
+- [Spanish Pilot](project_spanish_pilot.md) — standalone Norwegian-Spanish UX prototype; separate SQLite/systemd/port 3100; NO English in UI.
+- [Hindawi corpus import](project_corpus_import.md) — 10,781 sentences from 166 children's books; sentence-only; on-demand translation via cron step A2.
 
-## Context Window Management
-Long sessions that touch multiple features (UI + backend + deploy + data analysis) frequently blow the context window (~20 sessions had to be continued from context overflow).
-Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into separate sessions.
+## Done / archived (low recurrence)
+- [Box-1 starvation bug (fixed)](project_box1_starvation_bug.md) — NEVER_REVIEWED_BOOST (5.0x) in `sentence_selector.py`.
+- [Dirty lemma cleanup (done)](project_dirty_lemma_cleanup.md) — LLM-powered cleanup in `import_quality.py`; 41 cleaned.
+- [Batch sentence generation](project_batch_sentence_generation.md) — 15 words in 2 CLI calls (~4s/word); also fixed gemini defaults + same-lemma kill + GPT-5.2 fallback.
+- [Clitic-leftover audit (done)](project_clitic_my_leftover_audit.md) — 95 lemmas, 88 cleaned; `cleanup_clitic_leftovers.py`.
+- [Mapping correction pipeline](project_mapping_correction_review.md) — verify+correct via Claude Haiku CLI; operational.
+- [Claude CLI migration lesson](project_llm_cli_monitoring.md) — committed-locally ≠ deployed; push-before-deploy.
+- [Learner review 2026-04-05](project_learner_review_2026_04_05.md) — 1,279 FSRS words, 91.3% retention; pipeline deficit + textbook backlog-gate finding.
+- [Voice cloning & TTS](project_voice_cloning.md) — PVC/IVC voice IDs, ظ/ض issue, PVC multi-step API.
+- [Podcast system](project_podcast_system.md) — passive listening, 6 format variants, segment caching.
+- [iOS EAS dev-build gotchas](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads, icon source HTMLs, CgBI PNGs fine, Apple PLA blocks.
 
-## Voice Cloning & TTS (2026-03-23)
-- [Details](project_voice_cloning.md) — PVC/IVC voice IDs, ظ/ض issue, TTS alternatives, PVC API multi-step process
-
-## Podcast System (2026-03-22)
-- [Details](project_podcast_system.md) — Passive listening podcast with 6 format variants, ElevenLabs TTS, segment caching
-
-## Box-1 Starvation Bug (fixed 2026-03-14)
-- [Details](project_box1_starvation_bug.md) — Fixed with NEVER_REVIEWED_BOOST (5.0x) in sentence_selector.py
-
-## Mapping Correction Pipeline (operational)
-- [Details](project_mapping_correction_review.md) — verify+correct via Claude Haiku CLI, deployed and working
-
-## User's Arabic Learning Goal
-- [Details](user_arabic_learning_goal.md) — Classical literature breadth, not just MSA. Quran, commentaries, medieval poetry (Sicilian Arabic poets), full literary tradition.
-
-## Target vs Collateral Words Are Equal
-- [Details](feedback_target_collateral_equal.md) — No distinction between target and collateral words for learning, credit, or intro cards. Repeated user feedback.
-
-## System-wide Caps Belong at the Chokepoint
-- [Details](feedback_intro_cap_chokepoint.md) — Daily intro cap lived in one caller for years; five other callers proliferated and bypassed it. Move caps into start_acquisition itself, not the auto-intro caller.
-
-## Intro Card Overload (fixed 2026-03-30)
-- [Details](feedback_intro_card_overload.md) — Fixed: interleaved among sentences, dynamic cap. Never front-load.
-
-## Arabic Educational Reference Pages
-- [Details](reference_arabic_educational_pages.md) — Index of 4 standalone HTML pages: Quran function words, ligatures, Quranic marks, font comparison. All in research/, indexed in research-hub.html.
-
-## Claude CLI Migration Lesson (2026-04-03)
-- [Details](project_llm_cli_monitoring.md) — Lesson: code committed locally != deployed. Push-before-deploy rule.
-
-## Dirty Lemma Cleanup (done 2026-04-06)
-- [Details](project_dirty_lemma_cleanup.md) — Fixed: LLM-powered cleanup in import_quality.py + one-off script. 41 cleaned.
-
-## Batch Sentence Generation (2026-04-06)
-- [Details](project_batch_sentence_generation.md) — 15 words in 2 CLI calls (~4s/word vs 30s/word). Also fixed broken pipeline (gemini defaults, same-lemma kill, GPT-5.2 fallback)
-
-## Learner Review (2026-04-05)
-- [Details](project_learner_review_2026_04_05.md) — 1,279 FSRS words, 91.3% retention, pipeline deficit (90/142 acquiring words have no sentences), textbook scans bypass backlog gate
-
-## DB Query Gotchas
-- [Details](feedback_db_queries.md) — Always read docs/data-model.md before ad-hoc scripts; key table/column name gotchas
-
-## Ask Before Changing Design Decisions
-- [Details](feedback_ask_before_changing.md) — Don't change intentional architecture (e.g. API vs CLI for chat speed) without asking first
-
-## History + PKM Research / Petrarca Integration (2026-04-07)
-- [Details](reference_history_pkm_research.md) — 12 historians using PKM tools, Petrarca integration plan. Key: Graham's KG repos, Zotero Translation Server, Hypothesis API, discourser novelty detection.
-
-## CLI JSON Parse Bug (fixed 2026-04-14)
-- [Details](feedback_json_schema_cli.md) — Always use `json_schema=` not `json_mode=True` for CLI models. Old parser silently dropped Sonnet's answers, fell back to weak API Haiku.
-
-## Hindawi Corpus Import (deployed 2026-04-11)
-- [Details](project_corpus_import.md) — 10,781 sentences from 166 children's books (72% lemma coverage). Sentence-only import (no new lemmas). On-demand translation via cron step A2. Also fixed preposition+pronoun function words.
-
-## Spanish Pilot for Norwegian School (2026-04-15)
-- [Details](project_spanish_pilot.md) — Standalone `spanish-pilot/` subproject; UX-validation prototype for Spanish-Norwegian word-level SRS. Separate SQLite/systemd/port 3100 on Hetzner. Norwegian UI, NO English allowed.
-
-## Never Weaken apply_corrections same_lemma Gate
-- [Details](feedback_dont_weaken_same_lemma_gate.md) — The `same_lemma` rejection in apply_corrections is INTENTIONAL hardening (8+ commits 2026-03-17 to 2026-04-16). I keep trying to "fix" it; it's not broken. See in-code guard block before touching.
-
-## Check Prior Work Before Proposing Pipeline Fixes
-- [Details](feedback_check_prior_work_first.md) — For long-iterated areas (gen pipeline / FSRS / sentence selector / validator / lemma quality), the first three reads before drafting a fix are `git log -3mo`, `grep IDEAS.md docs/scripts-catalog.md research/experiment-log.md`, and `ls backend/scripts/`. Codified as CLAUDE.md Critical Rule #14. Caught 2026-05-03 about to weaken same_lemma + re-add lookup_lemma + miss two existing scripts.
-
-## Alif Lemma-Deletion Scripts Must Enumerate Inbound FKs (2026-05-20)
-- [Details](feedback_lemma_deletion_fks.md) — `ReviewLog.lemma_id` is NOT NULL plus 6 other tables hold nullable FKs to `lemmas.lemma_id`. Grep `ForeignKey("lemmas.lemma_id")` in models.py before writing any Lemma-deletion script. Hit by cleanup_numeric_ocr_lemmas.py first --apply.
-
-## Polyglot Mirrors Alif's Design and Code (2026-05-20)
-- [Details](feedback_polyglot_mirror_alif.md) — When working in polyglot/, mirror Alif by default. Divergence only for specific Greek/Latin-driven reasons. Read Alif's equivalent file FIRST before designing any polyglot screen/service. Don't ask UX questions Alif has already answered. Caught 2026-05-20: asked AskUserQuestion about polyglot sentence-review UX before reading Alif's index.tsx.
-
-## Polyglot Typography: EB Garamond, never italic (2026-05-22, PR #126)
-- [Details](feedback_polyglot_typography_eb_garamond.md) — Polyglot Greek font is EB Garamond (loaded via @expo-google-fonts in _layout.tsx). Never use italic in polyglot Greek. Reference fonts by registered constant name (EBGaramond_400Regular), NOT "EB Garamond" — wrong-name = silent Georgia fallback (the bug PR #126 fixed).
-
-## Verify Before Recommending
-- [Details](feedback_verify_before_recommending.md) — Check crontab before "you should run X"; check denominator filter symmetry before quoting a ratio. Got caught twice same session (2026-04-21).
-
-## Bookify Arabic (reading-aid PDF tool, redesigned 2026-04-22)
-- [Details](project_bookify_arabic.md) — `backend/scripts/bookify_arabic.py`. Kalila dove chapter shipped: fully vocalized, A4 landscape bilingual + A5 glossary PDFs, Scheherazade New font bundled in `backend/data/fonts/`, two-tier word highlights, sentence-pair alignment, new `introduce` subcommand (imports top-N to Alif as scaffold+encountered). 19 lemmas added to prod (`#3120–#3138`). Session report: `research/bookify-kalila-dove-2026-04-22.html`.
-
-## Prefer in-session work over claude -p subprocess (2026-04-22)
-- [Details](feedback_in_session_vs_cli_subprocess.md) — For text-transforms I can do directly (vocalize, translate, align, classify), WRITE the output to a file myself. Don't delegate to `claude -p` subprocess. Wasted hours on 2026-04-22 batching classical-Arabic vocalization through CLI before just doing it directly.
-
-## 🟡 Lemma Decomposition Audit — Phase 1 + Phase 2 steps 1-4c + 6 done; 7-8 open
-- [Details](project_lemma_decomposition_audit.md) — Step 4c + Step 6 shipped 2026-04-27. Two-pass asymmetric verification re-gated 161 `compound_with_canonical`: 91 tagged (180 prod total), 17 compounds linked to canonicals (incl. اَلْيَوْمَ→يَوْم 161 reviews), 3,056 inactive corpus sentences requeued via touched-only filter. Remaining: Step 7 (re-gloss ت.ر.ك root #305) + Step 8 (Quran spot-check).
-
-## CAMeL MLE feminine ة → 3ms_poss misread (failure mode)
-- [Details](feedback_camel_mle_fem_ta_marbuta_misread.md) — Any LLM gate over CAMeL MLE output must explicitly warn about feminine-ة misread. 22/33 Step-3 "valid" canonicals were wrong because of this (2026-04-24).
-
-## gh CLI / Go binaries TLS error in sandbox (2026-04-24)
-- [Details](feedback_gh_sandbox_tls.md) — `OSStatus -26276` from gh/terraform/tofu = Claude Code sandbox blocking `com.apple.trustd` Mach IPC. Retry the same command with `dangerouslyDisableSandbox: true` immediately. Don't waste time on auth, GODEBUG, or `brew upgrade gh`.
-
-## Clitic-leftover audit — 95 lemmas, 88 cleaned (done 2026-05-06)
-- [Details](project_clitic_my_leftover_audit.md) — Broadened from 35 "my X" to all proclitics+enclitics. 75 ALREADY_LINKED stale-wiring cleanups, 7 link-to-existing, 6 create-new-canonical (ميثاق, طغيان, تجارة, اتقى, افسد, مجال). Script: `backend/scripts/cleanup_clitic_leftovers.py`.
-
-## iOS EAS Dev Build Gotchas (2026-05-14)
-- [Details](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads required for Hetzner dev server, icon source HTMLs in `frontend/assets/sources/`, CgBI PNGs aren't broken, Apple PLA periodically blocks builds.
-
-## Don't trust bg-task "exit 0" alone — tail the output (2026-05-21)
-- [Details](feedback_bg_task_exit_code_misleading.md) — A bg notification claimed pytest exit 0 but the output showed 1 failed. Always tail the file even on "passing" notifications.
-
-## Polyglot validator: PageWord/SentenceWord = forms_json equivalent (2026-05-26)
-- [Details](feedback_polyglot_validator_forms_json_equivalent.md) — When sentence-gen validator rejects valid inflections (e.g. `sagittam` for target `sagitta` because LatinCy mis-lemmatizes), augment `known_bare_forms`/`lemma_lookup` with PageWord+verified SentenceWord rows. Same shape as Alif's `forms_json`; data-driven instead of pre-stored. PR #165.
-
-## Architecture Notes (not in CLAUDE.md)
-- FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
-- Interaction logger: skipped when TESTING=1 (set in conftest.py)
-- Frontend tests: `cd frontend && npx jest --watchman=false` (Jest + ts-jest, mocks for AsyncStorage/expo-constants/netinfo)
-- Import dedup: ALL 11 lemma-creation sites now use clitic-aware dedup. The two former exceptions — `app/services/quran_service.py:732` and `scripts/backfill_function_word_lemmas.py` — were patched in Phase 2 step 1 of the lemma-decomposition audit (2026-04-24) to call `resolve_existing_lemma()` before creating compound lemmas.
-- Hamza normalization: preserve in storage, normalize at lookup/comparison time only
-- Sentence generation: rejected word feedback + collocate auto-introduction on failure
-- **CRITICAL: SQLite naive datetime pitfall**: SQLite stores ALL datetimes as naive strings. Every datetime comparison in Python must either use naive datetimes (`datetime.utcnow()`) or convert DB values with `.replace(tzinfo=timezone.utc)` before comparing to aware datetimes. This affects: FSRS `reviewed_at` replay, `acquisition_next_due` comparison, FSRS due date comparison. Has caused production crashes 3 times.
+## Reference
+- [User's Arabic learning goal](user_arabic_learning_goal.md) — classical-literature breadth (Quran, commentaries, medieval poetry), not just MSA. The product's north-star intention.
+- [Arabic educational reference pages](reference_arabic_educational_pages.md) — index of 4 standalone HTML pages (function words, ligatures, Quranic marks, fonts) in research/.
+- [History + PKM research / Petrarca](reference_history_pkm_research.md) — 12 historians' PKM tools; Petrarca integration plan.
+- [Architecture notes](reference_architecture_notes.md) — 🔴 incl. the CRITICAL SQLite naive-datetime pitfall (3 prod crashes); FSRS stability floor; import dedup; hamza.

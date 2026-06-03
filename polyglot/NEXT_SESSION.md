@@ -1,5 +1,13 @@
 # Next session — Polyglot continuation
 
+> ⚠️ **SUPERSEDED (2026-05-24 handoff).** This was a mid-session briefing; much of its
+> "What's next" has since shipped (PRs #174–#185: stats redesign, session prefetch,
+> coverage generation, confirmation sweep, Latin homograph guard, run-on gloss repair,
+> session-fetch telemetry). **For current state, read `polyglot/CLAUDE.md` (authoritative,
+> kept current) and `research/experiment-log.md` (newest-first) — not this file.** The
+> cumulative session log below is retained as history only; do not treat its open items as
+> still-open without checking the experiment log / recent PRs first.
+
 Self-contained briefing for the future Claude session that picks up this work.
 Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
