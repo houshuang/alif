@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-06-03: Morphology bridge shipped (PR #192) — explain inflected forms on a confused/missed mark
+
+Implements win #1 from the confusion-capture analysis below (`research/analysis-2026-06-03-confusion-captures.md`).
+New `confusion_service.classify_surface_morphology(surface_bare, lemma)` returns `{category, form_key,
+explanation}` — category ∈ verb_present/verb_other/derived_form/proclitic/enclitic/inflection, `None` for
+the dictionary form or a bare definite article. `explanation` is a one-line surface→lemma bridge
+("present-tense form of «to spoil»") set only for the verb-tense cases `decompose_surface` can't render
+as color bands — closing the ~55% of inflected confusions (esp. conjugations + forms absent from
+`forms_json`) the bands missed. `analyze_confusion` returns it under `morphology` (a verb-tense
+explanation now counts as morphological so the data flows even when decomposition is None); `WordInfoCard`
+renders the line on a yellow mark.
+
+**Measurement plumbing (folds in win #4):** the `submit-sentence` write path now stores `category`/`form_key`
+on `variant_stats_json` via the classifier (replaced the weaker `_match_surface_form`), so per-form
+confusion is queryable instead of re-decomposed on read; `confusion-help` logs `morph_category` per yellow
+mark. **Expected effect:** encoding-feedback after a failed retrieval + fewer spurious lapses of known
+words misattributed to a form trip — NOT a direct retention lever (per the mechanism analysis). The point
+is to start accumulating clean per-form data that the scheduling experiments (per-form scaffolding,
+contrast drills) are blocked on. **Verify after rollout:** repeat-confusion rate by `variant_stats_json.category`
+trend, and lapse rate of high-stability words marked confused on an inflected surface. Tests:
+`TestClassifySurfaceMorphology` (11), `TestVariantStatsMorphology` (2); full suite 1300 passed. Not yet deployed.
+
+---
+
 ## 2026-06-03: Growth + maintenance program — diagnosis & plan (changes land in follow-up entries)
 
 Prompted by a 2-week health review (fresh prod pull, `research/analysis-2026-06-03-arabic-2week-health.md`).

@@ -78,11 +78,16 @@ the broader `was_confused` / `variant_stats_json` corpus. Full write-up:
 
 ### OBVIOUS WINS (data-backed, mostly reuse existing code)
 
-1. **[BIGGEST] Push the morphology bridge on a Hard/confused mark, branching on cause.** When a word is
-   rated confused and `surface_bare != lemma_bare` and it's not ال/case-only, auto-reveal the existing
-   `WordInfoCard` decomposition ("يُفْسِدُ = present of أَفْسَدَ 'to spoil'"). If surface == dictionary or
-   ال-only → skip (that's recall; handle with SRS timing). 85% of Hard flags are form-related and the
-   engine already explains the form — it just isn't shown at the moment of difficulty. Wiring, not new logic.
+1. **[BIGGEST] ✅ SHIPPED 2026-06-03 (PR #192).** Push the morphology bridge on a Hard/confused mark,
+   branching on cause. When a word is rated confused and `surface_bare != lemma_bare` and it's not
+   ال/case-only, reveal the `WordInfoCard` decomposition ("يُفْسِدُ = present of أَفْسَدَ 'to spoil'"). If
+   surface == dictionary or ال-only → skip (that's recall). Implemented as
+   `confusion_service.classify_surface_morphology()` — closing the verb-tense/forms-not-in-`forms_json`
+   gap the color bands missed (~45%→ most inflected forms) and storing `category`/`form_key` on
+   `variant_stats_json` so per-form confusion is queryable (folds in win #4). Bundled measurement:
+   `morph_category` logged per yellow mark. Effect is encoding-feedback + spurious-lapse prevention +
+   data plumbing — NOT a direct retention lever (see the mechanism analysis); the scheduling
+   experiments below are what it unblocks.
 2. **Confusion-picker recall fixes** (`confusion_service.find_similar_words`): (a) force `edit_distance==1`
    visual matches into the visible top-8, or raise visual `max_results` 8→10; (b) shrink the `len_gap*2`
    penalty when `same_root`; (c) add a non-adjacent anagram signal (`sorted(a)==sorted(b)`). Each maps to
