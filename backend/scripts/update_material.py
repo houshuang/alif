@@ -735,6 +735,24 @@ def step_enforce_cap(
     for sw in all_sw:
         sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
 
+    # Last-sentence guard: never retire a sentence if it is the only reviewable
+    # one covering an FSRS word (known/learning/lapsed) — target OR collateral.
+    # The per-target floor below protects only the target, so collateral-only
+    # words used to drop to zero coverage and fall into the due deficit.
+    from app.services.sentence_eligibility import reviewable_coverage_counts
+
+    protected_ids = {
+        k.lemma_id for k in all_ulk
+        if k.knowledge_state in ("known", "learning", "lapsed")
+    }
+    coverage = reviewable_coverage_counts(db, lemma_ids=protected_ids)
+
+    def _covered_protected(sent) -> set[int]:
+        return {
+            sw.lemma_id for sw in sw_by_sentence.get(sent.id, [])
+            if sw.lemma_id in protected_ids
+        }
+
     # Score and sort for retirement — protect unshown book sentences (managed by reactivation step)
     candidates: list[tuple[Sentence, int]] = []  # (sentence, priority)
     for sent in sentences:
@@ -788,8 +806,15 @@ def step_enforce_cap(
         if active - already_retiring <= floor:
             continue
 
+        # Last-reviewable-sentence guard for covered FSRS words.
+        covered = _covered_protected(sent)
+        if any(coverage.get(lid, 0) <= 1 for lid in covered):
+            continue
+
         if not dry_run:
             sent.is_active = False
+        for lid in covered:
+            coverage[lid] = coverage.get(lid, 0) - 1
         retired += 1
         retire_count_per_target[target_id] = already_retiring + 1
 

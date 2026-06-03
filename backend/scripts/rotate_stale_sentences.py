@@ -185,6 +185,17 @@ def main():
         # Sort by lowest diversity (least useful sentences first)
         stale.sort(key=lambda x: (x[1]["diversity_score"], -x[1]["scaffold_count"]))
 
+        # Last-sentence guard: never retire the only reviewable sentence covering
+        # an FSRS word (known/learning/lapsed), target OR collateral. The
+        # per-target min-active floor below protects only the target.
+        from app.services.sentence_eligibility import reviewable_coverage_counts
+
+        protected_ids = {
+            k.lemma_id for k in all_ulk
+            if k.knowledge_state in ("known", "learning", "lapsed")
+        }
+        coverage = reviewable_coverage_counts(db, lemma_ids=protected_ids)
+
         # Enforce min_active constraint (tier-aware: soon-due words get higher floor)
         retire_per_target: dict[int | None, int] = {}
         final_retire: list[tuple[Sentence, dict]] = []
@@ -194,9 +205,18 @@ def main():
             active = active_per_target.get(target_id, 0)
             wt = tier_lookup.get(target_id) if target_id else None
             effective_floor = max(args.min_active, wt.cap_floor if wt else 0)
-            if active - already_retiring > effective_floor:
-                final_retire.append((sent, scores))
-                retire_per_target[target_id] = already_retiring + 1
+            if active - already_retiring <= effective_floor:
+                continue
+            covered = {
+                sw.lemma_id for sw in sw_by_sentence.get(sent.id, [])
+                if sw.lemma_id in protected_ids
+            }
+            if any(coverage.get(lid, 0) <= 1 for lid in covered):
+                continue
+            final_retire.append((sent, scores))
+            retire_per_target[target_id] = already_retiring + 1
+            for lid in covered:
+                coverage[lid] = coverage.get(lid, 0) - 1
 
         # Load lemma names for display
         target_ids = {s.target_lemma_id for s, _ in final_retire if s.target_lemma_id}
