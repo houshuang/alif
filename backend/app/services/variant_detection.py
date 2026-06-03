@@ -246,6 +246,7 @@ def mark_variants(
     we don't set A.canonical = B.
     """
     count = 0
+    marked_ids: list[int] = []
     for var_id, canon_id, _vtype, _details in variants:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == var_id).first()
         if lemma and lemma.canonical_lemma_id is None:
@@ -259,6 +260,18 @@ def mark_variants(
                 continue
             lemma.canonical_lemma_id = canon_id
             count += 1
+            marked_ids.append(var_id)
+    # Heal any frequency-core entries that were mapped to these now-variant lemmas
+    # so they never linger on an inflected form (invariant: no active FCE entry
+    # points to a variant). Best-effort — must not block variant marking.
+    if marked_ids:
+        try:
+            from app.services.frequency_core_intake import (
+                remap_variant_frequency_core_entries,
+            )
+            remap_variant_frequency_core_entries(db, lemma_ids=marked_ids)
+        except Exception:
+            logger.exception("FCE variant remap after mark_variants failed")
     return count
 
 
