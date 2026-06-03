@@ -11,6 +11,7 @@ from app.services.acquisition_service import (
     GRADUATION_MIN_REVIEWS,
     RECOVERY_BOX1_UNREVIEWED_LIMIT,
     RECOVERY_FULL_INTRO_BUDGET,
+    RECOVERY_MID_INTRO_BUDGET,
     RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
     ROOT_SIBLING_THRESHOLD,
     _count_known_root_siblings,
@@ -1070,7 +1071,7 @@ def test_recovery_mode_blocks_new_intro_until_sentence_practice(db_session):
 
 
 def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
-    """With overload plus 100+ sentence reviews and good accuracy, up to 8 intros are allowed."""
+    """With overload plus 100+ sentence reviews and good accuracy, the full earned budget is allowed, then blocks."""
     _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
     _add_sentence_reviews_today(db_session, RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET)
     _add_word_reviews_today(db_session, correct_count=18, total_count=20)
@@ -1084,3 +1085,29 @@ def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
     blocked = start_acquisition(db_session, blocked_lemma.lemma_id, source="textbook_scan")
     assert blocked.knowledge_state == "encountered"
     assert blocked.acquisition_started_at is None
+
+
+def test_recovery_mid_accuracy_capped_at_mid_budget(db_session):
+    """Accuracy-gating (the 2026-06-03 throttle-sim lesson): a learner below the
+    GOOD accuracy floor earns only the MID budget even with 100+ reviews — they do
+    NOT get the raised full cap. This is what protects a struggling learner from
+    the new-word pile-up when FULL was raised to the daily cap."""
+    assert RECOVERY_MID_INTRO_BUDGET < RECOVERY_FULL_INTRO_BUDGET
+    _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
+    _add_sentence_reviews_today(db_session, RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET)
+    # 82% accuracy: above the 0.80 LOW floor (>0 budget) but below the 0.85 GOOD
+    # floor, so the budget is MID, never FULL.
+    _add_word_reviews_today(db_session, correct_count=82, total_count=100)
+    _fill_daily_cap(db_session, RECOVERY_MID_INTRO_BUDGET - 1)
+
+    allowed = start_acquisition(
+        db_session, _create_lemma(db_session, arabic="مسموح٣", english="ok3").lemma_id,
+        source="textbook_scan",
+    )
+    assert allowed.knowledge_state == "acquiring"
+
+    blocked = start_acquisition(
+        db_session, _create_lemma(db_session, arabic="مؤجل٣", english="deferred3").lemma_id,
+        source="textbook_scan",
+    )
+    assert blocked.knowledge_state == "encountered"

@@ -50,6 +50,18 @@ relative dynamics only) and the student model has no per-word difficulty (leech 
 so the throttle may not be the sole binding constraint; session review-load matters too. Results +
 chosen constants to be appended when the grid completes.
 
+**Simulation results (B) — `research/analysis-2026-06-03-throttle-simulation.md`.** 3 profiles ×
+{baseline, raised} × 12 days. Raising the throttle helps **only** the high-accuracy learner:
+`real_user` +53% known (71→109) at −2.8pt comprehension; both low-accuracy profiles get **no**
+growth (light 22→17, heavy 50→50) with swollen Box-1 backlog (max up to 70) and −4 to −6pt
+comprehension. So a flat raise backfires for weak learners — the raise must stay accuracy-gated.
+**Shipped (A=deficit + B=throttle on branch `sh/deficit-fix-throttle`):** `RECOVERY_FULL_INTRO_BUDGET
+8→30` (= cap, earned at ≥85% accuracy + 100 reviews), `RECOVERY_MID_INTRO_BUDGET 4→8`; trigger and
+both accuracy floors **unchanged** (they are the safety gate). Guard test
+`test_recovery_mid_accuracy_capped_at_mid_budget`. **Verify after deploy:** on a heavy-practice day
+the user's `auto_introduce`/`acquisition_started_at` count rises toward 30 (was ~8); watch
+box-1-unreviewed and 7-day retention don't degrade.
+
 ---
 
 ## 2026-06-03: First confusion-capture analysis (no change yet — diagnosis)
