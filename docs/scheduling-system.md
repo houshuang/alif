@@ -322,7 +322,9 @@ to enter the system — collateral exposure in sentences, not explicit auto-intr
 and fewer than 5 prior encounters get intro cards, regardless of whether they were introduced
 explicitly or collaterally. Intro cards are interleaved with review sentences in the session
 (not front-loaded) — pattern: 2 intro cards first, then 1 every 3 sentences. Sentences sharing
-words with a recently-shown intro card are spaced apart for better retention.
+words with a recently-shown intro card are spaced apart for better retention. A new lemma whose
+root siblings (incl. its own masdar) are already known still gets a full intro card by design — it
+is a "warm" word, not a duplicate; see `design-principles.md` §Lemma Identity / §Intro Cards.
 
 **Comprehensibility gate**: Encountered words still do **not** count as known for the
 gate. This means sentences won't have many encountered scaffold words, which naturally
