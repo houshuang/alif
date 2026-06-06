@@ -46,6 +46,89 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-06: At-risk scaffold bias in generation — squeeze collateral value from each sentence
+
+**Why.** Follow-on from the same-day analyses (`analysis-2026-06-06-mature-words-fsrs-retune.md`):
+the reviewable corpus is **82% all-known** (zero unknown content words), so most sentences
+the user reads only re-confirm already-strong vocab (the 76%-trivial-recall finding). The
+comprehensibility gate is **not** the cause — it rejects ~1% of sentences; relaxing 0.6→0.5
+unlocks just 10. Root cause is generation **supply**: `material_generator` builds the scaffold
+pool dropping knowledge state, and `sentence_generator.sample_known_words_weighted` weights
+scaffold **only by corpus frequency**, never by learner need — so the LLM is handed 500
+frequency-balanced known words and writes with the easy common ones.
+
+**Change.** Bias scaffold sampling toward *at-risk* words so each generated sentence carries
+more collateral learning value (Alif analogue of Polyglot `UNCONFIRMED_SCAFFOLD_BOOST`,
+2026-06-01; idea long-parked at `IDEAS.md:1318`). New `build_at_risk_boost_map(db)` →
+`{lemma_id: multiplier ≥ 1.0}`: lapsed/recent-miss ×3.0, acquiring ×2.5, low-stability known
+(<14d) ×2.0, mid (14–45d) ×1.5; mature words get no entry (implicit 1.0) so common scaffold
+is **never starved** — the bias only *adds* pull toward fragile vocab, ranking-only, can't
+reduce yield. `sample_known_words_weighted` and `generate_validated_sentences_multi_target`
+gain an optional `at_risk_boost`; wired at the three production sample sites
+(`generate_material_for_word`, batch, warm-cache multi-target). Env toggle
+`ALIF_AT_RISK_SCAFFOLD` (default on).
+
+**"At-risk" defined by stability/state + recent misses, NOT momentary retrievability.** An
+earlier snapshot ("307 words at R 0.80–0.95") badly undercounted: R resets to 1.0 right after
+any review, so a just-missed-and-fixed word looks safe instantly. The real fragility pool is
+several hundred words (395 distinct rated red/yellow/confused in 14d, ~32/day; mostly the
+acquisition frontier). See the analysis doc's metric-correction section.
+
+**Measurement (before/after).** `scripts/measure_at_risk_scaffold.py` — generates for 12
+random known targets (Sonnet, count 2) against a fresh prod-DB copy, flag OFF then ON, and
+classifies scaffold content words by at-risk membership. Result: **at-risk scaffold words /
+sentence 1.93 → 2.38 (+23%)**; share of scaffold content words at-risk 85.3% → 88.4%; zero
+all-mature sentences in either arm. **Modest, real, safe — not transformative.**
+
+**Course-correction the measurement forced (important).** Two things, both humbling:
+1. **Fresh generation was already at-risk-rich (85% even with the bias OFF).** Reason: the
+   existing inverse-frequency weighting (`content_word_counts`) favors words in few sentences,
+   which strongly correlates with newly-learned/fragile — so `sample_known_words_weighted` was
+   *already* steering toward at-risk words as a side effect. The explicit boost makes that
+   intentional/robust and adds ~23% on top, but the baseline was high.
+2. **The earlier "82% all-known corpus" was over-read.** "All-known" means *comprehensible*
+   (no encountered/new words) — REQUIRED by the gate — NOT *mature*. An all-known sentence is
+   typically full of fragile words. So "sentences are too easy" is a weaker claim than first
+   argued. The review-side maturity skew (76% trivial recalls, 60% collateral→mature in
+   EXP-3/EXP-4) comes from the *aged stock* of old sentences whose words have since matured +
+   the unavoidable ubiquitous scaffold ("the man…is…"), neither of which fresh-generation
+   bias touches.
+
+**Decision: merged anyway** (small clean win; makes at-risk targeting intentional rather than
+an accidental byproduct of frequency weighting; default-on, reversible via env). **The real
+lever remains Lever 1** — stop FSRS-crediting R≥0.97 trivial collateral recalls — which every
+cut of the data points back to (see the analysis doc). The prompt-level "prefer these" nudge
+stays unbuilt; the modest sampling gain didn't justify the naturalness risk.
+
+## 2026-06-06: Mature-word repetition + FSRS retune analysis — over-reviewed, don't retune (analysis only)
+
+User asked: are the long-term words getting enough repetitions, and should we retune the
+FSRS learning rate now that we have much more data? **Full report:
+`research/analysis-2026-06-06-mature-words-fsrs-retune.md`.** No code changed.
+
+**Findings (prod, last 14d, 2026-05-24→06-06):**
+- **Mature words are over-reviewed, not starved.** Mature pool (stability ≥60d) = 1,316;
+  **69% reviewed in 14 days** at a **median 1.8d actual gap** vs **median stability 79.7d**.
+  **95% of mature reviews fire early** (before due). Overdue now: 18/1316 mature, 0/579
+  very-mature (≥180d). Driver: the FOUNDATIONAL collateral-credit invariant
+  (`2026-03-18 "Every Word Earns Credit"`) re-exposes mature words as scaffold every 1–2d.
+- **Don't redeploy optimizer weights.** Optimizer now fits 41,229 reviews (was 21k) but
+  the log is dominated by the same incidental over-review signal — FSRS's near-due
+  assumption is violated (1.8d gap vs 80d schedule), so the fit optimizes a cramming
+  pattern. Proposed weights also *harshen* lapse recovery (3.73d→1.74d), against the
+  deliberate `2026-04-13 "Lapse Recovery Tuning"` choice. Same conclusion as 2026-04-13,
+  now stronger. `desired_retention=0.95` is already structurally satisfied by early-review.
+- **Non-obvious: stability is inflated by massed re-exposure.** Real-gap retention is
+  below target — 30–90d gap → 76.9% (n=493), 10–30d → 84.1%; 90d+ essentially never
+  happens (n=1) because collateral keeps re-showing words. The 79.7d median is largely
+  unvalidated. (Caveat: long-gap words skew rarer/harder — directional, not clean.)
+- **Real lever is collateral-credit policy for high-stability words, NOT FSRS weights.**
+  Options: (a) leave as-is — over-review is a feature, conflicts to change; (b) suppress
+  FSRS credit for stability-≥Xd collateral not near due (still shown) so gaps grow and
+  signal becomes real — **conflicts with a foundational invariant, needs user sign-off +
+  gate audit**; (c) log-as-exposure (no stability update, keep box credit). Flagged for
+  user decision; nothing changed.
+
 ## 2026-06-03: Quran reading-corpus lemmatized from QAC + function/proper-name audit (data changes)
 
 Follow-ons to the Quran-frequency track entry below.

@@ -493,6 +493,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         get_content_word_counts,
         get_avoid_words,
         sample_known_words_weighted,
+        build_at_risk_boost_map,
         KNOWN_SAMPLE_SIZE,
     )
     from app.services.sentence_validator import (
@@ -554,8 +555,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         all_lemma_by_id = {l.lemma_id: l for l in db.query(Lemma).all()}
 
         content_word_counts = get_content_word_counts(db)
+        at_risk_boost = build_at_risk_boost_map(db)
         sample = sample_known_words_weighted(
-            known_words, content_word_counts, KNOWN_SAMPLE_SIZE, target_lemma_id=lemma_id
+            known_words, content_word_counts, KNOWN_SAMPLE_SIZE, target_lemma_id=lemma_id,
+            at_risk_boost=at_risk_boost,
         )
         avoid_words = get_avoid_words(content_word_counts, known_words)
         diff_params = get_sentence_difficulty_params(db, lemma_id)
@@ -931,6 +934,7 @@ def batch_generate_material(
         get_content_word_counts,
         get_avoid_words,
         sample_known_words_weighted,
+        build_at_risk_boost_map,
         KNOWN_SAMPLE_SIZE,
     )
     from app.services.transliteration import transliterate_arabic as _translit_ar
@@ -974,9 +978,11 @@ def batch_generate_material(
         all_lemma_by_id = {l.lemma_id: l for l in db.query(Lemma).all()}
 
         content_word_counts = get_content_word_counts(db)
+        at_risk_boost = build_at_risk_boost_map(db)
         # Sample slightly larger pool since shared across many words
         sample = sample_known_words_weighted(
             known_words, content_word_counts, min(KNOWN_SAMPLE_SIZE + 100, len(known_words)),
+            at_risk_boost=at_risk_boost,
         )
         avoid_words = get_avoid_words(content_word_counts, known_words)
     finally:
@@ -1809,6 +1815,7 @@ def _warm_sentence_cache_impl(
     from app.services.sentence_generator import (
         group_words_for_multi_target,
         generate_validated_sentences_multi_target,
+        build_at_risk_boost_map,
     )
     from app.services.sentence_validator import (
         build_lemma_lookup,
@@ -2025,11 +2032,13 @@ def _warm_sentence_cache_impl(
         ]
         lemma_lookup = build_lemma_lookup(active_lemmas)
         mapping_lookup = build_comprehensive_lemma_lookup(db)
+        at_risk_boost = build_at_risk_boost_map(db)
         logger.info(
-            "Warm cache %s: phase 1 read done gaps=%d known_words=%d",
+            "Warm cache %s: phase 1 read done gaps=%d known_words=%d at_risk=%d",
             run_label,
             len(gap_word_ids),
             len(known_words),
+            len(at_risk_boost),
         )
     except Exception:
         logger.exception("Error in warm_sentence_cache (read phase)")
@@ -2105,6 +2114,7 @@ def _warm_sentence_cache_impl(
                 max_words=12,
                 lemma_lookup=lemma_lookup,
                 model_override=llm_model,
+                at_risk_boost=at_risk_boost,
             )
             # Defective participles like طَاغٌ store bare="طاغي" (CAMeL includes
             # the implicit ya); strip_diacritics(lemma_ar) drops it and produces

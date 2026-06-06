@@ -5,18 +5,19 @@ The core loop: generate → validate → retry (up to MAX_RETRIES).
 """
 
 import json
+import os
 import random
 import statistics
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import SentenceWord
+from app.models import ReviewLog, SentenceWord, UserLemmaKnowledge
 from app.services.llm import (
     AllProvidersFailed,
     MultiTargetSentenceResult,
@@ -41,6 +42,87 @@ MAX_AVOID_WORDS = 30
 MIN_WEIGHT = 0.05
 DIVERSITY_SENTENCE_THRESHOLD = 10  # scaffold words in this many+ sentences trigger rejection
 ALWAYS_AVOID_NAMES = {"محمد", "احمد", "فاطمة", "علي"}
+
+# At-risk scaffold bias: multipliers on a word's sampling weight so generated
+# sentences carry fragile (high-learning-value) collateral instead of all-known
+# scaffold. Mature words get no entry (implicit 1.0) so the common scaffold they
+# supply is never starved — this only *adds* pull toward at-risk vocabulary.
+# "At-risk" is judged by durable fragility (state + stability + recent misses),
+# NOT momentary retrievability (which resets to 1.0 right after any review).
+AT_RISK_BOOST_LAPSED = 3.0
+AT_RISK_BOOST_RECENT_MISS = 3.0
+AT_RISK_BOOST_ACQUIRING = 2.5
+AT_RISK_BOOST_LOW_STAB = 2.0   # known/learning, stability < 14d
+AT_RISK_BOOST_MID_STAB = 1.5   # known/learning, stability 14-45d
+AT_RISK_LOW_STAB_DAYS = 14
+AT_RISK_MID_STAB_DAYS = 45
+AT_RISK_RECENT_MISS_DAYS = 14
+
+
+def at_risk_scaffold_enabled() -> bool:
+    """Whether to bias scaffold sampling toward at-risk words (default on)."""
+    return os.getenv("ALIF_AT_RISK_SCAFFOLD", "1") != "0"
+
+
+def _card_stability(card_json: Any) -> float | None:
+    if not card_json:
+        return None
+    card = card_json if isinstance(card_json, dict) else None
+    if card is None:
+        try:
+            card = json.loads(card_json)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return card.get("stability") if isinstance(card, dict) else None
+
+
+def build_at_risk_boost_map(db: Session) -> dict[int, float]:
+    """Map ``lemma_id -> sampling-weight multiplier (>= 1.0)`` for fragile words.
+
+    Fragile = lapsed / acquiring / low-stability known / recently-missed. Returns
+    a sparse map (only words with a boost > 1.0). Empty when disabled via
+    ``ALIF_AT_RISK_SCAFFOLD=0``.
+    """
+    if not at_risk_scaffold_enabled():
+        return {}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=AT_RISK_RECENT_MISS_DAYS)
+    recent_miss = {
+        lid
+        for (lid,) in db.query(ReviewLog.lemma_id)
+        .filter(
+            ReviewLog.reviewed_at >= cutoff,
+            ReviewLog.rating <= 2,
+            or_(ReviewLog.is_acquisition == False, ReviewLog.is_acquisition.is_(None)),  # noqa: E712
+        )
+        .distinct()
+        .all()
+    }
+
+    boost: dict[int, float] = {}
+    rows = db.query(
+        UserLemmaKnowledge.lemma_id,
+        UserLemmaKnowledge.knowledge_state,
+        UserLemmaKnowledge.fsrs_card_json,
+    ).all()
+    for lid, state, card_json in rows:
+        b = 1.0
+        if state == "lapsed":
+            b = max(b, AT_RISK_BOOST_LAPSED)
+        elif state == "acquiring":
+            b = max(b, AT_RISK_BOOST_ACQUIRING)
+        elif state in ("known", "learning"):
+            stab = _card_stability(card_json)
+            if stab is not None:
+                if stab < AT_RISK_LOW_STAB_DAYS:
+                    b = max(b, AT_RISK_BOOST_LOW_STAB)
+                elif stab < AT_RISK_MID_STAB_DAYS:
+                    b = max(b, AT_RISK_BOOST_MID_STAB)
+        if lid in recent_miss:
+            b = max(b, AT_RISK_BOOST_RECENT_MISS)
+        if b > 1.0:
+            boost[lid] = b
+    return boost
 
 
 def get_content_word_counts(db: Session) -> dict[int, int]:
@@ -69,11 +151,17 @@ def sample_known_words_weighted(
     content_word_counts: dict[int, int],
     sample_size: int = KNOWN_SAMPLE_SIZE,
     target_lemma_id: int | None = None,
+    at_risk_boost: dict[int, float] | None = None,
 ) -> list[dict[str, str]]:
     """Sample known words with inverse-frequency weighting.
 
     Words appearing in many existing sentences get lower probability,
-    biasing generation toward under-represented vocabulary.
+    biasing generation toward under-represented vocabulary. When
+    ``at_risk_boost`` is supplied, fragile words (lapsed / acquiring /
+    low-stability / recently-missed) have their weight multiplied so they are
+    more likely to enter the sample the LLM may draw scaffold from — squeezing
+    more collateral learning value from each sentence. See
+    ``build_at_risk_boost_map``.
     """
     pool = known_words
     if target_lemma_id is not None:
@@ -87,6 +175,8 @@ def sample_known_words_weighted(
         lid = w.get("lemma_id")
         count = content_word_counts.get(lid, 0) if lid else 0
         weight = max(MIN_WEIGHT, 1.0 / (1 + count))
+        if at_risk_boost and lid:
+            weight *= at_risk_boost.get(lid, 1.0)
         jittered = weight * random.uniform(0.5, 1.5)
         weighted.append((jittered, w))
 
@@ -449,6 +539,7 @@ def generate_validated_sentences_multi_target(
     validation_words: list[dict[str, str]] | None = None,
     lemma_lookup: dict[str, int] | None = None,
     model_override: str = "claude_sonnet",
+    at_risk_boost: dict[int, float] | None = None,
 ) -> list[MultiTargetGeneratedSentence]:
     """Generate and validate sentences targeting multiple words.
 
@@ -490,10 +581,14 @@ def generate_validated_sentences_multi_target(
         for tw in target_words
     ]
 
-    # Sample known words for prompt
-    if content_word_counts is not None:
+    # Sample known words for prompt. Weighted sampling engages when we have
+    # corpus-frequency counts and/or an at-risk boost map (the warm-cache caller
+    # passes only the boost map — counts default to 0 so all base weights are
+    # equal and only the at-risk pull applies).
+    if content_word_counts is not None or at_risk_boost:
         sample = sample_known_words_weighted(
-            known_words, content_word_counts, KNOWN_SAMPLE_SIZE
+            known_words, content_word_counts or {}, KNOWN_SAMPLE_SIZE,
+            at_risk_boost=at_risk_boost,
         )
     else:
         sample = (

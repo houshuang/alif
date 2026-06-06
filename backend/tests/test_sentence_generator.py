@@ -18,6 +18,7 @@ from app.services.sentence_generator import (
     GeneratedSentence,
     GenerationError,
     _check_scaffold_diversity,
+    build_at_risk_boost_map,
     generate_validated_sentence,
     get_avoid_words,
     sample_known_words_weighted,
@@ -397,6 +398,78 @@ class TestSampleKnownWordsWeighted:
             KNOWN_WORDS_WITH_IDS, counts, sample_size=50
         )
         assert len(result) == 50
+
+
+class TestAtRiskScaffoldBias:
+    def test_boost_increases_sampling_of_fragile_words(self):
+        """At-risk words should appear more often in the sample than peers with
+        identical corpus frequency."""
+        counts = {i: 10 for i in range(100)}  # all equally represented
+        boost = {i: 3.0 for i in range(10)}   # lemmas 0-9 are at-risk
+        appearances = {i: 0 for i in range(100)}
+        for _ in range(300):
+            sample = sample_known_words_weighted(
+                KNOWN_WORDS_WITH_IDS, counts, sample_size=50, at_risk_boost=boost
+            )
+            for w in sample:
+                appearances[w["lemma_id"]] += 1
+        atrisk_avg = sum(appearances[i] for i in range(10)) / 10
+        normal_avg = sum(appearances[i] for i in range(10, 100)) / 90
+        assert atrisk_avg > normal_avg
+
+    def test_no_boost_is_unchanged(self):
+        """Without a boost map, behaviour matches the un-boosted sampler."""
+        counts = {i: 10 for i in range(100)}
+        result = sample_known_words_weighted(
+            KNOWN_WORDS_WITH_IDS, counts, sample_size=30, at_risk_boost=None
+        )
+        assert len(result) == 30
+
+    def test_build_map_assigns_expected_multipliers(self, db_session):
+        """The DB-backed map keys multipliers off state / stability / recent miss,
+        and leaves mature words out (implicit 1.0)."""
+        import json
+        from app.models import Lemma, UserLemmaKnowledge
+
+        def add(lid, state, stab=None):
+            db_session.add(Lemma(lemma_id=lid, lemma_ar=f"ك{lid}", lemma_ar_bare=f"ك{lid}",
+                                 gloss_en=f"w{lid}"))
+            card = json.dumps({"stability": stab}) if stab is not None else None
+            db_session.add(UserLemmaKnowledge(lemma_id=lid, knowledge_state=state,
+                                              fsrs_card_json=card))
+
+        add(1, "lapsed")                 # -> 3.0
+        add(2, "acquiring")              # -> 2.5
+        add(3, "known", stab=5.0)        # low stab -> 2.0
+        add(4, "known", stab=30.0)       # mid stab -> 1.5
+        add(5, "known", stab=200.0)      # mature -> absent
+        db_session.commit()
+
+        m = build_at_risk_boost_map(db_session)
+        assert m[1] == 3.0
+        assert m[2] == 2.5
+        assert m[3] == 2.0
+        assert m[4] == 1.5
+        assert 5 not in m
+
+    def test_recent_miss_boosts_otherwise_mature_word(self, db_session):
+        """A mature word missed in the last 14d is treated as at-risk."""
+        import json
+        from datetime import datetime, timezone
+        from app.models import Lemma, UserLemmaKnowledge, ReviewLog
+
+        db_session.add(Lemma(lemma_id=42, lemma_ar="مثال", lemma_ar_bare="مثال", gloss_en="example"))
+        db_session.add(UserLemmaKnowledge(lemma_id=42, knowledge_state="known",
+                                          fsrs_card_json=json.dumps({"stability": 200.0})))
+        db_session.add(ReviewLog(lemma_id=42, rating=1, is_acquisition=False,
+                                 reviewed_at=datetime.now(timezone.utc)))
+        db_session.commit()
+        m = build_at_risk_boost_map(db_session)
+        assert m.get(42) == 3.0
+
+    def test_disabled_returns_empty(self, db_session, monkeypatch):
+        monkeypatch.setenv("ALIF_AT_RISK_SCAFFOLD", "0")
+        assert build_at_risk_boost_map(db_session) == {}
 
 
 class TestGetAvoidWords:
