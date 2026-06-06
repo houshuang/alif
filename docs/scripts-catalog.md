@@ -131,6 +131,7 @@ These scripts are designed to run periodically against the generation pipeline b
 - `rollback_glitch_session.py` — Roll back the April 1, 2026 sync glitch session (102 bogus "Again" reviews). Restores FSRS state for 11 lapsed words. Also deactivates sentence 20403 (separated ال) and suspends lemma 441. `--execute` to apply (default: dry run).
 
 ## Analysis & Testing
+- `measure_at_risk_scaffold.py` — Before/after harness for the at-risk scaffold bias (`build_at_risk_boost_map`). Generates sentences for N random known targets against a prod-DB copy with `at_risk_boost` off then on, and reports at-risk scaffold words/sentence + all-mature share. Pure DB read + Sonnet LLM calls (no writes). `--db PATH --targets N --count K`. Backed experiment-log 2026-06-06 "At-risk scaffold bias" (measured +23% at-risk/sentence; modest because inverse-frequency weighting already correlates with fragility).
 - `db_analysis.py` — Database analysis and statistics.
 - `eval_codex_vs_claude_sentence_gen.py` — A/B sentence generation: Claude Sonnet (Alif's default) vs Codex `gpt-5.5` on the same Arabic prompts. Backed the 2026-05-26 decision to keep Sonnet for sentence gen (see `research/codex-vs-claude-sentence-gen-2026-05-26.md`).
 - `analyze_sentence_quality.py` — Analyze sentence quality from review data.
