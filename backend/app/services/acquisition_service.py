@@ -123,22 +123,44 @@ def _daily_intro_count(db: Session, today_start: datetime) -> int:
 
 
 def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
-    """Return (unreviewed box-1 count, due box-2 count)."""
+    """Return (unreviewed box-1 count, due box-2 count).
+
+    Both counts measure *actionable* practice debt, so words the session
+    pipeline can never serve are excluded — otherwise they pin recovery mode
+    permanently (2026-06-10: 2 proper-name rows stuck since May 4 plus 4
+    generation-backed-off words held the box-1 count over the trigger limit
+    for weeks, capping daily intros at the earned-recovery budget):
+
+    - inert word categories (proper_name/onomatopoeia) are filtered out of
+      word selection and earn no review credit, so they can never advance;
+    - words inside a generation backoff window have no sentence and cannot
+      get one until the backoff expires (box-1 only: box-2 words were already
+      served at least once, so their debt is real even while backed off).
+    """
+    inert_or_null_category = Lemma.word_category.is_(None) | Lemma.word_category.notin_(
+        ["proper_name", "onomatopoeia"]
+    )
     box1_unreviewed = (
         db.query(UserLemmaKnowledge)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 1,
             (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+            inert_or_null_category,
+            UserLemmaKnowledge.generation_backoff_until.is_(None)
+            | (UserLemmaKnowledge.generation_backoff_until <= now),
         )
         .count()
     )
     box2_due = (
         db.query(UserLemmaKnowledge)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 2,
             UserLemmaKnowledge.acquisition_next_due <= now,
+            inert_or_null_category,
         )
         .count()
     )

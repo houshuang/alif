@@ -46,6 +46,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-10 (fix): Recovery-trigger counts exclude unservable words
+
+**Why.** Ground-truth analysis (entry below) found the recovery throttle pinned for five
+weeks by exactly 9 never-reviewed Box-1 words that the session pipeline can never serve:
+2 proper-name rows (نَجَحَت, ثَمِينَه — May 4 book import, predating the proper-name guard;
+selector filters them but nothing demoted the rows) + 4 words in formal generation backoff
+(genfail 5–144, backoff until 06-17) + 3 healthy pending words. With
+`RECOVERY_BOX1_UNREVIEWED_LIMIT=5`, the 6 permanently-unservable rows alone kept the intro
+budget in earned-recovery mode ("intros run 5–11/day not 30", first noticed in the 06-03
+health check but mis-attributed to supply alone).
+
+**Change.** `_recovery_backlog_counts()` (acquisition_service) now measures *actionable*
+debt: both counts exclude `word_category` proper_name/onomatopoeia (NULL-safe); the
+unseen-box-1 count additionally excludes words currently inside a generation backoff window
+(box-2 keeps counting backed-off words — they were served at least once, their debt is
+real). No new constants: reuses the existing inert-category concept
+(`_is_generation_inert_lemma`) and the existing backoff mechanism. One-off cleanup via the
+existing `demote_inert_acquiring.py` (no new script — it already covers this). First
+dedicated test file for acquisition_service (`test_acquisition_service.py`): trigger
+exclusions + daily-cap deferral/bypass + cold-DB recovery-throttle behavior.
+
+**Expected effect.** Box-1 unseen count drops 9 → 3 (< limit 5), so the effective daily
+intro budget returns to the accuracy-earned schedule (up to 30/day at ≥85% accuracy)
+instead of being stuck at the MID budget. Watch intros/day over the next week; the
+ground-truth funnel (43% of new words graduate in ≤2 weeks) says the extra intros convert.
+
 ## 2026-06-10 (later): Ground-truth correction — the "collapse" was a flow artifact; known stock grew +89/wk
 
 **Why.** The user pushed back on the same-day review's headline ("doesn't match my felt
