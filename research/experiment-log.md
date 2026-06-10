@@ -72,6 +72,16 @@ intro budget returns to the accuracy-earned schedule (up to 30/day at ≥85% acc
 instead of being stuck at the MID budget. Watch intros/day over the next week; the
 ground-truth funnel (43% of new words graduate in ≤2 weeks) says the extra intros convert.
 
+**Deployed 2026-06-10 (PR #198, prod verified).** DB backed up
+(`alif_pre_throttle_fix_20260610_161951.db`); `demote_inert_acquiring.py --apply` demoted
+3 proper-name acquiring rows (ثَمِينَه, نَجَحَت never-seen since May 4; قادِر "Al-Qadir"
+box-2, seen=5) — logged to ActivityLog. Post-deploy `_recovery_backlog_counts`:
+box1_unreviewed **9 → 3** (< limit 5) ✓. Recovery mode currently still engages via
+box2_due=33 (≥ limit 30) — that is *genuine* drainable debt from the June-3 flood (words
+seen ≥1×, awaiting next box review), exactly what the throttle is for; it clears through
+normal practice and the budget then returns to the earned schedule. Follow-up check ~06-17:
+box2_due should be < 30 and intros/day back at 8–30.
+
 ## 2026-06-10 (later): Ground-truth correction — the "collapse" was a flow artifact; known stock grew +89/wk
 
 **Why.** The user pushed back on the same-day review's headline ("doesn't match my felt
