@@ -1,5 +1,11 @@
 # State of the Project — Full Code + Learning-Analytics Review (2026-06-10)
 
+> **⚠️ Addendum (same day):** the Part 1 headline ("north-star collapse") was corrected by a
+> follow-up event-level analysis — the grad−suspension *flow* metric conflated stock and
+> flow; the known-word *stock* actually grew +89 in the last week and the new-word funnel is
+> healthy. See `analysis-2026-06-10-two-week-ground-truth.md` for the corrected picture and
+> revised priority order. The process findings (unlogged cap bypass) and R1–R5 stand.
+
 **Scope.** Requested as a holistic review after ~120 days of daily use and 100+ days of
 iteration: (1) learning analytics from the production DB, (2) code-health audit of backend +
 frontend, (3) prioritized recommendations for pedagogy/algorithms and code cleanup —

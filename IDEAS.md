@@ -26,6 +26,27 @@ words with `enforce_daily_cap=False` — 17% re-suspended within a week.
 5. **Review-analysis hygiene**: segment weekly retention by difficulty band (675 cards at
    difficulty ≥7) when judging Lever 1 / at-risk-bias effects, instead of the blended number.
 
+**Ground-truth correction (same day, `analysis-2026-06-10-two-week-ground-truth.md`):** the
+"collapse" headline was a flow-metric artifact — known stock grew +89/week and the new-word
+funnel converts at 43% in ≤2 weeks. Items 1–5 above stand, with two additions and a re-order
+(unpin throttle first):
+
+6. **Unpin the recovery throttle from phantom words** (now top priority, smallest change):
+   exactly 9 Box-1 words have times_seen=0 — 2 proper-name artifacts (نَجَحَت, ثَمِينَه,
+   stuck since May 4: selector filters them but nothing demotes the acquiring rows) + 7
+   generation-dead rares (رَخَّ genfail=28; ذَكَرِيّ has a wrong gloss). With
+   `RECOVERY_BOX1_UNREVIEWED_LIMIT=5` this alone keeps the intro budget in earned-recovery
+   mode permanently ("intros run 5–11/day not 30"). Fix: exclude `proper_name` +
+   generation-dead (genfail ≥ N / max backoff) from `_recovery_backlog_counts`; demote those
+   rows to encountered/retired.
+7. **North-star instrumentation**: the headline metric must be the **known-word stock curve**
+   (weekly count of known/learning), never grad−suspension flow — suspensions are 3–14d
+   cooldowns of mostly never-known words and cost only ~5% of review volume. Add the stock
+   curve to the stats screen / weekly review template.
+8. **Watch item (~W26)**: understood% dipped 60% → 45–55% after the June-3 flood (no_idea ≈ 0,
+   so stretch not drowning). If it hasn't recovered toward ~60% as the cohort graduates,
+   revisit the at-risk scaffold-bias multipliers (2026-06-06 change).
+
 ## 🔵 [TODO 2026-06-10] Code-health cleanup queue (from state-of-project review)
 
 Audit details in `research/analysis-2026-06-10-state-of-project.md` Part 3. In order:

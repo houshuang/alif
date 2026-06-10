@@ -46,6 +46,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-10 (later): Ground-truth correction — the "collapse" was a flow artifact; known stock grew +89/wk
+
+**Why.** The user pushed back on the same-day review's headline ("doesn't match my felt
+experience — I'm seeing lots of new words and gradually acquiring them"). Event-level
+analysis of 14 days (`analysis-2026-06-10-two-week-ground-truth.md`): actual sentences,
+per-word rating sequences, funnel outcomes.
+
+**Finding: the learner is right.** 266 first-ever words reviewed in 14d; of 302 words that
+started acquiring, 43% already graduated, 40% progressing, only 16% suspended; 57% have
+last-two-reviews green; known stock 2,170 (06-03) → 2,259 (+89/week, near-record); sentence
+variety high (91% of 1,238 distinct sentences shown once). The grad−suspension "net" metric
+conflated stock and flow: only 20/132 suspended words were ever known, suspensions are 3–14d
+cooldowns not losses, and the suspended cohort consumed just 5.5% of review volume (why the
+user never felt it). Leech detection is rate-based (acc<50% of last 8), so the May-26 volume
+doubling compressed time-to-verdict — the spike is triage *speed*, not learning failure. The
+June 3 flood scored 96/227 known-or-learning in a week (the morning entry's "17% re-suspended"
+was one-sided). **Lesson: report the known-word stock curve as the north-star, never the
+grad−suspension flow.**
+
+**New actionable finding — recovery throttle pinned by phantom words.** Exactly 9 Box-1
+words have times_seen=0, ≥ `RECOVERY_BOX1_UNREVIEWED_LIMIT=5`, and **none can ever be
+reviewed**: 2 proper-name artifacts stuck since May 4 (نَجَحَت, ثَمِينَه — selector filters
+them but nothing demotes the rows) + 7 generation-dead June-3 rares (رَخَّ genfail=28,
+ذَكَرِيّ with a wrong gloss). The intro budget has been stuck in earned-recovery mode
+because of unreviewable rows — fix by excluding proper_name/generation-dead from
+`_recovery_backlog_counts` + demoting those rows. R2/R3/R4/R5 from the morning entry stand;
+priority order revised in the doc (§5). Watch item: understood% dipped 60%→45–55% post-flood
+(no_idea ≈ 0, so stretch not drowning); recheck ~W26.
+
 ## 2026-06-10: State-of-project review — north-star collapse traced to 2026-06-03 cap-bypass bulk promotion
 
 **What.** Full code + prod-analytics review (`analysis-2026-06-10-state-of-project.md`).
