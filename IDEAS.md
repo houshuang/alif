@@ -4,6 +4,44 @@
 
 ---
 
+## 🔵 [TODO 2026-06-10] Intro-cap bypass guardrails + acquiring-backlog drain (from state-of-project review)
+
+From `research/analysis-2026-06-10-state-of-project.md`: the W22–W24 north-star collapse was
+caused by an unlogged server one-off (`/tmp/complete_tiers.py`, 2026-06-03) bulk-promoting 227
+words with `enforce_daily_cap=False` — 17% re-suspended within a week.
+
+1. **Log-on-bypass**: `start_acquisition()` should `log_activity()` whenever
+   `enforce_daily_cap=False` is passed, so bulk mutations are visible in the same dashboards
+   that track their consequences. Plus a first dedicated pytest for the daily cap
+   (acquisition_service has no test file).
+2. **Drain the backlog**: run `demote_inert_acquiring.py` over the 138-word acquiring pool
+   (127 overdue, 85 Box-1) and let the cap re-promote at ≤30/day.
+3. **Judge-gate leech reintro** (consumer #2 of the Part C word-value judge below) is now
+   time-sensitive: 135 suspended words hit their 3–30d reintro timers in W25–W27; without the
+   gate the suspension wave replays.
+4. **Commit the due-coverage refill recipe** (`/tmp/refill_deficit.py` from 2026-05-29) as
+   `backend/scripts/refill_due_coverage.py` + cron step; 51/611 due words currently have zero
+   reviewable sentences, several being inflected-form artefact lemmas (نَدْرُسُ, يَكْتُبُونَ)
+   that should be retired via the judge, not regenerated (one has generation_failed_count=28).
+5. **Review-analysis hygiene**: segment weekly retention by difficulty band (675 cards at
+   difficulty ≥7) when judging Lever 1 / at-risk-bias effects, instead of the blended number.
+
+## 🔵 [TODO 2026-06-10] Code-health cleanup queue (from state-of-project review)
+
+Audit details in `research/analysis-2026-06-10-state-of-project.md` Part 3. In order:
+1. `backend/scripts/archive/` sweep — move ~60 completed date-coded one-off backfills
+   (zero risk; `ls scripts/` is part of the mandatory Rule-14 reads, so decluttering pays daily).
+2. Dead-service deletion after import check: `soniox_service.py`, `chimera_audit.py`,
+   `bare_shape_check.py`, `pattern_enrichment.py`, `pipeline_tiers.py`, `grammar_tagger.py`.
+3. Tests for the invariant-bearing untested services: `acquisition_service`,
+   `sentence_eligibility`, `canonical_resolution`, `mapping_rescue`.
+4. Frontend Stats type drift: rename `known_words/learning_words/new_words` →
+   wire-format `known/learning/new` in `types.ts` + drop the hand mapping in `api.ts:335–368`
+   (`streak_days` is declared but never sent at all).
+5. Split `app/index.tsx` (5,284 LOC): extract the four card components into `lib/review/`.
+6. Extract validator normalization helpers + `FUNCTION_WORD_GLOSSES` into a leaf module —
+   only alongside other validator work (iterated-area caution).
+
 ## 🔴 [INITIATIVE 2026-06-03] Rebuild the frequency core on properly-lemmatized sources
 
 **Root finding.** The frequency core's quality problems all trace to **un-lemmatized source data**.

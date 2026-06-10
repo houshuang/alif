@@ -46,7 +46,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-06-06: At-risk scaffold bias in generation — squeeze collateral value from each sentence
+## 2026-06-10: State-of-project review — north-star collapse traced to 2026-06-03 cap-bypass bulk promotion
+
+**What.** Full code + prod-analytics review (`analysis-2026-06-10-state-of-project.md`).
+Headline: net known-word growth (graduations − leech suspensions) fell from ~90–106/week
+(W15–W19) to 11–41/week (W22–W24); suspensions exploded 0–5/week → 43/66/23.
+
+**Root cause.** At 09:55 UTC on 2026-06-03 an ad-hoc server script (`/tmp/complete_tiers.py`,
+never committed, not activity-logged) promoted **227 words** into acquiring in one 2-second
+batch — every encountered/new frequency-core word at rank ≤2000 plus every suspended leech —
+via `start_acquisition(enforce_daily_cap=False)` (7.5× `DAILY_INTRO_CAP=30`). The cohort is
+mostly recycled hard words with prior failure history; one week later 39/227 (17%) are
+re-suspended, 92 stuck in acquiring (backlog now 138, 127 overdue, 85 in Box 1), W23
+acquisition accuracy 68.7%. Same-day logged decision (throttle sim) had concluded the
+opposite policy. Secondary contributor: review volume doubled from May 26, accelerating the
+30-day leech window; W20's 203-intro spike matured into W22 leeches.
+
+**Decisions/recommendations (see analysis doc Part 4).** R3: judge-gate leech reintro
+(IDEAS Part C) *before* the 135 suspended words' 3–30d timers fire, else W25 replays the wave.
+R1: demote-and-redrip the acquiring backlog (`demote_inert_acquiring.py`). R5: ship Lever 1
+(no-credit trivial collateral; brief at commit 800b6c43) — reinforced by new finding that
+rating 4 has been used 0 times in 53,136 reviews, so FSRS has no "easy" signal and credit
+policy must carry mature-card correction. R4: commit the 2026-05-29 `/tmp/refill_deficit.py`
+recipe as a cron step; 51/611 due words (8.3%) currently have zero reviewable sentences, many
+of them inflected-form artefact lemmas (نَدْرُسُ, يَكْتُبُونَ) that should be retired, not
+regenerated. R2: `start_acquisition` should `log_activity` whenever the cap-bypass flag is
+used + first-ever pytest for the cap (acquisition_service has no dedicated test file).
+
+**Also healthy/unchanged.** FSRS retention 93.5% lifetime, 122-day streak, collateral credit
+carrying 80% of volume at 92.7%, LLM failover clean (Codex 13% err → caught). Confirmed
+not-re-proposing the 2026-05-22 rejected set.
 
 **Why.** Follow-on from the same-day analyses (`analysis-2026-06-06-mature-words-fsrs-retune.md`):
 the reviewable corpus is **82% all-known** (zero unknown content words), so most sentences
