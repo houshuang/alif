@@ -315,8 +315,13 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
     words = []
     for i, (b, v) in enumerate(ordered):
         g = glosses.get(i, {})
-        if g.get("is_proper_noun"):
-            continue  # names aren't vocabulary worth scheduling
+        is_proper = bool(g.get("is_proper_noun"))
+        # Learn-next mode drops names (not vocabulary to schedule). Glossary mode
+        # (include_oov) keeps everything and exposes the flag — the gloss model
+        # over-tags dialect/vulgar OOV nouns as proper, and a glossary wants names
+        # (place/person) anyway; the consumer filters on `is_proper_noun`.
+        if is_proper and not req.include_oov:
+            continue
         # The gloss step may correct an OOV mis-analysis; trust its citation form.
         corrected = (g.get("lemma_ar") or "").strip()
         lemma_ar = corrected or v["lemma_ar"]
@@ -331,6 +336,7 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
                 "root": v["root"],
                 "gloss_en": g.get("gloss_en"),
                 "pos": g.get("pos") or v["pos"],
+                "is_proper_noun": is_proper,
                 "register": g.get("register"),
                 "dialect": g.get("dialect"),
                 "transliteration": g.get("transliteration"),

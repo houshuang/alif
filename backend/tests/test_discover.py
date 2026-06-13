@@ -102,12 +102,23 @@ def test_gloss_can_correct_lemma(client, db_session, monkeypatch):
     assert w["lemma_ar_bare"] == "خطوة"  # recomputed from the correction
 
 
-def test_proper_noun_dropped_even_with_oov(client, db_session, monkeypatch):
+def test_proper_noun_dropped_in_learn_mode(client, db_session, monkeypatch):
+    """Default (learn-next) mode drops names — they aren't vocabulary to schedule."""
+    _rich_gloss(monkeypatch, {"لندن": {"gloss_en": "London", "is_proper_noun": True}})
+    r = client.post("/api/discover/words", json={"text": "لندن مدينة جميلة", "count": 10})
+    assert r.status_code == 200
+    assert all(w["lemma_ar_bare"] != "لندن" for w in r.json()["words"])
+
+
+def test_proper_noun_kept_but_flagged_in_glossary_mode(client, db_session, monkeypatch):
+    """Glossary mode (include_oov) keeps names so the model's over-tagging of vulgar
+    OOV nouns as 'proper' can't silently drop content; the consumer filters on the flag."""
     _rich_gloss(monkeypatch, {"لندن": {"gloss_en": "London", "is_proper_noun": True}})
     r = client.post("/api/discover/words", json={
         "text": "لندن مدينة جميلة", "count": 10, "include_oov": True})
     assert r.status_code == 200
-    assert all(w["lemma_ar_bare"] != "لندن" for w in r.json()["words"])
+    london = next(w for w in r.json()["words"] if w["lemma_ar_bare"] == "لندن")
+    assert london["is_proper_noun"] is True
 
 
 def test_add_persists_register_dialect(client, db_session):

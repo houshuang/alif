@@ -104,7 +104,8 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 | `lemma_ar_bare` | string | Normalized, diacritic-free lemma — the **stable identity key**. Echo this back to `/add`. |
 | `root` | string \| null | Space-separated Semitic root when available; `null` for surface-fallback OOV words. |
 | `gloss_en` | string \| null | Concise English meaning, in the text's context (null only if glossing failed). |
-| `pos` | string | `noun` / `verb` / `adjective` / `adverb` / `particle`. |
+| `pos` | string | `noun` / `verb` / `adjective` / `adverb` / `particle` / `proper_noun`. |
+| `is_proper_noun` | bool | Whether the gloss model judged this a name. In glossary mode (`include_oov`) names are **returned flagged** (so the model's over-tagging of vulgar/dialect nouns as "proper" can't silently drop content); filter on this if you don't want names. |
 | `register` | string \| null | `neutral` / `literary` / `colloquial` / `vulgar` / `clinical`. |
 | `dialect` | string \| null | `msa` / `gulf` / `egyptian` / `levantine` / `mixed`. |
 | `transliteration` | string \| null | ALA-LC romanization. |
@@ -113,7 +114,9 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 | `example_ar` | string \| null | One short attested clause containing the word, for display. |
 | `lemma_source` | string | `"camel"` (resolved by the morphological analyzer) or `"surface_fallback"` (clitic-stripped OOV — root/pos are best-effort and the gloss is the authority). |
 
-Words already known to Alif, function words, and proper nouns do **not** appear.
+Words already known to Alif and function words never appear. Proper nouns are dropped
+in the default (learn-next) mode; in glossary mode (`include_oov`) they are returned
+with `is_proper_noun: true` so you can keep or filter them yourself.
 
 **Glossing of OOV / dialectal / vulgar words** (`include_oov: true`): the gloss step
 runs *in context* (it sees an example clause), so it glosses the word as used, assigns
