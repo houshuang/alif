@@ -4,47 +4,65 @@ Two jobs:
   POST /api/discover/words  — given a block of Arabic text, return the highest-value
        lemmas that are NOT yet in Alif's pool, ranked by MSA frequency, each glossed.
   POST /api/discover/add[-batch] — create the chosen lemma(s), introduce them into the
-       acquisition pipeline, and (in the background) run the quality gates + generate
-       review material. Fast write up front; the LLM-heavy gating never holds the
-       write lock (own session in a BackgroundTask).
+       acquisition pipeline immediately (explicit user adds bypass the daily intro cap),
+       and (in the background) run the quality gates + generate review material. Fast
+       write up front; the LLM-heavy gating never holds the write lock (own session in
+       a BackgroundTask).
 
 This is the Dragoman → Alif integration: a reader sees an Arabic essay in the magazine,
 Dragoman asks this endpoint which words are worth learning, and renders "add to Alif"
 buttons that POST back here.
+
+Word identity goes through the production-hardened lookup path
+(`build_comprehensive_lemma_lookup` + `lookup_lemma`): clitic stripping, CAMeL
+disambiguation, collision handling, and variant→canonical resolution — the same path
+the corpus importer uses. We never hand-roll tokenize+normalize+classify here (that
+surface-only shortcut leaks clitic-attached and variant forms — 2026-06-03 lesson).
 """
 import logging
 import re
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
 from app.models import Lemma
 from app.services.interaction_logger import log_interaction
-from app.services.llm import generate_completion
 from app.services.lemma_quality import (
     _load_rank_map,
     _normalize,
     assign_frequency_rank,
     run_quality_gates,
 )
+from app.services.llm import generate_completion
 from app.services.material_generator import (
     MIN_SENTENCES_PER_WORD,
     generate_material_for_word,
 )
 from app.services.morphology import get_best_lemma_mle
-from app.services.sentence_validator import _is_function_word, _strip_clitics
+from app.services.sentence_validator import (
+    _is_function_word,
+    build_comprehensive_lemma_lookup,
+    lookup_lemma,
+    strip_diacritics,
+)
 from app.services.word_selector import introduce_word
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/discover", tags=["discover"])
 
-# Arabic letters + diacritics + tatweel + superscript alef only — deliberately excludes
-# Arabic punctuation (، ؛ ؟ at U+060C/061B/061F), which sit in the same Unicode block.
-_ARABIC_TOKEN = re.compile(r"[ء-ْٰ]+")
+# A token is a maximal run of Arabic letters + diacritics (matches the reference
+# tokenizer in scripts/reading_readiness.py). Deliberately excludes Arabic
+# punctuation (، ؛ ؟) and digits, which sit in adjacent code points.
+_ARABIC_TOKEN = re.compile(r"[ء-يٰ-ۿݐ-ݿ]+")
 _MAX_WORDS = 20
+# CAMeL POS prefixes that count as teachable content; everything else (preps,
+# particles, pronouns, conjunctions) is a readable function word, not a gap.
+_CONTENT_POS_PREFIXES = ("noun", "adj", "verb", "adv")
+# LLM/CAMeL part-of-speech values that mark a proper noun (never vocabulary).
+_PROPER_NOUN_POS = {"proper_noun", "noun_prop"}
 
 _GLOSS_SCHEMA = {
     "type": "object",
@@ -68,29 +86,25 @@ _GLOSS_SCHEMA = {
 }
 
 
-def _lemmatize(token: str) -> tuple[str, str, str | None] | None:
-    """(diacritized lemma, normalized bare, pos) for an Arabic surface token, or None
-    if it isn't a content word. Falls back to clitic-stripping when CAMeL is unavailable."""
-    norm = _normalize(token)
-    if len(norm) < 2 or _is_function_word(norm):
-        return None
-    lex, pos = token, None
+def _camel_content(token: str, cache: dict) -> tuple[str, str, str] | None:
+    """For an OOV surface token, return (diacritized citation lemma, normalized bare,
+    pos) if CAMeL analyses it as a content word; None for function/proper/unanalyzable.
+    Groups inflected forms of the same word under one citation lemma."""
+    if token in cache:
+        return cache[token]
+    result = None
     try:
-        analysis = get_best_lemma_mle(token)
+        a = get_best_lemma_mle(token)
     except Exception:
-        analysis = None
-    if analysis and analysis.get("lex"):
-        lex, pos = analysis["lex"], analysis.get("pos")
-        bare = _normalize(lex)
-    else:
-        try:
-            stems = _strip_clitics(norm)
-        except Exception:
-            stems = []
-        bare = _normalize(stems[0]) if stems else norm
-    if len(bare) < 2 or _is_function_word(bare):
-        return None
-    return lex, bare, pos
+        a = None
+    if a and a.get("lex"):
+        pos = (a.get("pos") or "").lower()
+        # noun_prop = proper name: readable, not a vocab gap → skip.
+        if pos != "noun_prop" and any(pos.startswith(p) for p in _CONTENT_POS_PREFIXES):
+            lex = a["lex"]
+            result = (lex, _normalize(lex), pos)
+    cache[token] = result
+    return result
 
 
 def _gloss(items: list[dict]) -> dict[int, dict]:
@@ -135,35 +149,41 @@ class DiscoverIn(BaseModel):
 @router.post("/words")
 def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
     """High-value Arabic lemmas in `text` that aren't in Alif yet, ranked by frequency."""
-    cand: dict[str, dict] = {}  # bare -> {surface, lemma_ar, pos, count}
+    lemma_lookup = build_comprehensive_lemma_lookup(db)
+    ranks = _load_rank_map()
+    cand: dict[str, dict] = {}  # citation bare -> {surface, lemma_ar, pos, count}
+    camel_cache: dict = {}
+
     for tok in _ARABIC_TOKEN.findall(req.text or ""):
-        lem = _lemmatize(tok)
-        if not lem:
+        bare = _normalize(tok)
+        if len(bare) < 2 or _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
             continue
-        lex, bare, pos = lem
-        if bare in cand:
-            cand[bare]["count"] += 1
+        # Already in Alif's vocabulary? The hardened lookup resolves clitics and
+        # variants → canonical, so this catches forms a surface match would miss.
+        if lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(tok)) is not None:
+            continue
+        # Genuinely OOV: CAMeL confirms it's a content word, groups inflections under
+        # one citation form, and gives a diacritized lemma for glossing.
+        analysis = _camel_content(tok, camel_cache)
+        if analysis is None:
+            continue  # function / proper / unanalyzable — not a vocab candidate
+        lex, lex_bare, pos = analysis
+        # The citation form itself may already be known even when the surface wasn't
+        # (e.g. an inflection CAMeL reduced to an in-vocab lemma).
+        if lex_bare != bare and lookup_lemma(lex_bare, lemma_lookup) is not None:
+            continue
+        entry = cand.get(lex_bare)
+        if entry:
+            entry["count"] += 1
         else:
-            cand[bare] = {"surface": tok, "lemma_ar": lex, "pos": pos, "count": 1}
+            cand[lex_bare] = {"surface": tok, "lemma_ar": lex, "pos": pos, "count": 1}
+
     if not cand:
         return {"words": [], "count": 0}
 
-    # Genuinely-new only: drop any bare form Alif already has a lemma for.
-    bares = list(cand.keys())
-    existing: set[str] = set()
-    for i in range(0, len(bares), 400):
-        rows = db.query(Lemma.lemma_ar_bare).filter(
-            Lemma.lemma_ar_bare.in_(bares[i : i + 400])
-        ).all()
-        existing.update(r[0] for r in rows)
-    fresh = {b: v for b, v in cand.items() if b not in existing}
-    if not fresh:
-        return {"words": [], "count": 0}
-
     # Rank: frequency-listed words first (most frequent first), then by occurrences.
-    ranks = _load_rank_map()
     ordered = sorted(
-        fresh.items(),
+        cand.items(),
         key=lambda kv: (0, ranks[kv[0]]) if kv[0] in ranks else (1, -kv[1]["count"]),
     )[: max(1, min(req.count, _MAX_WORDS))]
 
@@ -201,10 +221,6 @@ class WordIn(BaseModel):
     transliteration: str | None = None
 
 
-class WordsIn(BaseModel):
-    words: list[WordIn]
-
-
 def _gate_and_generate(lemma_ids: list[int]) -> None:
     """Background: quality-gate the new lemmas, then generate review material. Own
     session so it never blocks the request's write lock."""
@@ -224,30 +240,43 @@ def _gate_and_generate(lemma_ids: list[int]) -> None:
             logger.warning("dragoman material gen failed for %s: %s", lid, e)
 
 
-def _create_and_introduce(db: Session, w: WordIn) -> dict:
+def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
+    """Find-or-create the canonical lemma for `w`, then introduce it immediately
+    (bypassing the daily intro cap — this is an explicit user add). Newly created
+    lemmas are registered in `lemma_lookup` so a repeated word in the same batch
+    resolves to the row we just made instead of being created twice."""
+    if (w.pos or "").lower() in _PROPER_NOUN_POS:
+        raise ValueError(f"refusing to add proper noun {w.lemma_ar_bare!r}")
     bare = _normalize(w.lemma_ar_bare)
-    existing = (
-        db.query(Lemma)
-        .filter(Lemma.canonical_lemma_id.is_(None), Lemma.lemma_ar_bare == bare)
-        .first()
-    )
+    # Hardened existence check: resolves clitics + variants → canonical.
+    existing_id = lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare))
     created = False
-    if existing:
-        lemma = existing
-    else:
+    if existing_id is not None:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
+    if existing_id is None or lemma is None:
+        gloss = (w.gloss_en or "").strip()
+        if not gloss:
+            # Hard invariant: no words without an English gloss, ever.
+            raise ValueError(f"refusing to create gloss-less lemma {bare!r}")
+        word_category = "proper_name" if (w.pos or "").lower() in _PROPER_NOUN_POS else None
         lemma = Lemma(
             lemma_ar=(w.lemma_ar or bare),
             lemma_ar_bare=bare,
-            gloss_en=w.gloss_en,
+            gloss_en=gloss,
             pos=w.pos,
+            word_category=word_category,
             transliteration_ala_lc=w.transliteration,
-            source="study",
+            source="dragoman",
         )
         db.add(lemma)
         db.flush()
         assign_frequency_rank(lemma)
+        lemma_lookup[bare] = lemma.lemma_id  # in-batch dedupe
         created = True
-    res = introduce_word(db, lemma.lemma_id, source="study")
+    res = introduce_word(
+        db, lemma.lemma_id, source="dragoman",
+        due_immediately=True, enforce_daily_cap=False,
+    )
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -261,30 +290,41 @@ def _create_and_introduce(db: Session, w: WordIn) -> dict:
 @router.post("/add")
 def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create + introduce one word; gate and generate material in the background."""
-    out = _create_and_introduce(db, w)
+    lemma_lookup = build_comprehensive_lemma_lookup(db)
+    try:
+        out = _create_and_introduce(db, w, lemma_lookup)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     db.commit()
     if out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
-    log_interaction(event="dragoman_word_added", lemma_id=out["lemma_id"])
+        log_interaction(event="dragoman_word_added", lemma_id=out["lemma_id"])
     return out
+
+
+class WordsIn(BaseModel):
+    words: list[WordIn]
 
 
 @router.post("/add-batch")
 def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Create + introduce several words at once."""
+    """Create + introduce several words at once. Each word is committed independently
+    so one failure can't roll back the rest of the batch."""
+    lemma_lookup = build_comprehensive_lemma_lookup(db)
     results, new_ids = [], []
     for w in req.words:
         try:
-            out = _create_and_introduce(db, w)
+            out = _create_and_introduce(db, w, lemma_lookup)
+            db.commit()
             results.append(out)
             if out["created"]:
                 new_ids.append(out["lemma_id"])
+                log_interaction(event="dragoman_word_added", lemma_id=out["lemma_id"])
         except Exception as e:
             db.rollback()
+            logger.warning("dragoman add failed for %s: %s", w.lemma_ar_bare, e)
             results.append({"lemma_ar_bare": w.lemma_ar_bare, "error": str(e)})
-    db.commit()
     if new_ids:
         background_tasks.add_task(_gate_and_generate, new_ids)
-        for lid in new_ids:
-            log_interaction(event="dragoman_word_added", lemma_id=lid)
     return {"added": results, "count": len(results)}

@@ -115,6 +115,13 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/patterns/{wazn}` | All words with a specific pattern + enrichment JSON, ordered by frequency |
 | GET | `/api/patterns/roots/{root_id}/tree` | Full derivation tree for a root, grouped by pattern |
 
+## Discover (external-text vocabulary, Dragoman integration)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/discover/words` | Given `{text, count}` of Arabic prose, return up to `count` (≤20) high-value lemmas **not yet in Alif**, ranked by MSA frequency then in-text occurrence, each glossed. Word identity goes through the hardened lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma` — clitics + variants→canonical resolved); genuinely-OOV tokens are confirmed as content words via CAMeL and grouped by citation lemma. Proper nouns dropped. Read-only. Each word: `{surface, lemma_ar, lemma_ar_bare, gloss_en, pos, transliteration, freq_rank, count_in_text}`. |
+| POST | `/api/discover/add` | `{lemma_ar_bare, lemma_ar?, gloss_en?, pos?, transliteration?}` → find-or-create the canonical lemma and **introduce it immediately**, bypassing `DAILY_INTRO_CAP` (explicit user add). Quality gates + material generation run in a background task (own session, no write-lock hold). Rejects gloss-less words and proper nouns with `400`. Lemmas tagged `source="dragoman"`. |
+| POST | `/api/discover/add-batch` | `{words: [WordIn,...]}` → same as `/add` per word, each committed independently so one failure can't roll back the rest; repeated words in one batch dedupe to a single lemma. Returns `{added: [...], count}`. |
+
 ## Settings
 | Method | Path | Description |
 |--------|------|-------------|
