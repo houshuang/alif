@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots, podcast, polyglot_proxy
+from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots, podcast, polyglot_proxy, discover
 
 
 @asynccontextmanager
@@ -112,6 +112,7 @@ app.include_router(podcast.router)
 # the deliberate constraints — this module is pure HTTP passthrough, no
 # code coupling to polyglot.
 app.include_router(polyglot_proxy.router)
+app.include_router(discover.router)
 
 # Serve voice samples for comparison testing
 from pathlib import Path as _Path
