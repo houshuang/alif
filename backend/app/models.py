@@ -51,6 +51,11 @@ class Lemma(Base):
     forms_translit_json = Column(JSON, nullable=True)  # ALA-LC transliteration per form key
     gates_completed_at = Column(DateTime, nullable=True)  # set by run_quality_gates(); NULL = ungated
     decomposition_note = Column(JSON, nullable=True)  # audit metadata from lemma-decomposition audit (Step 4b+)
+    # Register/dialect provenance for words discovered from external text (e.g. the
+    # Bookifier glossary path importing dialectal/colloquial/vulgar vocabulary). NULL
+    # for the standard MSA curriculum. register: neutral|literary|colloquial|vulgar|clinical
+    register = Column(String(20), nullable=True)
+    dialect = Column(String(20), nullable=True)  # msa|gulf|egyptian|levantine|mixed
 
     @validates("lemma_ar_bare")
     def _normalize_bare(self, key, value):
