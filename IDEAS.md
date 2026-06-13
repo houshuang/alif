@@ -4,6 +4,15 @@
 
 ---
 
+## 🟢 [LIVE 2026-06-13 — PR #199] Dragoman → Alif vocabulary discovery from external Arabic text
+
+`/api/discover/{words,add,add-batch}` (`backend/app/routers/discover.py`). The Dragoman polyglot magazine sends a block of Arabic prose; `/words` returns the highest-value lemmas **not yet in Alif** (frequency-ranked, glossed), and the reader's "add to Alif" buttons POST chosen words back to `/add[-batch]`, which find-or-creates the canonical lemma and introduces it **immediately, bypassing `DAILY_INTRO_CAP`** (explicit user add). Quality gates + material generation run in a background task; lemmas tagged `source="dragoman"`. Word identity goes through the hardened lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma` — clitics + variants→canonical) so already-known words (incl. clitic-attached) are correctly excluded. Deployed + verified live 2026-06-13.
+
+**[TODO] Follow-up — store the source sentences as a reusable corpus.** The newspaper/essay sentences Dragoman sends are authentic reading material and would make excellent review material *once the newly-added word is known* (better than LLM-generated). But do NOT bolt this onto the discover endpoints and do NOT trust the discovery-time CAMeL lemmatization as the stored mapping. Instead:
+- Route ingestion through the existing corpus path (`book_import_service` / `create_book_sentences`), which already persists `SentenceWord` rows with `lemma_id IS NULL` for not-yet-known surfaces (the sanctioned storage gate), tagged by a new `source` (e.g. `"dragoman_corpus"`).
+- Let the cron healing/reverify pipeline (`fix_null_lemma_ids` + `reverify_all_active_sentences`) do the real mapping + stamp `mappings_verified_at` — the discovery lemmatization is a hint, not a verified mapping. Stored sentences stay non-reviewable (corpus sentinel) until verified.
+- Reality check: newspaper Arabic is dense with unknowns, so most stored sentences sit inactive until vocab catches up (like the Hindawi backlog at line ~1210) — a long-term authentic-corpus investment, not an immediate win. That's why it's a separate feature, not part of word discovery.
+
 ## 🔵 [TODO 2026-06-10] Intro-cap bypass guardrails + acquiring-backlog drain (from state-of-project review)
 
 From `research/analysis-2026-06-10-state-of-project.md`: the W22–W24 north-star collapse was
