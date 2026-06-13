@@ -51,6 +51,7 @@ npx expo start --web  # opens on localhost:8081
 | `docs/frontend-files.md` | All frontend screens, components, and infrastructure files |
 | `docs/data-model.md` | SQLAlchemy models and table schemas |
 | `docs/api-reference.md` | Full API endpoint reference |
+| `docs/discover-api-integration.md` | External-service integration guide for `/api/discover/*` (Dragoman-style vocab discovery from Arabic text) |
 | `docs/nlp-pipeline.md` | NLP pipeline: clitic stripping, CAMeL Tools, morphology |
 | `docs/review-modes.md` | Full UX flows for all review modes |
 | `docs/scripts-catalog.md` | All import, backfill, cleanup, analysis scripts |
