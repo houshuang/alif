@@ -44,6 +44,37 @@ def _normalize(text: str) -> str:
     return text
 
 
+def strip_display_definite_article(lemma_ar: str, lemma_ar_bare: str) -> str:
+    """Return the diacritized headword with a leading definite article removed.
+
+    The lemma headword (`lemma_ar`, shown on intro cards) must be the citation
+    form, not the in-text definite surface form. Scans (textbook_scan, OCR, book
+    import) captured words like \u0627\u0644\u0652\u0643\u064e\u0647\u0652\u0641 / \u0627\u0644\u0633\u064e\u0651\u0645\u064e\u0627\u0648\u0650\u064a\u0651 verbatim while the bare form
+    correctly stripped \u0627\u0644 \u2014 so display and bare diverged and the card showed
+    "the cave" instead of "cave" (2026-06-13).
+
+    Only strips when the bare form does NOT carry \u0627\u0644 (so genuinely article-initial
+    lemmas like \u0627\u0644\u0644\u0647 / \u0627\u0644\u0630\u064a are left alone), and only accepts the result when its
+    normalization still equals `lemma_ar_bare` \u2014 guaranteeing display and bare
+    stay consistent. Also drops the sun-letter shadda left on the first root
+    consonant (\u0627\u0644\u0633\u064e\u0651\u0645\u064e\u0627\u0648\u0650\u064a\u0651 \u2192 \u0633\u064e\u0645\u064e\u0627\u0648\u0650\u064a\u0651).
+    """
+    if not lemma_ar or not lemma_ar_bare or lemma_ar_bare.startswith("\u0627\u0644"):
+        return lemma_ar
+    stripped = _AL_PREFIX.sub("", lemma_ar)
+    if stripped == lemma_ar:
+        return lemma_ar  # no article present
+    letters = [i for i, c in enumerate(stripped) if '\u0621' <= c <= '\u064a']
+    if len(letters) >= 2:
+        sh = stripped.find('\u0651')  # shadda
+        if 0 <= sh < letters[1]:      # belongs to the now-leading consonant
+            stripped = stripped[:sh] + stripped[sh + 1:]
+    # Safety: never create a new display/bare divergence.
+    if _normalize(stripped) == _normalize(lemma_ar_bare):
+        return stripped
+    return lemma_ar
+
+
 def _load_rank_map() -> dict[str, int]:
     """Load CAMeL MSA frequency data. Cached after first call."""
     global _rank_map
@@ -198,6 +229,38 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
             new_ar = clean_bare_form(lemma.lemma_ar)
             if new_ar != lemma.lemma_ar:
                 lemma.lemma_ar = new_ar
+
+        # 1b. Strip a definite article baked into the display headword by a scan
+        #     (الْكَهْف → كَهْف). Deterministic + safety-checked against the bare form.
+        if lemma.lemma_ar and lemma.lemma_ar_bare:
+            de_al = strip_display_definite_article(lemma.lemma_ar, lemma.lemma_ar_bare)
+            if de_al != lemma.lemma_ar:
+                logger.info(
+                    f"Lemma {lemma.lemma_id}: stripped definite article from display "
+                    f"{lemma.lemma_ar!r} -> {de_al!r}"
+                )
+                lemma.lemma_ar = de_al
+                cleaned += 1
+                gf = lemma.grammar_features_json
+                if isinstance(gf, list) and "definite_article" in gf:
+                    lemma.grammar_features_json = [x for x in gf if x != "definite_article"]
+
+        # 1c. Warn when the display headword is a plural/inflected form rather than
+        #     the citation form (e.g. آثَار stored for أَثَر). Best-effort detection —
+        #     can't auto-correct (needs re-vocalization), so surface it for review.
+        if lemma.lemma_ar and lemma.lemma_ar_bare:
+            disp = _normalize(lemma.lemma_ar)
+            bare = _normalize(lemma.lemma_ar_bare)
+            if disp.startswith("ال") and not bare.startswith("ال"):
+                disp = disp[2:]
+            loose_disp = disp.rstrip("ة").replace("ى", "ي")
+            loose_bare = bare.rstrip("ة").replace("ى", "ي")
+            if loose_disp and loose_disp != loose_bare:
+                logger.warning(
+                    f"Lemma {lemma.lemma_id} ({lemma.gloss_en!r}): display "
+                    f"{lemma.lemma_ar!r} diverges from bare {lemma.lemma_ar_bare!r} "
+                    f"— possible plural/inflected form stored as headword"
+                )
 
         # 2. Check gloss
         if not lemma.gloss_en:
