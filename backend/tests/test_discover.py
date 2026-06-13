@@ -32,6 +32,94 @@ def _no_llm_gloss(monkeypatch, mapping):
     monkeypatch.setattr(discover, "_gloss", fake_gloss)
 
 
+def _rich_gloss(monkeypatch, mapping):
+    """Stub gloss with full fields. mapping: {bare: {gloss_en,pos,is_proper_noun,
+    register,dialect,lemma_ar}} (any subset; sensible defaults fill the rest)."""
+    def fake_gloss(items):
+        out = {}
+        for it in items:
+            m = mapping.get(it["bare"], {})
+            g = {
+                "gloss_en": m.get("gloss_en", "x"),
+                "pos": m.get("pos", "noun"),
+                "transliteration": m.get("transliteration", "t"),
+                "is_proper_noun": m.get("is_proper_noun", False),
+                "register": m.get("register"),
+                "dialect": m.get("dialect"),
+            }
+            if "lemma_ar" in m:
+                g["lemma_ar"] = m["lemma_ar"]
+            out[it["index"]] = g
+        return out
+    monkeypatch.setattr(discover, "_gloss", fake_gloss)
+
+
+def test_oov_dropped_by_default(client, db_session, monkeypatch):
+    """Without include_oov, an out-of-CAMeL-vocab word is NOT surfaced (Dragoman default)."""
+    _rich_gloss(monkeypatch, {})
+    r = client.post("/api/discover/words", json={"text": "رأيت كسها على السرير", "count": 10})
+    assert r.status_code == 200
+    bares = {w["lemma_ar_bare"] for w in r.json()["words"]}
+    assert "كس" not in bares
+
+
+def test_oov_surface_fallback_aggregates(client, db_session, monkeypatch):
+    """include_oov: cliticized OOV forms aggregate to one fallback lemma with all surfaces."""
+    _rich_gloss(monkeypatch, {"كس": {"gloss_en": "vulva", "register": "vulgar", "dialect": "gulf"}})
+    r = client.post("/api/discover/words", json={
+        "text": "كسها وكسها والكس", "count": 10, "include_oov": True})
+    assert r.status_code == 200
+    ks = [w for w in r.json()["words"] if w["lemma_ar_bare"] == "كس"]
+    assert len(ks) == 1
+    w = ks[0]
+    assert w["count_in_text"] == 3
+    assert set(w["surface_forms"]) == {"كسها", "وكسها", "والكس"}
+    assert w["lemma_source"] == "surface_fallback"
+    assert w["register"] == "vulgar" and w["dialect"] == "gulf"
+    assert w["root"] is None  # no CAMeL analysis for OOV
+
+
+def test_additive_fields_for_camel_word(client, db_session, monkeypatch):
+    """A genuine MSA OOV-but-analyzable word carries root + example_ar + surface_forms."""
+    _rich_gloss(monkeypatch, {"اعلن": {"gloss_en": "announce", "pos": "verb"}})
+    r = client.post("/api/discover/words", json={
+        "text": "أعلنت الوزارة ذلك", "count": 10})
+    assert r.status_code == 200
+    w = next(w for w in r.json()["words"] if w["lemma_ar_bare"] == "اعلن")
+    assert w["lemma_source"] == "camel"
+    assert w["root"] and "ع" in w["root"]          # CAMeL root ع ل ن
+    assert "أعلنت" in w["surface_forms"]
+    assert w["example_ar"] and "أعلنت" in w["example_ar"]
+
+
+def test_gloss_can_correct_lemma(client, db_session, monkeypatch):
+    """When the gloss step returns a corrected lemma_ar, the output adopts it."""
+    _rich_gloss(monkeypatch, {"خطا": {"gloss_en": "step", "lemma_ar": "خَطْوَة"}})
+    r = client.post("/api/discover/words", json={
+        "text": "خطا كبيرة جدا", "count": 10, "include_oov": True})
+    assert r.status_code == 200
+    w = next(w for w in r.json()["words"] if w["lemma_ar"] == "خَطْوَة")
+    assert w["lemma_ar_bare"] == "خطوة"  # recomputed from the correction
+
+
+def test_proper_noun_dropped_even_with_oov(client, db_session, monkeypatch):
+    _rich_gloss(monkeypatch, {"لندن": {"gloss_en": "London", "is_proper_noun": True}})
+    r = client.post("/api/discover/words", json={
+        "text": "لندن مدينة جميلة", "count": 10, "include_oov": True})
+    assert r.status_code == 200
+    assert all(w["lemma_ar_bare"] != "لندن" for w in r.json()["words"])
+
+
+def test_add_persists_register_dialect(client, db_session):
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "كس", "lemma_ar": "كُسّ", "gloss_en": "vulva",
+        "pos": "noun", "register": "vulgar", "dialect": "gulf"})
+    assert r.status_code == 200
+    lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "كس").first()
+    assert lem is not None
+    assert lem.register == "vulgar" and lem.dialect == "gulf"
+
+
 def test_words_excludes_known_via_hardened_lookup(client, seeded, monkeypatch):
     """A word already in the vocabulary (even clitic-attached) is not suggested."""
     _no_llm_gloss(monkeypatch, {"دستور": ("constitution", "noun", False)})

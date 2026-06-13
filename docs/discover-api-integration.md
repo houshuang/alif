@@ -60,13 +60,15 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 **Request**
 
 ```json
-{ "text": "<Arabic text>", "count": 8 }
+{ "text": "<Arabic text>", "count": 8, "selection": "common_first", "include_oov": false }
 ```
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `text` | string | — | Arabic prose. Other scripts/punctuation are ignored. |
-| `count` | integer | `8` | Max suggestions to return. Clamped to **1–20**. |
+| `count` | integer | `8` | Max suggestions to return. Clamped to **1–50**. |
+| `selection` | string | `"common_first"` | Ranking mode. `"common_first"` = generally-common words first (best for "what to learn next"). `"distinctive"` = the words that *carry this text* — frequent here but rare in general (TF-IDF-style lift), best for a text-attached glossary. |
+| `include_oov` | bool | `false` | When `true`, keep out-of-vocabulary words (dialect / slang / vulgar / loanwords) that the morphological analyzer can't resolve, via a clitic-stripped **surface fallback**, instead of dropping them. Off by default, so the "learn next" use case isn't polluted. Turn it on for glossing authentic dialectal/literary text. |
 
 **Response**
 
@@ -74,14 +76,20 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 {
   "words": [
     {
-      "surface": "أعلنت",
-      "lemma_ar": "أَعْلَن",
-      "lemma_ar_bare": "اعلن",
-      "gloss_en": "announce",
-      "pos": "verb",
-      "transliteration": "aʿlana",
+      "surface": "كسها",
+      "surface_forms": ["كسها", "وكسها", "والكس"],
+      "lemma_ar": "كُسّ",
+      "lemma_ar_bare": "كس",
+      "root": "ك س س",
+      "gloss_en": "vulva; cunt",
+      "pos": "noun",
+      "register": "vulgar",
+      "dialect": "gulf",
+      "transliteration": "kuss",
       "freq_rank": null,
-      "count_in_text": 1
+      "count_in_text": 22,
+      "example_ar": "وضعه في كسها فأحس أنها فرحت",
+      "lemma_source": "surface_fallback"
     }
   ],
   "count": 1
@@ -90,16 +98,29 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 
 | Field | Type | Meaning |
 |-------|------|---------|
-| `surface` | string | A form as it appeared in the text. |
+| `surface` | string | The most frequent form as it appeared in the text. |
+| `surface_forms` | string[] | All attested forms, by descending count (cliticized variants the reader will meet). |
 | `lemma_ar` | string | Diacritized citation lemma (dictionary form). |
 | `lemma_ar_bare` | string | Normalized, diacritic-free lemma — the **stable identity key**. Echo this back to `/add`. |
-| `gloss_en` | string \| null | Concise English meaning (null only if glossing failed). |
+| `root` | string \| null | Space-separated Semitic root when available; `null` for surface-fallback OOV words. |
+| `gloss_en` | string \| null | Concise English meaning, in the text's context (null only if glossing failed). |
 | `pos` | string | `noun` / `verb` / `adjective` / `adverb` / `particle`. |
+| `register` | string \| null | `neutral` / `literary` / `colloquial` / `vulgar` / `clinical`. |
+| `dialect` | string \| null | `msa` / `gulf` / `egyptian` / `levantine` / `mixed`. |
 | `transliteration` | string \| null | ALA-LC romanization. |
 | `freq_rank` | integer \| null | Position in Alif's MSA frequency list (lower = more common); `null` if outside the list. |
-| `count_in_text` | integer | Occurrences of this lemma in the submitted text. |
+| `count_in_text` | integer | Occurrences of this lemma (all forms) in the submitted text. |
+| `example_ar` | string \| null | One short attested clause containing the word, for display. |
+| `lemma_source` | string | `"camel"` (resolved by the morphological analyzer) or `"surface_fallback"` (clitic-stripped OOV — root/pos are best-effort and the gloss is the authority). |
 
 Words already known to Alif, function words, and proper nouns do **not** appear.
+
+**Glossing of OOV / dialectal / vulgar words** (`include_oov: true`): the gloss step
+runs *in context* (it sees an example clause), so it glosses the word as used, assigns
+`register`/`dialect`, and can **correct** a wrong automatic lemma. Vulgar and slang
+terms are glossed clinically and accurately, not censored. Note: cross-form aggregation
+of OOV *verb* conjugations is best-effort (Arabic hollow/weak verbs can't be unified
+without full morphology) — nouns with clitics (كسها/الكس/وكسها → كس) do aggregate.
 
 ---
 
@@ -113,11 +134,13 @@ strictly required, but send what you have):
 
 ```json
 {
-  "lemma_ar_bare": "اعلن",
-  "lemma_ar": "أَعْلَن",
-  "gloss_en": "announce",
-  "pos": "verb",
-  "transliteration": "aʿlana"
+  "lemma_ar_bare": "كس",
+  "lemma_ar": "كُسّ",
+  "gloss_en": "vulva; cunt",
+  "pos": "noun",
+  "transliteration": "kuss",
+  "register": "vulgar",
+  "dialect": "gulf"
 }
 ```
 
@@ -128,6 +151,8 @@ strictly required, but send what you have):
 | `gloss_en` | ✅ for **new** words | Must be non-empty to create a new word (Alif never stores a word without an English gloss). Ignored if the word already exists. |
 | `pos` | optional | — |
 | `transliteration` | optional | — |
+| `register` | optional | `neutral`/`literary`/`colloquial`/`vulgar`/`clinical` — persisted on the word so dialectal/vulgar vocabulary stays distinguishable in Alif. |
+| `dialect` | optional | `msa`/`gulf`/`egyptian`/`levantine`/`mixed` — persisted on the word. |
 
 **Response `200`**
 
