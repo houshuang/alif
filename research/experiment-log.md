@@ -46,6 +46,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-13 (fix): Definite article + plural baked into display headword
+
+**Why.** User noticed new intro cards reading "the cave" (الْكَهْف) and plurals (آثَار).
+Cause: scans (`textbook_scan`, OCR, book import) stored each word's **in-text surface
+form** as the diacritized headword `lemma_ar`, while `lemma_ar_bare` (the scheduling /
+matching key) correctly stripped ال and stayed singular — so display and bare diverged.
+Cosmetic only: review credit, FSRS, and lookup all key on the bare, never `lemma_ar`.
+
+**Scope.** DB-wide: 15 lemmas with ال embedded in `lemma_ar` (bare clean), plus ~dozen
+plural/conjugated headwords. Among today's 36 new lemmas: 4 al- (الكَهْف، المَتاع،
+الصُّعَدَاء، السَّمَاوِيّ) + جُنْح→جُنْحَة.
+
+**Fix (data, prod, backed up `alif_pre_headword_fix_20260613_211309.db`).** Stripped al-
+from 15 (incl. sun-letter shadda السَّمَاوِيّ→سَمَاوِيّ); re-vocalized 11 plural/conjugated
+headwords to citation form (آثَار→أَثَر, هَوَايَات→هِوَايَة, أَتَغَدَّى→تَغَدَّى, …). 2504
+خُصُوصِيَّات was muddled — its *bare* was the adjective خصوصي, not the noun — so bare also
+corrected to خُصُوصِيَّة/خصوصية after a collision check.
+
+**Prevention (code, deployed `7d666c4`).** `finalize_new_lemmas` (inside `run_quality_gates`,
+the one funnel every import path calls) now runs `strip_display_definite_article()`:
+removes a leading ال from `lemma_ar` when the bare lacks it, only when the result still
+normalizes back to the stored bare (so الله/الذي untouched). Plural/conjugated headwords
+can't be auto-fixed (need re-vocalization) → logged as a warning for review. Test:
+`backend/tests/test_headword_definite_article.py` (13 cases). Docs: design-principles.md
+§ "Display headword = citation form".
+
 ## 2026-06-10 (fix): Recovery-trigger counts exclude unservable words
 
 **Why.** Ground-truth analysis (entry below) found the recovery throttle pinned for five
