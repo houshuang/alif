@@ -813,11 +813,15 @@ def select_next_words(
 
 def introduce_word(
     db: Session, lemma_id: int, source: str = "study", due_immediately: bool = False,
+    enforce_daily_cap: bool = True,
 ) -> dict:
     """Mark a word as introduced, starting acquisition (Leitner 3-box).
 
     Source values: study (Learn mode), auto_intro (inline review), collocate.
     If due_immediately=True, word is due right now (for auto-intro in current session).
+    When enforce_daily_cap is False, the DAILY_INTRO_CAP is skipped — used for
+    explicit user-initiated adds (e.g. Dragoman "add to Alif") that should start
+    immediately rather than being deferred to a future day.
     Returns the created knowledge record as dict.
     """
     from app.services.acquisition_service import start_acquisition
@@ -848,7 +852,10 @@ def introduce_word(
             }
         if existing.knowledge_state == "encountered":
             # Transition encountered → acquiring
-            ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+            ulk = start_acquisition(
+                db, lemma_id, source=source, due_immediately=due_immediately,
+                enforce_daily_cap=enforce_daily_cap,
+            )
             if ulk.knowledge_state != "acquiring":
                 db.commit()
                 return {
@@ -884,7 +891,10 @@ def introduce_word(
         }
 
     # New word — start acquisition
-    ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+    ulk = start_acquisition(
+        db, lemma_id, source=source, due_immediately=due_immediately,
+        enforce_daily_cap=enforce_daily_cap,
+    )
     if ulk.knowledge_state != "acquiring":
         db.commit()
         return {
