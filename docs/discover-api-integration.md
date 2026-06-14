@@ -143,7 +143,8 @@ strictly required, but send what you have):
   "pos": "noun",
   "transliteration": "kuss",
   "register": "vulgar",
-  "dialect": "gulf"
+  "dialect": "gulf",
+  "source": "bookifier"
 }
 ```
 
@@ -156,6 +157,7 @@ strictly required, but send what you have):
 | `transliteration` | optional | — |
 | `register` | optional | `neutral`/`literary`/`colloquial`/`vulgar`/`clinical` — persisted on the word so dialectal/vulgar vocabulary stays distinguishable in Alif. |
 | `dialect` | optional | `msa`/`gulf`/`egyptian`/`levantine`/`mixed` — persisted on the word. |
+| `source` | optional | Provenance tag identifying the **calling consumer** (e.g. `bookifier`). Persisted on both the lemma row and its scheduling record, and stamped on the `dragoman_word_added` interaction log, so words from different consumers stay distinguishable in later analysis. Defaults to `dragoman` (the in-app discover screen) when omitted. |
 
 **Response `200`**
 
@@ -164,6 +166,7 @@ strictly required, but send what you have):
   "lemma_id": 5821,
   "lemma_ar": "أَعْلَن",
   "gloss_en": "announce",
+  "source": "bookifier",
   "created": true,
   "state": "acquiring",
   "already_known": false
@@ -173,6 +176,7 @@ strictly required, but send what you have):
 | Field | Meaning |
 |-------|---------|
 | `lemma_id` | Alif's internal id for the (canonical) word. |
+| `source` | The provenance tag that was recorded (the value sent, or `dragoman` if none was sent). |
 | `created` | `true` if a new word was created; `false` if it already existed and was just (re)introduced. |
 | `state` | Learning state after the call — normally `acquiring` (now in the active queue). |
 | `already_known` | `true` if the learner already knew this word. |

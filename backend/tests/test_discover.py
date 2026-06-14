@@ -184,6 +184,23 @@ def test_add_creates_introduces_and_bypasses_cap(client, db_session):
     assert ulk is not None and ulk.knowledge_state == "acquiring"
 
 
+def test_add_records_custom_source(client, db_session):
+    """A consumer (e.g. Bookifier) can self-identify via `source`; it lands on
+    both the Lemma row and the UserLemmaKnowledge row instead of "dragoman"."""
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "دستور", "lemma_ar": "دُسْتُور",
+        "gloss_en": "constitution", "pos": "noun", "source": "bookifier",
+    })
+    assert r.status_code == 200
+    assert r.json()["source"] == "bookifier"
+    lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "دستور").first()
+    assert lem is not None and lem.source == "bookifier"
+    ulk = db_session.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id == lem.lemma_id
+    ).first()
+    assert ulk is not None and ulk.source == "bookifier"
+
+
 def test_add_rejects_glossless_word(client, db_session):
     r = client.post("/api/discover/add", json={"lemma_ar_bare": "دستور", "gloss_en": ""})
     # The endpoint refuses with a clean 400 rather than creating a gloss-less lemma.

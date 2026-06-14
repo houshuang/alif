@@ -366,6 +366,10 @@ class WordIn(BaseModel):
     transliteration: str | None = None
     register_: str | None = Field(default=None, alias="register")
     dialect: str | None = None
+    # Provenance: which consumer added this word. Defaults to "dragoman" (the
+    # in-app discover screen) so existing callers keep their tag; other consumers
+    # (e.g. the Bookifier glossary) pass their own to stay distinguishable.
+    source: str | None = None
 
 
 def _gate_and_generate(lemma_ids: list[int]) -> None:
@@ -394,6 +398,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
     the row we just made instead of being created twice."""
     if (w.pos or "").lower() in _PROPER_NOUN_POS:
         raise ValueError(f"refusing to add proper noun {w.lemma_ar_bare!r}")
+    source = (w.source or "").strip() or "dragoman"
     bare = _normalize(w.lemma_ar_bare)
     # Hardened existence check: resolves clitics + variants → canonical.
     existing_id = lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare))
@@ -413,7 +418,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
             transliteration_ala_lc=w.transliteration,
             register=w.register_,
             dialect=w.dialect,
-            source="dragoman",
+            source=source,
         )
         db.add(lemma)
         db.flush()
@@ -421,13 +426,14 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         lemma_lookup[bare] = lemma.lemma_id  # in-batch dedupe
         created = True
     res = introduce_word(
-        db, lemma.lemma_id, source="dragoman",
+        db, lemma.lemma_id, source=source,
         due_immediately=True, enforce_daily_cap=False,
     )
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
         "gloss_en": lemma.gloss_en,
+        "source": source,
         "created": created,
         "state": res.get("state"),
         "already_known": res.get("already_known", False),
@@ -446,7 +452,9 @@ def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends
     db.commit()
     if out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
-        log_interaction(event="dragoman_word_added", lemma_id=out["lemma_id"])
+        log_interaction(
+            event="dragoman_word_added", lemma_id=out["lemma_id"], source=out["source"]
+        )
     return out
 
 
@@ -467,7 +475,9 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
             results.append(out)
             if out["created"]:
                 new_ids.append(out["lemma_id"])
-                log_interaction(event="dragoman_word_added", lemma_id=out["lemma_id"])
+                log_interaction(
+                    event="dragoman_word_added", lemma_id=out["lemma_id"], source=out["source"]
+                )
         except Exception as e:
             db.rollback()
             logger.warning("discover add failed for %s: %s", w.lemma_ar_bare, e)
