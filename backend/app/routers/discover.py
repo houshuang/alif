@@ -326,6 +326,12 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
         corrected = (g.get("lemma_ar") or "").strip()
         lemma_ar = corrected or v["lemma_ar"]
         lemma_bare = _normalize(corrected) if corrected else b
+        # Final known-check on the (possibly corrected) citation form, mirroring what
+        # /add does. The pre-gloss checks ran on the surface/key; a gloss correction
+        # can land on a form that's already in the vocabulary, so re-check here —
+        # otherwise we'd offer a word that /add immediately reports "already known".
+        if lookup_lemma(lemma_bare, lemma_lookup, original_bare=lemma_bare) is not None:
+            continue
         surfaces = sorted(v["surfaces"], key=lambda s: -v["surfaces"][s])
         words.append(
             {

@@ -102,6 +102,23 @@ def test_gloss_can_correct_lemma(client, db_session, monkeypatch):
     assert w["lemma_ar_bare"] == "خطوة"  # recomputed from the correction
 
 
+def test_gloss_correction_to_known_word_is_filtered(client, db_session, monkeypatch):
+    """If the gloss step corrects an OOV form to a word already in the vocabulary, it
+    must NOT be offered (else /add would report it 'already known')."""
+    lem = Lemma(lemma_ar="خَطْوَة", lemma_ar_bare="خطوة", gloss_en="step",
+                pos="noun", source="frequency_core")
+    db_session.add(lem)
+    db_session.flush()
+    db_session.add(UserLemmaKnowledge(lemma_id=lem.lemma_id, knowledge_state="known"))
+    db_session.commit()
+    # "خطا" is OOV; the gloss step "corrects" it to the known خَطْوَة.
+    _rich_gloss(monkeypatch, {"خطا": {"gloss_en": "step", "lemma_ar": "خَطْوَة"}})
+    r = client.post("/api/discover/words", json={
+        "text": "خطا كبيرة جدا", "count": 10, "include_oov": True})
+    assert r.status_code == 200
+    assert all(w["lemma_ar_bare"] != "خطوة" for w in r.json()["words"])
+
+
 def test_proper_noun_dropped_in_learn_mode(client, db_session, monkeypatch):
     """Default (learn-next) mode drops names — they aren't vocabulary to schedule."""
     _rich_gloss(monkeypatch, {"لندن": {"gloss_en": "London", "is_proper_noun": True}})
