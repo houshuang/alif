@@ -229,7 +229,12 @@ def main() -> int:
         failed: list[int] = []
         for i in range(0, len(target), CHUNK_SIZE):
             chunk = target[i : i + CHUNK_SIZE]
-            result = batch_generate_material(chunk, count_per_word=args.count)
+            try:
+                result = batch_generate_material(chunk, count_per_word=args.count)
+            except Exception as exc:  # one chunk's LLM failure must not abort the rest
+                print(f"  chunk {i // CHUNK_SIZE + 1}: generation error ({exc}); skipping")
+                failed.extend(chunk)
+                continue
             total_generated += int(result.get("generated", 0))
             chunk_failed = set(result.get("words_failed", []))
             chunk_covered = [lid for lid in chunk if lid not in chunk_failed]
