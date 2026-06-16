@@ -46,6 +46,77 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-16 (fix): Retire the material_jobs queue; commit the due-deficit refill as a cron step
+
+**Why.** Deep-dive on the deficit + generation health (deeper than the health entry below).
+Two findings overturned the obvious story:
+1. **The cron does NOT generate.** `deploy/alif-update-material.sh` runs `update_material.py`
+   with `--max-step-a-sentences 0` (Step A off). Since 2026-05-12 the `material_jobs`
+   coordinator queue was *meant* to be the generation engine — but it never took over.
+   **`warm_sentence_cache` (live, post-session background task) is the real generator**
+   (2,392 sentences/14d; the queue completed 101 jobs *ever*, 3 in the last 7d).
+2. **The queue is structurally broken**, not just slow: (a) acquiring-rescue words get
+   `priority_tier=0`, outranking tier-1 due-deficit words (priority 10+), so at 3 jobs/run
+   the worker never reaches the deficit; (b) rescue words **bypass backoff**
+   (`ordinary_backoff_ids = backoff_ids − rescue_ids`) and re-enqueue every run, so the
+   worker burns its budget re-failing the same pairs (`generated 0 for [873,938]` logged
+   53×); (c) `dedupe_key` includes an hour-window → the same lemma re-enqueues every 3h
+   (one lemma in 159 queued jobs). 2,296 queued, 2,293 never attempted, oldest May 12.
+
+**Deficit root cause (corrected).** The 57 due-with-zero-sentence words are all **tier 1
+(overdue)**, not tier-4 (my first guess). No path covers them: warm cache is cohort-scoped
+(cohort + acquiring-rescue + intros + recency-exhausted), salvage needs an existing retired
+sentence to reactivate, and the queue is starved. Only **17/57 were even enqueued**.
+Classification of the 57: 1 inert (Oslo), ~6 chronically-failing (genfail≥5), ~13 lemma
+artifacts (conjugations stored as lemmas — نَدْرُسُ "we study", يَكْتُبُونَ "they write";
+leading-shadda display forms ثَّامِنِ/رَّابِعَة), **~40 genuinely real & generatable**
+(scissors, praise, crab, translate, mint…).
+
+**Change.** (1) **Retired** the `material_jobs` cron phases (plan/work) from the wrapper;
+scripts + table kept dormant/reusable. (2) **Added `scripts/refill_due_deficit.py`** (R4) as
+a cron phase — commits the one-off 2026-05-29 recipe: compute the due-deficit, skip
+inert + backoff lemmas, log artifacts for the decomposition audit, and generate for the
+clean remainder via the verified `batch_generate_material` under the shared flock; per-word
+outcome → `record_generation_result` (backoff); `deficit_refill` ActivityLog entry. Budget
+`ALIF_DEFICIT_REFILL_BUDGET=30`/run. Did **not** touch `salvage_due_dense_inactive_sentences`
+— its single-coverage relaxation already landed 2026-06-03. Tests:
+`tests/test_refill_due_deficit.py` (deficit detection incl. collateral coverage, classify
+split, inert/artifact heuristics). Docs: scripts-catalog, scheduling-system, CLAUDE.md.
+
+**Expected effect.** Deficit (13.5%, 57/421) shrinks toward 0 over a few cron passes as the
+~40 real words get sentences; artifacts surface for the audit instead of churning; the
+misleading 2,296-job backlog disappears. **Verify ~2026-06-20** (analysis doc §"check-back").
+
+## 2026-06-16: Two-week health recheck — throttle fix verified, due-coverage deficit widening
+
+**What.** Full system + learning review, 06-03→06-16 (`analysis-2026-06-16-two-week-health.md`).
+Also the scheduled "~06-17" recheck the 06-10 entries asked for. No code changed.
+
+**North-star healthy.** Known stock 2,170 (06-03) → 2,259 (06-10) → **2,326 (06-16)** =
++156/13d (~84/wk, near-record). Reconfirms the 06-10 ground-truth correction: read the
+known-stock curve, never grad−suspension flow. Rising suspensions (38→50→75/wk) are the
+06-03 flood's recycled hard words in triage, not loss — only 21/169 currently-suspended were
+ever graduated.
+
+**06-10 throttle fix (PR #198) verified, targets met early.** Intros/day back to earned
+schedule (5–19/day; the 218-intro 06-03 flood is the visible anomaly). `box2_due` = 18 (< 30
+target). understood% recovered to ~51–69% with no_idea=0 daily. ⚠️ box1-unseen drifted 3→11
+(recheck ~W26; actionable count still gates the throttle correctly).
+
+**Headline problem — due-coverage deficit WIDENING.** 57/421 (13.5%) FSRS-due
+known/learning/lapsed words have zero reviewable sentence, up from 51/611 (8.3%) on 06-10.
+The material-job queue is dead-lettered (2,296 `sentence_shard` queued, 2,293 never
+attempted, oldest 2026-05-12; done last 7d=3 vs created 506) — real generation runs via the
+cron's direct path, so the queue is a starved parallel lane. **R4 (commit the 05-29
+refill_deficit recipe as a cron step) was never done; it's the direct fix.**
+
+**Other.** Real-recall (primary non-acq) 14d 79.4% / lifetime 83.8% (composite "93.5%"
+includes collateral). Rating 4 still 0 uses in 6,326 reviews → Lever 1 case stands. LLM:
+06-14 bad day (16% err, Sonnet 26% → 60 gpt-5.2 fallbacks), settled to 7% by 06-16 —
+transient. Freq-core gap at rank ≤2000 now 0. Infra green. **Open levers unchanged: R4 (do
+now), queue cleanup, R3 (judge-gate leech reintro before 169 timers fire), Lever 1 (needs
+sign-off).**
+
 ## 2026-06-13 (fix): Definite article + plural baked into display headword
 
 **Why.** User noticed new intro cards reading "the cave" (الْكَهْف) and plurals (آثَار).

@@ -7,11 +7,17 @@
 #
 #     30 */3 * * * /opt/alif-update-material.sh >> /var/log/alif-update-material.log 2>&1
 #
-# Wraps four passes per run, in order:
+# Wraps three passes per run, in order:
 #   1. rotate stale sentences
 #   2. update_material.py in maintenance-only mode (no Step A generation)
-#   3. plan small material jobs
-#   4. execute a bounded number of queued jobs
+#   3. refill the due-coverage deficit (R4, 2026-06-16)
+#
+# The material_jobs queue (plan/work) was retired 2026-06-16: it never drained
+# (a rescue-word flood starved everything else — ~3 jobs done/week against ~70
+# enqueued/day), while warm_sentence_cache (live, post-session) already does the
+# bulk generation. refill_due_deficit.py closes the one hole neither covered:
+# FSRS-due known/learning/lapsed words outside the focus cohort with zero
+# reviewable sentences. See research/experiment-log.md 2026-06-16.
 #
 # Update procedure: commit to main, then run scripts/deploy.sh.
 # Then verify with a dry-run pass:
@@ -36,13 +42,9 @@ WORKDIR="${ALIF_BACKEND_DIR:-/opt/alif/backend}"
 VENV="${ALIF_PYTHON:-$WORKDIR/.venv/bin/python3}"
 PYTHONPATH_VALUE="${PYTHONPATH:-/opt/limbic}"
 
-SENTENCE_BUDGET="${ALIF_MATERIAL_SENTENCE_BUDGET:-40}"
-PLAN_MAX_JOBS="${ALIF_MATERIAL_PLAN_MAX_JOBS:-10}"
-SHARD_SIZE="${ALIF_MATERIAL_JOB_SHARD_SIZE:-2}"
-WORKER_MAX_JOBS="${ALIF_MATERIAL_WORKER_MAX_JOBS:-3}"
-WORKER_TIMEOUT_SECONDS="${ALIF_MATERIAL_WORKER_TIMEOUT_SECONDS:-1200}"
 MAINTENANCE_TIMEOUT_SECONDS="${ALIF_MATERIAL_MAINTENANCE_TIMEOUT_SECONDS:-900}"
-WORKER_USE_LEGACY_BATCH="${ALIF_MATERIAL_USE_LEGACY_BATCH:-1}"
+DEFICIT_REFILL_TIMEOUT_SECONDS="${ALIF_DEFICIT_REFILL_TIMEOUT_SECONDS:-1200}"
+DEFICIT_REFILL_BUDGET="${ALIF_DEFICIT_REFILL_BUDGET:-30}"
 
 # Intro supply chain — keep on by default in the cron context. The values are
 # still overridable from the environment (systemd Environment= or shell export
@@ -76,14 +78,9 @@ run_phase "rotate_stale_sentences.py" "$VENV" scripts/rotate_stale_sentences.py
 run_phase "update_material.py maintenance-only" timeout "$MAINTENANCE_TIMEOUT_SECONDS" \
   "$VENV" scripts/update_material.py --limit 50 --skip-audio --max-step-a-sentences 0
 
-run_phase "plan_material_jobs.py" "$VENV" scripts/plan_material_jobs.py \
-  --sentence-budget "$SENTENCE_BUDGET" \
-  --max-jobs "$PLAN_MAX_JOBS" \
-  --shard-size "$SHARD_SIZE"
-
-run_phase "work_material_jobs.py" env ALIF_MATERIAL_USE_LEGACY_BATCH="$WORKER_USE_LEGACY_BATCH" \
-  timeout "$WORKER_TIMEOUT_SECONDS" \
-  "$VENV" scripts/work_material_jobs.py --max-jobs "$WORKER_MAX_JOBS"
+run_phase "refill_due_deficit.py" env ALIF_DEFICIT_REFILL_BUDGET="$DEFICIT_REFILL_BUDGET" \
+  timeout "$DEFICIT_REFILL_TIMEOUT_SECONDS" \
+  "$VENV" scripts/refill_due_deficit.py
 
 echo "[$TIMESTAMP] Material cron done" >> "$LOG"
 echo "---" >> "$LOG"

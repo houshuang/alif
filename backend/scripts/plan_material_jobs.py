@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Plan bounded material generation jobs without running Claude."""
+"""Plan bounded material generation jobs without running Claude.
+
+RETIRED from the production cron 2026-06-16 (no longer invoked by
+deploy/alif-update-material.sh). The queue never drained — a rescue-word flood
+starved everything else — while warm_sentence_cache does the bulk generation and
+refill_due_deficit.py covers the deficit hole. The MaterialJob table and these
+scripts are kept dormant/reusable. See research/experiment-log.md 2026-06-16.
+"""
 
 import argparse
 import json

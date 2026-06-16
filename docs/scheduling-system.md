@@ -1291,6 +1291,22 @@ MAX_RECENCY_EXHAUSTED (20) budget goes to most urgent words first.
 allocation, 2026-03-10 protect never-shown, 2026-03-10 tier-based lifecycle replaces
 fixed cap, 2026-05-07 warm-cache/update-material lock coordination)
 
+**Generation paths (current, since 2026-06-16).** Warm cache (above) is the **primary
+bulk generator** — it runs after every non-prefetch session and targets the focus
+cohort + acquiring-rescue + intro candidates + recency-exhausted cohort. The 3-hourly
+cron runs maintenance only (Step A generation off) plus **`refill_due_deficit.py`**: it
+generates for FSRS-due `known`/`learning`/`lapsed` words that have **fallen out of the
+focus cohort with zero reviewable sentences** — the one case neither warm cache (cohort-
+scoped) nor salvage (needs an existing retired sentence to reactivate) covers. It skips
+inert (proper-name/onomatopoeia/function) and backoff lemmas, and logs likely artifacts
+(verb conjugations stored as lemmas, leading-shadda display forms) for the lemma-
+decomposition audit. The `material_jobs` coordinator queue (added 2026-05-12 to move
+generation off the request path) was **retired from cron 2026-06-16**: it never drained
+(a rescue-word flood that bypassed backoff and re-enqueued every run starved everything
+else — ~3 jobs done/week vs ~70 enqueued/day) while warm cache quietly did 99% of the
+work. The `MaterialJob` table + planner/worker remain dormant/reusable. See experiment-
+log 2026-06-16.
+
 **Frequency-core intake** (`update_material.py` Step C): before selecting likely
 new-word candidates, cron may intake a small batch of unmapped top-core rows.
 Code defaults: `DEFAULT_LIMIT = 5` rows, `DEFAULT_MAX_RANK = 1000`. **In prod
