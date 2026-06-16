@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Lease and execute bounded material generation jobs."""
+"""Lease and execute bounded material generation jobs.
+
+RETIRED from the production cron 2026-06-16 (no longer invoked by
+deploy/alif-update-material.sh). See plan_material_jobs.py and
+research/experiment-log.md 2026-06-16. Kept dormant/reusable.
+"""
 
 import argparse
 import os
