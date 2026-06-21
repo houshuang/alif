@@ -175,6 +175,15 @@ function LayoutInner({ online }: { online: boolean }) {
           }}
         />
         <Tabs.Screen
+          name="snap"
+          options={{
+            href: arHref("snap"),
+            title: "Snap",
+            tabBarLabel: "Snap",
+            tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="listening"
           options={{ href: null, title: "Listening", headerShown: false }}
         />

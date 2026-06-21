@@ -14,6 +14,9 @@ import {
   BookPageDetail,
   StoryLookupResult,
   WordLookupResult,
+  DiscoverWord,
+  SnapResult,
+  DiscoverAddResult,
   AskAIResponse,
   ConversationSummary,
   ConversationDetail,
@@ -1047,6 +1050,60 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
   }
   const data = await res.json();
   return data.extracted_text;
+}
+
+// --- Snap-to-read ---
+
+/** Photograph an Arabic page → faithful English translation + the top unknown
+ *  words (glossed) ready to add. One synchronous round trip: Gemini OCR/translation
+ *  + Haiku gloss run server-side, so allow a generous timeout. */
+export async function snapDiscover(
+  imageUri: string,
+  count = 5
+): Promise<SnapResult> {
+  const formData = new FormData();
+  const filename = imageUri.split("/").pop() || "snap.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+  formData.append("file", { uri: imageUri, name: filename, type } as any);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(`${BASE_URL}/api/discover/snap?count=${count}`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Add one discovered word to Alif (create + introduce immediately). Idempotent:
+ *  re-adding an existing word just re-introduces it (already_known=true). */
+export async function addDiscoveredWord(
+  word: DiscoverWord
+): Promise<DiscoverAddResult> {
+  return fetchApi("/api/discover/add", {
+    method: "POST",
+    body: JSON.stringify({
+      lemma_ar_bare: word.lemma_ar_bare,
+      lemma_ar: word.lemma_ar,
+      gloss_en: word.gloss_en,
+      pos: word.pos,
+      transliteration: word.transliteration,
+      register: word.register,
+      dialect: word.dialect,
+      source: "snap",
+    }),
+    timeoutMs: 20000,
+  });
 }
 
 // --- Sentence info ---

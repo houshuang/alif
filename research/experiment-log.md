@@ -46,6 +46,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-21 (feature): Snap-to-read — photo → translation + add-to-Alif word chips
+
+**Why.** The user reads increasingly authentic/classical texts and was using Gemini
+out-of-app to photograph a page and translate it. They wanted that *in* Alif, fast and
+**interactive** (in the moment, not the batch "scan a book after I'm done" flow), plus
+the recently-shipped discover word-extraction surfaced as add-to-learn chips.
+
+**What.** New synchronous `POST /api/discover/snap` (multipart image). One Gemini Vision
+call OCRs **and** translates the page (`extract_text_and_translation` in `ocr_service.py`),
+then the OCR'd Arabic feeds the existing word-discovery path. Refactored the body of
+`discover_words` into a reusable `discover_words_in_text(db, text, count, selection,
+include_oov)` so `/words` and `/snap` share one tokenize→classify→rank→gloss path (no
+clone to drift). Defaults: `count=5`, `selection="common_first"`, `include_oov=True`
+(keeps archaic/dialectal words for authentic texts). Frontend: new Arabic-only **Snap**
+tab (`app/snap.tsx`) — camera/library capture → translation card + collapsible Arabic +
+per-word chips (vocalized headword, gloss, POS + register/dialect badges) with Add /
+Add-all; adds go through the existing idempotent `/add` (`source="snap"`).
+
+**Design notes.** Synchronous is safe: the DB stays read-only through both slow calls
+(Gemini OCR/translate ~3-5s, Haiku gloss ~2-3s) — the write lock is only taken on Add,
+which already runs gates + material gen in a background task. Reuses everything load-
+bearing: the hardened lemma lookup excludes already-known words, so every chip is genuinely
+new. `common_first` vs `distinctive` is a query param — flip to `distinctive` if the user
+prefers "the rare words that carry THIS page" over "highest-ROI frequent unknowns."
+
+**Verify.** `pytest tests/test_discover.py` (18 pass incl. two new snap tests mocking the
+Gemini call); `tsc --noEmit` clean. Endpoints: `docs/api-reference.md`,
+`docs/discover-api-integration.md` §4.
+
 ## 2026-06-16 (fix): Retire the material_jobs queue; commit the due-deficit refill as a cron step
 
 **Why.** Deep-dive on the deficit + generation health (deeper than the health entry below).

@@ -23,7 +23,7 @@ import logging
 import math
 import re
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -42,6 +42,7 @@ from app.services.material_generator import (
     generate_material_for_word,
 )
 from app.services.morphology import get_best_lemma_mle
+from app.services.ocr_service import extract_text_and_translation
 from app.services.sentence_validator import (
     _is_function_word,
     build_comprehensive_lemma_lookup,
@@ -61,6 +62,7 @@ _ARABIC_TOKEN = re.compile(r"[ء-يٰ-ۿݐ-ݿ]+")
 # Clause boundaries for pulling one example occurrence per word.
 _CLAUSE_SPLIT = re.compile(r"[.!?؟\n،؛]+")
 _MAX_WORDS = 50
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20MB per snapped page (mirrors the OCR router)
 # CAMeL POS prefixes that count as teachable content; everything else (preps,
 # particles, pronouns, conjunctions) is a readable function word, not a gap.
 _CONTENT_POS_PREFIXES = ("noun", "adj", "verb", "adv")
@@ -248,13 +250,29 @@ class DiscoverIn(BaseModel):
 @router.post("/words")
 def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
     """High-value Arabic lemmas in `text` not yet in Alif, glossed."""
+    words = discover_words_in_text(
+        db, req.text, count=req.count, selection=req.selection, include_oov=req.include_oov
+    )
+    return {"words": words, "count": len(words)}
+
+
+def discover_words_in_text(
+    db: Session,
+    text: str,
+    count: int = 8,
+    selection: str = "common_first",
+    include_oov: bool = False,
+) -> list[dict]:
+    """Core word-discovery: the highest-value lemmas in `text` not yet in Alif,
+    glossed. Shared by the /words endpoint and the photo /snap endpoint so both go
+    through one tokenize → classify → rank → gloss path."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
     ranks = _load_rank_map()
     # key bare -> {surfaces: {form: count}, lemma_ar, pos, root, count, source}
     cand: dict[str, dict] = {}
     camel_cache: dict = {}
 
-    for tok in _ARABIC_TOKEN.findall(req.text or ""):
+    for tok in _ARABIC_TOKEN.findall(text or ""):
         bare = _normalize(tok)
         if len(bare) < 2 or _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
             continue
@@ -262,7 +280,7 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
         # variants → canonical, so this catches forms a surface match would miss.
         if lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(tok)) is not None:
             continue
-        c = _classify(tok, bare, camel_cache, req.include_oov)
+        c = _classify(tok, bare, camel_cache, include_oov)
         if c is None:
             continue
         key, lemma_ar, pos, root, source = c
@@ -285,9 +303,9 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
             }
 
     if not cand:
-        return {"words": [], "count": 0}
+        return []
 
-    if req.selection == "distinctive":
+    if selection == "distinctive":
         # Frequent-here × generally-rare: count weighted by inverse general frequency.
         def score(kv):
             rank = ranks.get(kv[0], _OOV_RANK)
@@ -299,9 +317,9 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
             cand.items(),
             key=lambda kv: (0, ranks[kv[0]]) if kv[0] in ranks else (1, -kv[1]["count"]),
         )
-    ordered = ordered[: max(1, min(req.count, _MAX_WORDS))]
+    ordered = ordered[: max(1, min(count, _MAX_WORDS))]
 
-    find_example = _example_finder(req.text or "")
+    find_example = _example_finder(text or "")
     examples = {b: find_example(set(v["surfaces"])) for b, v in ordered}
 
     glosses = _gloss(
@@ -320,7 +338,7 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
         # (include_oov) keeps everything and exposes the flag — the gloss model
         # over-tags dialect/vulgar OOV nouns as proper, and a glossary wants names
         # (place/person) anyway; the consumer filters on `is_proper_noun`.
-        if is_proper and not req.include_oov:
+        if is_proper and not include_oov:
             continue
         # The gloss step may correct an OOV mis-analysis; trust its citation form.
         corrected = (g.get("lemma_ar") or "").strip()
@@ -352,7 +370,65 @@ def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
                 "lemma_source": v["source"],
             }
         )
-    return {"words": words, "count": len(words)}
+    return words
+
+
+class SnapOut(BaseModel):
+    arabic_text: str
+    translation_en: str
+    words: list[dict]
+    count: int
+
+
+@router.post("/snap", response_model=SnapOut)
+async def discover_snap(
+    file: UploadFile = File(...),
+    count: int = Query(default=5, ge=1, le=_MAX_WORDS),
+    # "common_first" surfaces the most generally-frequent unknown words on the page
+    # (best learning ROI, most likely to recur). "distinctive" surfaces the rarer
+    # words that characterise THIS passage. include_oov keeps archaic/dialectal words
+    # that aren't in the MSA frequency list — on by default for authentic texts.
+    selection: str = Query(default="common_first"),
+    include_oov: bool = Query(default=True),
+    db: Session = Depends(get_db),
+):
+    """Snap-to-read: OCR + translate a photographed Arabic page in one shot, then
+    return the top unknown words (glossed) ready to add to Alif. Synchronous — the
+    Gemini OCR/translation and the Haiku gloss both run before the response, so the
+    reader gets translation + chips in a single ~5-8s round trip.
+
+    The DB stays read-only here (vocabulary lookup + gloss); words are only written
+    when the user taps Add, which goes through the existing /add[-batch] path.
+    """
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(image_bytes) > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 20MB limit")
+
+    try:
+        ocr = extract_text_and_translation(image_bytes)
+    except Exception as e:
+        logger.exception("snap OCR/translation failed")
+        raise HTTPException(status_code=502, detail=f"OCR failed: {e}")
+
+    arabic_text = (ocr.get("arabic_text") or "").strip()
+    translation = (ocr.get("translation_en") or "").strip()
+    if not arabic_text:
+        raise HTTPException(status_code=422, detail="No Arabic text found in image")
+
+    words = discover_words_in_text(
+        db, arabic_text, count=count, selection=selection, include_oov=include_oov
+    )
+    log_interaction(
+        event="discover_snap", word_count=len(words), text_len=len(arabic_text)
+    )
+    return {
+        "arabic_text": arabic_text,
+        "translation_en": translation,
+        "words": words,
+        "count": len(words),
+    }
 
 
 class WordIn(BaseModel):

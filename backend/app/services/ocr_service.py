@@ -264,6 +264,41 @@ def extract_text_from_image(image_bytes: bytes) -> str:
     return result.get("arabic_text", "")
 
 
+def extract_text_and_translation(image_bytes: bytes) -> dict:
+    """OCR an Arabic page AND translate it to English in a single Gemini Vision call.
+
+    Synchronous (~3-5s) — powers the interactive snap-to-read feature, where the
+    reader photographs a page and immediately wants both the Arabic text and a
+    faithful English rendering. One call (vs. OCR-then-separate-translate) keeps
+    latency low enough for in-the-moment reading help.
+
+    Returns {"arabic_text": str, "translation_en": str}.
+    """
+    result = _call_gemini_vision(
+        image_bytes,
+        prompt=(
+            "This image is a page of Arabic text that a reader is studying.\n"
+            "1. Extract ALL the Arabic text exactly as written: preserve any diacritics "
+            "that are present, preserve paragraph breaks as newlines, do NOT add "
+            "diacritics that aren't there, and exclude page numbers / non-Arabic "
+            "marginalia.\n"
+            "2. Provide a faithful, fluent English translation of that text — accurate "
+            "to the meaning and natural in English (not a word-for-word gloss).\n"
+            'Respond with JSON: {"arabic_text": "the Arabic", "translation_en": "the English"}'
+        ),
+        system_prompt=(
+            "You are an expert Arabic reader and translator. Extract the Arabic text "
+            "accurately and translate it faithfully. Respond with JSON only."
+        ),
+    )
+    if not isinstance(result, dict):
+        return {"arabic_text": "", "translation_en": ""}
+    return {
+        "arabic_text": result.get("arabic_text") or "",
+        "translation_en": result.get("translation_en") or "",
+    }
+
+
 def _step1_extract_words(image_bytes: bytes) -> list[str]:
     """Step 1: OCR only — extract Arabic words from image.
 
