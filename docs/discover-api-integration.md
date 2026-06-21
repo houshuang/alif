@@ -218,6 +218,33 @@ returns `200` even when individual words fail — inspect each entry.
 
 ---
 
+### 4. `POST /api/discover/snap` — photo → translation + words (read-only)
+
+The in-app **snap-to-read** path: instead of supplying text, send a photo of an Arabic
+page. The server OCRs **and** translates it in one Gemini Vision call, then runs the same
+word-discovery as `/words` on the extracted text. Synchronous (~5-8s end to end).
+
+**Request** — `multipart/form-data` with a `file` (image, ≤20MB). Query params:
+`count` (default 5, ≤50), `selection` (`common_first` default | `distinctive`),
+`include_oov` (default `true` — keep archaic/dialectal words in authentic texts).
+
+**Response `200`**
+
+```json
+{
+  "arabic_text": "… the OCR'd Arabic …",
+  "translation_en": "… a faithful English translation …",
+  "words": [ { "lemma_ar": "…", "lemma_ar_bare": "…", "gloss_en": "…", "...": "same shape as /words" } ],
+  "count": 5
+}
+```
+
+`422` when no Arabic text is found in the image; `502` on OCR/translation failure.
+Add chosen words with `/add` or `/add-batch` exactly as for `/words` (the snap UI tags
+them `source="snap"`).
+
+---
+
 ## Recommended integration flow
 
 1. On rendering an Arabic piece, `POST /api/discover/words` with the article text and a

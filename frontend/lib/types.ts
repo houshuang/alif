@@ -1177,3 +1177,43 @@ export interface SessionEndData {
   introduced_words_today?: IntroducedWordDetail[];
   daily_goal?: DailyGoal | null;
 }
+
+// --- Snap-to-read: photo → translation + discoverable vocabulary chips ---
+
+/** One candidate word from the discover/snap pipeline (mirrors the backend
+ *  /api/discover words schema). Words already in Alif's vocabulary are excluded
+ *  upstream, so every chip is a genuinely-new word the reader can add. */
+export interface DiscoverWord {
+  surface: string;
+  surface_forms: string[];
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  root: string | null;
+  gloss_en: string | null;
+  pos: string | null;
+  is_proper_noun: boolean;
+  register: string | null;
+  dialect: string | null;
+  transliteration: string | null;
+  freq_rank: number | null;
+  count_in_text: number;
+  example_ar: string | null;
+  lemma_source: string;
+}
+
+export interface SnapResult {
+  arabic_text: string;
+  translation_en: string;
+  words: DiscoverWord[];
+  count: number;
+}
+
+export interface DiscoverAddResult {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string;
+  source: string;
+  created: boolean;
+  state: string;
+  already_known: boolean;
+}

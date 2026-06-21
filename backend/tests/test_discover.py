@@ -233,6 +233,39 @@ def test_add_batch_isolates_failures(client, db_session):
     assert "مصر" not in bares
 
 
+def test_snap_returns_translation_and_words(client, seeded, monkeypatch):
+    """The photo /snap endpoint stitches OCR+translation (Gemini, mocked) to the
+    shared word-discovery path: it returns the page translation and the top unknown
+    words, excluding ones already in the vocabulary (مكتبة from `seeded`)."""
+    monkeypatch.setattr(discover, "extract_text_and_translation", lambda b: {
+        "arabic_text": "زرت المكتبة وقرأت الدستور",
+        "translation_en": "I visited the library and read the constitution.",
+    })
+    _no_llm_gloss(monkeypatch, {"دستور": ("constitution", "noun", False)})
+    r = client.post(
+        "/api/discover/snap",
+        files={"file": ("page.jpg", b"\xff\xd8fakejpeg", "image/jpeg")},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["translation_en"].startswith("I visited the library")
+    assert body["arabic_text"]
+    bares = {w["lemma_ar_bare"] for w in body["words"]}
+    assert "دستور" in bares       # new word surfaced
+    assert "مكتبة" not in bares   # already known → excluded
+
+
+def test_snap_rejects_image_with_no_arabic(client, db_session, monkeypatch):
+    monkeypatch.setattr(discover, "extract_text_and_translation", lambda b: {
+        "arabic_text": "", "translation_en": "",
+    })
+    r = client.post(
+        "/api/discover/snap",
+        files={"file": ("blank.jpg", b"\xff\xd8fakejpeg", "image/jpeg")},
+    )
+    assert r.status_code == 422
+
+
 def test_add_batch_dedupes_repeated_word(client, db_session):
     r = client.post("/api/discover/add-batch", json={"words": [
         {"lemma_ar_bare": "دستور", "gloss_en": "constitution", "pos": "noun"},
