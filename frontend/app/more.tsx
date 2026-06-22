@@ -57,6 +57,10 @@ const EVENT_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; color:
   word_unsuspended: { name: "play-circle-outline", color: colors.stateKnown },
 };
 
+// How many reading-mode sessions the "Download for Offline" button prefetches.
+// Sized for a long flight (~3 min of material each).
+const OFFLINE_DOWNLOAD_COUNT = 40;
+
 export default function MoreScreen() {
   const router = useRouter();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -121,7 +125,7 @@ export default function MoreScreen() {
     setDownloading(true);
     setDownloadProgress(0);
     try {
-      const count = await deepPrefetchSessions("reading", 20, (n) => setDownloadProgress(n));
+      const count = await deepPrefetchSessions("reading", OFFLINE_DOWNLOAD_COUNT, (n) => setDownloadProgress(n));
       Alert.alert(
         "Download Complete",
         count > 0
@@ -190,7 +194,7 @@ export default function MoreScreen() {
         <View style={styles.navRowLeft}>
           <Ionicons name="airplane-outline" size={22} color={colors.text} />
           <Text style={styles.navRowLabel}>
-            {downloading ? `Downloading ${downloadProgress}/20...` : "Download for Offline"}
+            {downloading ? `Downloading ${downloadProgress}/${OFFLINE_DOWNLOAD_COUNT}...` : "Download for Offline"}
           </Text>
         </View>
         {downloading ? (
