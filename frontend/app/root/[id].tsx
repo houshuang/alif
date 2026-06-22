@@ -150,6 +150,27 @@ export default function RootDetailScreen() {
         </View>
       )}
 
+      {root.showcase_sentences && root.showcase_sentences.length > 0 && (
+        <View style={styles.showcaseSection}>
+          <Text style={styles.showcaseLabel}>Root showcase sentences</Text>
+          {root.showcase_sentences.map((s) => (
+            <View key={s.id} style={styles.showcaseCard}>
+              <Text style={styles.showcaseArabic}>{s.arabic_text}</Text>
+              {s.english_translation && (
+                <Text style={styles.showcaseTranslation}>
+                  {ltr(s.english_translation)}
+                </Text>
+              )}
+              {s.root_word_count > 0 && (
+                <Text style={styles.showcaseCount}>
+                  {s.root_word_count} word{s.root_word_count !== 1 ? "s" : ""} from this root
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
       {root.patterns.map((pattern, pi) => (
         <View key={pi} style={styles.patternGroup}>
           <Pressable
@@ -318,6 +339,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.accent,
     fontWeight: "500",
+  },
+
+  showcaseSection: {
+    width: "100%",
+    maxWidth: 500,
+    marginTop: 16,
+  },
+  showcaseLabel: {
+    fontSize: 16,
+    color: colors.accent,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  showcaseCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 6,
+  },
+  showcaseArabic: {
+    fontSize: 22,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
+    lineHeight: 38,
+    textAlign: "right",
+  },
+  showcaseTranslation: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginTop: 6,
+    writingDirection: "ltr" as const,
+  },
+  showcaseCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 6,
   },
 
   patternGroup: {
