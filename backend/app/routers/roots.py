@@ -3,7 +3,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Lemma, Root, UserLemmaKnowledge
+from app.models import Lemma, Root, Sentence, UserLemmaKnowledge
+from app.services.sentence_eligibility import reviewable_sentence_clauses
 
 router = APIRouter(prefix="/api/roots", tags=["roots"])
 
@@ -100,11 +101,35 @@ def get_root(root_id: int, db: Session = Depends(get_db)):
             "cefr_level": l.cefr_level,
         })
 
+    # Root-showcase sentences: LLM-generated to pack as many lemmas of THIS root
+    # into one sentence as possible. The sentence->root link lives on
+    # Sentence.root_focus_id (indexed). Gate with reviewable_sentence_clauses()
+    # so the page never shows a sentence the review engine would reject.
+    showcase_sentences = [
+        {
+            "id": s.id,
+            "arabic_text": s.arabic_text,
+            "english_translation": s.english_translation,
+            "root_word_count": sum(1 for w in s.words if w.is_target_word),
+        }
+        for s in (
+            db.query(Sentence)
+            .filter(
+                Sentence.root_focus_id == root_id,
+                Sentence.kind == "root_showcase",
+                reviewable_sentence_clauses(),
+            )
+            .order_by(Sentence.created_at.desc().nullslast())
+            .all()
+        )
+    ]
+
     return {
         "root_id": root.root_id,
         "root": root.root,
         "core_meaning_en": root.core_meaning_en,
         "enrichment": root.enrichment_json,
+        "showcase_sentences": showcase_sentences,
         "patterns": [
             {
                 "wazn": k if k != "_unclassified" else None,

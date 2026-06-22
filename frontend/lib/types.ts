@@ -998,11 +998,19 @@ export interface RootDetailPattern {
   words: RootDetailWord[];
 }
 
+export interface RootShowcaseSentence {
+  id: number;
+  arabic_text: string;
+  english_translation: string | null;
+  root_word_count: number;
+}
+
 export interface RootDetail {
   root_id: number;
   root: string;
   core_meaning_en: string | null;
   enrichment: RootEnrichment | null;
+  showcase_sentences: RootShowcaseSentence[];
   patterns: RootDetailPattern[];
   total_words: number;
 }
