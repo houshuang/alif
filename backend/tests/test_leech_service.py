@@ -391,6 +391,50 @@ def test_low_priority_leech_reintroduction_uses_longer_cooldown(db_session):
     assert lemma.lemma_id in reintroduced
 
 
+def test_get_reintro_delay_core_rank_overrides_sparse_frequency_rank():
+    """A frequent core word (good core_rank) is not throttled even when its
+    per-lemma frequency_rank is unset or sparse/huge."""
+    lemma = Lemma(
+        lemma_ar="دفاع", lemma_ar_bare="دفاع", gloss_en="defense",
+        source="book", frequency_rank=None,  # would be low-priority on its own
+    )
+    # No core_rank → low-priority → 4x cooldown
+    assert _get_reintro_delay(0, lemma) == REINTRO_DELAYS[0] * LOW_PRIORITY_LEECH_DELAY_MULTIPLIER
+    # In-main-lane core_rank → full priority → normal cooldown
+    assert _get_reintro_delay(0, lemma, core_rank=1705) == REINTRO_DELAYS[0]
+    # core_rank past the main lane → still low-priority
+    assert (
+        _get_reintro_delay(0, lemma, core_rank=9000)
+        == REINTRO_DELAYS[0] * LOW_PRIORITY_LEECH_DELAY_MULTIPLIER
+    )
+
+
+def test_frequent_core_leech_reintroduced_on_normal_cooldown(db_session):
+    """A leech that is frequent by core_rank but has a sparse frequency_rank is
+    reintroduced on the normal 3-day cooldown, not the 4x low-priority delay."""
+    from app.models import FrequencyCoreEntry
+
+    lemma = _create_lemma(db_session, arabic="دفاع", english="defense", frequency_rank=None)
+    db_session.add(FrequencyCoreEntry(
+        core_rank=1705, lemma_id=lemma.lemma_id, lemma_key="دفاع",
+        display_form="دفاع", score=1.0,
+    ))
+    now = datetime.now(timezone.utc)
+    # Suspended just past the NORMAL cooldown but well within the 4x low-priority one.
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="suspended",
+        leech_suspended_at=now - (REINTRO_DELAYS[0] + timedelta(hours=1)),
+        leech_count=1,
+        times_seen=10,
+        times_correct=2,
+    ))
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert lemma.lemma_id in reintroduced
+
+
 def test_leech_count_incremented_on_suspension(db_session):
     """leech_count is incremented each time a word is leech-suspended."""
     lemma = _create_lemma(db_session)
