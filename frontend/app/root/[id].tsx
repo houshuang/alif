@@ -156,6 +156,11 @@ export default function RootDetailScreen() {
           {root.showcase_sentences.map((s) => (
             <View key={s.id} style={styles.showcaseCard}>
               <Text style={styles.showcaseArabic}>{s.arabic_text}</Text>
+              {s.transliteration && (
+                <Text style={styles.showcaseTranslit}>
+                  {ltr(s.transliteration)}
+                </Text>
+              )}
               {s.english_translation && (
                 <Text style={styles.showcaseTranslation}>
                   {ltr(s.english_translation)}
@@ -365,6 +370,14 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     lineHeight: 38,
     textAlign: "right",
+  },
+  showcaseTranslit: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontFamily: fontFamily.translit,
+    lineHeight: 18,
+    marginTop: 6,
+    writingDirection: "ltr" as const,
   },
   showcaseTranslation: {
     fontSize: 14,

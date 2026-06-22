@@ -109,6 +109,7 @@ def get_root(root_id: int, db: Session = Depends(get_db)):
         {
             "id": s.id,
             "arabic_text": s.arabic_text,
+            "transliteration": s.transliteration,
             "english_translation": s.english_translation,
             "root_word_count": sum(1 for w in s.words if w.is_target_word),
         }

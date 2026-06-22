@@ -106,7 +106,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/roots` | List all roots with knowledge stats (total_words, known_words, coverage_pct, has_enrichment). Sorted by total_words desc. |
-| GET | `/api/roots/{root_id}` | Root detail with enrichment JSON + derivation tree grouped by wazn pattern. Each word includes knowledge_state, frequency_rank, transliteration. Also returns `showcase_sentences`: reviewable `kind='root_showcase'` sentences focused on this root (via `Sentence.root_focus_id`), each with `arabic_text`, `english_translation`, and `root_word_count` (# of `is_target_word` words). 404 if not found. |
+| GET | `/api/roots/{root_id}` | Root detail with enrichment JSON + derivation tree grouped by wazn pattern. Each word includes knowledge_state, frequency_rank, transliteration. Also returns `showcase_sentences`: reviewable `kind='root_showcase'` sentences focused on this root (via `Sentence.root_focus_id`), each with `arabic_text`, `transliteration`, `english_translation`, and `root_word_count` (# of `is_target_word` words). 404 if not found. |
 
 ## Patterns
 | Method | Path | Description |

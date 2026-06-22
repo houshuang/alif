@@ -1001,6 +1001,7 @@ export interface RootDetailPattern {
 export interface RootShowcaseSentence {
   id: number;
   arabic_text: string;
+  transliteration: string | null;
   english_translation: string | null;
   root_word_count: number;
 }
