@@ -1816,7 +1816,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | Reintro delay (1st) | 3 days | First leech suspension |
 | Reintro delay (2nd) | 7 days | Second suspension |
 | Reintro delay (3rd+) | 14 days | Third and subsequent suspensions |
-| Low-priority leech delay multiplier | 4×, capped at 60 days | Obscure/unranked leeches stay suspended longer before automatic reintro |
+| Low-priority leech delay multiplier | 4×, capped at 60 days | Obscure/unranked leeches stay suspended longer before automatic reintro. "Low-priority" = `is_low_priority_lemma()`: a word is **exempt** (full-priority, normal cooldown) when its merged frequency-core `core_rank ≤ MAIN_LANE_MAX_RANK` (5000), regardless of the sparse per-lemma `frequency_rank` (2026-06-22 — previously keyed on `frequency_rank` alone, which throttled 55 genuinely-frequent leeches up to 8 weeks because that field is NULL for ~1/3 of lemmas) |
 | Reintro target | Acquisition box 1 | Stats preserved, fresh sentences |
 
 ### Topic (`topic_service.py`)

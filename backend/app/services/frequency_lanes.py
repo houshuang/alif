@@ -159,10 +159,21 @@ def frequency_priority_sort_key(
     return rank, -overdue, lemma_id
 
 
-def is_low_priority_lemma(lemma: Lemma | None) -> bool:
-    """Return True for obscure/unranked words that should spend less bandwidth."""
+def is_low_priority_lemma(lemma: Lemma | None, core_rank: int | None = None) -> bool:
+    """Return True for obscure/unranked words that should spend less bandwidth.
+
+    The merged frequency-core rank is the authoritative frequency signal: a word
+    inside the main lane (``core_rank <= MAIN_LANE_MAX_RANK``) is never
+    low-priority, even when its per-lemma ``frequency_rank`` is unset or carries a
+    sparse single-source value. ``lemma.frequency_rank`` comes from the CAMeL-only
+    list (~1/3 of lemmas are NULL, and book/quran/wiktionary imports often hold a
+    raw rank well past the threshold), so consulting it alone throttled genuinely
+    frequent words. Mirrors the core_rank check in ``is_main_lane_word``.
+    """
     if lemma is None:
         return True
+    if core_rank is not None and core_rank <= MAIN_LANE_MAX_RANK:
+        return False
     if lemma.source in LOW_PRIORITY_EXEMPT_SOURCES:
         return False
     rank = lemma.frequency_rank

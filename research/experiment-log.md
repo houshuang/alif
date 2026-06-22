@@ -46,6 +46,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-06-22 (fix): Leech low-priority cooldown now reads core_rank, not sparse frequency_rank
+
+**Why.** A 5-day health audit (sentence generation healthy — no locks, no stalls; cron
+completing every 3h; ~10–31 acquisitions/day; north-star graduations positive daily)
+turned up a real throttle bug while investigating the user's felt "gaps in frequent
+words." Of 107 suspended leeches, Step F reintroduction was healthy (0 overdue), but **92
+were flagged low-priority** and getting the 4× cooldown (12–56 days instead of 3–14).
+`is_low_priority_lemma()` decided this from `lemma.frequency_rank` — a sparse CAMeL-only
+field that is NULL for ~1/3 of lemmas (1287/3939) and, for book/quran/wiktionary imports,
+often holds a raw single-source rank in the tens/hundreds of thousands. Result: **55
+leeches that are genuinely frequent by the merged `frequency_core_entries.core_rank` (≤
+2000) — تَابَ (repent, 430), سَمَّى (name, 413), أَنْفَقَ (spend, 504), شَفَةٌ (lip,
+1397), دِفَاع (defense, 1705)… — were held out of rotation for up to 8 weeks.** The
+source-based exemption (`LOW_PRIORITY_EXEMPT_SOURCES = {duolingo, avp_a1,
+frequency_core}`) missed them because they entered via other paths and only later matched
+into the core.
+
+**What.** `is_low_priority_lemma(lemma, core_rank=None)` now returns False (full priority,
+normal cooldown) when `core_rank ≤ MAIN_LANE_MAX_RANK (5000)`, before the
+frequency_rank/source checks — mirroring the core_rank check `is_main_lane_word()` has had
+since the 2026-05-04 main-/slow-lane split. `leech_service.py` resolves core_rank via a
+new `_get_core_rank(db, lemma_id)` (FrequencyCoreEntry lookup) at its 3 suspension/reintro
+sites and threads it through `_get_reintro_delay(..., core_rank=)`. Pure relaxation: no
+word that was full-priority becomes low-priority; only the inverse. The per-leech lookup
+runs in the 3-hourly cron (Step F) and on single-review suspension, never in session build.
+
+**Design intent confirmed (Rule #14).** The 2026-05-04 "Prioritize frequent words" entry
+established that main-lane = `core/proxy rank ≤ 5000`. `is_main_lane_word` already
+consulted core_rank; the leech reintro path simply never got the same awareness — an
+inconsistency, not a deliberate choice. Fix aligns the two.
+
+**Expected effect.** The ~55 frequent leeches reintroduce on the 3/7/14-day schedule
+instead of 12/28/56. They re-enter acquisition box 1 sooner, get fresh sentences (Step F),
+and have a chance to escape leech status via the sliding window — directly serving the
+"frequent words I struggled with keep disappearing" complaint. Obscure tail leeches
+(core_rank > 5000 or no core entry) keep the 4× cap. Note these leeches were never a
+*coverage* gap (already attempted, parked by design) — distinct from the 522
+never-introduced rank-2001+ words (a consumption/intake-pace matter) and the rank-3000
+intake ceiling (`ALIF_FREQ_CORE_INTAKE_MAX_RANK`).
+
+**How to verify.** After deploy, the next Step F should reintroduce the now-due frequent
+leeches; `grep leech_reintroduced` in interactions, and re-run the leech audit — the
+low-priority count among core_rank≤2000 leeches should drop to ~0.
+
+**Tests.** `test_get_reintro_delay_core_rank_overrides_sparse_frequency_rank` (unit: NULL
+frequency_rank + good core_rank → normal delay; core_rank past lane → still 4×) +
+`test_frequent_core_leech_reintroduced_on_normal_cooldown` (e2e through the FCE lookup).
+
 ## 2026-06-21 (feature): Snap-to-read — photo → translation + add-to-Alif word chips
 
 **Why.** The user reads increasingly authentic/classical texts and was using Gemini
