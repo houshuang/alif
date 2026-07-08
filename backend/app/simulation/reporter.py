@@ -36,6 +36,14 @@ def print_console_report(snapshots: list[DaySnapshot], profile_name: str = "") -
         print(f"Avg sessions/active day: {total_sessions / len(active_days):.1f}")
         print(f"Avg reviews/active day: {total_reviews / len(active_days):.1f}")
 
+    if active_days and total_sessions > 0 and total_reviews == 0:
+        print("\n" + "!" * 90)
+        print("WARNING: sessions ran but 0 reviews were submitted across the whole run.")
+        print("This almost always means --start-date predates the backup's data, so")
+        print("nothing was due in sim-time and the run measured nothing. Pass a")
+        print("--start-date near the backup date (the default is now day-after-latest-review).")
+        print("!" * 90)
+
     # Final state
     final = snapshots[-1]
     print(f"\nFinal word states:")

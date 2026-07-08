@@ -43,7 +43,7 @@ def main():
     parser.add_argument(
         "--start-date",
         type=str,
-        help="Simulation start date YYYY-MM-DD (default: 2026-03-01)",
+        help="Simulation start date YYYY-MM-DD (default: day after the backup's latest review)",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()

@@ -14,9 +14,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from freezegun import freeze_time
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models import UserLemmaKnowledge
+from app.models import ReviewLog, UserLemmaKnowledge
 from app.simulation.student import StudentProfile
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,25 @@ def _session_times(num_sessions: int, base_morning: datetime) -> list[datetime]:
     return sorted(times)
 
 
+def _default_start_date(db: Session) -> datetime:
+    """Start the sim the day after the DB's most recent review.
+
+    A fixed calendar default silently produces 0 reviews on any backup whose data
+    postdates it — nothing is due in sim-time — which defeats the whole run (cost
+    the Tier E validation an hour, 2026-07-08). Keying the default off the backup's
+    latest activity means the sim always exercises the real accumulated due backlog
+    regardless of how recent the backup is.
+    """
+    latest = db.query(func.max(ReviewLog.reviewed_at)).scalar()
+    if latest is None:
+        return datetime(2026, 3, 1, tzinfo=timezone.utc)
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+    return (latest + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
 def run_simulation(
     db: Session,
     days: int,
@@ -141,7 +161,7 @@ def run_simulation(
     logging.getLogger("app.services.material_generator").setLevel(logging.ERROR)
 
     if start_date is None:
-        start_date = datetime(2026, 3, 1, tzinfo=timezone.utc)
+        start_date = _default_start_date(db)
 
     snapshots: list[DaySnapshot] = []
 
