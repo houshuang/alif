@@ -11,12 +11,15 @@ Box 2→3 and 3→graduation enforce real inter-session spacing (sleep consolida
 
 Graduation is tiered (2026-03-03):
   - First correct review (times_seen was 0, rating >= 3) → instant graduation
+  - Elapsed-interval (Tier E): correct review after >= 3 days real gap → any box
   - Perfect accuracy (100%) + 3+ reviews → graduate from any box
   - High accuracy (≥80%) + 4+ reviews + box ≥ 2 → graduate
   - Standard: box >= 3 + times_seen >= 5 + accuracy >= 60% + 2 calendar days
 
 2026-02-14: Added due-date gating for box 2+ and calendar-day graduation check.
 2026-03-03: Added tiered graduation — first-correct instant grad + relaxed criteria.
+2026-07-08: Added Tier E (elapsed-interval) — a long real retention interval is
+            direct proof of consolidation the fixed Leitner intervals discarded.
 """
 
 import logging
@@ -48,6 +51,13 @@ FAST_GRAD_INTRO_GAP = timedelta(minutes=10)
 # Correct reviews inside the intro-card gap count for exposure/accuracy, but
 # should stay in Box 1 and come back soon instead of proving consolidation.
 FAST_INTRO_RETRY_INTERVAL = timedelta(minutes=30)
+# Tier E (elapsed-interval) graduation: a correct review after at least this much
+# real elapsed time since the previous review demonstrates durable retention that
+# already exceeds a fresh graduate's initial FSRS stability (S₀(Good) ≈ 2.3d) and
+# the deepest Leitner rung (Box 3 = 3d). The fixed box intervals otherwise discard
+# this signal; FSRS's whole premise is that surviving a long interval is high-value
+# evidence, so a word recognized after this long graduates straight to FSRS.
+ELAPSED_GRADUATION_MIN_INTERVAL = timedelta(days=3)
 
 
 def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
@@ -403,6 +413,7 @@ def submit_acquisition_review(
     old_times_seen = ulk.times_seen or 0
     old_times_correct = ulk.times_correct or 0
     old_knowledge_state = ulk.knowledge_state
+    old_last_reviewed = ulk.last_reviewed  # captured before the update below (Tier E elapsed)
     recent_intro = _intro_shown_recently(ulk, now)
 
     # Update review counts
@@ -425,10 +436,11 @@ def submit_acquisition_review(
     # correct rating seconds after seeing the card is working memory, not
     # learning, and bypassing acquisition robs the encoding phase.
     graduated = False
+    grad_reason: Optional[str] = None
     if old_times_seen == 0 and rating_int >= 3:
         if not recent_intro:
-            _graduate(ulk, now, db=db)
             graduated = True
+            grad_reason = "first_correct"
 
     # Box advancement logic
     # Box 1→2: allowed for encoding unless this is intro-card working memory
@@ -499,23 +511,45 @@ def submit_acquisition_review(
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
 
+        # Elapsed since the previous review — the retention interval just proven.
+        elapsed_since_last = None
+        if old_last_reviewed is not None:
+            olr = old_last_reviewed
+            if olr.tzinfo is None:
+                olr = olr.replace(tzinfo=timezone.utc)
+            elapsed_since_last = now - olr
+
+        # Tier E: Elapsed-interval graduation. A correct recognition after a long
+        # real gap proves consolidation more strongly than the Leitner ramp itself,
+        # so graduate from any box. Requires rating >= 3 (a *failed* review after a
+        # long gap means it was forgotten — no graduation), unlike tiers 1-3 which
+        # ignore the current rating. The intro working-memory gate is definitionally
+        # satisfied by a multi-day gap; not_recent_intro kept for symmetry.
+        if (not recent_intro and rating_int >= 3
+                and elapsed_since_last is not None
+                and elapsed_since_last >= ELAPSED_GRADUATION_MIN_INTERVAL):
+            graduated = True
+            grad_reason = "elapsed_interval"
         # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box.
         # The intro-card gap blocks this too; otherwise three immediate
         # same-session correct answers could still graduate on working memory.
-        if not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
+        elif not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
+            grad_reason = "perfect_accuracy"
         # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
         elif not recent_intro and accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
             graduated = True
+            grad_reason = "high_accuracy"
         # Tier 3: Standard (existing criteria) — requires due for spacing
         elif is_due and (ulk.acquisition_box >= 3
               and new_times_seen >= GRADUATION_MIN_REVIEWS
               and accuracy >= GRADUATION_MIN_ACCURACY
               and _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS)):
             graduated = True
+            grad_reason = "standard"
 
     if graduated:
-        _graduate(ulk, now, db=db)
+        _graduate(ulk, now, db=db, reason=grad_reason)
 
     # Log review
     log_entry = ReviewLog(
@@ -535,6 +569,7 @@ def submit_acquisition_review(
             "acquisition_box_before": old_box,
             "acquisition_box_after": ulk.acquisition_box,
             "graduated": graduated,
+            "graduation_reason": grad_reason,
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
             "pre_knowledge_state": old_knowledge_state,
@@ -580,7 +615,12 @@ def _count_known_root_siblings(db: Session, lemma_id: int) -> int:
     )
 
 
-def _graduate(ulk: UserLemmaKnowledge, now: datetime, db: Session | None = None) -> None:
+def _graduate(
+    ulk: UserLemmaKnowledge,
+    now: datetime,
+    db: Session | None = None,
+    reason: Optional[str] = None,
+) -> None:
     """Graduate a word from acquisition to FSRS."""
     from fsrs import Scheduler, Card, Rating
 
@@ -608,6 +648,7 @@ def _graduate(ulk: UserLemmaKnowledge, now: datetime, db: Session | None = None)
         times_seen=ulk.times_seen,
         times_correct=ulk.times_correct,
         root_boost=root_boost,
+        graduation_reason=reason,
     )
 
 

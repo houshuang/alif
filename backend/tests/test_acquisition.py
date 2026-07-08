@@ -4,6 +4,7 @@ from app.models import Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, User
 from app.services.acquisition_service import (
     BOX_INTERVALS,
     DAILY_INTRO_CAP,
+    ELAPSED_GRADUATION_MIN_INTERVAL,
     FAST_GRAD_INTRO_GAP,
     FAST_INTRO_RETRY_INTERVAL,
     GRADUATION_MIN_ACCURACY,
@@ -278,6 +279,74 @@ def test_tier2_blocked_by_low_accuracy(db_session):
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
     assert result["new_state"] == "acquiring"
     assert result.get("graduated") is not True
+
+
+# --- submit_acquisition_review: Tier E (elapsed-interval graduation) ---
+
+
+def _seen_box1_word(db, days_since_last_review, box=1, times_seen=1, times_correct=1):
+    """An acquiring word already seen once, last reviewed `days_since_last_review`
+    days ago and overdue — the state of an acquiring word picked up after a break.
+    Tier 0 can't fire (times_seen > 0) and no intro card is recent."""
+    lemma = _create_lemma(db)
+    start_acquisition(db, lemma.lemma_id)
+    ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    now = datetime.now(timezone.utc)
+    ulk.acquisition_box = box
+    ulk.times_seen = times_seen
+    ulk.times_correct = times_correct
+    ulk.last_reviewed = now - timedelta(days=days_since_last_review)
+    ulk.acquisition_next_due = (
+        now - timedelta(days=days_since_last_review) + BOX_INTERVALS[box]
+    )
+    db.flush()
+    return lemma
+
+
+def test_tier_e_long_gap_correct_graduates(db_session):
+    """A Box-1 word recognized correctly after a gap ≥ the elapsed threshold graduates
+    straight to FSRS — the long retention interval is the proof, box notwithstanding."""
+    lemma = _seen_box1_word(db_session, days_since_last_review=14)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
+    # Reason recorded for per-tier lapse analysis in production telemetry.
+    log = (
+        db_session.query(ReviewLog)
+        .filter_by(lemma_id=lemma.lemma_id)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .first()
+    )
+    assert log.fsrs_log_json["graduation_reason"] == "elapsed_interval"
+
+
+def test_tier_e_short_gap_does_not_graduate(db_session):
+    """Below the elapsed threshold, a correct review just advances the box (no Tier E)."""
+    lemma = _seen_box1_word(db_session, days_since_last_review=1)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result.get("graduated") is not True
+    assert result["new_state"] == "acquiring"
+    assert result["acquisition_box"] == 2  # normal box 1→2 advancement
+
+
+def test_tier_e_failed_review_after_long_gap_does_not_graduate(db_session):
+    """A *failed* recognition after a long gap means the word was forgotten. Tier E
+    requires rating ≥ 3, so the word resets to Box 1 instead of graduating."""
+    lemma = _seen_box1_word(db_session, days_since_last_review=14)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)
+    assert result.get("graduated") is not True
+    assert result["new_state"] == "acquiring"
+    assert result["acquisition_box"] == 1  # Again resets to box 1
+
+
+def test_tier_e_fires_from_box_2(db_session):
+    """Tier E is box-agnostic: a long-gap correct review graduates a Box-2 word too."""
+    lemma = _seen_box1_word(
+        db_session, days_since_last_review=ELAPSED_GRADUATION_MIN_INTERVAL.days + 5, box=2
+    )
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
 
 
 # --- submit_acquisition_review: box advancement ---
