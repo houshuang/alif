@@ -379,6 +379,7 @@ GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
 FAST_GRAD_INTRO_GAP = 10m
 FAST_INTRO_RETRY_INTERVAL = 30m
+ELAPSED_GRADUATION_MIN_INTERVAL = 3d   # Tier E: correct review after this real gap → graduate
 ```
 
 ### Graduation Criteria (Tiered — 2026-03-03)
@@ -388,6 +389,8 @@ Graduation uses a tiered system. Tier 0/1/2 can fire on **any review** (includin
 **Why collateral reviews count for graduation (tiers 0-2)**: Previously all tiers required `is_due`, but a correct review reschedules the word +3 days. Words appearing as collateral in multiple sentences would get 80%+ accuracy across many exposures but only one "due" review per 3-day cycle — trapping high-accuracy words in acquisition indefinitely. Since tier 1/2 already require high accuracy (80-100%), the spacing proof is redundant.
 
 **Tier 0 — First-correct instant graduation**: If a word's very first review is correct (rating ≥ 3, `times_seen` was 0), it graduates immediately. Data shows 0% lapse rate for fast graduates. FSRS safety net catches false positives.
+
+**Tier E — Elapsed-interval graduation (2026-07-08)**: If a correct review (rating ≥ 3, not inside the intro working-memory window) lands after at least `ELAPSED_GRADUATION_MIN_INTERVAL` (= 3 days) of real elapsed time since the *previous* review, the word graduates from **any box**. Rationale: surviving a long interval is exactly the consolidation proof the Leitner ramp exists to establish — 3 days already exceeds Box 3's interval and a fresh graduate's initial FSRS stability (S₀(Good) ≈ 2.3 d). The fixed box intervals otherwise discard this signal, so a word recognized 14 days overdue used to merely advance one box (the inverse of how the FSRS phase rewards long successful intervals). Unlike Tiers 1–3, Tier E is **rating-gated**: a *failed* review after a long gap means the word was forgotten, so it resets to Box 1 rather than graduating. Elapsed is measured as `now − last_reviewed` (the retention interval just demonstrated), captured before the review updates `last_reviewed`. This is the primary reason words graduate cleanly when a learner returns from a break with a pile of overdue acquiring words.
 
 **Intro working-memory gate** (expanded 2026-05-17): if the intro card was shown within `FAST_GRAD_INTRO_GAP = 10 minutes`, a correct review is counted as a real exposure but must not prove consolidation. During that window, Tier 0 is skipped, Box 1 stays Box 1, Tier 1/2 graduation is blocked, and the word is scheduled with `FAST_INTRO_RETRY_INTERVAL = 30 minutes`. Production data on 2026-05-17 showed most current Box 2 words had their first correct review within two minutes of the intro card; those were working-memory recognitions, not durable next-day readiness. Words with no intro card shown (e.g. encountered → auto-introduced via collateral) bypass the gate and can still fast-grad.
 
@@ -1787,6 +1790,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `GRADUATION_MIN_REVIEWS` | 5 | Min reviews before graduation (tier 3 standard) |
 | `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation (tier 3 standard) |
 | `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days (tier 3 only) |
+| `ELAPSED_GRADUATION_MIN_INTERVAL` | 3 days | Tier E: a correct review (rating ≥ 3) after this much real elapsed time since the last review graduates from any box — long-interval retention is direct consolidation proof (2026-07-08) |
 | `ROOT_SIBLING_THRESHOLD` | 2 | Known root siblings needed for Easy graduation boost |
 | Tier 0: first-correct | times_seen=0 + rating≥3 | Instant graduation on first correct review (any review) |
 | Tier 1: perfect | accuracy=100% + seen≥3 | Graduate from any box (any review, no due-gating) |

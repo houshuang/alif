@@ -46,6 +46,42 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-08 (change): Elapsed-interval graduation — Leitner phase now credits long retention
+
+**Why.** User (returning from a ~2-week break with 195 acquiring words due, most overdue)
+asked: "if I recognize a Box-1 word that is 14 days overdue, should it graduate straight to
+FSRS?" Tracing `submit_acquisition_review()` confirmed it does **not** — it advances one box
+(1→2) and reschedules +1 day, identical to a correct answer 4 hours late. The Leitner phase
+is **time-blind**: `is_due` (elapsed) is computed only as an *advancement gate*, never as
+*evidence* of retention. This is the inverse of the FSRS phase, which rewards a long
+successful interval with a large stability jump. There is also an internal inconsistency:
+Tier 0 instant-graduates a word on its *first-ever* correct recognition (no intro card,
+cited 0% lapse), yet a *second* correct recognition 14 days later — strictly stronger
+evidence — was denied graduation purely by the `times_seen == 0` guard. Backwards.
+
+**Prior-art check (Rule #14).** The only related entry (`2026-05-04` textbook-scan / "don't
+skip the Leitner ramp", and the origin `2026-02-14` due-date gating) argues freshly-*read*
+words with **zero retention proof** shouldn't skip the ramp. This change is the opposite
+evidence state — words with **demonstrated long-interval retention** — so it's consistent
+with, not a re-proposal of, that guardrail.
+
+**Change.** New box-agnostic **Tier E** in `acquisition_service.py`: a correct review
+(`rating ≥ 3`, `not recent_intro`) after `now - last_reviewed ≥ ELAPSED_GRADUATION_MIN_INTERVAL`
+(= 3 days, = Box 3's interval and > S₀(Good)≈2.3d) graduates to FSRS. The working-memory
+gate is definitionally satisfied by a multi-day gap; the `not recent_intro` guard is kept
+for symmetry. A *failed* review after a long gap still does NOT graduate (you forgot it) —
+that's the `rating ≥ 3` guard, distinguishing Tier E from tiers 1–3 which fire regardless
+of rating. Threshold is a named constant, tuned via `simulate_sessions.py` (must not raise
+lapse rate — the whole point of the two-phase guard). Telemetry: `graduation_reason` added
+to the acquisition `ReviewLog.fsrs_log_json` and to the `word_graduated` interaction event
+so per-tier lapse rate is measurable in production. **v2 (not shipped):** seed the graduated
+FSRS card's stability from the real elapsed interval (py-fsrs fixes first-review S₀ from a
+table, so this needs a seeded prior state) — deferred.
+
+**Incidental fix.** Tier 0 called `_graduate()` at its own site *and* again at the shared
+`if graduated:` site → double FSRS-card creation + double `word_graduated` log. Restructured
+so all tiers set `graduated`/`grad_reason` and `_graduate()` is called exactly once.
+
 ## 2026-06-22 (fix): Leech low-priority cooldown now reads core_rank, not sparse frequency_rank
 
 **Why.** A 5-day health audit (sentence generation healthy — no locks, no stalls; cron
