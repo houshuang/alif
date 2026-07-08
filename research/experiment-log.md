@@ -82,6 +82,20 @@ table, so this needs a seeded prior state) — deferred.
 `if graduated:` site → double FSRS-card creation + double `word_graduated` log. Restructured
 so all tiers set `graduated`/`grad_reason` and `_graduate()` is called exactly once.
 
+**Validation (partial).** Full unit suite green (1369) + 4 targeted Tier E tests (graduate /
+below-threshold / failed-after-gap / box-2). A 35-day `calibrated` sim on the 2026-07-07
+backup **started at 2026-07-08** (the real return-from-break state: 1121 due on day 1) with
+Tier E live drained the backlog to 248 due, grew known 2406→2734 (+328), and **Lapsed fell
+39→0 — no lapse spike**, 61 leeches (normal). NOTE the sim default `--start-date 2026-03-01`
+produces **0 reviews** on a July backup (cards not yet due in sim-time) — always pass a
+start-date near the backup date. A clean A/B baseline arm and the per-tier `graduation_reason`
+lapse breakdown were defeated by sim-harness/sandbox friction (sandbox `/tmp` wiped between
+tool calls zeroing the sim DB; WAL not checkpointed; background git-restore races). Safety
+therefore rests on: this no-lapse-spike signal + Tier E being **strictly more conservative
+than the already-0%-lapse Tier 0** + the FSRS S₀≈2.3d safety net catching false positives in
+days. Production `graduation_reason` telemetry now lets us measure the real per-tier lapse
+rate directly within ~1 week — the definitive check the sim couldn't give.
+
 ## 2026-06-22 (fix): Leech low-priority cooldown now reads core_rank, not sparse frequency_rank
 
 **Why.** A 5-day health audit (sentence generation healthy — no locks, no stalls; cron
