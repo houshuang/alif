@@ -112,12 +112,15 @@ _ACQUISITION_EPISODE_KINDS = {
 # in the trigger or the accuracy floors, which are the safety gate.
 RECOVERY_BOX1_UNREVIEWED_LIMIT = 5
 RECOVERY_BOX2_DUE_LIMIT = 30
+RECOVERY_FSRS_MAIN_DUE_LIMIT = 750
 RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO = 40
 RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET = 100
 RECOVERY_LOW_ACCURACY_FLOOR = 0.80
 RECOVERY_GOOD_ACCURACY_FLOOR = 0.85
 RECOVERY_MID_INTRO_BUDGET = 8
 RECOVERY_FULL_INTRO_BUDGET = DAILY_INTRO_CAP  # 30 — full cap, earned by accuracy+volume
+_FSRS_DUE_CACHE_TTL = timedelta(seconds=5)
+_FSRS_DUE_CACHE_KEY = "alif_main_fsrs_due_count"
 
 
 def true_new_acquisition_episode_filter():
@@ -212,6 +215,75 @@ def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
     return box1_actionable, box2_due
 
 
+def _main_fsrs_due_count(db: Session, now: datetime) -> int:
+    """Count actionable main-lane FSRS debt for sustained-break recovery.
+
+    The threshold intentionally uses the same lane classifier as session
+    building, rather than raw API due counts that include suspended, inert, and
+    slow-lane artifact rows. Production checkpoints put normal active-day debt
+    at 343–439 (observed high 576), about two sparse days at 672, and a five-day
+    break at 806. The 750 trigger therefore catches a real hiatus without
+    turning ordinary maintenance into permanent recovery mode.
+    """
+    cached = db.info.get(_FSRS_DUE_CACHE_KEY)
+    if cached:
+        cached_at, cached_count = cached
+        if timedelta(0) <= now - cached_at <= _FSRS_DUE_CACHE_TTL:
+            return cached_count
+
+    from app.services.frequency_lanes import due_lane_snapshot
+    snapshot = due_lane_snapshot(db, now)
+    due_ids = snapshot.main_due_ids & snapshot.fsrs_due_ids
+    inert_ids: set[int] = set()
+    overshadowed_variants: set[int] = set()
+    if due_ids:
+        from app.services.canonical_resolution import resolve_canonical_via_map
+
+        lemma_rows = db.query(
+            Lemma.lemma_id,
+            Lemma.canonical_lemma_id,
+            Lemma.word_category,
+        ).all()
+        canonical_by_id = {
+            lemma_id: canonical_id
+            for lemma_id, canonical_id, _category in lemma_rows
+        }
+        inert_ids = {
+            lemma_id
+            for lemma_id, _canonical_id, category in lemma_rows
+            if lemma_id in due_ids and category in {"proper_name", "onomatopoeia"}
+        }
+        canonical_targets = {
+            lemma_id: resolve_canonical_via_map(lemma_id, canonical_by_id)
+            for lemma_id in due_ids
+        }
+        target_ids = {
+            target_id
+            for lemma_id, target_id in canonical_targets.items()
+            if target_id != lemma_id
+        }
+        canonical_states = {
+            lemma_id: state
+            for lemma_id, state in db.query(
+                UserLemmaKnowledge.lemma_id,
+                UserLemmaKnowledge.knowledge_state,
+            ).filter(UserLemmaKnowledge.lemma_id.in_(target_ids)).all()
+        } if target_ids else {}
+        overshadowed_variants = {
+            lemma_id
+            for lemma_id, target_id in canonical_targets.items()
+            if target_id != lemma_id
+            and canonical_states.get(target_id) in {"known", "learning"}
+        }
+    count = len(due_ids - inert_ids - overshadowed_variants)
+    # One review request can promote several collateral/cold words. Those
+    # promotions do not create FSRS debt, so reparsing every active card for
+    # each start only adds latency. A short session-local cache collapses that
+    # burst while expiring quickly for long-lived script sessions.
+    db.info[_FSRS_DUE_CACHE_KEY] = (now, count)
+    return count
+
+
 def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetime) -> int:
     """Return the effective daily intro budget under acquisition overload.
 
@@ -224,6 +296,12 @@ def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetim
         box1_actionable >= RECOVERY_BOX1_UNREVIEWED_LIMIT
         or box2_due >= RECOVERY_BOX2_DUE_LIMIT
     )
+    # Acquisition debt is much cheaper to count and already establishes
+    # recovery mode on most overloaded days. Only scan/parse all FSRS cards
+    # when the acquisition boxes themselves are healthy.
+    if not overloaded:
+        main_fsrs_due = _main_fsrs_due_count(db, now)
+        overloaded = main_fsrs_due >= RECOVERY_FSRS_MAIN_DUE_LIMIT
     if not overloaded:
         return DAILY_INTRO_CAP
 

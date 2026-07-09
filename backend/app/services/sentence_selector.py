@@ -52,6 +52,11 @@ from app.services.frequency_lanes import (
     select_slow_lane_sample,
 )
 from app.services.sentence_eligibility import reviewable_sentence_clauses
+from app.services.surface_form_experiment import (
+    EXACT_SURFACE_MAX_SLOTS_PER_SESSION,
+    active_treatment_episodes,
+)
+from app.services.confusion_service import normalize_surface_form
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +212,8 @@ class SentenceCandidate:
     score_components: dict = field(default_factory=dict)
     selection_reason: str = ""
     selection_order: int = 0
+    exact_surface_lemma_ids: set[int] = field(default_factory=set)
+    primary_override_lemma_id: int | None = None
 
 
 def _is_maintenance_passage_candidate(
@@ -1176,6 +1183,14 @@ def build_session(
                 lemma_map[lo.lemma_id] = lo
 
     knowledge_map = {k.lemma_id: k for k in all_knowledge}
+    # The exact-form pilot tests visual recognition in ordinary reading cards.
+    # Listening cards hide the written form during retrieval and would measure
+    # a different skill, so they remain outside both delivery and outcomes.
+    exact_surface_treatments = (
+        active_treatment_episodes(knowledge_map, now)
+        if mode == "reading"
+        else {}
+    )
 
     # Load grammar exposure for grammar_fit scoring
     from app.services.grammar_service import compute_comfort
@@ -1259,6 +1274,7 @@ def build_session(
     for sent in sentences:
         sws = sw_by_sentence.get(sent.id, [])
         due_covered: set[int] = set()
+        exact_surface_lemma_ids: set[int] = set()
         word_metas: list[WordMeta] = []
         scaffold_stabilities: list[float] = []
 
@@ -1277,6 +1293,16 @@ def build_session(
                     or (sw.lemma_id is not None and sw.lemma_id in due_lemma_ids)
                 )
             ) if effective_id else False
+
+            episode = exact_surface_treatments.get(effective_id) if effective_id else None
+            if (
+                episode
+                and is_due
+                and sent.source != "passage"
+                and sent.id not in set(episode.get("trigger_sentence_ids") or [])
+                and normalize_surface_form(sw.surface_form) == episode.get("surface_key")
+            ):
+                exact_surface_lemma_ids.add(effective_id)
 
             k_state = "new"
             is_fresh_today = False
@@ -1320,6 +1346,20 @@ def build_session(
                     due_covered.add(sw.lemma_id)
             elif effective_id and stab is not None:
                 scaffold_stabilities.append(stab)
+
+        # Outcome recording requires one unambiguous surface key for the tested
+        # lemma. Do not reserve a sentence that also contains a different form
+        # of that lemma: it could be selected but could not yield a clean pilot
+        # observation.
+        for lemma_id in tuple(exact_surface_lemma_ids):
+            episode = exact_surface_treatments.get(lemma_id) or {}
+            sentence_form_keys = {
+                normalize_surface_form(sw.surface_form)
+                for sw in sws
+                if variant_to_canonical.get(sw.lemma_id, sw.lemma_id) == lemma_id
+            }
+            if sentence_form_keys != {episode.get("surface_key")}:
+                exact_surface_lemma_ids.discard(lemma_id)
 
         is_passage_context = (
             mode == "reading"
@@ -1419,12 +1459,51 @@ def build_session(
             words_meta=word_metas,
             due_words_covered=due_covered,
             score=score,
+            exact_surface_lemma_ids=exact_surface_lemma_ids,
         ))
 
     # 3. Greedy set cover with within-session scaffold diversity
     selected: list[SentenceCandidate] = []
     remaining_due = set(due_lemma_ids)
     session_scaffold_counts: dict[int, int] = {}
+
+    # Reserve at most one ordinary due-card slot for the treatment arm. This
+    # changes representation, not workload: the lemma was already due and the
+    # sentence passed every normal mapping, quality, recency, density, and
+    # comprehensibility gate above.
+    treatment_options: list[tuple[str, float, int, int, SentenceCandidate]] = []
+    for candidate in candidates:
+        for lemma_id in candidate.exact_surface_lemma_ids:
+            episode = exact_surface_treatments.get(lemma_id) or {}
+            treatment_options.append((
+                str(episode.get("triggered_at") or ""),
+                -candidate.score,
+                candidate.sentence_id,
+                lemma_id,
+                candidate,
+            ))
+    treatment_options.sort(key=lambda row: row[:4])
+    reserved_treatment_slots = 0
+    for _, _, _, lemma_id, candidate in treatment_options:
+        if (
+            reserved_treatment_slots >= EXACT_SURFACE_MAX_SLOTS_PER_SESSION
+            or len(selected) >= limit
+        ):
+            break
+        if candidate not in candidates or lemma_id not in remaining_due:
+            continue
+        candidate.primary_override_lemma_id = lemma_id
+        candidate.selection_reason = "exact_surface_v1"
+        candidate.selection_order = len(selected) + 1
+        candidate.score_components = dict(candidate.score_components)
+        candidate.score_components["exact_surface_v1"] = True
+        selected.append(candidate)
+        reserved_treatment_slots += 1
+        candidates.remove(candidate)
+        remaining_due -= candidate.due_words_covered
+        for word in candidate.words_meta:
+            if word.lemma_id and not word.is_due and not word.is_function_word and not word.is_proper_name:
+                session_scaffold_counts[word.lemma_id] = session_scaffold_counts.get(word.lemma_id, 0) + 1
 
     if mode == "reading":
         passage_seed = _best_generated_passage_seed(candidates, knowledge_by_id)
@@ -1740,6 +1819,11 @@ def build_session(
     )
 
     def _primary_lid_for_candidate(cand: SentenceCandidate) -> int:
+        if (
+            cand.primary_override_lemma_id is not None
+            and cand.primary_override_lemma_id in cand.due_words_covered
+        ):
+            return cand.primary_override_lemma_id
         sent = sentence_map[cand.sentence_id]
         primary_lid = sent.target_lemma_id
         if primary_lid not in due_lemma_ids and cand.due_words_covered:

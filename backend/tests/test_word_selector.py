@@ -295,11 +295,11 @@ class TestSelectNextWords:
         assert result[0]["lemma_id"] == textbook.lemma_id
         assert result[0]["score_breakdown"]["priority_tier"] == "textbook_scan"
 
-    def _add_active_story(self, db, source, words):
+    def _add_active_story(self, db, source, words, metadata=None):
         """Create an active Story with StoryWords (word -> lemma_id)."""
         from app.models import Story, StoryWord
         story = Story(body_ar="نص", source=source, status="active",
-                      title_en=f"{source} story")
+                      title_en=f"{source} story", metadata_json=metadata)
         db.add(story)
         db.flush()
         for pos, (surface, lid) in enumerate(words):
@@ -321,7 +321,12 @@ class TestSelectNextWords:
             lemma_key=f"lemma:{generic.lemma_id}", display_form=generic.lemma_ar,
             score=70.0,
         ))
-        self._add_active_story(db_session, "imported", [("قبلة", imported_word.lemma_id)])
+        self._add_active_story(
+            db_session,
+            "imported",
+            [("قبلة", imported_word.lemma_id)],
+            metadata={"curriculum_role": "primary"},
+        )
         db_session.commit()
 
         result = select_next_words(db_session, count=2)
@@ -329,6 +334,27 @@ class TestSelectNextWords:
         assert result[0]["score_breakdown"]["priority_tier"] == "active_story"
         # Stays below the truly-common core and textbook (210 / 220).
         assert result[0]["score_breakdown"]["priority_bonus"] == 195.0
+
+    def test_reader_visible_import_is_not_implicitly_primary_curriculum(self, db_session):
+        imported_word = _create_lemma(db_session, "قبلة", "kiss", freq=15916)
+        common = _create_lemma(db_session, "قول", "saying", freq=2500)
+        db_session.add(FrequencyCoreEntry(
+            core_rank=2500, lemma_id=common.lemma_id,
+            lemma_key=f"lemma:{common.lemma_id}", display_form=common.lemma_ar,
+            score=70.0,
+        ))
+        self._add_active_story(
+            db_session,
+            "imported",
+            [("قبلة", imported_word.lemma_id)],
+        )
+        db_session.commit()
+
+        result = select_next_words(db_session, count=2)
+
+        assert result[0]["lemma_id"] == common.lemma_id
+        imported = next(w for w in result if w["lemma_id"] == imported_word.lemma_id)
+        assert imported["score_breakdown"]["priority_bonus"] == 10.0
 
     def test_generated_story_word_stays_deprioritized(self, db_session):
         # Auto-generated stories keep the weak +10 tier — they must not surface

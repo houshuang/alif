@@ -8,8 +8,22 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.sentence_validator import (
-    PROCLITICS, ENCLITICS, strip_diacritics,
+    PROCLITICS,
+    ENCLITICS,
+    normalize_arabic,
+    sanitize_arabic_word,
+    strip_diacritics,
 )
+
+
+def normalize_surface_form(text: str) -> str:
+    """Canonical key for per-surface learning evidence.
+
+    Boundary punctuation, Quranic presentation forms, tashkeel, tatweel, and
+    alef variants are display differences, not distinct retrieval targets.
+    """
+    cleaned, _warnings = sanitize_arabic_word(text or "")
+    return normalize_arabic(cleaned).strip()
 
 # --- Rasm skeleton mapping ---
 # Letters that share the same skeletal shape (differ only by dots) map to the same group.
@@ -108,6 +122,9 @@ def decompose_surface(
 
     Returns dict with decomposition info, or None if surface ≈ lemma (no clitics/form).
     """
+    surface_bare = normalize_surface_form(surface_bare)
+    lemma_bare = normalize_surface_form(lemma_bare)
+
     # If surface is already the lemma (or very close), no decomposition needed
     if surface_bare == lemma_bare:
         return None
@@ -123,7 +140,7 @@ def decompose_surface(
         for key, val in forms_json.items():
             if key in ("gender", "verb_form") or not val or not isinstance(val, str):
                 continue
-            known_forms[strip_diacritics(val)] = key
+            known_forms[normalize_surface_form(val)] = key
 
     best = None
     best_score = -1  # prefer: matched form > lemma match > longer stem
@@ -383,7 +400,7 @@ def _similarity_forms(lemma: Lemma) -> list[dict]:
     entries: list[dict] = []
     seen: set[str] = set()
 
-    bare = lemma.lemma_ar_bare
+    bare = normalize_surface_form(lemma.lemma_ar_bare or lemma.lemma_ar or "")
     if bare:
         entries.append({
             "bare": bare,
@@ -398,7 +415,7 @@ def _similarity_forms(lemma: Lemma) -> list[dict]:
         for key, value in forms.items():
             if key in _FORM_METADATA_KEYS or not isinstance(value, str) or not value.strip():
                 continue
-            form_bare = strip_diacritics(value)
+            form_bare = normalize_surface_form(value)
             if not form_bare or form_bare in seen:
                 continue
             entries.append({
@@ -416,9 +433,13 @@ def _target_forms(
     lemma_bare: str,
     surface_bare: str | None = None,
 ) -> list[dict]:
+    lemma_display = lemma_bare
+    surface_display = surface_bare
+    lemma_bare = normalize_surface_form(lemma_bare)
+    surface_bare = normalize_surface_form(surface_bare or "") or None
     entries = [{
         "bare": lemma_bare,
-        "display": lemma_bare,
+        "display": lemma_display,
         "key": None,
         "label": "dictionary form",
         "source": "lemma",
@@ -426,7 +447,7 @@ def _target_forms(
     if surface_bare and surface_bare != lemma_bare:
         entries.append({
             "bare": surface_bare,
-            "display": surface_bare,
+            "display": surface_display,
             "key": "surface",
             "label": "exposed form",
             "source": "surface",
@@ -578,6 +599,7 @@ def find_similar_words(
         bare = lemma.lemma_ar_bare
         if not bare:
             continue
+        bare_key = normalize_surface_form(bare)
 
         same_root = _same_root(target_root, lemma)
         best: dict | None = None
@@ -676,7 +698,10 @@ def find_similar_words(
             "pos": lemma.pos,
             "edit_distance": best["edit_distance"],
             "rasm_distance": best["rasm_distance"],
-            "diff_positions": _diff_positions(lemma_bare, bare),
+            "diff_positions": _diff_positions(
+                normalize_surface_form(lemma_bare),
+                bare_key,
+            ),
             "knowledge_state": ks,
             "key_forms": key_forms,
             "match_reason": match_reason,
@@ -728,6 +753,7 @@ def find_phonetically_similar(
     candidates: list[tuple] | None = None,
 ) -> list[dict]:
     """Find words that sound similar but look different (emphatic/pharyngeal confusion)."""
+    lemma_bare = normalize_surface_form(lemma_bare)
     target_phonetic = to_phonetic(lemma_bare)
 
     if candidates is None:
@@ -737,7 +763,7 @@ def find_phonetically_similar(
     for lemma, ks in candidates:
         if lemma.lemma_id in visual_ids:
             continue
-        bare = lemma.lemma_ar_bare
+        bare = normalize_surface_form(lemma.lemma_ar_bare or "")
         if not bare:
             continue
         # Length filter on phonetic forms: ±1
@@ -802,7 +828,10 @@ def classify_surface_morphology(surface_bare: str, lemma: "Lemma | None") -> dic
     """
     if not lemma or not surface_bare:
         return None
-    lemma_bare = lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar or "")
+    surface_bare = normalize_surface_form(surface_bare)
+    lemma_bare = normalize_surface_form(
+        lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar or "")
+    )
     if not lemma_bare or surface_bare == lemma_bare:
         return None
 
@@ -860,8 +889,10 @@ def analyze_confusion(
     if not lemma:
         return {"confusion_type": None, "error": "Lemma not found"}
 
-    surface_bare = strip_diacritics(surface_form)
-    lemma_bare = lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar)
+    surface_bare = normalize_surface_form(surface_form)
+    lemma_bare = normalize_surface_form(
+        lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar)
+    )
 
     # 1. Morphological analysis
     decomposition = decompose_surface(surface_bare, lemma_bare, lemma.forms_json)

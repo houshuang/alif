@@ -133,6 +133,98 @@ class TestDifficultyMatchQuality:
         assert _difficulty_match_quality(10.0, [1.0, 2.0]) == 1.0
 
 
+class TestExactSurfaceExperimentSelection:
+    def test_treatment_reserves_due_sentence_and_overrides_primary(self, db_session):
+        form_lemma, form_knowledge = _seed_word(
+            db_session, 9101, "أفسد", "to spoil", due_hours=-1,
+        )
+        other_lemma, _ = _seed_word(
+            db_session, 9102, "شيء", "thing", due_hours=-1,
+        )
+        form_knowledge.variant_stats_json = {
+            "__exact_surface_v1": {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": "episode-1",
+                    "arm": "treatment",
+                    "surface_key": "يفسد",
+                    "triggered_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(days=13)).isoformat(),
+                    "trigger_sentence_ids": [99100],
+                    "outcome_rating": None,
+                }],
+            }
+        }
+        _seed_sentence(
+            db_session,
+            99101,
+            "يُفْسِدُ الشَّيْءَ",
+            "He spoils the thing",
+            target_lemma_id=other_lemma.lemma_id,
+            word_surfaces_and_ids=[
+                ("يُفْسِدُ", form_lemma.lemma_id),
+                ("الشَّيْءَ", other_lemma.lemma_id),
+            ],
+            source="book",
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            mode="reading",
+            log_events=False,
+            allow_intro_mutations=False,
+        )
+
+        assert len(result["items"]) == 1
+        item = result["items"][0]
+        assert item["sentence_id"] == 99101
+        assert item["primary_lemma_id"] == form_lemma.lemma_id
+        assert item["selection_info"]["reason"] == "exact_surface_v1"
+        assert item["selection_info"]["components"]["exact_surface_v1"] is True
+
+    def test_treatment_does_not_override_listening_cards(self, db_session):
+        form_lemma, form_knowledge = _seed_word(
+            db_session, 9201, "أفسد", "to spoil", due_hours=-1,
+        )
+        form_knowledge.variant_stats_json = {
+            "__exact_surface_v1": {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": "episode-listening",
+                    "arm": "treatment",
+                    "surface_key": "يفسد",
+                    "triggered_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(days=13)).isoformat(),
+                    "trigger_sentence_ids": [99200],
+                    "outcome_rating": None,
+                }],
+            }
+        }
+        _seed_sentence(
+            db_session,
+            99201,
+            "يُفْسِدُ",
+            "He spoils",
+            target_lemma_id=form_lemma.lemma_id,
+            word_surfaces_and_ids=[("يُفْسِدُ", form_lemma.lemma_id)],
+            source="book",
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            mode="listening",
+            log_events=False,
+            allow_intro_mutations=False,
+        )
+
+        assert len(result["items"]) == 1
+        assert result["items"][0]["selection_info"]["reason"] != "exact_surface_v1"
+
+
 class TestSourceDisplay:
     def test_generic_learning_source_does_not_fall_back_to_lexical_source(self):
         lemma = Lemma(lemma_ar="كلمة", lemma_ar_bare="كلمة", gloss_en="word", source="duolingo")

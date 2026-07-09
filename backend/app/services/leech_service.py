@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 LEECH_MIN_REVIEWS = 5
 LEECH_MAX_ACCURACY = 0.50
 LEECH_WINDOW_SIZE = 8  # sliding window: use last N reviews for accuracy
+LEECH_REINTRO_DAILY_CAP = 8
+LEECH_REINTRO_BOX1_ADMISSION_LIMIT = 20
 
 # Graduated cooldowns based on leech_count (how many times suspended before)
 REINTRO_DELAYS = {
@@ -70,6 +72,58 @@ def _get_core_rank(db: Session, lemma_id: int) -> int | None:
     return row[0] if row else None
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _is_active_reintro_episode(ulk: UserLemmaKnowledge) -> bool:
+    """Return whether leech detection should use episode-local evidence.
+
+    New episodes are explicit. Two narrow fallbacks keep rows that were already
+    mid-reintroduction when the nullable episode column shipped from falling
+    straight back into the historical-window trap:
+
+    * legacy ``source='leech_reintro'`` rows;
+    * rows with leech history that are currently acquiring, or that graduated
+      from their most recent acquisition start. An original acquisition cannot
+      acquire a positive ``leech_count`` and remain acquiring: suspension first
+      changes its state, and only reintroduction starts acquisition again.
+
+    This is runtime classification only; it does not rewrite historical episode
+    metadata or change true-new intake accounting.
+    """
+    if ulk.acquisition_episode_kind == "leech_reintro":
+        return True
+    if ulk.acquisition_episode_kind == "new":
+        return False
+    if ulk.source == "leech_reintro":
+        return True
+    if not (ulk.leech_count or 0) or ulk.acquisition_started_at is None:
+        return False
+    if ulk.knowledge_state == "acquiring":
+        return True
+    started = _as_utc(ulk.acquisition_started_at)
+    graduated = _as_utc(ulk.graduated_at)
+    return bool(started and graduated and graduated >= started)
+
+
+def _reintroductions_started_today(db: Session, now: datetime) -> int:
+    """Count explicit reintroduction episodes admitted during this UTC day."""
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.acquisition_episode_kind == "leech_reintro",
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+        )
+        .count()
+    )
+
+
 def check_and_manage_leeches(db: Session) -> list[int]:
     """Check all active words for leech status and auto-suspend leeches.
 
@@ -86,7 +140,8 @@ def check_and_manage_leeches(db: Session) -> list[int]:
 
     suspended = []
     for ulk in candidates:
-        acc = _recent_accuracy(db, ulk.lemma_id)
+        since = ulk.acquisition_started_at if _is_active_reintro_episode(ulk) else None
+        acc = _recent_accuracy(db, ulk.lemma_id, since=since)
         if acc is None:
             continue
         accuracy = acc
@@ -133,6 +188,10 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     """
     from app.services.acquisition_service import (
         ACQUISITION_EPISODE_LEECH_REINTRO,
+        RECOVERY_BOX2_DUE_LIMIT,
+        RECOVERY_FSRS_MAIN_DUE_LIMIT,
+        _main_fsrs_due_count,
+        _recovery_backlog_counts,
         start_acquisition,
     )
 
@@ -148,7 +207,17 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         .all()
     )
 
-    reintroduced = []
+    eligible: list[
+        tuple[
+            int,
+            int,
+            datetime,
+            int,
+            UserLemmaKnowledge,
+            Lemma | None,
+            int | None,
+        ]
+    ] = []
     for ulk in suspended_leeches:
         # Calculate per-word cooldown based on leech_count
         lc = (ulk.leech_count or 1) - 1  # count before this suspension
@@ -161,8 +230,67 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         if suspended_at + delay > now:
             continue  # not ready yet
 
+        # Lower leech count first, then better frequency rank, then the oldest
+        # eligible suspension. This favors tractable, useful words without
+        # starving an equally ranked older treatment.
+        effective_rank = core_rank or (lemma.frequency_rank if lemma else None) or 1_000_000_000
+        eligible.append((
+            ulk.leech_count or 0,
+            effective_rank,
+            suspended_at,
+            ulk.lemma_id,
+            ulk,
+            lemma,
+            core_rank,
+        ))
+
+    eligible.sort(key=lambda row: row[:4])
+    if not eligible:
+        return []
+
+    box1_actionable, box2_due = _recovery_backlog_counts(db, now)
+    main_fsrs_due = _main_fsrs_due_count(db, now)
+    admission_reasons = []
+    if box1_actionable >= LEECH_REINTRO_BOX1_ADMISSION_LIMIT:
+        admission_reasons.append("box1_actionable")
+    if box2_due >= RECOVERY_BOX2_DUE_LIMIT:
+        admission_reasons.append("box2_due")
+    if main_fsrs_due >= RECOVERY_FSRS_MAIN_DUE_LIMIT:
+        admission_reasons.append("main_fsrs_due")
+
+    admitted_today = _reintroductions_started_today(db, now)
+    daily_capacity = max(0, LEECH_REINTRO_DAILY_CAP - admitted_today)
+    # Reintroductions enter Box 1. Respect the debt ceiling as a capacity, not
+    # just a pre-flight check, so 19 actionable words cannot admit eight more
+    # and overshoot the intended limit in one batch.
+    box1_capacity = max(0, LEECH_REINTRO_BOX1_ADMISSION_LIMIT - box1_actionable)
+    remaining_capacity = min(daily_capacity, box1_capacity)
+    selected = [] if admission_reasons else eligible[:remaining_capacity]
+    deferred_count = len(eligible) - len(selected)
+    deferred_reasons = list(admission_reasons)
+    if not admission_reasons and deferred_count:
+        if daily_capacity < len(eligible):
+            deferred_reasons.append("daily_cap")
+        if box1_capacity < len(eligible):
+            deferred_reasons.append("box1_headroom")
+    if deferred_count:
+        log_interaction(
+            event="leech_reintro_capacity_deferred",
+            eligible=len(eligible),
+            admitted_today=admitted_today,
+            daily_cap=LEECH_REINTRO_DAILY_CAP,
+            deferred=deferred_count,
+            admission_reasons=deferred_reasons,
+            box1_actionable=box1_actionable,
+            box2_due=box2_due,
+            main_fsrs_due=main_fsrs_due,
+        )
+
+    reintroduced = []
+    for _, _, _, _, ulk, lemma, core_rank in selected:
+
         # Preserve stats — don't zero times_seen/times_correct
-        # The word must genuinely improve since leech detection uses cumulative accuracy
+        # Detection now gives the treatment an episode-local evidence window.
         ulk.leech_suspended_at = None
         # Keep curriculum provenance (book/textbook/etc.) separate from why
         # this acquisition episode restarted.
@@ -206,21 +334,29 @@ def check_leech_reintroductions(db: Session) -> list[int]:
             db,
             event_type="leech_reintroduced",
             summary=f"Reintroduced {len(reintroduced)} leech words to acquisition",
-            detail={"lemma_ids": reintroduced, "stats_preserved": True},
+            detail={
+                "lemma_ids": reintroduced,
+                "stats_preserved": True,
+                "daily_cap": LEECH_REINTRO_DAILY_CAP,
+                "deferred_count": deferred_count,
+                "deferred_reasons": deferred_reasons,
+            },
         )
 
     return reintroduced
 
 
-def _recent_accuracy(db: Session, lemma_id: int, window: int = LEECH_WINDOW_SIZE) -> float | None:
+def _recent_accuracy(
+    db: Session,
+    lemma_id: int,
+    window: int = LEECH_WINDOW_SIZE,
+    since: datetime | None = None,
+) -> float | None:
     """Compute accuracy over the last `window` reviews. Returns None if < LEECH_MIN_REVIEWS."""
-    recent = (
-        db.query(ReviewLog.rating)
-        .filter(ReviewLog.lemma_id == lemma_id)
-        .order_by(ReviewLog.reviewed_at.desc())
-        .limit(window)
-        .all()
-    )
+    query = db.query(ReviewLog.rating).filter(ReviewLog.lemma_id == lemma_id)
+    if since is not None:
+        query = query.filter(ReviewLog.reviewed_at >= since)
+    recent = query.order_by(ReviewLog.reviewed_at.desc()).limit(window).all()
     if len(recent) < LEECH_MIN_REVIEWS:
         return None
     correct = sum(1 for (r,) in recent if r >= 3)
@@ -236,9 +372,14 @@ def is_leech(ulk: UserLemmaKnowledge, db: Session | None = None) -> bool:
     if (ulk.times_seen or 0) < LEECH_MIN_REVIEWS:
         return False
     if db is not None:
-        acc = _recent_accuracy(db, ulk.lemma_id)
+        since = ulk.acquisition_started_at if _is_active_reintro_episode(ulk) else None
+        acc = _recent_accuracy(db, ulk.lemma_id, since=since)
         if acc is not None:
             return acc < LEECH_MAX_ACCURACY
+        if since is not None:
+            # Old reviews explain why the word entered treatment; they cannot
+            # end that treatment before it has produced five fresh observations.
+            return False
     # Fallback to cumulative if no db session provided
     accuracy = (ulk.times_correct or 0) / (ulk.times_seen or 1)
     return accuracy < LEECH_MAX_ACCURACY
@@ -258,7 +399,8 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
         return False
 
     if is_leech(ulk, db=db):
-        acc = _recent_accuracy(db, lemma_id) or 0
+        since = ulk.acquisition_started_at if _is_active_reintro_episode(ulk) else None
+        acc = _recent_accuracy(db, lemma_id, since=since) or 0
         lemma = _get_lemma(db, lemma_id)
         core_rank = _get_core_rank(db, lemma_id)
         ulk.knowledge_state = "suspended"
