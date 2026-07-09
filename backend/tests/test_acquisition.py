@@ -472,8 +472,10 @@ def test_graduation_tier3(db_session):
     assert ulk.acquisition_box == 3
 
     # Add review history spanning 2 calendar days
-    from datetime import date
-    today = date.today()
+    # The service defines calendar days in UTC. Using local date.today() makes
+    # this test collapse "yesterday" onto the current UTC day shortly after
+    # midnight in positive-offset timezones.
+    today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
     _add_review_on_date(db_session, lemma.lemma_id, yesterday)
     _add_review_on_date(db_session, lemma.lemma_id, today)
@@ -504,8 +506,8 @@ def test_graduation_returns_graduated_flag(db_session):
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2→3
 
     # Add calendar day spread
-    from datetime import date
-    _add_review_on_date(db_session, lemma.lemma_id, date.today() - timedelta(days=1))
+    utc_today = datetime.now(timezone.utc).date()
+    _add_review_on_date(db_session, lemma.lemma_id, utc_today - timedelta(days=1))
 
     # The graduating review (must be due)
     _make_due(db_session, lemma.lemma_id)
