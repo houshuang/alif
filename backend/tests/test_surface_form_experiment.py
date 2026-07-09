@@ -141,6 +141,40 @@ def test_yellow_fsrs_event_assigns_once_when_different_material_exists(db_sessio
     assert alternate.id not in episodes[0]["trigger_sentence_ids"]
 
 
+def test_open_episode_blocks_concurrent_different_surface_assignment(db_session):
+    lemma = _lemma(db_session)
+    knowledge = UserLemmaKnowledge(lemma_id=lemma.lemma_id, knowledge_state="known")
+    db_session.add(knowledge)
+    _reviewable_sentence(db_session, lemma.lemma_id, surface="يفسد")
+    _reviewable_sentence(db_session, lemma.lemma_id, surface="تفسد")
+    now = datetime.now(timezone.utc)
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يفسد"],
+        _review(db_session, lemma.lemma_id, identity="first-form"),
+        "collateral",
+        [999],
+        now,
+    )
+    first_episode = dict(_episodes(knowledge)[0])
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["تفسد"],
+        _review(db_session, lemma.lemma_id, identity="second-form"),
+        "collateral",
+        [998],
+        now + timedelta(minutes=1),
+    )
+
+    assert _episodes(knowledge) == [first_episode]
+
+
 def test_matching_later_primary_review_records_first_outcome(db_session):
     lemma = _lemma(db_session)
     knowledge = UserLemmaKnowledge(lemma_id=lemma.lemma_id, knowledge_state="known")

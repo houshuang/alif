@@ -90,7 +90,8 @@ non-acquisition, and requires a different reviewable non-passage sentence contai
 unambiguous normalized form. Treatment reserves at most one already-due slot and overrides
 only the primary target; it adds no card, moves no due date, and preserves Hard. Both arms
 record first-next-primary any-form (intention-to-treat safety) and different-sentence exact
-outcomes. Acquisition/listening, trigger-sentence repeats, citation/prefix-only forms,
+outcomes. Only one unresolved episode may exist per lemma, preventing cross-arm contamination.
+Acquisition/listening, trigger-sentence repeats, citation/prefix-only forms,
 explicitly failed LLM material, and ambiguous multi-form cards cannot resolve the exact
 endpoint. Undo removes/reopens pilot effects.
 

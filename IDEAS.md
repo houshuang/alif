@@ -55,7 +55,8 @@ deployed in the same session as the correctness release (one-deploy discipline).
 
 - Deterministic 50/50, reading-only, non-acquisition FSRS yellow events; non-trivial
   conjugation/inflection only; require a different reviewable sentence with exactly the
-  normalized form.
+  normalized form and permit only one unresolved episode per lemma to prevent cross-arm
+  contamination.
 - Treatment changes one already-due sentence representation, not workload/rating/due date.
 - Record both first-next-primary any-form intention-to-treat and different-sentence
   exact-form outcomes; integrate undo and pause during acquisition.

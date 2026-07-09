@@ -1142,6 +1142,8 @@ deterministic 50/50 episode under
   listening/acquisition mode. Treatment pauses during leech re-acquisition.
 - Both arms record the first later primary reading result in any form (intention-to-treat
   safety endpoint) and the first exact-form primary result in a different sentence.
+- A lemma may have only one unresolved episode at a time, so treatment delivery for one
+  surface cannot become the outcome of a concurrent control episode for another surface.
 - Citation forms, pure article/proclitic differences, ambiguous multi-form cards, explicitly
   failed LLM sentences, and duplicate lemma-form episodes are excluded.
 - Undo removes an undone trigger or reopens an undone endpoint.

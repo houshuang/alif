@@ -56,6 +56,14 @@ def _parse_dt(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _episode_is_open(episode: object, now: datetime) -> bool:
+    """Return whether an episode can still receive its exact-form outcome."""
+    if not isinstance(episode, dict) or episode.get("outcome_rating") is not None:
+        return False
+    expires_at = _parse_dt(episode.get("expires_at"))
+    return expires_at is not None and now <= expires_at
+
+
 def eligible_surface_morphology(surface: str, lemma: Lemma | None) -> dict | None:
     """Return non-trivial morphology metadata or None for citation/clitic noise."""
     if lemma is None:
@@ -268,7 +276,19 @@ def process_surface_experiment_review(
         already_assigned = any(
             episode.get("surface_key") == key for episode in episodes
         )
-        if morphology and not already_assigned:
+        # Randomization is episode-level, so overlapping episodes on one lemma
+        # would contaminate both arms: a treatment-selected sentence for one
+        # form could become the first-primary outcome of a concurrent control
+        # episode. Keep at most one unresolved episode per lemma.
+        open_episode = any(_episode_is_open(episode, now) for episode in episodes)
+        if morphology and not already_assigned and open_episode:
+            log_interaction(
+                event="exact_surface_experiment_ineligible",
+                lemma_id=knowledge.lemma_id,
+                reason="concurrent_open_episode",
+                surface_key=key,
+            )
+        elif morphology and not already_assigned:
             candidate_ids = exact_surface_candidate_sentence_ids(
                 db,
                 knowledge.lemma_id,
@@ -405,11 +425,8 @@ def active_treatment_episodes(
             if (
                 not isinstance(episode, dict)
                 or episode.get("arm") != _TREATMENT
-                or episode.get("outcome_rating") is not None
+                or not _episode_is_open(episode, now)
             ):
-                continue
-            expires_at = _parse_dt(episode.get("expires_at"))
-            if expires_at is None or now > expires_at:
                 continue
             current = active.get(lemma_id)
             if current is None or str(episode.get("triggered_at")) < str(current.get("triggered_at")):

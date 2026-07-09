@@ -207,6 +207,8 @@ the inventory-supported subset it was 26.5% and 31.2%.
   the original trigger sentence, explicitly failed LLM material, and forms without a
   different reviewable sentence;
 - deterministic 50/50 assignment from review identity + canonical lemma + normalized form;
+- admit only one unresolved episode per canonical lemma at a time, preventing a
+  treatment-selected form from contaminating a concurrent control episode;
 - persist the episode under reserved
   `UserLemmaKnowledge.variant_stats_json["__exact_surface_v1"]`; no migration;
 - treatment reserves at most one **already-due** ordinary session slot and makes that
