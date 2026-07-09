@@ -169,8 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro cap (2026-05-15; recovery evidence corrected 2026-07-09)**: All paths through `start_acquisition()` share `DAILY_INTRO_CAP = 30`. `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Historical NULL-kind rows use the conservative legacy `source='leech_reintro'` fallback—meaningful-source historical restarts remain ambiguous until a separately approved repair. On normal low-debt days the budget is 30. Recovery mode activates at 5 actionable/protected Box-1 words or 30 due Box-2 words. Box-1 debt includes never-reviewed words plus previously-seen words once due, so recycled leeches cannot disappear after their first attempt; inert categories and Box-1 generation backoff remain excluded. The earned budget is based on one primary reading `ReviewLog` per answered card, not collateral word rows or passage child `SentenceReviewLog` rows: 0 below 40 cards or below 80% primary accuracy, 8 after 40+ cards at acceptable accuracy, and the full 30 after 100+ cards at ≥85%. This preserves the 2026-06-03 high-accuracy growth lever without letting easy collateral manufacture permission for new intake.
-- **Deferred recovery-capacity policy**: The trigger above is still acquisition-debt-only. Overdue FSRS volume and the number of eligible leech restarts do not yet impose separate caps. Both must be evaluated together in a return-policy simulation before changing intake; the 2026-07-09 correctness slice deliberately did not tune them.
+- **Daily intro cap and return recovery (2026-07-09)**: All paths through `start_acquisition()` share `DAILY_INTRO_CAP = 30`. `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Historical NULL-kind rows use the conservative legacy `source='leech_reintro'` fallback—meaningful-source historical restarts remain ambiguous until a separately approved repair. On normal low-debt days the budget is 30. Recovery mode activates at 5 actionable/protected Box-1 words, 30 due Box-2 words, **or 750 strict main-lane FSRS words due**. The FSRS count excludes function/inert words and variants shadowed by a known/learning canonical; a five-second request-session cache avoids reparsing the queue for a burst of introductions. Box-1 debt includes never-reviewed words plus previously-seen words once due, so recycled leeches cannot disappear after their first attempt; inert categories and Box-1 generation backoff remain excluded. The earned budget is based on one primary reading `ReviewLog` per answered card, not collateral word rows or passage child `SentenceReviewLog` rows: 0 below 40 cards or below 80% primary accuracy, 8 after 40+ cards at acceptable accuracy, and the full 30 after 100+ cards at ≥85%. This preserves the 2026-06-03 high-accuracy growth lever without letting easy collateral manufacture permission for new intake. Evidence: `research/analysis-2026-07-09-return-recovery-next-phase.md`.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -204,8 +203,10 @@ variant-scoped ULKs are reset to encountered.
 **On story completion**: `encountered` ULK created
 **Code**: `story_service.py:import_story()`, `complete_story()`
 
-Unknown words in active stories get priority tier 2 (+10.0 bonus) in the word
-selector. Proper nouns are detected and marked with `name_type` instead of
+Unknown words in ordinary active stories get the weak +10.0 bonus in the word
+selector. An active imported story gets the strong +195 target-text tier only
+when `Story.metadata_json.curriculum_role == "primary"`; active/reader-visible is
+not itself a curriculum decision. Proper nouns are detected and marked with `name_type` instead of
 creating learning entries. Function words (~80 particles/prepositions/pronouns
 from `FUNCTION_WORD_GLOSSES`) are also excluded from story word counts and
 book page introduction — detection checks both surface form and resolved
@@ -1122,6 +1123,35 @@ The `credit_type` field (`"primary"` or `"collateral"`) is metadata only — it 
 which word caused the sentence to be selected, but both receive identical FSRS
 treatment.
 
+### Exact-Surface Retrieval Pilot (2026-07-09)
+
+**Code**: `surface_form_experiment.py`, `sentence_review_service.py`,
+`sentence_selector.py`
+
+A yellow mark (`was_confused=true`) says the canonical lemma was familiar but its displayed
+form was not retrieved. For reading-mode, non-acquisition FSRS yellows with a non-trivial
+conjugation/inflection and a different reviewable sentence in inventory, Alif assigns a
+deterministic 50/50 episode under
+`variant_stats_json["__exact_surface_v1"]`.
+
+- Control keeps ordinary sentence selection.
+- Treatment reserves at most one normal session slot when the canonical lemma is already
+  due, chooses a different non-passage sentence containing exactly the failed normalized
+  surface, and makes that lemma primary.
+- It never creates an extra card, advances a due date, changes Hard, or operates in
+  listening/acquisition mode. Treatment pauses during leech re-acquisition.
+- Both arms record the first later primary reading result in any form (intention-to-treat
+  safety endpoint) and the first exact-form primary result in a different sentence.
+- A lemma may have only one unresolved episode at a time, so treatment delivery for one
+  surface cannot become the outcome of a concurrent control episode for another surface.
+- Citation forms, pure article/proclitic differences, ambiguous multi-form cards, explicitly
+  failed LLM sentences, and duplicate lemma-form episodes are excluded.
+- Undo removes an undone trigger or reopens an undone endpoint.
+
+The canonical lemma remains the only scheduling unit; this pilot changes sentence
+representation, not the SRS state machine. See
+`research/analysis-2026-07-09-return-recovery-next-phase.md` for power and stop rules.
+
 ### Undo System
 
 Every review creates a pre-review snapshot stored in `fsrs_log_json`:
@@ -1134,8 +1164,8 @@ Every review creates a pre-review snapshot stored in `fsrs_log_json`:
 }
 ```
 
-`POST /api/review/undo-sentence` restores this snapshot, effectively rolling back
-the FSRS state to before the review.
+`POST /api/review/undo-sentence` restores this snapshot, rolls back the FSRS state, and
+removes/reopens any exact-surface pilot trigger/outcome written by the deleted ReviewLog.
 
 ---
 
@@ -1398,6 +1428,18 @@ Normal word → Leech detected → Auto-suspended
   needed 3 consecutive correct reviews just to reach 50%, and each failed reintroduction
   made the escape harder as the denominator grew. The sliding window lets a word escape
   by showing genuine recent improvement (e.g., 5/8 = 62.5% in the last 8 reviews).
+- **Reintroduction episodes use fresh evidence only (2026-07-09)**: when the current
+  acquisition episode is `leech_reintro`, the sliding window starts at
+  `acquisition_started_at`. Old failures explain why treatment began; they cannot end it.
+  A new suspension verdict requires at least five reviews from the current episode, including
+  after Tier E graduation. This closes the observed immediate-resuspension path in which
+  102/161 treated words were suspended on review one.
+- **Bounded admission (2026-07-09)**: at most 8 leeches start a reintroduction episode per
+  UTC day. Admission closes at actionable Box 1 ≥20, due Box 2 ≥30, or strict main-lane
+  FSRS due ≥750. Box-1 headroom is enforced as capacity (19 admits one, not eight).
+  Eligible words sort by lower `leech_count`, stronger effective frequency rank, then oldest
+  suspension. Deferred words remain suspended and are logged; they do not consume true-new
+  intake capacity.
 - Fresh sentences are generated because the old sentences clearly didn't work for this word.
 - Memory hooks (mnemonic, cognates, usage context) are generated on first failure
   (rating ≤ 2), not on word introduction. For leeches being reintroduced, hooks
@@ -1584,7 +1626,7 @@ Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers wit
   OCR textbook_scan          — +220.0 (learning provenance, not fake frequency)
   Frequency core top 1000    — +210.0
   Active book words          — 200.0 − page × 2.0 (deterministic page order)
-  Imported stories           — +195.0 (deliberate reading material; see below)
+  Primary imported story     — +195.0 (explicit curriculum target; see below)
   Frequency core top 2000    — +170.0
   Frequency core top 5000    — +120.0
   Active stories (generated) — +10.0
@@ -1603,17 +1645,14 @@ textbook priority when the learner actually encountered it in scanned course
 material. This preserves the real frequency rank while making OCR words flow
 through introduction ahead of lower-priority backfill.
 
-Imported-story priority (`Story.source == "imported"`): a story the user
-deliberately imported to read is active reading material, like a `book_ocr`
-import, and gets +195 (between the truly-common core and generic mid/low
-frequency). Generated and maintenance-passage stories keep the weak +10
-`active_story` tier. This is intentional: corpus frequency lists are built from
-formal/news MSA and systematically under-count genre vocabulary (fiction,
-intimate, bodily, narrative words can rank ~15k+), so a reader's own imported
-text is a better usefulness signal than rank for those words. Off-switch is
-per-story status — mark a story `too_difficult`/`skipped` to stop its words
-flowing. Set in `word_selector.py` (`_TIER_STORY_IMPORTED`,
-`_active_story_lemma_ids` returns `source`).
+Imported-story priority: an active story with `Story.source == "imported"` gets
++195 only when its metadata explicitly carries `curriculum_role="primary"`.
+Generated, maintenance, and ordinary reader-visible imports keep the weak +10
+`active_story` tier. Corpus frequency lists under-count genre vocabulary, so a
+learner-selected target text is a stronger usefulness signal—but active status
+alone proved too broad and allowed stale/unreviewed imports to displace the real
+curriculum. Reader visibility and curriculum selection are intentionally separate.
+Set in `word_selector.py` (`_TIER_STORY_IMPORTED`, `_active_story_lemma_ids`).
 ```
 
 #### Frequency Score (40%)
@@ -1823,6 +1862,9 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `LEECH_MIN_REVIEWS` | 5 | Minimum total reviews before leech check |
 | `LEECH_MAX_ACCURACY` | 0.50 | Accuracy threshold (below = leech) |
 | `LEECH_WINDOW_SIZE` | 8 | Sliding window size for recent accuracy |
+| `LEECH_REINTRO_DAILY_CAP` | 8 | Maximum reintroduction episodes admitted per UTC day |
+| `LEECH_REINTRO_BOX1_ADMISSION_LIMIT` | 20 | Close/limit reintroduction admission at this actionable Box-1 load |
+| `RECOVERY_FSRS_MAIN_DUE_LIMIT` | 750 | Shared strict main-lane FSRS recovery/admission threshold |
 | Reintro delay (1st) | 3 days | First leech suspension |
 | Reintro delay (2nd) | 7 days | Second suspension |
 | Reintro delay (3rd+) | 14 days | Third and subsequent suspensions |
@@ -2281,9 +2323,11 @@ Frontend                          Backend
 2. After any subsequent review (any rating): `check_single_word_leech()` fires
 3. times_seen=6 ≥ 5 AND accuracy=33% < 50% → **leech detected**
 4. Word suspended: `leech_suspended_at` = now, `knowledge_state` = "suspended"
-5. 14 days later: `check_leech_reintroductions()` finds it
+5. After its cooldown, `check_leech_reintroductions()` admits it only when daily and
+   recovery-debt capacity are open
 6. Word reintroduced: box=1, `acquisition_next_due` = now + 4h, state = "acquiring"
-7. Goes through acquisition phase again with fresh context
+7. Goes through acquisition again with fresh context; leech detection ignores pre-episode
+   failures until five new reviews exist
 8. If it leeches again 3+ times → should be flagged for manual review (not yet
    implemented)
 

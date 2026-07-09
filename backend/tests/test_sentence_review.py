@@ -416,6 +416,101 @@ class TestVariantStatsMorphology:
         assert entry["category"] == "derived_form"
         assert entry["form_key"] == "plural"
 
+    def test_two_variants_of_one_canonical_aggregate_all_surface_evidence(
+        self, db_session
+    ):
+        canonical = Lemma(
+            lemma_id=2,
+            lemma_ar="أَفْسَدَ",
+            lemma_ar_bare="أفسد",
+            pos="verb",
+            gloss_en="to spoil",
+        )
+        variant_present = Lemma(
+            lemma_id=3,
+            lemma_ar="يُفْسِدُ",
+            lemma_ar_bare="يفسد",
+            pos="verb",
+            gloss_en="he spoils",
+            canonical_lemma_id=2,
+        )
+        variant_plural = Lemma(
+            lemma_id=4,
+            lemma_ar="أَفْسَدُوا",
+            lemma_ar_bare="أفسدوا",
+            pos="verb",
+            gloss_en="they spoiled",
+            canonical_lemma_id=2,
+        )
+        db_session.add_all([canonical, variant_present, variant_plural])
+        db_session.flush()
+        now = datetime.now(timezone.utc)
+        knowledge = UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="learning",
+            fsrs_card_json=_make_card(),
+            introduced_at=now - timedelta(days=10),
+            variant_stats_json={
+                "__exact_surface_v1": {
+                    "version": "exact_surface_v1",
+                    "episodes": [{
+                        "id": "two-forms",
+                        "arm": "treatment",
+                        "surface_key": "يفسد",
+                        "trigger_review_id": 0,
+                        "trigger_sentence_ids": [999],
+                        "triggered_at": (now - timedelta(days=1)).isoformat(),
+                        "expires_at": (now + timedelta(days=13)).isoformat(),
+                        "outcome_rating": None,
+                    }],
+                }
+            },
+        )
+        db_session.add(knowledge)
+        sentence = Sentence(
+            id=1,
+            arabic_text="يُفْسِدُ ثم أَفْسَدُوا",
+            english_translation="He spoils, then they spoiled",
+            target_lemma_id=2,
+            mappings_verified_at=now,
+        )
+        db_session.add(sentence)
+        db_session.flush()
+        db_session.add_all([
+            SentenceWord(
+                sentence_id=1,
+                position=0,
+                surface_form="يُفْسِدُ",
+                lemma_id=3,
+            ),
+            SentenceWord(
+                sentence_id=1,
+                position=1,
+                surface_form="أَفْسَدُوا",
+                lemma_id=4,
+            ),
+        ])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=2,
+            comprehension_signal="partial",
+            confused_lemma_ids=[3],
+            client_review_id="canonical-surfaces",
+        )
+
+        assert len(result["word_results"]) == 1
+        assert result["word_results"][0]["lemma_id"] == 2
+        assert result["word_results"][0]["credit_type"] == "primary"
+        assert knowledge.variant_stats_json["يفسد"]["seen"] == 1
+        assert knowledge.variant_stats_json["يفسد"]["confused"] == 1
+        assert knowledge.variant_stats_json["أفسدوا"]["seen"] == 1
+        assert knowledge.variant_stats_json["أفسدوا"]["confused"] == 0
+        episode = knowledge.variant_stats_json["__exact_surface_v1"]["episodes"][0]
+        assert episode["outcome_rating"] is None
+
 
 class TestNoIdea:
     def test_all_words_get_rating_1(self, db_session):
@@ -935,6 +1030,78 @@ class TestUndoSentenceReview:
         result = undo_sentence_review(db_session, "nonexistent-id")
         assert result["undone"] is False
         assert result["reviews_removed"] == 0
+
+    def test_undo_removes_exact_surface_episode_trigger(self, db_session):
+        _seed_word(db_session, 1, "أفسد", "to spoil")
+        log = ReviewLog(
+            lemma_id=1,
+            rating=2,
+            reviewed_at=datetime.now(timezone.utc),
+            client_review_id="undo-pilot-trigger:1",
+        )
+        db_session.add(log)
+        db_session.flush()
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        knowledge.variant_stats_json = {
+            "__exact_surface_v1": {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": "trigger",
+                    "trigger_review_id": log.id,
+                    "outcome_review_id": None,
+                    "outcome_rating": None,
+                }],
+            }
+        }
+        db_session.commit()
+
+        undo_sentence_review(db_session, "undo-pilot-trigger")
+
+        assert knowledge.variant_stats_json["__exact_surface_v1"]["episodes"] == []
+
+    def test_undo_reopens_exact_surface_episode_outcome(self, db_session):
+        _seed_word(db_session, 1, "أفسد", "to spoil")
+        log = ReviewLog(
+            lemma_id=1,
+            rating=3,
+            reviewed_at=datetime.now(timezone.utc),
+            client_review_id="undo-pilot-outcome:1",
+        )
+        db_session.add(log)
+        db_session.flush()
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        knowledge.variant_stats_json = {
+            "__exact_surface_v1": {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": "outcome",
+                    "trigger_review_id": 999,
+                    "delivered_at": datetime.now(timezone.utc).isoformat(),
+                    "outcome_review_id": log.id,
+                    "outcome_rating": 3,
+                    "outcome_was_confused": False,
+                    "outcome_credit_type": "primary",
+                    "outcome_sentence_id": 123,
+                    "any_form_review_id": log.id,
+                    "any_form_reviewed_at": datetime.now(timezone.utc).isoformat(),
+                    "any_form_surface_keys": ["يفسد"],
+                    "any_form_was_exact": True,
+                    "any_form_outcome_rating": 3,
+                    "any_form_outcome_was_confused": False,
+                    "any_form_outcome_sentence_id": 123,
+                }],
+            }
+        }
+        db_session.commit()
+
+        undo_sentence_review(db_session, "undo-pilot-outcome")
+
+        episode = knowledge.variant_stats_json["__exact_surface_v1"]["episodes"][0]
+        assert episode["outcome_review_id"] is None
+        assert episode["outcome_rating"] is None
+        assert episode["delivered_at"] is None
+        assert episode["any_form_review_id"] is None
+        assert episode["any_form_outcome_rating"] is None
 
     def test_undo_endpoint(self, client, db_session):
         """Test the API endpoint for undo."""

@@ -13,9 +13,11 @@ from app.services.acquisition_service import (
     ACQUISITION_EPISODE_LEECH_REINTRO,
     ACQUISITION_EPISODE_NEW,
     DAILY_INTRO_CAP,
+    RECOVERY_FSRS_MAIN_DUE_LIMIT,
     RECOVERY_MID_INTRO_BUDGET,
     RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO,
     _daily_intro_count,
+    _main_fsrs_due_count,
     _recovery_backlog_counts,
     _recovery_mode_intro_budget,
     start_acquisition,
@@ -286,3 +288,122 @@ def test_recovery_volume_counts_cards_not_passage_child_sentences(db_session):
         _recovery_mode_intro_budget(db_session, now, today_start)
         == RECOVERY_MID_INTRO_BUDGET
     )
+
+
+def test_main_fsrs_hiatus_debt_activates_existing_recovery_budget(
+    db_session, monkeypatch
+):
+    now = datetime.now(timezone.utc)
+    monkeypatch.setattr(
+        "app.services.acquisition_service._main_fsrs_due_count",
+        lambda _db, _now: RECOVERY_FSRS_MAIN_DUE_LIMIT,
+    )
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    assert _recovery_mode_intro_budget(db_session, now, today_start) == 0
+
+
+def test_main_fsrs_debt_below_hiatus_threshold_keeps_normal_cap(
+    db_session, monkeypatch
+):
+    now = datetime.now(timezone.utc)
+    monkeypatch.setattr(
+        "app.services.acquisition_service._main_fsrs_due_count",
+        lambda _db, _now: RECOVERY_FSRS_MAIN_DUE_LIMIT - 1,
+    )
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    assert _recovery_mode_intro_budget(db_session, now, today_start) == DAILY_INTRO_CAP
+
+
+def test_acquisition_debt_short_circuits_expensive_fsrs_scan(db_session, monkeypatch):
+    now = datetime.now(timezone.utc)
+    _activate_recovery(db_session, now)
+    monkeypatch.setattr(
+        "app.services.acquisition_service._main_fsrs_due_count",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("FSRS scan should be skipped")),
+    )
+
+    assert _recovery_mode_intro_budget(
+        db_session,
+        now,
+        now.replace(hour=0, minute=0, second=0, microsecond=0),
+    ) == 0
+
+
+def test_main_fsrs_scan_is_cached_for_promotion_burst(db_session, monkeypatch):
+    from types import SimpleNamespace
+
+    now = datetime.now(timezone.utc)
+    calls = 0
+
+    def fake_snapshot(_db, _now):
+        nonlocal calls
+        calls += 1
+        return SimpleNamespace(main_due_ids=set(), fsrs_due_ids=set())
+
+    monkeypatch.setattr(
+        "app.services.frequency_lanes.due_lane_snapshot",
+        fake_snapshot,
+    )
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    assert _recovery_mode_intro_budget(db_session, now, today_start) == DAILY_INTRO_CAP
+    assert (
+        _recovery_mode_intro_budget(
+            db_session,
+            now + timedelta(seconds=1),
+            today_start,
+        )
+        == DAILY_INTRO_CAP
+    )
+    assert calls == 1
+
+
+def test_main_fsrs_due_count_excludes_inert_categories(db_session, monkeypatch):
+    from types import SimpleNamespace
+
+    normal = _lemma(db_session, "عادي")
+    name = _lemma(db_session, "اسم", category="proper_name")
+    sound = _lemma(db_session, "صوت", category="onomatopoeia")
+    due_ids = {normal.lemma_id, name.lemma_id, sound.lemma_id}
+    monkeypatch.setattr(
+        "app.services.frequency_lanes.due_lane_snapshot",
+        lambda _db, _now: SimpleNamespace(
+            main_due_ids=due_ids,
+            fsrs_due_ids=due_ids,
+        ),
+    )
+
+    assert _main_fsrs_due_count(
+        db_session,
+        datetime.now(timezone.utc),
+    ) == 1
+
+
+def test_main_fsrs_due_count_excludes_variant_shadowed_by_known_canonical(
+    db_session, monkeypatch
+):
+    from types import SimpleNamespace
+
+    canonical = _lemma(db_session, "أصل")
+    variant = _lemma(db_session, "فرع")
+    variant.canonical_lemma_id = canonical.lemma_id
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=canonical.lemma_id,
+        knowledge_state="known",
+    ))
+    db_session.flush()
+    due_ids = {variant.lemma_id}
+    monkeypatch.setattr(
+        "app.services.frequency_lanes.due_lane_snapshot",
+        lambda _db, _now: SimpleNamespace(
+            main_due_ids=due_ids,
+            fsrs_due_ids=due_ids,
+        ),
+    )
+
+    assert _main_fsrs_due_count(
+        db_session,
+        datetime.now(timezone.utc),
+    ) == 0

@@ -20,10 +20,17 @@ from app.models import (
     SentenceWord,
     UserLemmaKnowledge,
 )
-from app.services.confusion_service import classify_surface_morphology
+from app.services.confusion_service import (
+    classify_surface_morphology,
+    normalize_surface_form,
+)
 from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_review
 from app.services.grammar_service import record_grammar_exposure
-from app.services.sentence_validator import strip_diacritics, _is_function_word
+from app.services.sentence_validator import _is_function_word, strip_diacritics
+from app.services.surface_form_experiment import (
+    process_surface_experiment_review,
+    undo_surface_experiment_reviews,
+)
 
 
 def submit_sentence_review(
@@ -112,6 +119,8 @@ def submit_sentence_review(
     function_word_lemma_ids: set[int] = set()
     proper_name_lemma_ids: set[int] = set()
     suspended_lemma_ids: set[int] = set()
+    original_ids_by_effective: dict[int, set[int]] = {}
+    surface_evidence_by_effective: dict[int, list[tuple[int, str]]] = {}
 
     # Build variant→canonical mapping so reviews credit the base lemma.
     # Must follow multi-hop chains (A→B→C) to the root canonical.
@@ -174,6 +183,18 @@ def submit_sentence_review(
             if ulk.knowledge_state == "suspended":
                 suspended_lemma_ids.add(ulk.lemma_id)
 
+        # Scheduling and experiment evidence live on the canonical lemma. A
+        # sentence can contain more than one lexical variant that resolves to
+        # it, so aggregate every displayed form before deduplicating review
+        # credit. Otherwise set iteration order decides which form survives.
+        for original_id in lemma_ids_in_sentence:
+            effective_id = variant_to_canonical.get(original_id, original_id)
+            original_ids_by_effective.setdefault(effective_id, set()).add(original_id)
+            surface_evidence_by_effective.setdefault(effective_id, []).extend(
+                (original_id, surface)
+                for surface in surface_forms_by_lemma.get(original_id, [])
+            )
+
     # Identify acquiring words to route through acquisition service
     acquiring_lemma_ids: set[int] = set()
     encountered_lemma_ids: set[int] = set()
@@ -202,6 +223,10 @@ def submit_sentence_review(
 
         # Resolve variant→canonical: credit goes to the base lemma
         effective_lemma_id = variant_to_canonical.get(lemma_id, lemma_id)
+        canonical_member_ids = original_ids_by_effective.get(
+            effective_lemma_id,
+            {lemma_id},
+        )
 
         # Skip if canonical is suspended (or the variant itself)
         if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
@@ -235,10 +260,11 @@ def submit_sentence_review(
         if comprehension_signal == "understood":
             rating = 3
         elif comprehension_signal == "partial":
-            # Check both original and effective for missed/confused signals
-            if lemma_id in missed_set or effective_lemma_id in missed_set:
+            # Check every displayed variant plus the canonical signal. A card
+            # may contain two variants that resolve to one scheduling row.
+            if canonical_member_ids & missed_set or effective_lemma_id in missed_set:
                 rating = 1
-            elif lemma_id in confused_set or effective_lemma_id in confused_set:
+            elif canonical_member_ids & confused_set or effective_lemma_id in confused_set:
                 # Confused = knew the word but didn't recognize it in context.
                 # Rating 2 (Hard) brings next review sooner without lapsing.
                 rating = 2
@@ -248,7 +274,11 @@ def submit_sentence_review(
         else:  # no_idea
             rating = 1
 
-        credit_type = "primary" if lemma_id == primary_lemma_id or effective_lemma_id == primary_lemma_id else "collateral"
+        is_primary = (
+            primary_lemma_id in canonical_member_ids
+            or effective_lemma_id == primary_lemma_id
+        )
+        credit_type = "primary" if is_primary else "collateral"
 
         review_client_id = (
             f"{client_review_id}:{effective_lemma_id}"
@@ -291,7 +321,7 @@ def submit_sentence_review(
                 db,
                 lemma_id=effective_lemma_id,
                 rating_int=rating,
-                response_ms=response_ms if lemma_id == primary_lemma_id else None,
+                response_ms=response_ms if is_primary else None,
                 session_id=session_id,
                 review_mode=review_mode,
                 comprehension_signal=comprehension_signal,
@@ -304,7 +334,7 @@ def submit_sentence_review(
                 db,
                 lemma_id=effective_lemma_id,
                 rating_int=rating,
-                response_ms=response_ms if lemma_id == primary_lemma_id else None,
+                response_ms=response_ms if is_primary else None,
                 session_id=session_id,
                 review_mode=review_mode,
                 comprehension_signal=comprehension_signal,
@@ -338,28 +368,62 @@ def submit_sentence_review(
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
 
             # Track variant form stats on the canonical ULK
-            surfaces = surface_forms_by_lemma.get(lemma_id, [])
+            surface_evidence = surface_evidence_by_effective.get(
+                effective_lemma_id,
+                [],
+            )
+            surfaces = [surface for _original_id, surface in surface_evidence]
             canonical_lemma_obj = lemma_map.get(effective_lemma_id)
-            canonical_bare = canonical_lemma_obj.lemma_ar_bare if canonical_lemma_obj else ""
-            for surface in surfaces:
-                surface_bare = strip_diacritics(surface)
-                if surface_bare and surface_bare != canonical_bare:
+            canonical_key = normalize_surface_form(
+                canonical_lemma_obj.lemma_ar_bare if canonical_lemma_obj else ""
+            )
+            for original_id, surface in surface_evidence:
+                # Preserve the established, human-readable stats key (tashkeel
+                # stripped, hamza retained) so the pilot does not split years of
+                # evidence across old and newly normalized keys. Canonical
+                # normalization is used only for comparison and morphology.
+                surface_key = normalize_surface_form(surface)
+                surface_stats_key = strip_diacritics(surface)
+                if surface_stats_key and surface_key != canonical_key:
                     vstats = parse_json_column(knowledge.variant_stats_json)
                     vstats = dict(vstats)
-                    entry = vstats.get(surface_bare, {"seen": 0, "missed": 0, "confused": 0})
+                    entry = dict(vstats.get(
+                        surface_stats_key,
+                        {"seen": 0, "missed": 0, "confused": 0},
+                    ))
                     entry["seen"] = entry.get("seen", 0) + 1
-                    if rating == 1:
+                    surface_missed = (
+                        comprehension_signal == "no_idea"
+                        or original_id in missed_set
+                        or effective_lemma_id in missed_set
+                    )
+                    surface_confused = (
+                        original_id in confused_set
+                        or effective_lemma_id in confused_set
+                    )
+                    if surface_missed:
                         entry["missed"] = entry.get("missed", 0) + 1
-                    elif is_confused:
+                    elif surface_confused:
                         entry["confused"] = entry.get("confused", 0) + 1
-                    morph = classify_surface_morphology(surface_bare, canonical_lemma_obj)
+                    morph = classify_surface_morphology(surface_key, canonical_lemma_obj)
                     if morph:
                         entry["category"] = morph["category"]
                         if morph.get("form_key"):
                             entry["form_key"] = morph["form_key"]
                             entry["form_label"] = morph["form_key"].replace("_", " ")
-                    vstats[surface_bare] = entry
+                    vstats[surface_stats_key] = entry
                     knowledge.variant_stats_json = vstats
+
+            process_surface_experiment_review(
+                db,
+                knowledge=knowledge,
+                lemma=canonical_lemma_obj,
+                surfaces=surfaces,
+                review_log=latest_log,
+                credit_type=credit_type,
+                sentence_ids=review_sentence_ids,
+                now=now,
+            )
 
         if not is_duplicate:
             word_results.append({
@@ -538,6 +602,10 @@ def undo_sentence_review(
     if not review_logs:
         return {"undone": False, "reviews_removed": 0}
 
+    deleted_review_ids_by_lemma: dict[int, set[int]] = {}
+    for log in review_logs:
+        deleted_review_ids_by_lemma.setdefault(log.lemma_id, set()).add(log.id)
+
     # Restore pre-review FSRS state for each word
     for log in review_logs:
         fsrs_data = parse_json_column(log.fsrs_log_json)
@@ -560,6 +628,10 @@ def undo_sentence_review(
                 ulk.times_correct = pre_times_correct
             if pre_knowledge_state is not None:
                 ulk.knowledge_state = pre_knowledge_state
+            undo_surface_experiment_reviews(
+                ulk,
+                deleted_review_ids_by_lemma.get(log.lemma_id, set()),
+            )
 
         db.delete(log)
 

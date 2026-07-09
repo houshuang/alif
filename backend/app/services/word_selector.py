@@ -50,12 +50,11 @@ _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
 _TIER_TEXTBOOK_SCAN = 220.0   # OCR provenance: user's textbook, ahead of mid-core/backfill
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
-# Stories the user deliberately imported to *read* are active reading material,
-# like a book_ocr import. Ranked just below the truly-common core (top-1000 =
-# 210) and textbook course vocab (220), but above generic mid/low-frequency
-# words (freq_core rank 2000+), so a reader's genre vocabulary flows even when
-# corpus frequency under-counts it (e.g. fiction/intimate vocab ranking ~15k).
-# Off-switch is per-story status: mark too_difficult/skipped to stop the flow.
+# An explicitly selected imported story is active reading curriculum, like a
+# book_ocr import. Merely being reader-visible (status="active") is not enough:
+# stale/private imports with unreviewed mappings previously displaced the real
+# frequency curriculum. Selection is explicit via
+# metadata_json.curriculum_role="primary".
 _TIER_STORY_IMPORTED = 195.0
 _SOURCE_TIER_BONUS = {
     "textbook_scan": _TIER_TEXTBOOK_SCAN,
@@ -157,13 +156,23 @@ def _resolve_to_canonical(db: Session, lemma_ids: set[int]) -> dict[int, int]:
 
 
 def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
-    """Get lemma_ids of unknown words in active stories → {title, story_id}.
+    """Get lemma_ids of unknown words in active reader stories.
 
     Resolves variant lemma IDs to their canonical forms so the priority
-    bonus reaches the actual introduction candidates.
+    bonus reaches the actual introduction candidates. Imported stories receive
+    the strong curriculum tier only when explicitly marked
+    ``metadata_json.curriculum_role='primary'``; otherwise they retain the weak
+    ordinary-story tier while remaining readable.
     """
     rows = (
-        db.query(StoryWord.lemma_id, Story.id, Story.title_en, Story.title_ar, Story.source)
+        db.query(
+            StoryWord.lemma_id,
+            Story.id,
+            Story.title_en,
+            Story.title_ar,
+            Story.source,
+            Story.metadata_json,
+        )
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -177,17 +186,28 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
     canon_map = _resolve_to_canonical(db, raw_ids)
 
     result: dict[int, dict] = {}
-    for lemma_id, story_id, title_en, title_ar, source in rows:
+    for lemma_id, story_id, title_en, title_ar, source, metadata_json in rows:
         effective_id = canon_map.get(lemma_id, lemma_id)
-        # A word can appear in several active stories; an "imported" membership
-        # (deliberate reading material) wins the tier over a generated one.
+        metadata = metadata_json
+        if isinstance(metadata, str):
+            try:
+                metadata = _json.loads(metadata)
+            except (TypeError, ValueError):
+                metadata = {}
+        curriculum_role = metadata.get("curriculum_role") if isinstance(metadata, dict) else None
+        is_primary = source == "imported" and curriculum_role == "primary"
+
+        # Explicit primary membership wins when a word occurs in several active
+        # stories. Otherwise preserve the first ordinary membership.
         if effective_id not in result or (
-            source == "imported" and result[effective_id].get("source") != "imported"
+            is_primary and not result[effective_id].get("is_primary_curriculum")
         ):
             result[effective_id] = {
                 "title": title_en or title_ar or "Story",
                 "story_id": story_id,
                 "source": source,
+                "curriculum_role": curriculum_role,
+                "is_primary_curriculum": is_primary,
             }
     return result
 
@@ -622,7 +642,7 @@ def select_next_words(
         if lemma.lemma_id in story_lemmas:
             story_tier = (
                 _TIER_STORY_IMPORTED
-                if story_lemmas[lemma.lemma_id].get("source") == "imported"
+                if story_lemmas[lemma.lemma_id].get("is_primary_curriculum")
                 else _TIER_STORY
             )
             if story_tier > priority_bonus:

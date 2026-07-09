@@ -12,6 +12,7 @@ from app.services.confusion_service import (
     find_phonetically_similar,
     analyze_confusion,
     classify_surface_morphology,
+    normalize_surface_form,
     _build_prefix_hint,
     _is_adjacent_transposition,
     _shares_rime,
@@ -167,6 +168,21 @@ class TestFindSimilarWords:
         ids = [r["lemma_id"] for r in results]
         assert 10 in ids
         assert 20 in ids
+
+    def test_hamza_variants_use_the_same_normalized_visual_key(self):
+        candidate = self._make_lemma(10, "أَمَل", "أمل", "hope")
+
+        results = find_similar_words(
+            MagicMock(),
+            1,
+            "امل",
+            max_results=5,
+            candidates=[(candidate, "known")],
+        )
+
+        assert results[0]["edit_distance"] == 0
+        assert results[0]["diff_positions"] == []
+        assert results[0]["match_reason"] == "same spelling"
 
     def test_includes_same_spelling_homograph(self):
         """Different lemmas with the same bare form can still be confusors."""
@@ -524,6 +540,9 @@ def _mk_lemma(lemma_ar, bare, pos, gloss="x", forms=None):
 
 
 class TestClassifySurfaceMorphology:
+    def test_surface_normalization_collapses_punctuation_tashkeel_and_alef(self):
+        assert normalize_surface_form("،إِلْكِتَابُ؟") == "الكتاب"
+
     def test_identity_returns_none(self):
         lem = _mk_lemma("سَيّارة", "سيارة", "noun", "car")
         assert classify_surface_morphology("سيارة", lem) is None
@@ -540,6 +559,11 @@ class TestClassifySurfaceMorphology:
         assert out["category"] == "verb_present"
         assert "present-tense" in out["explanation"]
         assert "to spoil" in out["explanation"]
+
+    def test_verb_present_normalizes_boundary_punctuation_and_hamza(self):
+        lem = _mk_lemma("أَفْسَدَ", "أفسد", "verb", "to spoil")
+        out = classify_surface_morphology("يُفْسِدُ،", lem)
+        assert out["category"] == "verb_present"
 
     def test_verb_present_after_proclitic(self):
         # لِيُعْطِيَ -> li + present of أعطى

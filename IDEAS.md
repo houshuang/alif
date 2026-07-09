@@ -35,6 +35,51 @@ The follow-up simulation must jointly test a due-FSRS recovery trigger and a bou
 per-run leech-reintro lane; neither policy was changed in the correctness slice. Prefetch is
 ULK/introduction-read-only, while existing JIT mapping hardening remains allowed.
 
+## 🟡 [IMPLEMENTED 2026-07-09 — DEPLOY NEXT SESSION] Return recovery tuning + exact-form pilot
+
+The approved follow-up to PR #207 is implemented and self-tested, but intentionally not
+deployed in the same session as the correctness release (one-deploy discipline).
+
+**[DONE locally] Evidence-backed recovery capacity**
+
+- Add strict main-lane FSRS due ≥750 to the existing earned 0/8/30 true-new budget. This
+  threshold is above normal active-day debt (343–439; observed high 576), above a roughly
+  two-sparse-day checkpoint (672), and below a five-day break (806).
+- Cap leech reintroduction at 8/UTC day; close at actionable Box 1 ≥20, due Box 2 ≥30, or
+  strict main-lane FSRS due ≥750. Enforce remaining Box-1 headroom inside the batch.
+- Judge `leech_reintro` treatment from `acquisition_started_at`, with five fresh reviews
+  before a verdict. Production logs showed 102/161 treated episodes re-suspended on review
+  one, including 76 first reviews rated Good.
+
+**[DONE locally] Yellow exact-surface N-of-1 pilot**
+
+- Deterministic 50/50, reading-only, non-acquisition FSRS yellow events; non-trivial
+  conjugation/inflection only; require a different reviewable sentence with exactly the
+  normalized form and permit only one unresolved episode per lemma to prevent cross-arm
+  contamination.
+- Treatment changes one already-due sentence representation, not workload/rating/due date.
+- Record both first-next-primary any-form intention-to-treat and different-sentence
+  exact-form outcomes; integrate undo and pause during acquisition.
+- Review delivery after 4–5 active weeks and retention/safety after 8–10 active weeks.
+
+**[DONE locally] Curriculum safety**
+
+- Reader-visible imported stories stay weak +10 unless explicitly marked
+  `metadata_json.curriculum_role="primary"`; only an intentionally chosen target text gets
+  +195. Existing active imports are not silently treated as contemporary curriculum.
+
+**[TODO — learner input required] Activate the literature lane**
+
+- Obtain a selected/authorized Arabic text or chapter. Current evidence favors the opening
+  of *Men in the Sun* (84% baseline; ~96.4% after 150 targeted gaps) for contemporary
+  reading. Run hardened mapping + readiness analysis before marking it primary.
+- Keep *The Collared Dove* as a secondary classical candidate after hardened reimport.
+- Only after a real target exists, implement a 4:1 contemporary/classical-or-Quran split
+  over **earned new intake**; due reviews remain obligation-driven. Do not re-enable Quran
+  verse cards implicitly.
+
+Full evidence: `research/analysis-2026-07-09-return-recovery-next-phase.md`.
+
 ## 🟢 [LIVE 2026-06-13 — PR #199] Dragoman → Alif vocabulary discovery from external Arabic text
 
 `/api/discover/{words,add,add-batch}` (`backend/app/routers/discover.py`). The Dragoman polyglot magazine sends a block of Arabic prose; `/words` returns the highest-value lemmas **not yet in Alif** (frequency-ranked, glossed), and the reader's "add to Alif" buttons POST chosen words back to `/add[-batch]`, which find-or-creates the canonical lemma and introduces it **immediately, bypassing `DAILY_INTRO_CAP`** (explicit user add). Quality gates + material generation run in a background task; lemmas tagged `source="dragoman"`. Word identity goes through the hardened lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma` — clitics + variants→canonical) so already-known words (incl. clitic-attached) are correctly excluded. Deployed + verified live 2026-06-13.
