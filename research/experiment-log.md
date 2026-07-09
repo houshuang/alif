@@ -8,9 +8,9 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
 
-**Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
-**FSRS / lapse / leech** — `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
+**FSRS / lapse / leech** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
 **Session building / selection / comprehensibility** — `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
@@ -22,7 +22,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Lemma quality / decomposition / canonicalization** — `2026-04-01 "Centralized Quality Gate Pipeline — run_quality_gates()"` · `2026-04-24 … 2026-04-27 "Lemma decomposition Phase 1 … Phase 2 step 4c"` (the audit arc) · `2026-05-06 "Broadened clitic-leftover audit"` · `2026-05-21 "Chimera cleanup + prevention"` · `2026-05-17 "Sense-aware correction resolver"`.
 
-**Frequency core / curriculum** (active initiative — see IDEAS.md) — `2026-05-08 "Frequency-core stats gap list now means not introduced"` · `2026-05-13 "Restore frequency-core intro supply chain — drought"` · `2026-05-07 "Capped intake for unmapped frequency-core rows"` · `2026-06-03 "Frequency-core data-quality pass"`.
+**Frequency core / curriculum** (active initiative — see IDEAS.md) — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-08 "Frequency-core stats gap list now means not introduced"` · `2026-05-13 "Restore frequency-core intro supply chain — drought"` · `2026-05-07 "Capped intake for unmapped frequency-core rows"` · `2026-06-03 "Frequency-core data-quality pass"`.
 
 **Quran** — `2026-04-03 "Quran Lemma Promotion — Encountered → Acquiring"` · `2026-05-15 "Quran + OCR lemma canonicalization rewrite"` · `2026-06-02 "dagger-alef (U+0670) collapse"` · `2026-06-03 "Quran-frequency track — the islamic source finally populated"`.
 
@@ -30,7 +30,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
-**Confusion capture / confusors** — `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+**Confusion capture / confusors** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
 **Stories / podcast / listening / maintenance passages** — `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
@@ -45,6 +45,74 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-09 (implemented, not deployed): Return recovery tuning + exact-surface pilot
+
+**Trigger.** The learner confirmed the hiatus was a vacation and clarified that yellow means
+the Arabic form was not retrieved, although the meaning became familiar after seeing the
+translation—often a conjugation issue. The requested direction is contemporary literature
+first without abandoning classical Arabic.
+
+**Production evidence.** Consistent snapshot at `2026-07-09T21:17:48Z`:
+
+- 1,180 strict actionable due: 1,006 FSRS + 174 acquisition;
+- 951 strict main-lane FSRS due, versus normal active checkpoints 343–439 (high ~576),
+  roughly two sparse days 672, and five sparse days 806;
+- actionable Box 1=147, due Box 2=19, acquiring=177 (121 prior leeches);
+- 41 primary reading cards at 78.0% on the return day, so the corrected earned intake
+  budget is already zero;
+- due material is not the binding constraint (98.8% FSRS coverage).
+
+**Decision 1 — recovery threshold.** Add `RECOVERY_FSRS_MAIN_DUE_LIMIT=750` to the existing
+earned `0/8/30` intake gate. Simulation candidates 650/750/850 were identical for this return
+because acquisition debt binds first; 750 is the future-break guard that sits safely above
+normal debt. Strict count excludes function/inert rows and canonical-shadowed variants.
+
+**Decision 2 — leech capacity and episode boundary.** Replay of 263 reintroductions favored
+8/day (full-history p95 delay 7d, zero July-9 backlog; steady-state p95 1d) over 4/day (15d,
+72 backlog) or 6/day (11d, 24 backlog). Admission closes at actionable Box 1 ≥20, due Box 2
+≥30, or strict main FSRS ≥750; Box-1 headroom is enforced inside the batch. Priority is lower
+leech count, stronger frequency rank, oldest suspension.
+
+The larger defect was immediate re-suspension: 102/161 treated episodes (63.4%) were suspended
+on their first review, including 76/133 whose first review was Good; median ReviewLog→suspend
+delay was 16.8ms. One Tier-E Good graduated then suspended 41ms later from an old 3/8 window.
+Treatment now keeps lifetime stats but computes leech accuracy only since the current
+`acquisition_started_at` and needs five fresh reviews before a verdict.
+
+**Decision 3 — exact-surface yellow pilot.** Since June 3: 260 yellows, 251 recoverable
+surfaces, 99 non-trivial form failures after correct normalization; 90 were FSRS, 93
+collateral, only six primary. Exact inventory existed for 42/99. Natural exact-form primary
+delivery was 15.8% by 7d / 19.8% by 14d (inventory subset 26.5% / 31.2%).
+
+The migration-free `__exact_surface_v1` pilot is deterministic 50/50, reading-only,
+non-acquisition, and requires a different reviewable non-passage sentence containing one
+unambiguous normalized form. Treatment reserves at most one already-due slot and overrides
+only the primary target; it adds no card, moves no due date, and preserves Hard. Both arms
+record first-next-primary any-form (intention-to-treat safety) and different-sentence exact
+outcomes. Acquisition/listening, trigger-sentence repeats, citation/prefix-only forms,
+explicitly failed LLM material, and ambiguous multi-form cards cannot resolve the exact
+endpoint. Undo removes/reopens pilot effects.
+
+**Decision 4 — curriculum safety.** All 3,944 lemma register/dialect fields are NULL and the
+selector is not a real lane allocator. Before the guard, top-100 candidates were 57
+textbook_scan, 40 any-active-import, 3 frequency core. Strong imported-story priority now
+requires `metadata_json.curriculum_role="primary"`; ordinary active imports remain readable
+at +10. No text is marked primary automatically.
+
+**Not changed.** Tier E (only eight graduations and no informative ≥1d follow-up), FSRS
+parameters, mature collateral credit, historical rows, Quran verse-card suspension, and
+existing story status/data. A real contemporary lane needs learner-selected/authorized text;
+current readiness evidence favors *Men in the Sun* (84% → ~96.4% after 150 gaps). A future
+4:1 contemporary/classical-or-Quran split applies only to earned new intake.
+
+**Evaluation.** Delivery balance after 4–5 active weeks; retention/safety after 8–10. Recheck
+leech graduation/re-suspension after at least 50 resolved post-change episodes. Full methods,
+definitions, cold-recall bands, simulations, limitations, and stop rules:
+`research/analysis-2026-07-09-return-recovery-next-phase.md`.
+
+**Deployment status.** Implemented and tested on `sh/return-recovery-tuning`; intentionally
+not deployed in the same session as PR #207 under the one-deploy rule.
 
 ## 2026-07-09 (deployed — PR #207): Return-from-vacation correctness + recovery repair
 

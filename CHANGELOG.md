@@ -15,6 +15,11 @@ This project has been developed entirely with [Claude Code](https://claude.com/c
 - Make speculative session prefetch read-only for learning state and exclude cards that require cold-word promotion
 - Correct FSRS-cleared and state-transition analytics; add primary non-acquisition recall bands by elapsed gap
 - Deploy PR #207 to production with the additive acquisition-episode migration; leave historical episode kinds unbackfilled
+- Add a sustained-break recovery trigger at 750 strict main-lane FSRS due cards while preserving the earned 0/8/30 intake budget
+- Bound leech reintroduction to 8/day below Box-1/Box-2/FSRS debt ceilings and require five fresh episode-local reviews before re-suspension
+- Add a migration-free, reading-only 50/50 exact-surface retrieval pilot for non-trivial yellow morphology events; no extra cards or schedule changes
+- Require explicit `Story.metadata_json.curriculum_role="primary"` before an imported story receives the strong target-text intake tier
+- Document the production-data analysis, simulation thresholds, monitoring windows, and contemporary/classical curriculum boundary; prepare the next-phase code for a later deploy
 
 ## 2026-03-02
 

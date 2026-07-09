@@ -75,6 +75,7 @@ Initial technology research conducted before app development.
 
 | File | Contents |
 |------|----------|
+| [analysis-2026-07-09-return-recovery-next-phase.md](analysis-2026-07-09-return-recovery-next-phase.md) | **Return recovery + next-phase learning analysis.** Read-only production snapshot/log audit, cold-recall bands, 650/750/850 recovery threshold simulation, 263-event leech admission replay, immediate re-suspension defect, contemporary/classical curriculum audit, and 260-yellow exact-surface analysis. Documents the implemented 750 strict-FSRS trigger, bounded 8/day episode-local leech treatment, explicit primary-story metadata gate, migration-free 50/50 reading-form pilot, evaluation windows, and deliberately unchanged policies. |
 | [analysis-2026-02-09.md](analysis-2026-02-09.md) | Early learning data analysis |
 | [analysis-2026-02-10.md](analysis-2026-02-10.md) | OCR import analysis |
 | [analysis-2026-02-11.md](analysis-2026-02-11.md) | Post-OCR accuracy analysis |
