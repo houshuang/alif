@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.acquisition_service import (
     BOX_INTERVALS,
     DAILY_INTRO_CAP,
@@ -70,6 +70,7 @@ def test_start_acquisition_new_word(db_session):
     assert ulk.acquisition_next_due is not None
     assert ulk.introduced_at is not None
     assert ulk.acquisition_started_at is not None
+    assert ulk.acquisition_episode_kind == "new"
     assert ulk.source == "study"
     assert ulk.fsrs_card_json is None
     assert ulk.times_seen == 0
@@ -1024,22 +1025,8 @@ def _create_box1_unreviewed_backlog(db_session, count):
     db_session.flush()
 
 
-def _add_sentence_reviews_today(db_session, count):
-    sentence = Sentence(arabic_text="جملة اختبار", english_translation="test sentence")
-    db_session.add(sentence)
-    db_session.flush()
-    reviewed_at = datetime.now(timezone.utc)
-    for i in range(count):
-        db_session.add(SentenceReviewLog(
-            sentence_id=sentence.id,
-            comprehension="understood",
-            reviewed_at=reviewed_at,
-            client_review_id=f"recovery-sentence-{i}",
-        ))
-    db_session.flush()
-
-
-def _add_word_reviews_today(db_session, correct_count, total_count):
+def _add_primary_reading_reviews_today(db_session, correct_count, total_count):
+    """Add one primary ReviewLog per answered reading card."""
     reviewed_at = datetime.now(timezone.utc)
     for i in range(total_count):
         lem = Lemma(
@@ -1055,6 +1042,8 @@ def _add_word_reviews_today(db_session, correct_count, total_count):
             rating=3 if i < correct_count else 1,
             reviewed_at=reviewed_at,
             is_acquisition=False,
+            review_mode="reading",
+            credit_type="primary",
         ))
     db_session.flush()
 
@@ -1142,8 +1131,11 @@ def test_recovery_mode_blocks_new_intro_until_sentence_practice(db_session):
 def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
     """With overload plus 100+ sentence reviews and good accuracy, the full earned budget is allowed, then blocks."""
     _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
-    _add_sentence_reviews_today(db_session, RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET)
-    _add_word_reviews_today(db_session, correct_count=18, total_count=20)
+    _add_primary_reading_reviews_today(
+        db_session,
+        correct_count=90,
+        total_count=RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
+    )
     _fill_daily_cap(db_session, RECOVERY_FULL_INTRO_BUDGET - 1)
 
     allowed_lemma = _create_lemma(db_session, arabic="مسموح", english="allowed")
@@ -1163,10 +1155,13 @@ def test_recovery_mid_accuracy_capped_at_mid_budget(db_session):
     the new-word pile-up when FULL was raised to the daily cap."""
     assert RECOVERY_MID_INTRO_BUDGET < RECOVERY_FULL_INTRO_BUDGET
     _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
-    _add_sentence_reviews_today(db_session, RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET)
     # 82% accuracy: above the 0.80 LOW floor (>0 budget) but below the 0.85 GOOD
     # floor, so the budget is MID, never FULL.
-    _add_word_reviews_today(db_session, correct_count=82, total_count=100)
+    _add_primary_reading_reviews_today(
+        db_session,
+        correct_count=82,
+        total_count=RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
+    )
     _fill_daily_cap(db_session, RECOVERY_MID_INTRO_BUDGET - 1)
 
     allowed = start_acquisition(

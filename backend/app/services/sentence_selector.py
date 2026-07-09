@@ -168,15 +168,14 @@ def _intro_backlog_threshold_for_accuracy(recent_accuracy: float) -> int:
 
 def _introduced_today_count(db: Session, now: datetime) -> int:
     """Count today's acquisition starts for the 30/day intro experiment."""
+    from app.services.acquisition_service import true_new_acquisition_episode_filter
+
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return (
         db.query(UserLemmaKnowledge)
         .filter(
             UserLemmaKnowledge.acquisition_started_at >= today_start,
-            (
-                UserLemmaKnowledge.source.is_(None)
-                | (UserLemmaKnowledge.source != "leech_reintro")
-            ),
+            true_new_acquisition_episode_filter(),
         )
         .count()
     )
@@ -788,6 +787,7 @@ def build_session(
     mode: str = "reading",
     log_events: bool = True,
     exclude_sentence_ids: set[int] | None = None,
+    allow_intro_mutations: bool = True,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -944,10 +944,12 @@ def build_session(
             )
     undersized_slots = max(0, limit - len(due_lemma_ids))
     slots_for_intro = max(intro_slots, undersized_slots)
-    auto_introduced_ids = _auto_introduce_words(
-        db, slots_for_intro, knowledge_by_id, now,
-        skip_material_gen=True,
-    )
+    auto_introduced_ids = []
+    if allow_intro_mutations:
+        auto_introduced_ids = _auto_introduce_words(
+            db, slots_for_intro, knowledge_by_id, now,
+            skip_material_gen=True,
+        )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
         for lid in auto_introduced_ids:
@@ -1043,7 +1045,7 @@ def build_session(
     if exclude_sentence_ids:
         sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode, allow_intro_mutations=allow_intro_mutations)
 
     from sqlalchemy import or_
 
@@ -1103,7 +1105,7 @@ def build_session(
                 sentences.extend(rescue_sents)
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode, allow_intro_mutations=allow_intro_mutations)
 
     # Generated passage cards are authored as a unit. Some connector sentences
     # may not contain a due word, but they are still part of the reading object.
@@ -1912,7 +1914,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, mode=mode)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, mode=mode, allow_intro_mutations=allow_intro_mutations)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -2556,12 +2558,16 @@ def _session_intro_eligible_lemma_ids(db: Session, items: list[dict]) -> set[int
     return resolved
 
 
-def _ensure_session_words_have_intro_state(
+def _session_words_needing_intro_state(
     db: Session,
     lemma_ids: set[int],
     knowledge_by_id: dict[int, UserLemmaKnowledge],
-) -> bool:
-    """Promote cold session words early so they can get intro cards.
+) -> set[int]:
+    """Return cold session lemma IDs eligible for acquisition promotion.
+
+    This helper is read-only with respect to the database. It is shared by the
+    normal promoter and speculative-session filter so a prefetched card can
+    never expose a cold word that the live path would have taught first.
 
     Sentence review already auto-introduces unknown collateral words after the
     card is answered. Doing it here preserves that learning flow while allowing
@@ -2574,7 +2580,7 @@ def _ensure_session_words_have_intro_state(
     it became eligible.
     """
     if not lemma_ids:
-        return False
+        return set()
 
     missing_ids = lemma_ids - set(knowledge_by_id.keys())
     if missing_ids:
@@ -2603,9 +2609,21 @@ def _ensure_session_words_have_intro_state(
             continue
         candidate_ids.append(lid)
     if not candidate_ids:
-        return False
+        return set()
 
     candidate_ids = _drop_function_and_proper_name_lemma_ids(db, candidate_ids)
+    return set(candidate_ids)
+
+
+def _ensure_session_words_have_intro_state(
+    db: Session,
+    lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> bool:
+    """Promote eligible cold session words early so they get intro cards."""
+    candidate_ids = list(
+        _session_words_needing_intro_state(db, lemma_ids, knowledge_by_id)
+    )
     if not candidate_ids:
         return False
 
@@ -2643,6 +2661,30 @@ def _ensure_session_words_have_intro_state(
         if ulk.knowledge_state == "acquiring":
             any_promoted = True
     return any_promoted
+
+
+def _item_contains_any_lemma(item: dict, lemma_ids: set[int]) -> bool:
+    """Return whether a response item contains any canonical lemma in ``lemma_ids``."""
+    for word in item.get("words", []) or []:
+        effective_id = word.get("canonical_lemma_id") or word.get("lemma_id")
+        if effective_id in lemma_ids:
+            return True
+    return False
+
+
+def _covered_due_ids_from_items(items: list[dict], due_lemma_ids: set[int]) -> set[int]:
+    """Recompute actual due coverage after speculative-card filtering."""
+    covered: set[int] = set()
+    for item in items:
+        selection_due = (item.get("selection_info") or {}).get("due_lemma_ids") or []
+        covered.update(lid for lid in selection_due if lid in due_lemma_ids)
+        for word in item.get("words", []) or []:
+            if not word.get("is_due"):
+                continue
+            effective_id = word.get("canonical_lemma_id") or word.get("lemma_id")
+            if effective_id in due_lemma_ids:
+                covered.add(effective_id)
+    return covered
 
 
 def _drop_function_and_proper_name_lemma_ids(
@@ -2691,6 +2733,7 @@ def _with_fallbacks(
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
     mode: str = "reading",
+    allow_intro_mutations: bool = True,
 ) -> dict:
     """Fill undersized sessions using pre-generated sentences (DB queries only).
 
@@ -2713,7 +2756,7 @@ def _with_fallbacks(
 
     # Fill phase — ALWAYS runs when session is undersized.
     # Uses pre-generated sentences only (fast DB queries, no LLM).
-    if session_unit_count < limit:
+    if allow_intro_mutations and session_unit_count < limit:
         logger.info(
             f"Fill phase: session has {len(items)} cards / {session_unit_count} sentence-units out of {limit}"
         )
@@ -2803,6 +2846,36 @@ def _with_fallbacks(
             logger.exception("Almost-due backfill failed")
             db.rollback()
 
+    # A prefetched response is consumed cache-first on app mount/resume. Keep
+    # it pedagogically safe without reserving learning state: if a card contains
+    # a cold word the live path would promote and teach before the sentence,
+    # omit that whole card. An empty speculative response is fine; online cache
+    # loading falls through to a fresh, mutating build.
+    if not allow_intro_mutations and items:
+        speculative_eligible_ids = _session_intro_eligible_lemma_ids(db, items)
+        cold_ids = _session_words_needing_intro_state(
+            db, speculative_eligible_ids, knowledge_by_id
+        )
+        if cold_ids:
+            before = len(items)
+            items = [
+                item for item in items
+                if not _item_contains_any_lemma(item, cold_ids)
+            ]
+            covered_ids = _covered_due_ids_from_items(items, due_lemma_ids)
+            for order, item in enumerate(items, start=1):
+                if item.get("selection_info"):
+                    item["selection_info"]["order"] = order
+            kept_lemma_ids = _session_intro_eligible_lemma_ids(db, items)
+            reintro_cards = [
+                card for card in (reintro_cards or [])
+                if card.get("lemma_id") in kept_lemma_ids
+            ]
+            logger.info(
+                "Speculative build omitted %d cold-containing cards",
+                before - len(items),
+            )
+
     # Check for un-introduced grammar features in session sentences. Passage
     # cards carry multiple sentence IDs behind one review card.
     sentence_ids_in_session: list[int] = []
@@ -2828,9 +2901,11 @@ def _with_fallbacks(
     # scans every non-function word in the returned session, not just primary
     # due words, because collateral words earn review credit too.
     intro_eligible_ids = _session_intro_eligible_lemma_ids(db, items)
-    intro_state_promoted = _ensure_session_words_have_intro_state(
-        db, intro_eligible_ids, knowledge_by_id
-    )
+    intro_state_promoted = False
+    if allow_intro_mutations:
+        intro_state_promoted = _ensure_session_words_have_intro_state(
+            db, intro_eligible_ids, knowledge_by_id
+        )
     experiment_intro_cards = _build_intro_cards(
         db, knowledge_by_id, intro_eligible_ids
     )

@@ -25,6 +25,7 @@ from app.services.sentence_selector import (
     _best_generated_passage_seed,
     _group_maintenance_passages,
     _ensure_session_words_have_intro_state,
+    _session_words_needing_intro_state,
     _intro_backlog_threshold_for_accuracy,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
@@ -1185,6 +1186,46 @@ class TestNearDuplicateVeto:
 
 class TestIntroCardsForSessionWords:
     """Intro cards must cover every new non-function word shown in a session."""
+
+    def test_read_only_intro_detection_includes_missing_and_encountered(self, db_session):
+        missing = Lemma(
+            lemma_id=40,
+            lemma_ar="رواية",
+            lemma_ar_bare="رواية",
+            pos="noun",
+            gloss_en="novel",
+        )
+        encountered = Lemma(
+            lemma_id=41,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+        )
+        db_session.add_all([missing, encountered])
+        encountered_ulk = UserLemmaKnowledge(
+            lemma_id=encountered.lemma_id,
+            knowledge_state="encountered",
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="book",
+        )
+        db_session.add(encountered_ulk)
+        db_session.commit()
+
+        knowledge_by_id = {encountered.lemma_id: encountered_ulk}
+        candidates = _session_words_needing_intro_state(
+            db_session,
+            {missing.lemma_id, encountered.lemma_id},
+            knowledge_by_id,
+        )
+
+        assert candidates == {missing.lemma_id, encountered.lemma_id}
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=missing.lemma_id,
+        ).first() is None
+        assert encountered_ulk.knowledge_state == "encountered"
 
     def test_new_acquiring_scaffold_gets_intro_card(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)

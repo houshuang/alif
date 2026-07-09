@@ -27,6 +27,7 @@ import {
   importStory,
   getNextWords,
   introduceWord,
+  acknowledgeReintro,
   submitQuizResult,
   suspendWord,
   flagContent,
@@ -63,6 +64,7 @@ const SESSION_CACHE_KEY = "@alif/sessions/v2/reading";
 beforeEach(() => {
   mockFetch.mockReset();
   for (const key of Object.keys(store)) delete store[key];
+  jest.requireMock("../net-status").netStatus.isOnline = true;
   jest.clearAllMocks();
 });
 
@@ -584,6 +586,34 @@ describe("introduceWord", () => {
     const queue = raw ? JSON.parse(raw) : [];
     const entry = queue.find((e: any) => e.type === "introduce_word" && e.payload.lemma_id === 50);
     expect(entry).toBeTruthy();
+  });
+});
+
+describe("acknowledgeReintro", () => {
+  it("queues Continue as an offline acknowledgement rather than a scored result", async () => {
+    jest.requireMock("../net-status").netStatus.isOnline = false;
+
+    const result = await acknowledgeReintro(50, "sess-1", "reintro-ack-1");
+
+    expect(result).toEqual({
+      status: "queued",
+      result: "acknowledged",
+      lemma_id: 50,
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    const raw = await AsyncStorage.getItem("@alif/sync-queue");
+    const queue = raw ? JSON.parse(raw) : [];
+    expect(queue).toContainEqual(expect.objectContaining({
+      type: "reintro_result",
+      client_review_id: "reintro-ack-1",
+      payload: {
+        lemma_id: 50,
+        result: "acknowledged",
+        session_id: "sess-1",
+        client_review_id: "reintro-ack-1",
+      },
+    }));
   });
 });
 

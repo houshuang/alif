@@ -923,23 +923,22 @@ export async function getSessionEnd(sessionId: string): Promise<SessionEndData> 
   return fetchApi<SessionEndData>(`/api/review/session-end/${sessionId}`);
 }
 
-export async function submitReintroResult(
+export async function acknowledgeReintro(
   lemmaId: number,
-  result: "remember" | "show_again",
   sessionId?: string,
   clientReviewId?: string,
 ): Promise<{ status: string; result: string; lemma_id: number }> {
   const crid = clientReviewId || generateUuid();
   await enqueueReview("reintro_result", {
     lemma_id: lemmaId,
-    result,
+    result: "acknowledged",
     session_id: sessionId,
     client_review_id: crid,
   }, crid);
   if (netStatus.isOnline) {
     flushQueue().catch(() => {});
   }
-  return { status: "queued", result, lemma_id: lemmaId };
+  return { status: "queued", result: "acknowledged", lemma_id: lemmaId };
 }
 
 export interface CardShownPayload {

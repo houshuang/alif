@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 
-from app.models import Lemma, Root, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import build_session
 
@@ -170,35 +170,109 @@ class TestReintroCards:
 
 
 class TestReintroEndpoint:
-    def test_remember(self, db_session, client):
-        _seed_word(db_session, 1, "صعب", "difficult",
-                   stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
+    def test_acknowledgement_does_not_review_acquiring_word(
+        self, db_session, client, monkeypatch
+    ):
+        _, knowledge = _seed_word(
+            db_session,
+            1,
+            "صعب",
+            "difficult",
+            state="acquiring",
+            stability=0.1,
+            due_hours=-1,
+            times_seen=5,
+            times_correct=0,
+        )
+        acquisition_due = datetime(2026, 7, 9, 12, 0)
+        last_reviewed = datetime(2026, 7, 8, 12, 0)
+        knowledge.acquisition_box = 1
+        knowledge.acquisition_next_due = acquisition_due
+        knowledge.fsrs_card_json = None
+        knowledge.last_reviewed = last_reviewed
         db_session.commit()
 
-        resp = client.post("/api/review/reintro-result", json={
-            "lemma_id": 1,
-            "result": "remember",
-            "session_id": "test-session",
-        })
+        interactions = []
+        monkeypatch.setattr(
+            "app.routers.review.log_interaction",
+            lambda **payload: interactions.append(payload),
+        )
+
+        resp = client.post(
+            "/api/review/reintro-result",
+            json={
+                "lemma_id": 1,
+                "result": "acknowledged",
+                "session_id": "test-session",
+                "client_review_id": "reintro-ack-1",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["result"] == "remember"
+        assert data["result"] == "acknowledged"
 
-    def test_show_again(self, db_session, client):
-        _seed_word(db_session, 1, "صعب", "difficult",
-                   stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
+        db_session.refresh(knowledge)
+        assert knowledge.knowledge_state == "acquiring"
+        assert knowledge.acquisition_box == 1
+        assert knowledge.acquisition_next_due == acquisition_due
+        assert knowledge.fsrs_card_json is None
+        assert knowledge.times_seen == 5
+        assert knowledge.times_correct == 0
+        assert knowledge.last_reviewed == last_reviewed
+        assert db_session.query(ReviewLog).count() == 0
+        assert interactions == [
+            {
+                "event": "reintro_acknowledged",
+                "lemma_id": 1,
+                "session_id": "test-session",
+                "client_review_id": "reintro-ack-1",
+                "submitted_result": "acknowledged",
+            }
+        ]
+
+    @pytest.mark.parametrize("legacy_result", ["remember", "show_again"])
+    def test_legacy_offline_results_are_acknowledgement_only(
+        self, db_session, client, legacy_result
+    ):
+        _, knowledge = _seed_word(
+            db_session,
+            1,
+            "صعب",
+            "difficult",
+            state="acquiring",
+            stability=0.1,
+            due_hours=-1,
+            times_seen=5,
+            times_correct=0,
+        )
+        knowledge.acquisition_box = 1
+        knowledge.acquisition_next_due = datetime(
+            2026, 7, 9, 12, 0, tzinfo=timezone.utc
+        )
+        knowledge.fsrs_card_json = None
         db_session.commit()
 
-        resp = client.post("/api/review/reintro-result", json={
-            "lemma_id": 1,
-            "result": "show_again",
-            "session_id": "test-session",
-        })
+        resp = client.post(
+            "/api/review/reintro-result",
+            json={
+                "lemma_id": 1,
+                "result": legacy_result,
+                "session_id": "test-session",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["result"] == "show_again"
+        assert data["result"] == "acknowledged"
+
+        db_session.refresh(knowledge)
+        assert knowledge.knowledge_state == "acquiring"
+        assert knowledge.acquisition_box == 1
+        assert knowledge.fsrs_card_json is None
+        assert knowledge.times_seen == 5
+        assert knowledge.times_correct == 0
+        assert db_session.query(ReviewLog).count() == 0
 
 
 class TestContextDiversity:

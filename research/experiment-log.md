@@ -8,7 +8,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
 
-**Word lifecycle — acquisition / graduation / intro cap** — `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
 **FSRS / lapse / leech** — `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
@@ -45,6 +45,75 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-09 (implemented, not deployed): Return-from-vacation correctness + recovery repair
+
+**Trigger.** The first sustained break since Alif usage began (a vacation, not product
+fatigue) created a natural stress test. Read-only production audit at return found 1,197
+actionable due words (1,023 FSRS + 174 acquisition), 28.6% fully-understood sentences,
+and an acquiring pool dominated by prior leeches (121/177). The June due-sentence repair
+worked (13.5% deficit -> 1.6%); the binding problems are state/accounting correctness and
+return recovery, not sentence supply or global FSRS weights.
+
+**Verified defects to repair (user approved the plan; no production data mutation in this
+phase):**
+
+1. The informational struggling-word reintro card says "no self-assessment" but Continue
+   submits FSRS Good. It moved 62 never-correct lemmas out of acquisition; 40 later became
+   leeches. Continue must be acknowledgement-only, with the following sentence providing
+   the real retrieval evidence.
+2. Leech reintroduction overloads `source` with both provenance and episode type. 75/114
+   recent leech episodes retained a book/textbook/frequency source and were counted as
+   net-new intros, while 111 seen Box-1 leeches were invisible to the recovery trigger's
+   `times_seen == 0` filter. Add explicit episode metadata; preserve provenance separately;
+   count actionable due Box-1 debt.
+3. Recovery accuracy uses all word reviews, so easy collateral unlocks intake that primary
+   retrieval would block (11/13 high-volume days vs 2/13). Use primary sentence retrieval
+   for the safety gate and count cards rather than passage-internal sentence rows.
+4. Frontend mature-duplicate auto-skip keys only on the repeated primary. One retained
+   production session skipped five otherwise-unreviewed due lemmas. Skip only when every
+   due lemma on the card already has a successful outcome.
+5. Prefetch suppresses logging but still mutates learning state. Make speculative builds
+   read-only with respect to ULKs/introduction.
+6. Repair measurement before pedagogy: due-cleared must mean due at review time; transition
+   parsing must read `pre_knowledge_state`; expose primary cold-recall rather than a blended
+   collateral/acquisition retention headline.
+
+**Next experiment after correctness stabilizes.** Yellow means "I did not recognize it,
+but knew it after seeing English" -- keep Rating.Hard. Branch remediation by cause: exact
+inflected/derived surface gets form-aware sentence ranking; a citation-form slip gets normal
+SRS. Primary outcome is 7/14-day same-form recall. Curriculum direction: a contemporary
+literary target is the near-term anchor, with a smaller Quran/classical lane preserved.
+
+**Guardrails.** No historical production repair or deploy without a separate dry-run and
+explicit approval. Tier E remains observation-only until its first genuinely-due follow-up
+reviews exist. Mature-collateral credit changes remain shadow-only.
+
+**Implementation.** Reintro Continue is now telemetry-only and legacy offline results drain
+without scoring. Acquisition episode kind is stored separately from provenance (nullable
+migration; no production backfill). Recovery counts due previously-seen Box-1 debt and uses
+primary reading cards/accuracy. Speculative builds cannot change ULKs and omit material that
+would need cold promotion before display. Mature duplicate skipping now requires all due
+obligations to be successful, keeps canonical failures sticky, fails closed on missing due
+metadata, and never removes a due acquisition repetition. Stats now verify `pre_card.due`,
+parse `pre_knowledge_state`, and expose 30-day primary non-acquisition recall by elapsed gap.
+
+**Deliberate boundary.** Pre-migration leech episodes whose `source` retained meaningful
+provenance are not reliably distinguishable from true-new episodes without changing
+historical production data; only legacy `source='leech_reintro'` can be excluded safely.
+Future restarts are explicit. Reintro admission/capacity is unchanged in this slice, so a
+separate simulation is still required before shaping the recycled-word inflow. The recovery
+trigger also remains acquisition-debt-based; adding the 1,023-word FSRS return backlog as a
+capacity signal is deferred to that simulation rather than silently changing intake policy.
+`prefetch=true` is read-only for learner/ULK state, but may still run the existing JIT mapping
+hardener, whose content-correction writes are a separate safety mechanism.
+
+**Validation.** Recovery/selector/API regression set: 174 passed, 1 deselected. Independent
+focused runs after integration: 52 acquisition, 44 analytics/deep-analytics, 27 cross-slice,
+and 8 reintro-card/endpoint tests passed. Frontend task tests: 44 passed; TypeScript passed.
+The full frontend run passed 182/183 tests; its sole failure is the pre-existing route-manifest
+guard for tracked `app/snap.tsx` (not changed here). Fresh-database Alembic upgrade, migration
+downgrade/re-upgrade, single-head check, Python compilation, and `git diff --check` passed.
 
 ## 2026-07-08 (change): Elapsed-interval graduation — Leitner phase now credits long retention
 

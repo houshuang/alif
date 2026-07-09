@@ -164,6 +164,83 @@ class TestStatsAPI:
         assert data["cefr"]["level"] == "Pre-A1"
         assert data["pace"]["total_study_days"] >= 1
 
+    def test_introduction_metrics_count_true_new_episodes_only(self, client, db_session):
+        now = datetime.now(timezone.utc)
+        new_book = _make_lemma(db_session, 1, "acquiring")
+        reintro_with_book_provenance = _make_lemma(db_session, 2, "acquiring")
+        legacy_reintro = _make_lemma(db_session, 3, "acquiring")
+        legacy_new = _make_lemma(db_session, 4, "acquiring")
+        ambiguous_legacy_meaningful_source = _make_lemma(db_session, 5, "acquiring")
+
+        for lemma in (
+            new_book,
+            reintro_with_book_provenance,
+            legacy_reintro,
+            legacy_new,
+            ambiguous_legacy_meaningful_source,
+        ):
+            knowledge = db_session.query(UserLemmaKnowledge).filter_by(
+                lemma_id=lemma.lemma_id,
+            ).one()
+            knowledge.acquisition_started_at = now
+            knowledge.entered_acquiring_at = now
+
+        db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=new_book.lemma_id,
+        ).one().source = "book"
+        db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=new_book.lemma_id,
+        ).one().acquisition_episode_kind = "new"
+
+        preserved = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=reintro_with_book_provenance.lemma_id,
+        ).one()
+        preserved.source = "book"
+        preserved.acquisition_episode_kind = "leech_reintro"
+
+        legacy = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=legacy_reintro.lemma_id,
+        ).one()
+        legacy.source = "leech_reintro"
+        legacy.acquisition_episode_kind = None
+
+        legacy_fallback = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=legacy_new.lemma_id,
+        ).one()
+        legacy_fallback.source = "textbook_scan"
+        legacy_fallback.acquisition_episode_kind = None
+
+        ambiguous_legacy = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=ambiguous_legacy_meaningful_source.lemma_id,
+        ).one()
+        ambiguous_legacy.source = "book"
+        ambiguous_legacy.leech_count = 1
+        ambiguous_legacy.acquisition_episode_kind = None
+        # Conservative legacy behavior: leech_count cannot prove this episode
+        # was a reintro because first suspension preserves the original new
+        # acquisition_started_at. Count it as new until a separately approved
+        # history-repair dry run can classify ambiguous old episodes exactly.
+        db_session.commit()
+
+        analytics = client.get("/api/stats/analytics").json()
+        assert analytics["daily_goal"]["introduced_today"] == 3
+        assert {
+            row["source"]: row["count"] for row in analytics["introduced_today"]
+        } == {"Book": 2, "OCR": 1}
+        assert {
+            row["lemma_id"] for row in analytics["introduced_words_today"]
+        } == {
+            new_book.lemma_id,
+            legacy_new.lemma_id,
+            ambiguous_legacy_meaningful_source.lemma_id,
+        }
+
+        deep = client.get("/api/stats/deep-analytics").json()
+        today_flow = deep["acquisition_pipeline"]["flow_history"][-1]
+        assert today_flow["entered"] == 3
+        assert today_flow["box_1_in"] == 5
+        assert deep["insights"]["record_intro_day"]["count"] == 3
+
     def test_frequency_core_progress_counts_unmapped_and_confidence(self, client, db_session):
         learned = _make_lemma(db_session, 1, "known")
         gap_lemma = _make_lemma(db_session, 2, "encountered")

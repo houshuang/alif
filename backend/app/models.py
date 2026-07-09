@@ -96,13 +96,17 @@ class UserLemmaKnowledge(Base):
     times_correct = Column(Integer, default=0)
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
-    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/book/frequency_core/auto_intro/collateral/leech_reintro
+    # Learning provenance: where this lemma entered the learner's curriculum.
+    # Historical rows may still contain ``leech_reintro`` here; new reintro
+    # episodes preserve the original provenance and use acquisition_episode_kind.
+    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/book/frequency_core/auto_intro/collateral
     variant_stats_json = Column(JSON, nullable=True)
 
     # Acquisition (Leitner 3-box) fields
     acquisition_box = Column(Integer, nullable=True)  # 1/2/3, NULL = not acquiring
     acquisition_next_due = Column(DateTime, nullable=True)
     acquisition_started_at = Column(DateTime, nullable=True)
+    acquisition_episode_kind = Column(String(20), nullable=True)  # new/leech_reintro; NULL on historical rows
     graduated_at = Column(DateTime, nullable=True, index=True)
     entered_acquiring_at = Column(DateTime, nullable=True)
     leech_suspended_at = Column(DateTime, nullable=True)

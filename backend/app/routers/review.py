@@ -30,7 +30,6 @@ from app.schemas import (
     WrapUpCardOut,
     RecapIn,
 )
-from app.services.fsrs_service import submit_review
 from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
@@ -182,6 +181,7 @@ def next_sentences(
             db, limit=limit, mode=mode,
             log_events=not prefetch,
             exclude_sentence_ids=base_exclude or None,
+            allow_intro_mutations=not prefetch,
         )
 
         unsafe_ids = _ensure_session_mapping_hardened(db, result)
@@ -193,6 +193,7 @@ def next_sentences(
                 db, limit=limit, mode=mode,
                 log_events=not prefetch,
                 exclude_sentence_ids=base_exclude | unsafe_ids,
+                allow_intro_mutations=not prefetch,
             )
             unsafe_ids = _ensure_session_mapping_hardened(db, result)
             _drop_unsafe_session_items(result, unsafe_ids)
@@ -586,29 +587,22 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
 @router.post("/reintro-result")
 def submit_reintro_result(
     body: ReintroResultIn,
-    db: Session = Depends(get_db),
 ):
-    """Submit result of a re-introduction card: 'remember' or 'show_again'."""
-    rating = 3 if body.result == "remember" else 1
+    """Acknowledge an informational re-introduction card without reviewing it.
 
-    result = submit_review(
-        db,
-        lemma_id=body.lemma_id,
-        rating_int=rating,
-        session_id=body.session_id,
-        review_mode="reintro",
-        comprehension_signal="understood" if body.result == "remember" else "no_idea",
-        client_review_id=body.client_review_id,
-    )
-
+    The following sentence is the actual retrieval attempt.  Legacy
+    ``remember`` / ``show_again`` values may still arrive from the offline
+    queue, but they are intentionally treated as acknowledgements only.
+    """
     log_interaction(
-        event=f"reintro_{body.result}",
+        event="reintro_acknowledged",
         lemma_id=body.lemma_id,
-        rating=rating,
         session_id=body.session_id,
+        client_review_id=body.client_review_id,
+        submitted_result=body.result,
     )
 
-    return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
+    return {"status": "ok", "result": "acknowledged", "lemma_id": body.lemma_id}
 
 
 class CardShownIn(PydanticBaseModel):

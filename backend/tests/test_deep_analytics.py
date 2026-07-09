@@ -14,10 +14,12 @@ from app.models import (
     UserLemmaKnowledge,
 )
 from app.routers.stats import (
+    _count_fsrs_cleared_today,
     _count_due_cards,
     _get_first_known_dates,
     _get_root_coverage,
     _get_recent_sessions,
+    _get_state_transitions,
 )
 from app.services.fsrs_service import create_new_card
 
@@ -115,6 +117,56 @@ class TestDeepAnalyticsEndpoint:
         assert r7d["correct_reviews"] == 4
         assert r7d["retention_pct"] == 80.0
 
+    def test_primary_cold_recall_breakdown_is_additive_and_clean(self, db_session, client):
+        _seed_word(db_session, 1, "كتاب", "book")
+        now = datetime.now(timezone.utc)
+
+        def add_review(gap_days, rating, *, credit_type="primary", is_acquisition=False,
+                       include_snapshot=True):
+            reviewed_at = now - timedelta(minutes=gap_days)
+            fsrs_log = None
+            if include_snapshot:
+                fsrs_log = {
+                    "pre_card": {
+                        "last_review": (reviewed_at - timedelta(days=gap_days)).isoformat(),
+                    },
+                }
+            db_session.add(ReviewLog(
+                lemma_id=1,
+                rating=rating,
+                reviewed_at=reviewed_at,
+                credit_type=credit_type,
+                is_acquisition=is_acquisition,
+                fsrs_log_json=fsrs_log,
+            ))
+
+        add_review(0.5, 3)
+        add_review(2, 3)
+        add_review(5, 1)
+        add_review(10, 3)
+        add_review(20, 1)
+        add_review(35, 3)
+        add_review(8, 1, credit_type="collateral")
+        add_review(8, 1, is_acquisition=True)
+        add_review(8, 1, include_snapshot=False)
+        db_session.commit()
+
+        resp = client.get("/api/stats/deep-analytics")
+        assert resp.status_code == 200
+        breakdown = resp.json()["primary_cold_recall_30d"]
+        assert breakdown["population"] == "primary_non_acquisition"
+        assert breakdown["period_days"] == 30
+        assert breakdown["total_reviews"] == 6
+        assert breakdown["correct_reviews"] == 4
+        assert breakdown["retention_pct"] == 66.7
+        bands = {band["label"]: band for band in breakdown["bands"]}
+        assert bands["<1d"]["total_reviews"] == 1
+        assert bands["1-3d"]["retention_pct"] == 100.0
+        assert bands["3-7d"]["retention_pct"] == 0.0
+        assert bands["7-14d"]["retention_pct"] == 100.0
+        assert bands["14-30d"]["retention_pct"] == 0.0
+        assert bands["30d+"]["retention_pct"] == 100.0
+
     def test_comprehension_breakdown(self, db_session, client):
         # Need a sentence to FK reference
         sent = Sentence(
@@ -209,6 +261,103 @@ class TestCountDueCardsSQL:
         now = datetime.now(timezone.utc)
         total, fsrs_due, acq_due = _count_due_cards(db_session, now)
         assert total == 0
+
+
+class TestFsrsClearedToday:
+    def test_counts_only_distinct_words_due_at_review_time(self, db_session):
+        for lemma_id, arabic in enumerate(("كتاب", "قلم", "بيت", "باب"), start=1):
+            _seed_word(db_session, lemma_id, arabic, f"word-{lemma_id}", due_hours=24)
+
+        now = datetime.now(timezone.utc)
+        reviewed_at = now - timedelta(minutes=5)
+        due_before = (reviewed_at - timedelta(hours=1)).isoformat()
+        due_after = (reviewed_at + timedelta(hours=1)).isoformat()
+
+        # A real due review, plus a duplicate for the same lemma: one cleared word.
+        db_session.add_all([
+            ReviewLog(
+                lemma_id=1,
+                rating=3,
+                reviewed_at=reviewed_at,
+                is_acquisition=False,
+                fsrs_log_json={"pre_card": {"due": due_before.replace("+00:00", "Z")}},
+            ),
+            ReviewLog(
+                lemma_id=1,
+                rating=1,
+                reviewed_at=reviewed_at + timedelta(seconds=1),
+                is_acquisition=False,
+                fsrs_log_json=json.dumps({
+                    "pre_card": {
+                        "due": (reviewed_at - timedelta(minutes=30))
+                        .replace(tzinfo=None).isoformat(sep=" "),
+                    },
+                }),
+            ),
+            # Early collateral-like review: current card moving forward must not count it.
+            ReviewLog(
+                lemma_id=2,
+                rating=3,
+                reviewed_at=reviewed_at,
+                is_acquisition=False,
+                fsrs_log_json={"pre_card": {"due": due_after}},
+            ),
+            # Acquisition rows are not FSRS maintenance.
+            ReviewLog(
+                lemma_id=3,
+                rating=3,
+                reviewed_at=reviewed_at,
+                is_acquisition=True,
+                fsrs_log_json={"pre_card": {"due": due_before}},
+            ),
+            # Malformed historical telemetry is ignored safely.
+            ReviewLog(
+                lemma_id=4,
+                rating=3,
+                reviewed_at=reviewed_at,
+                is_acquisition=False,
+                fsrs_log_json="not-json",
+            ),
+        ])
+        db_session.commit()
+
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        assert _count_fsrs_cleared_today(db_session, today_start, now) == 1
+
+
+class TestStateTransitions:
+    def test_reads_written_pre_knowledge_state_and_legacy_prev_state(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        now = datetime.now(timezone.utc)
+        payloads = [
+            {"pre_knowledge_state": "acquiring", "state": "learning"},
+            {"pre_knowledge_state": "acquiring", "state": "known"},
+            {"pre_knowledge_state": "learning", "state": "known"},
+            {"pre_knowledge_state": "known", "state": "lapsed"},
+            {"pre_knowledge_state": "lapsed", "state": "known"},
+            # Backward compatibility with historical py-fsrs state names.
+            {"prev_state": "Learning", "state": "Review"},
+            # The field currently written wins when both are present.
+            {
+                "pre_knowledge_state": "known",
+                "prev_state": "Learning",
+                "state": "lapsed",
+            },
+        ]
+        for i, payload in enumerate(payloads):
+            db_session.add(ReviewLog(
+                lemma_id=1,
+                rating=3,
+                reviewed_at=now - timedelta(minutes=i),
+                fsrs_log_json=payload,
+            ))
+        db_session.commit()
+
+        transitions = _get_state_transitions(db_session, 7)
+        assert transitions.new_to_learning == 1
+        assert transitions.learning_to_known == 3
+        assert transitions.known_to_lapsed == 2
+        assert transitions.lapsed_to_learning == 1
 
 
 class TestGetFirstKnownDatesSQL:

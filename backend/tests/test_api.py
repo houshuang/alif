@@ -254,6 +254,106 @@ def test_next_sentences_prefetch_skips_logging(client, db_session, monkeypatch):
     assert "sentence_selected" not in selector_events
 
 
+def test_next_sentences_prefetch_does_not_promote_cold_words(
+    client, db_session, monkeypatch
+):
+    """Prefetch may select a card, but it must not start acquisition episodes."""
+    primary = _seed_word(db_session, arabic="قَرَأَ", bare="قرأ", gloss="read")
+
+    cold = Lemma(lemma_ar="رِوَايَة", lemma_ar_bare="رواية", gloss_en="novel")
+    known_a = Lemma(lemma_ar="طَالِب", lemma_ar_bare="طالب", gloss_en="student")
+    known_b = Lemma(lemma_ar="جَمِيلَة", lemma_ar_bare="جميلة", gloss_en="beautiful")
+    db_session.add_all([cold, known_a, known_b])
+    db_session.flush()
+    db_session.add_all([
+        UserLemmaKnowledge(
+            lemma_id=cold.lemma_id,
+            knowledge_state="encountered",
+            source="book",
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+        ),
+        UserLemmaKnowledge(lemma_id=known_a.lemma_id, knowledge_state="known"),
+        UserLemmaKnowledge(lemma_id=known_b.lemma_id, knowledge_state="known"),
+    ])
+    sentence = Sentence(
+        arabic_text="قَرَأَ الطَّالِبُ الرِّوَايَةَ الجَمِيلَةَ",
+        english_translation="The student read the beautiful novel.",
+        target_lemma_id=primary.lemma_id,
+        mappings_verified_at=datetime.now(timezone.utc),
+        is_active=True,
+    )
+    db_session.add(sentence)
+    db_session.flush()
+    db_session.add_all([
+        SentenceWord(sentence_id=sentence.id, position=0, surface_form="قَرَأَ", lemma_id=primary.lemma_id),
+        SentenceWord(sentence_id=sentence.id, position=1, surface_form="الطَّالِبُ", lemma_id=known_a.lemma_id),
+        SentenceWord(sentence_id=sentence.id, position=2, surface_form="الرِّوَايَةَ", lemma_id=cold.lemma_id),
+        SentenceWord(sentence_id=sentence.id, position=3, surface_form="الجَمِيلَةَ", lemma_id=known_b.lemma_id),
+    ])
+    db_session.commit()
+
+    def _unexpected_auto_intro(*_args, **_kwargs):
+        pytest.fail("prefetch called _auto_introduce_words")
+
+    monkeypatch.setattr(
+        "app.services.sentence_selector._auto_introduce_words",
+        _unexpected_auto_intro,
+    )
+
+    resp = client.get("/api/review/next-sentences?limit=1&mode=reading&prefetch=true")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"] == []
+    assert data["covered_due_words"] == 0
+    assert data["experiment_intro_cards"] == []
+
+    db_session.expire_all()
+    cold_ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=cold.lemma_id).one()
+    assert cold_ulk.knowledge_state == "encountered"
+    assert cold_ulk.acquisition_started_at is None
+    assert cold_ulk.acquisition_episode_kind is None
+
+
+def test_next_sentences_prefetch_keeps_mature_only_due_card(
+    client, db_session, monkeypatch
+):
+    """Read-only prefetch still caches safe maintenance cards."""
+    mature = _seed_word(db_session, arabic="كِتَاب", bare="كتاب", gloss="book")
+    sentence = Sentence(
+        arabic_text="كِتَابٌ",
+        english_translation="A book.",
+        target_lemma_id=mature.lemma_id,
+        mappings_verified_at=datetime.now(timezone.utc),
+        is_active=True,
+    )
+    db_session.add(sentence)
+    db_session.flush()
+    db_session.add(SentenceWord(
+        sentence_id=sentence.id,
+        position=0,
+        surface_form="كِتَابٌ",
+        lemma_id=mature.lemma_id,
+    ))
+    db_session.commit()
+
+    def _unexpected_auto_intro(*_args, **_kwargs):
+        pytest.fail("prefetch called _auto_introduce_words")
+
+    monkeypatch.setattr(
+        "app.services.sentence_selector._auto_introduce_words",
+        _unexpected_auto_intro,
+    )
+
+    resp = client.get("/api/review/next-sentences?limit=1&mode=reading&prefetch=true")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["primary_lemma_id"] == mature.lemma_id
+    assert data["covered_due_words"] == 1
+
+
 def test_next_sentences_commits_flushed_intro_state_before_background(db_session, monkeypatch):
     """Regression: a flushed encountered ULK must not stay open into warm cache."""
     from sqlalchemy.orm import sessionmaker
