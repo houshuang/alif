@@ -13,6 +13,10 @@ from app.services.leech_service import (
     check_single_word_leech,
     is_leech,
 )
+from app.services.acquisition_service import (
+    ACQUISITION_EPISODE_LEECH_REINTRO,
+    _daily_intro_count,
+)
 
 
 def _create_lemma(db, arabic="كتاب", english="book", frequency_rank=100):
@@ -225,8 +229,20 @@ def test_detect_multiple_leeches(db_session):
 # --- check_leech_reintroductions ---
 
 
-def test_reintroduction_after_delay_first_time(db_session):
+def _disable_reintro_enrichment(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.material_generator.generate_material_for_word",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.memory_hooks.generate_memory_hooks",
+        lambda *_args, **_kwargs: None,
+    )
+
+
+def test_reintroduction_after_delay_first_time(db_session, monkeypatch):
     """First leech (leech_count=1) reintroduces after 3 days, preserves stats."""
+    _disable_reintro_enrichment(monkeypatch)
     lemma = _create_lemma(db_session)
     now = datetime.now(timezone.utc)
 
@@ -249,7 +265,33 @@ def test_reintroduction_after_delay_first_time(db_session):
     assert ulk.leech_suspended_at is None
     assert ulk.times_seen == 10  # preserved, not zeroed
     assert ulk.times_correct == 2  # preserved, not zeroed
-    assert ulk.source == "leech_reintro"
+    assert ulk.source == "study"
+    assert ulk.acquisition_episode_kind == ACQUISITION_EPISODE_LEECH_REINTRO
+
+
+def test_reintroduction_preserves_meaningful_source_and_excludes_intro_count(
+    db_session, monkeypatch
+):
+    _disable_reintro_enrichment(monkeypatch)
+    lemma = _create_lemma(db_session, arabic="رواية", english="novel")
+    now = datetime.now(timezone.utc)
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="suspended",
+        source="book",
+        leech_suspended_at=now - timedelta(days=3, hours=1),
+        leech_count=1,
+        times_seen=10,
+        times_correct=2,
+    ))
+    db_session.commit()
+
+    assert lemma.lemma_id in check_leech_reintroductions(db_session)
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+    assert ulk.source == "book"
+    assert ulk.acquisition_episode_kind == ACQUISITION_EPISODE_LEECH_REINTRO
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    assert _daily_intro_count(db_session, today_start) == 0
 
 
 def test_reintroduction_second_time_needs_7_days(db_session):

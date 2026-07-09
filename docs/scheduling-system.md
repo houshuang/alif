@@ -169,7 +169,8 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro cap (2026-05-15, recovery budget 2026-05-17)**: All paths that call `start_acquisition()` are gated by `DAILY_INTRO_CAP = 30` enforced inside the function itself. When today's count of new acquisitions (excluding `leech_reintro`) hits the effective budget, further calls create or leave the ULK in `encountered` state instead of promoting to acquiring. This includes OCR/textbook_scan, sentence-review collateral promotion, Quran promotion, the cold session-build promoter, and the auto-intro path. On normal low-debt days the effective budget is the full 30. When acquisition debt is high (`RECOVERY_BOX1_UNREVIEWED_LIMIT=5` or `RECOVERY_BOX2_DUE_LIMIT=30`), the budget is earned from same-day sentence practice: 0 before 40 sentence reviews, `RECOVERY_MID_INTRO_BUDGET=8` after 40 reviews with acceptable accuracy (≥80%), and `RECOVERY_FULL_INTRO_BUDGET=30` (the full daily cap) after 100 sentence reviews with ≥85% word-review accuracy. This prevents introducing a fresh pile before the current Box 1/2 words have had real contextual practice. **Accuracy-gating (2026-06-03)**: the full budget was raised 8→30 so a high-volume/high-accuracy learner can grow ~50% faster (throttle simulation: `research/analysis-2026-06-03-throttle-simulation.md`), while learners below the 85% floor stay capped at the modest MID budget — the simulation showed a *flat* raise only piles up un-practiced Box-1 words for low-accuracy learners with no growth benefit. The raise therefore lives in the earned full budget, NOT in the trigger or accuracy floors, which are the safety gate. **Unservable words are excluded from the trigger counts (2026-06-10)**: `_recovery_backlog_counts` skips lemmas with `word_category` proper_name/onomatopoeia (filtered from selection, earn no credit, can never advance) and — for the unseen-box-1 count only — words currently inside a generation backoff window (no sentence can exist until it expires). Before this, 2 proper-name rows stuck since May 4 plus 4 backed-off words held box-1 debt over the limit permanently, pinning intros at the earned-recovery budget ("intros run 5–11/day not 30"). The existing `scripts/demote_inert_acquiring.py` demotes inert-category acquiring rows to `encountered`.
+- **Daily intro cap (2026-05-15; recovery evidence corrected 2026-07-09)**: All paths through `start_acquisition()` share `DAILY_INTRO_CAP = 30`. `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Historical NULL-kind rows use the conservative legacy `source='leech_reintro'` fallback—meaningful-source historical restarts remain ambiguous until a separately approved repair. On normal low-debt days the budget is 30. Recovery mode activates at 5 actionable/protected Box-1 words or 30 due Box-2 words. Box-1 debt includes never-reviewed words plus previously-seen words once due, so recycled leeches cannot disappear after their first attempt; inert categories and Box-1 generation backoff remain excluded. The earned budget is based on one primary reading `ReviewLog` per answered card, not collateral word rows or passage child `SentenceReviewLog` rows: 0 below 40 cards or below 80% primary accuracy, 8 after 40+ cards at acceptable accuracy, and the full 30 after 100+ cards at ≥85%. This preserves the 2026-06-03 high-accuracy growth lever without letting easy collateral manufacture permission for new intake.
+- **Deferred recovery-capacity policy**: The trigger above is still acquisition-debt-only. Overdue FSRS volume and the number of eligible leech restarts do not yet impose separate caps. Both must be evaluated together in a return-policy simulation before changing intake; the 2026-07-09 correctness slice deliberately did not tune them.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -450,12 +451,13 @@ box-2 (consolidation). Box-2 was lowered from 4 → 2 on 2026-05-04 because a
 single correct rating in box-2 already triggers Tier 1 graduation, so the
 trailing 2 reps were on words the learner had just mastered.
 
-Additionally, the **frontend auto-skips mature duplicate sentence cards** when
-their primary lemma was already answered correctly earlier in the same session.
-Acquiring words and `acquisition_repeat` cards are excluded from this skip rule;
-those cards are the encoding loop and must remain visible even after one correct
-answer. Failed reviews still get the full re-teaching loop (intro + reps next
-session). The auto-skip is implemented as a single-pass forward scan in
+Additionally, the **frontend auto-skips mature duplicate sentence cards** only
+when the primary lemma and every explicit due lemma on that card already have a
+successful current-session outcome. Variant/surface outcomes are reconciled to
+the canonical scheduling lemma and any failure remains sticky. Missing due metadata
+fails closed (legacy cards infer from word-level `is_due`), and a due acquiring
+word vetoes the skip even after success so all planned Box-1/2 encoding repetitions
+remain visible. The auto-skip is implemented as a single-pass forward scan in
 `frontend/app/index.tsx` (jumps directly to the first non-skippable slot, no
 per-card flicker). If the scan reaches the end of the session, results.total
 is bumped to `totalCards` so the session-complete screen fires (without this
@@ -767,17 +769,21 @@ build_session(db, limit=10, mode="reading")
 
 ### Sentence Pre-Warming
 
-The frontend prefetches one session ahead to provide instant session transitions:
+The frontend warms material and caches speculative fallback sessions:
 
 1. **Near end of session (3 cards left)**: `POST /api/review/warm-sentences` (returns 202)
    pre-generates sentences in the background using multi-target generation for focus cohort
    gaps and likely auto-introduction candidates with < 2 active sentences.
 
-2. **Session-complete screen**: A single `GET /api/review/next-sentences?prefetch=true`
-   builds a full session (including on-demand generation and auto-introduction) and caches
-   it in AsyncStorage. When the user taps "Next Session", the cached session loads instantly
-   with no server call. This is the only prefetch — one per session cycle. **Deferred 3s**
-   after session-end screen mount so it doesn't compete with the `session-end` query.
+2. **Speculative cache**: `GET /api/review/next-sentences?prefetch=true` may select due or
+   almost-due material but passes `allow_intro_mutations=False`: it cannot auto-introduce,
+   promote a cold sentence word, create an acquisition episode, or consume the intro budget.
+   Before returning, it omits any whole card containing a cold word that the live path would
+   have promoted and taught first, then recomputes actual due coverage and intro cards.
+   The session-complete request is deferred 3s so it does not compete with `session-end`.
+   Background prefetch may cache additional fallback sessions. The explicit **Next Session**
+   action deliberately forces a fresh non-prefetch build, which is where stateful introduction
+   decisions happen; cached sessions serve resume/offline/failure fallback instead.
 
 3. **Background warm after session load**: Every non-prefetch session load triggers
    `warm_sentence_cache()` as a FastAPI background task. It generates new sentences
@@ -1698,14 +1704,14 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions (used by `_auto_introduce_words` accuracy throttling) |
-| `DAILY_INTRO_CAP` | 30 | Maximum daily budget enforced inside `start_acquisition()` for *every* path (OCR, collateral, Quran, book, cold-promoter, auto-intro). On overload days the recovery budget below can lower the effective cap. `leech_reintro` bypasses (2026-05-15/17) |
-| `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: unreviewed Box-1 acquiring words at or above this count switch intros to earned-budget mode |
+| `DAILY_INTRO_CAP` | 30 | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
+| `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: protected never-reviewed plus actionable due previously-seen Box-1 words at or above this count switch intros to earned-budget mode |
 | `RECOVERY_BOX2_DUE_LIMIT` | 30 | Overload trigger: due Box-2 acquiring words at or above this count switch intros to earned-budget mode |
-| `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day sentence reviews |
-| `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day sentence reviews |
-| `RECOVERY_MID_INTRO_BUDGET` | 8 | Recovery-mode budget after the 40-sentence threshold with acceptable accuracy (was 4; modest by design — protects sub-85% learners) |
-| `RECOVERY_FULL_INTRO_BUDGET` | 30 | Recovery-mode budget after 100+ sentence reviews and >=85% word-review accuracy (= `DAILY_INTRO_CAP`; raised 8→30 on 2026-06-03, accuracy-gated) |
-| `RECOVERY_LOW_ACCURACY_FLOOR` / `RECOVERY_GOOD_ACCURACY_FLOOR` | 0.80 / 0.85 | Recovery-mode accuracy gates. <80% pauses intros; 80-85% keeps the mid budget; >=85% can unlock 8 after enough sentence practice |
+| `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day primary reading cards |
+| `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day primary reading cards |
+| `RECOVERY_MID_INTRO_BUDGET` | 8 | Recovery-mode budget after the 40-primary-card threshold with acceptable accuracy (modest by design—protects sub-85% learners) |
+| `RECOVERY_FULL_INTRO_BUDGET` | 30 | Recovery-mode budget after 100+ primary reading cards and ≥85% primary accuracy (= `DAILY_INTRO_CAP`; raised 8→30 on 2026-06-03, accuracy-gated) |
+| `RECOVERY_LOW_ACCURACY_FLOOR` / `RECOVERY_GOOD_ACCURACY_FLOOR` | 0.80 / 0.85 | Primary-reading accuracy gates. <80% pauses intros; 80–85% keeps the mid budget; ≥85% can unlock the full budget after enough card practice |
 | `INTRO_NEW_CARDS_PER_SESSION` | 6 | Per-session cap on first-time intro cards in `_build_intro_cards` and on cold-promoter promotions in `_ensure_session_words_have_intro_state` (2026-05-15) |
 | `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 200 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
 | `MID_ACCURACY_INTRO_BACKLOG_CAP` | 120 | Acquiring-pipeline cap used at 80-90% recent accuracy |

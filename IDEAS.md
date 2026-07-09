@@ -4,6 +4,37 @@
 
 ---
 
+## 🟡 [IMPLEMENTED LOCALLY 2026-07-09 — NOT DEPLOYED] Return recovery: repair state leaks before new pedagogy
+
+The first vacation break exposed a 1,197-word actionable due backlog and three production
+correctness leaks that directly slow genuine learning. Approved order:
+
+1. Make the struggling-word reintro Continue acknowledgement-only. It currently writes an
+   FSRS Good despite being labelled pure re-exposure; 62 zero-correct lemmas crossed into
+   FSRS and 40 later leeched.
+2. Separate immutable learning provenance (`textbook_scan`, `book`, `frequency_core`, ...)
+   from the current acquisition episode (`new`, `leech_reintro`). Count all actionable due
+   Box-1 words in recovery; rate-limit recycled leeches independently from net-new intake.
+3. Gate recovery intake on primary sentence retrieval, not the collateral-heavy blended
+   ReviewLog accuracy, and count learner cards rather than passage child rows.
+4. Make mature duplicate auto-skip due-aware; make speculative session prefetch read-only.
+5. Repair due-cleared and transition metrics, then establish cold primary recall by gap and
+   graduation reason before changing Tier E/Tier 0 or mature-collateral credit.
+
+After correctness/recovery: run a small exact-surface form experiment for yellow marks
+(Hard remains correct: failed recognition with retained familiarity), then use a selected
+contemporary literary text as the primary new-word lane while retaining a smaller
+Quran/classical lane. No production history repair without a reviewed dry-run.
+
+Implemented on `sh/recovery-correctness`: acknowledgement-only reintro; explicit acquisition
+episode kind; due-aware Box-1 recovery debt; primary-card recovery evidence; read-only,
+intro-safe speculative sessions; due/canonical/acquisition-safe frontend skipping; honest
+cleared/transitions/cold-recall metrics. Historical meaningful-source reintro episodes remain
+ambiguous by design (no backfill), and recycled-word capacity shaping remains a follow-up.
+The follow-up simulation must jointly test a due-FSRS recovery trigger and a bounded daily or
+per-run leech-reintro lane; neither policy was changed in the correctness slice. Prefetch is
+ULK/introduction-read-only, while existing JIT mapping hardening remains allowed.
+
 ## 🟢 [LIVE 2026-06-13 — PR #199] Dragoman → Alif vocabulary discovery from external Arabic text
 
 `/api/discover/{words,add,add-batch}` (`backend/app/routers/discover.py`). The Dragoman polyglot magazine sends a block of Arabic prose; `/words` returns the highest-value lemmas **not yet in Alif** (frequency-ranked, glossed), and the reader's "add to Alif" buttons POST chosen words back to `/add[-batch]`, which find-or-creates the canonical lemma and introduces it **immediately, bypassing `DAILY_INTRO_CAP`** (explicit user add). Quality gates + material generation run in a background task; lemmas tagged `source="dragoman"`. Word identity goes through the hardened lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma` — clitics + variants→canonical) so already-known words (incl. clitic-attached) are correctly excluded. Deployed + verified live 2026-06-13.
@@ -633,6 +664,12 @@ still rise quickly when the recovery intro budget opens, without bypassing the
 daily/new-word caps.
 
 ## ✅ [DONE 2026-05-17] Acquisition working-memory gate + recovery intro budget
+
+**2026-07-09 correction:** The historical 4/8 recovery budgets below were later raised to
+8/30, and the evidence gate now counts primary reading cards/accuracy rather than sentence
+child rows plus blended word reviews. Box-1 debt now also includes due previously-seen words,
+and mature auto-skip protects every due/acquisition obligation. See the top return-recovery
+entry for current behavior.
 
 Prod audit of 2026-05-13 through 2026-05-17 found the aggressive intake was creating acquisition debt faster than sentence practice could consolidate it: 107 net-new acquisitions in five days, 125 current acquiring words, 70 due in Box 2, and 74 of 83 current Box-2 words whose first acquisition review happened less than two minutes after an intro card.
 

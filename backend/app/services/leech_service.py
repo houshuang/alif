@@ -131,7 +131,10 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     Stats are preserved — word must genuinely improve to escape leech status.
     Fresh sentences generated and memory hooks ensured.
     """
-    from app.services.acquisition_service import start_acquisition
+    from app.services.acquisition_service import (
+        ACQUISITION_EPISODE_LEECH_REINTRO,
+        start_acquisition,
+    )
 
     now = datetime.now(timezone.utc)
 
@@ -161,7 +164,14 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         # Preserve stats — don't zero times_seen/times_correct
         # The word must genuinely improve since leech detection uses cumulative accuracy
         ulk.leech_suspended_at = None
-        start_acquisition(db, ulk.lemma_id, source="leech_reintro")
+        # Keep curriculum provenance (book/textbook/etc.) separate from why
+        # this acquisition episode restarted.
+        start_acquisition(
+            db,
+            ulk.lemma_id,
+            source=ulk.source or "study",
+            episode_kind=ACQUISITION_EPISODE_LEECH_REINTRO,
+        )
         reintroduced.append(ulk.lemma_id)
 
         log_interaction(

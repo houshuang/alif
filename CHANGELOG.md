@@ -6,6 +6,15 @@ This project has been developed entirely with [Claude Code](https://claude.com/c
 
 ---
 
+## 2026-07-09
+
+- Make informational leech reintro cards acknowledgement-only; Continue no longer writes a synthetic successful review
+- Separate acquisition episode type (`new`/`leech_reintro`) from curriculum provenance with a nullable Alembic migration
+- Correct recovery overload to include due previously-seen Box-1 debt and gate intake on primary reading cards/accuracy
+- Make mature duplicate-card skipping preserve every due obligation, canonical-form failures, and acquisition repetitions
+- Make speculative session prefetch read-only for learning state and exclude cards that require cold-word promotion
+- Correct FSRS-cleared and state-transition analytics; add primary non-acquisition recall bands by elapsed gap
+
 ## 2026-03-02
 
 - Revert to Expo SDK 54 for App Store Expo Go compatibility

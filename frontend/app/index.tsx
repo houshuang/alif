@@ -22,7 +22,7 @@ import {
   fetchFreshSession,
   submitSentenceReview,
   undoSentenceReview,
-  submitReintroResult,
+  acknowledgeReintro,
   acknowledgeExperimentIntro,
   submitVerseReview,
   getAnalytics,
@@ -66,6 +66,7 @@ import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
+import { canSkipDueObligations } from "../lib/review/auto-skip";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 import { bestVocalizedDisplayForm } from "../lib/arabic-display";
@@ -86,6 +87,7 @@ interface WordOutcome {
   english: string | null;
   failed: boolean;
   prevState: string; // knowledge_state before this session
+  canonical_lemma_id: number | null;
 }
 
 type SessionSlot =
@@ -435,9 +437,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, []);
 
   // Auto-skip intro cards for words already answered correctly in this session
-  // and auto-skip duplicate sentence cards whose primary lemma the learner
-  // already nailed in this session. Acquisition words are excluded: their
-  // queued repeat cards are the encoding loop, especially right after an intro.
+  // and auto-skip duplicate sentence cards only when the primary lemma and
+  // every due lemma covered by that card were already answered successfully.
+  // Acquisition words are excluded: their queued repeat cards are the encoding
+  // loop, especially right after an intro.
   useEffect(() => {
     if (!sentenceSession || sessionSlots.length === 0 || submittingReview) return;
 
@@ -469,7 +472,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         const isAcquiringPrimary =
           primaryWord?.knowledge_state === "acquiring" ||
           item.selection_info?.word_reason?.startsWith("Acquiring");
-        if (outcome && !outcome.failed && !isAcquisitionRepeat && !isAcquiringPrimary) {
+        const dueObligationsCanBeSkipped = canSkipDueObligations(
+          item.selection_info?.due_lemma_ids,
+          item.words,
+          wordOutcomes,
+        );
+        if (
+          outcome &&
+          !outcome.failed &&
+          dueObligationsCanBeSkipped &&
+          !isAcquisitionRepeat &&
+          !isAcquiringPrimary
+        ) {
           target++;
           continue;
         }
@@ -1228,13 +1242,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
         const existing = next.get(w.lemma_id);
         if (existing) {
-          if (failed) existing.failed = true;
+          next.set(w.lemma_id, {
+            ...existing,
+            failed: existing.failed || failed,
+            canonical_lemma_id:
+              existing.canonical_lemma_id ?? w.canonical_lemma_id ?? null,
+          });
         } else {
           next.set(w.lemma_id, {
             arabic: w.surface_form,
             english: w.gloss_en,
             failed,
             prevState: w.knowledge_state ?? "new",
+            canonical_lemma_id: w.canonical_lemma_id ?? null,
           });
         }
       }
@@ -1993,9 +2013,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           <Pressable
             style={styles.reintroRememberBtn}
             onPress={() => {
-              submitReintroResult(
+              acknowledgeReintro(
                 card.lemma_id,
-                "remember",
                 sentenceSession?.session_id,
               ).catch(() => {});
               introScrollRef.current?.scrollTo({ y: 0, animated: false });

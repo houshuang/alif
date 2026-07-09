@@ -14,13 +14,13 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
-| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown. Response also includes `verse_cards` (Quran verses with word data for tap-to-lookup, reading mode only) |
+| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info`, including exact `due_lemma_ids`. With `prefetch=true`, the build is speculative: it does not create/promote ULKs or consume intro budget, and it omits cards that would require cold promotion before display. A fresh non-prefetch request performs stateful introduction. |
 | POST | `/api/review/submit-sentence` | Submit sentence review. Schedulable content lemmas get FSRS/acquisition credit; function words and proper-name lemmas are lookup-only and ignored for scheduling/review credit. Accepts `missed_lemma_ids`, `confused_lemma_ids`, optional `confusion_candidate_lemma_ids` telemetry from the yellow-tap help panel, and optional `confusion_captures` (array of `{failed_lemma_id, capture_method: 'suggested_pick' \| 'free_text', confused_with_lemma_id?, confused_with_text?, candidates_shown}`) — explicit user-picked confusions persisted to the `confusion_captures` table for later analysis. Optional `parent_card_type` (`"passage"`/`"sentence"`/`"wrapup"`) tags the review with its parent card so analytics can split passage-internal reviews from standalone ones. |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
 | GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + `morphology` `{category, form_key, explanation}` surface→lemma bridge (incl. verb-tense forms the band decomposition can't show) + form-aware visual similarity (surface/form edit distance, rasm, short-verb ranking) + phonetic similarity |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
-| POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
+| POST | `/api/review/reintro-result` | Acknowledge an informational struggling-word reintro card. Writes interaction telemetry only—no ReviewLog, FSRS rating, acquisition advance, or count mutation. Accepts legacy `remember`/`show_again` queue payloads as acknowledgements. |
 | POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (sets `experiment_intro_shown_at` for dedup + rescue cooldown) |
 | POST | `/api/review/log-card-shown` | Fire-and-forget: log a `card_shown` interaction event when a card transitions onto the user's screen. Body: `card_type` (intro/sentence/reintro/verse/grammar/wrapup), `session_id`, `lemma_id`, `sentence_id`, `card_index`, `total_cards`, `detail` |
 | POST | `/api/review/verse` | Submit Quran verse review: verse_id + rating (got_it/partially/not_yet). Level-based SRS |
@@ -55,10 +55,10 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 ## Stats
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/stats` | Basic stats (total, known, learning, due, fsrs_reviewed_today — honest "cleared" count via FSRS due-date verification, excludes collateral credit) |
+| GET | `/api/stats` | Basic stats (total, known, learning, due, `fsrs_reviewed_today`). “Cleared” counts distinct non-acquisition lemmas whose persisted `fsrs_log_json.pre_card.due` was at or before the actual review time; early collateral reviews do not count. |
 | GET | `/api/stats/analytics` | Full analytics (pace, CEFR estimate, daily history, daily goal with main/slow maintenance lanes, frequency-core top-N coverage/confidence/unmapped counts and earliest not-yet-introduced core gaps). Also returns `quran_core` — the same `FrequencyCoreProgress` shape computed over rows carrying `islamic_rank`, ordered by Quran frequency (drives the separate "Quran Core" stats card). |
 | GET | `/api/stats/cefr` | CEFR reading level estimate |
-| GET | `/api/stats/deep-analytics` | Deep analytics: stability distribution, retention 7d/30d, transitions today/7d/30d, comprehension 7d/30d, struggling words, root coverage, recent sessions, acquisition pipeline (per-slot throughput today + 7-day per-slot flow history), insights (encounters-to-graduation, graduation rate, reading time, strongest/most-encountered word, avg stability, best weekday, dark horse root, unique sentences, forgetting forecast) |
+| GET | `/api/stats/deep-analytics` | Deep analytics: stability distribution, blended retention 7d/30d, additive `primary_cold_recall_30d` bands (primary non-acquisition reviews split by elapsed gap), state transitions parsed from `pre_knowledge_state`, comprehension 7d/30d, struggling words, root coverage, recent sessions, acquisition pipeline, and insights. |
 
 ## Stories
 | Method | Path | Description |

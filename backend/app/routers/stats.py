@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from collections import Counter
 
 from app.database import get_db
@@ -14,6 +14,7 @@ from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
     CEFREstimate, AnalyticsOut, GraduatedWord, IntroducedBySource,
     DeepAnalyticsOut, StabilityBucket, RetentionStats,
+    ColdRecallBand, ColdRecallBreakdown,
     StateTransitions, ComprehensionBreakdown, StrugglingWord,
     RootCoverage, SessionDetail,
     AcquisitionWord, RecentGraduation, AcquisitionPipeline,
@@ -26,10 +27,20 @@ from app.services.frequency_lanes import (
     frequency_core_ranks,
     is_main_lane_word,
 )
+from app.services.acquisition_service import true_new_acquisition_episode_filter
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 DAILY_NEW_WORD_TARGET = 30
+
+PRIMARY_COLD_RECALL_BANDS = (
+    ("<1d", 0.0, 1.0),
+    ("1-3d", 1.0, 3.0),
+    ("3-7d", 3.0, 7.0),
+    ("7-14d", 7.0, 14.0),
+    ("14-30d", 14.0, 30.0),
+    ("30d+", 30.0, None),
+)
 
 # Cached function word ID set — computed once, then reused
 _func_word_ids_cache: set[int] | None = None
@@ -70,6 +81,35 @@ def _count_state(db: Session, state: str) -> int:
     )
 
 
+def _stats_json_dict(value: object) -> dict:
+    """Return a JSON object from SQLAlchemy JSON values or legacy JSON strings."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _parse_stats_datetime(value: object) -> datetime | None:
+    """Parse stored SQLite/JSON datetimes and normalize them to UTC."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     """Return (total_due, fsrs_due, acquisition_due), excluding function words."""
     func_word_ids = _get_func_word_ids(db)
@@ -100,26 +140,40 @@ def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
 
 
 def _count_fsrs_cleared_today(db: Session, today_start: datetime, now: datetime) -> int:
-    """Count FSRS words cleared today: reviewed today and next due is in the future.
+    """Count distinct FSRS words that were due when reviewed today.
 
-    Only counts words that were actually due (and got reviewed), not collateral
-    credit from sentences. Uses the FSRS card's due date being in the future
-    as proof the word was reviewed and cleared.
+    The current card's due date cannot prove that the review was due: any early
+    collateral review also moves that date into the future. The pre-review card
+    snapshot is the authoritative scheduling state. Rows without a valid
+    ``pre_card.due`` timestamp are excluded rather than guessed.
     """
-    now_str = now.isoformat()
     rows = (
-        db.query(UserLemmaKnowledge.lemma_id)
-        .join(ReviewLog, ReviewLog.lemma_id == UserLemmaKnowledge.lemma_id)
+        db.query(
+            ReviewLog.lemma_id,
+            ReviewLog.reviewed_at,
+            ReviewLog.fsrs_log_json,
+        )
         .filter(
             ReviewLog.reviewed_at >= today_start,
-            ReviewLog.is_acquisition == False,
-            UserLemmaKnowledge.fsrs_card_json.isnot(None),
-            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') > now_str,
+            ReviewLog.reviewed_at <= now,
+            or_(
+                ReviewLog.is_acquisition.is_(False),
+                ReviewLog.is_acquisition.is_(None),
+            ),
         )
-        .distinct()
         .all()
     )
-    return len(rows)
+    cleared_ids: set[int] = set()
+    for row in rows:
+        payload = _stats_json_dict(row.fsrs_log_json)
+        pre_card = payload.get("pre_card")
+        if not isinstance(pre_card, dict):
+            continue
+        due_at = _parse_stats_datetime(pre_card.get("due"))
+        reviewed_at = _parse_stats_datetime(row.reviewed_at)
+        if due_at is not None and reviewed_at is not None and due_at <= reviewed_at:
+            cleared_ids.add(row.lemma_id)
+    return len(cleared_ids)
 
 
 def _count_acquisition_reviewed_today(db: Session, today_start: datetime) -> int:
@@ -135,15 +189,12 @@ def _count_acquisition_reviewed_today(db: Session, today_start: datetime) -> int
 
 
 def _count_introduced_today(db: Session, today_start: datetime) -> int:
-    """Count new acquisition starts today, excluding explicit leech reintroductions."""
+    """Count true-new acquisition episodes started today."""
     return (
         db.query(func.count(UserLemmaKnowledge.id))
         .filter(
             UserLemmaKnowledge.acquisition_started_at >= today_start,
-            (
-                UserLemmaKnowledge.source.is_(None)
-                | (UserLemmaKnowledge.source != "leech_reintro")
-            ),
+            true_new_acquisition_episode_filter(),
         )
         .scalar() or 0
     )
@@ -1092,6 +1143,97 @@ def _get_retention_stats(db: Session, days: int) -> RetentionStats:
     )
 
 
+def _get_primary_cold_recall(db: Session, days: int = 30) -> ColdRecallBreakdown:
+    """Return primary FSRS recall grouped by the demonstrated review gap.
+
+    This intentionally excludes acquisition and collateral rows. A valid
+    ``pre_card.last_review`` snapshot is required so same-day reinforcement is
+    visible separately from genuinely cold recall instead of being blended into
+    one optimistic retention percentage.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = (
+        db.query(
+            ReviewLog.rating,
+            ReviewLog.reviewed_at,
+            ReviewLog.fsrs_log_json,
+        )
+        .filter(
+            ReviewLog.reviewed_at >= cutoff,
+            ReviewLog.credit_type == "primary",
+            or_(
+                ReviewLog.is_acquisition.is_(False),
+                ReviewLog.is_acquisition.is_(None),
+            ),
+        )
+        .all()
+    )
+
+    counts = {
+        label: {"total": 0, "correct": 0}
+        for label, _, _ in PRIMARY_COLD_RECALL_BANDS
+    }
+    for row in rows:
+        payload = _stats_json_dict(row.fsrs_log_json)
+        pre_card = payload.get("pre_card")
+        if not isinstance(pre_card, dict):
+            continue
+        last_review = _parse_stats_datetime(pre_card.get("last_review"))
+        reviewed_at = _parse_stats_datetime(row.reviewed_at)
+        if last_review is None or reviewed_at is None:
+            continue
+        gap_days = (reviewed_at - last_review).total_seconds() / 86400
+        if gap_days < 0:
+            continue
+        for label, min_days, max_days in PRIMARY_COLD_RECALL_BANDS:
+            if gap_days >= min_days and (max_days is None or gap_days < max_days):
+                counts[label]["total"] += 1
+                if row.rating >= 3:
+                    counts[label]["correct"] += 1
+                break
+
+    bands = []
+    for label, min_days, max_days in PRIMARY_COLD_RECALL_BANDS:
+        total = counts[label]["total"]
+        correct = counts[label]["correct"]
+        bands.append(ColdRecallBand(
+            label=label,
+            min_gap_days=min_days,
+            max_gap_days=max_days,
+            total_reviews=total,
+            correct_reviews=correct,
+            retention_pct=round(correct / total * 100, 1) if total else None,
+        ))
+    total = sum(band.total_reviews for band in bands)
+    correct = sum(band.correct_reviews for band in bands)
+    return ColdRecallBreakdown(
+        period_days=days,
+        total_reviews=total,
+        correct_reviews=correct,
+        retention_pct=round(correct / total * 100, 1) if total else None,
+        bands=bands,
+    )
+
+
+def _normalize_transition_state(value: object) -> str | None:
+    """Normalize py-fsrs state names and persisted knowledge-state strings."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return {0: "new", 1: "learning", 2: "known", 3: "lapsed"}.get(value)
+    normalized = str(value).strip().lower()
+    return {
+        "new": "new",
+        "learning": "learning",
+        "review": "known",
+        "known": "known",
+        "relearning": "lapsed",
+        "lapsed": "lapsed",
+        "acquiring": "acquiring",
+        "encountered": "encountered",
+    }.get(normalized, normalized or None)
+
+
 def _get_state_transitions(db: Session, days: int) -> StateTransitions:
     now = datetime.now(timezone.utc)
     if days == 0:
@@ -1114,33 +1256,21 @@ def _get_state_transitions(db: Session, days: int) -> StateTransitions:
     for (log_json,) in rows:
         if not log_json:
             continue
-        payload = log_json
-        if isinstance(payload, str):
-            try:
-                payload = json.loads(payload)
-            except json.JSONDecodeError:
-                continue
-        if not isinstance(payload, dict):
+        payload = _stats_json_dict(log_json)
+        state = _normalize_transition_state(payload.get("state"))
+        previous_state = _normalize_transition_state(
+            payload.get("pre_knowledge_state") or payload.get("prev_state")
+        )
+        if not state or not previous_state:
             continue
 
-        state = payload.get("state")
-        prev_state = payload.get("prev_state")
-        if not state or not prev_state:
-            continue
-
-        # Map FSRS state names to our states
-        # FSRS states: New(0), Learning(1), Review(2), Relearning(3)
-        state_map = {"New": "new", "Learning": "learning", "Review": "known", "Relearning": "lapsed"}
-        s = state_map.get(state, state)
-        ps = state_map.get(prev_state, prev_state)
-
-        if ps == "new" and s == "learning":
+        if previous_state in ("new", "encountered", "acquiring") and state == "learning":
             transitions.new_to_learning += 1
-        elif ps == "learning" and s == "known":
+        elif previous_state in ("learning", "acquiring") and state == "known":
             transitions.learning_to_known += 1
-        elif ps in ("known", "Review") and s in ("lapsed", "Relearning"):
+        elif previous_state == "known" and state == "lapsed":
             transitions.known_to_lapsed += 1
-        elif ps in ("lapsed", "Relearning") and s == "learning":
+        elif previous_state == "lapsed" and state in ("learning", "known"):
             transitions.lapsed_to_learning += 1
 
     return transitions
@@ -1359,7 +1489,10 @@ def _get_introduced_today(db: Session) -> list[IntroducedBySource]:
             UserLemmaKnowledge.source,
             func.count(UserLemmaKnowledge.id),
         )
-        .filter(UserLemmaKnowledge.acquisition_started_at >= today_start)
+        .filter(
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+            true_new_acquisition_episode_filter(),
+        )
         .group_by(UserLemmaKnowledge.source)
         .all()
     )
@@ -1384,7 +1517,10 @@ def _get_introduced_words_today(db: Session) -> list:
             UserLemmaKnowledge.source, Lemma.transliteration_ala_lc,
         )
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(UserLemmaKnowledge.acquisition_started_at >= today_start)
+        .filter(
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+            true_new_acquisition_episode_filter(),
+        )
         .order_by(UserLemmaKnowledge.acquisition_started_at.desc())
         .all()
     )
@@ -1487,7 +1623,9 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             "graduated": 0,      # exits from box 3 -> known
         }
 
-    entry_rows = (
+    # Every episode enters Box 1, including leech restarts, but only true-new
+    # episodes belong in the vocabulary-growth "entered" counter.
+    box_1_entry_rows = (
         db.query(
             func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
             func.count(UserLemmaKnowledge.id).label("cnt"),
@@ -1499,11 +1637,28 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
         .all()
     )
-    for r in entry_rows:
+    for r in box_1_entry_rows:
+        key = str(r.day)
+        if key in flow:
+            flow[key]["box_1_in"] += r.cnt
+
+    new_entry_rows = (
+        db.query(
+            func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
+            func.count(UserLemmaKnowledge.id).label("cnt"),
+        )
+        .filter(
+            UserLemmaKnowledge.entered_acquiring_at >= seven_day_start,
+            UserLemmaKnowledge.entered_acquiring_at.isnot(None),
+            true_new_acquisition_episode_filter(),
+        )
+        .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
+        .all()
+    )
+    for r in new_entry_rows:
         key = str(r.day)
         if key in flow:
             flow[key]["entered"] += r.cnt
-            flow[key]["box_1_in"] += r.cnt
 
     grad_day_rows = (
         db.query(
@@ -1707,7 +1862,10 @@ def _get_insights(db: Session) -> InsightsOut:
             func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
             func.count(UserLemmaKnowledge.id).label("cnt"),
         )
-        .filter(UserLemmaKnowledge.entered_acquiring_at.isnot(None))
+        .filter(
+            UserLemmaKnowledge.entered_acquiring_at.isnot(None),
+            true_new_acquisition_episode_filter(),
+        )
         .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
         .order_by(func.count(UserLemmaKnowledge.id).desc())
         .limit(1)
@@ -1750,6 +1908,7 @@ def get_deep_analytics(db: Session = Depends(get_db)):
         stability_distribution=_get_stability_distribution(db),
         retention_7d=_get_retention_stats(db, 7),
         retention_30d=_get_retention_stats(db, 30),
+        primary_cold_recall_30d=_get_primary_cold_recall(db, 30),
         transitions_today=_get_state_transitions(db, 0),
         transitions_7d=_get_state_transitions(db, 7),
         transitions_30d=_get_state_transitions(db, 30),

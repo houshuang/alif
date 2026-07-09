@@ -671,6 +671,24 @@ export interface RetentionStats {
   retention_pct: number | null;
 }
 
+export interface ColdRecallBand {
+  label: string;
+  min_gap_days: number;
+  max_gap_days: number | null;
+  total_reviews: number;
+  correct_reviews: number;
+  retention_pct: number | null;
+}
+
+export interface ColdRecallBreakdown {
+  period_days: number;
+  population: "primary_non_acquisition";
+  total_reviews: number;
+  correct_reviews: number;
+  retention_pct: number | null;
+  bands: ColdRecallBand[];
+}
+
 export interface StateTransitions {
   period: string;
   new_to_learning: number;
@@ -767,6 +785,7 @@ export interface DeepAnalytics {
   stability_distribution: StabilityBucket[];
   retention_7d: RetentionStats;
   retention_30d: RetentionStats;
+  primary_cold_recall_30d: ColdRecallBreakdown;
   transitions_today: StateTransitions;
   transitions_7d: StateTransitions;
   transitions_30d: StateTransitions;

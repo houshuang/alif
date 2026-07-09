@@ -26,9 +26,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, ReviewLog, Root, SentenceReviewLog, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card, parse_json_column, STATE_MAP
 from app.services.interaction_logger import log_interaction
 
@@ -91,6 +92,12 @@ def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bo
 
 
 DAILY_INTRO_CAP = 30  # ceiling on new acquiring promotions per UTC day; see start_acquisition
+ACQUISITION_EPISODE_NEW = "new"
+ACQUISITION_EPISODE_LEECH_REINTRO = "leech_reintro"
+_ACQUISITION_EPISODE_KINDS = {
+    ACQUISITION_EPISODE_NEW,
+    ACQUISITION_EPISODE_LEECH_REINTRO,
+}
 
 # Recovery-mode intro budget. These gates only bind when the acquisition
 # pipeline is overloaded; normal low-debt days keep the hard 30/day ceiling.
@@ -113,29 +120,49 @@ RECOVERY_MID_INTRO_BUDGET = 8
 RECOVERY_FULL_INTRO_BUDGET = DAILY_INTRO_CAP  # 30 — full cap, earned by accuracy+volume
 
 
+def true_new_acquisition_episode_filter():
+    """SQL predicate for acquisition starts that consume new-word budget.
+
+    New writes carry an explicit episode kind. Historical rows predate that
+    column, so NULL episodes count as new unless their legacy ``source`` says
+    they were a leech reintroduction. ``leech_count`` is intentionally not a
+    fallback: the first suspension increments it while
+    ``acquisition_started_at`` still identifies the original new episode.
+    """
+    return or_(
+        UserLemmaKnowledge.acquisition_episode_kind == ACQUISITION_EPISODE_NEW,
+        and_(
+            UserLemmaKnowledge.acquisition_episode_kind.is_(None),
+            or_(
+                UserLemmaKnowledge.source.is_(None),
+                UserLemmaKnowledge.source != ACQUISITION_EPISODE_LEECH_REINTRO,
+            ),
+        ),
+    )
+
+
 def _daily_intro_count(db: Session, today_start: datetime) -> int:
     """Count today's acquisitions that count toward the daily cap.
 
-    leech_reintro is excluded — those are re-introductions of words the
-    learner already knew, not net-new vocabulary.
+    Leech reintroduction episodes are excluded even when their meaningful
+    source provenance (for example ``book``) is preserved.
     """
     return (
         db.query(UserLemmaKnowledge)
         .filter(
             UserLemmaKnowledge.acquisition_started_at >= today_start,
-            (
-                UserLemmaKnowledge.source.is_(None)
-                | (UserLemmaKnowledge.source != "leech_reintro")
-            ),
+            true_new_acquisition_episode_filter(),
         )
         .count()
     )
 
 
 def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
-    """Return (unreviewed box-1 count, due box-2 count).
+    """Return (actionable/protected box-1 count, due box-2 count).
 
-    Both counts measure *actionable* practice debt, so words the session
+    Both counts measure practice debt that should block further intake. New,
+    never-reviewed Box-1 words stay protected even before their first due time;
+    previously-seen Box-1 words count only when actionable. Words the session
     pipeline can never serve are excluded — otherwise they pin recovery mode
     permanently (2026-06-10: 2 proper-name rows stuck since May 4 plus 4
     generation-backed-off words held the box-1 count over the trigger limit
@@ -150,13 +177,21 @@ def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
     inert_or_null_category = Lemma.word_category.is_(None) | Lemma.word_category.notin_(
         ["proper_name", "onomatopoeia"]
     )
-    box1_unreviewed = (
+    box1_actionable = (
         db.query(UserLemmaKnowledge)
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 1,
-            (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+            # Never-reviewed words stay protected even before their first due
+            # time. Previously-seen Box-1 words count once they are due; this is
+            # where failed/reintroduced leeches otherwise disappeared from the
+            # recovery trigger.
+            (
+                (UserLemmaKnowledge.times_seen == 0)
+                | (UserLemmaKnowledge.times_seen.is_(None))
+                | (UserLemmaKnowledge.acquisition_next_due <= now)
+            ),
             inert_or_null_category,
             UserLemmaKnowledge.generation_backoff_until.is_(None)
             | (UserLemmaKnowledge.generation_backoff_until <= now),
@@ -174,7 +209,7 @@ def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
         )
         .count()
     )
-    return box1_unreviewed, box2_due
+    return box1_actionable, box2_due
 
 
 def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetime) -> int:
@@ -184,37 +219,44 @@ def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetim
     aggressive learning path is unchanged. When the pipeline is overloaded,
     new words must be earned by same-day sentence practice and accuracy.
     """
-    box1_unreviewed, box2_due = _recovery_backlog_counts(db, now)
+    box1_actionable, box2_due = _recovery_backlog_counts(db, now)
     overloaded = (
-        box1_unreviewed >= RECOVERY_BOX1_UNREVIEWED_LIMIT
+        box1_actionable >= RECOVERY_BOX1_UNREVIEWED_LIMIT
         or box2_due >= RECOVERY_BOX2_DUE_LIMIT
     )
     if not overloaded:
         return DAILY_INTRO_CAP
 
-    sentence_reviews_today = (
-        db.query(SentenceReviewLog)
-        .filter(SentenceReviewLog.reviewed_at >= today_start)
-        .count()
-    )
-    if sentence_reviews_today < RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO:
-        return 0
-
-    word_reviews_today = (
+    # One primary reading ReviewLog corresponds to one answered reading card.
+    # SentenceReviewLog cannot be used as the unit: a single passage answer
+    # writes one child row per sentence, and collateral ReviewLogs inflate both
+    # volume and accuracy without testing the card's retrieval target.
+    primary_reading_reviews = (
         db.query(ReviewLog)
-        .filter(ReviewLog.reviewed_at >= today_start)
+        .filter(
+            ReviewLog.reviewed_at >= today_start,
+            ReviewLog.review_mode == "reading",
+            ReviewLog.credit_type == "primary",
+        )
         .all()
     )
+    reading_cards_today = len(primary_reading_reviews)
+    if reading_cards_today < RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO:
+        return 0
+
     accuracy = None
-    if len(word_reviews_today) >= 10:
-        accuracy = sum(1 for r in word_reviews_today if r.rating >= 3) / len(word_reviews_today)
+    if len(primary_reading_reviews) >= 10:
+        accuracy = (
+            sum(1 for r in primary_reading_reviews if r.rating >= 3)
+            / len(primary_reading_reviews)
+        )
         if accuracy < RECOVERY_LOW_ACCURACY_FLOOR:
             return 0
 
     if accuracy is not None and accuracy < RECOVERY_GOOD_ACCURACY_FLOOR:
         return RECOVERY_MID_INTRO_BUDGET
 
-    if sentence_reviews_today >= RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET:
+    if reading_cards_today >= RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET:
         return RECOVERY_FULL_INTRO_BUDGET
     return RECOVERY_MID_INTRO_BUDGET
 
@@ -225,6 +267,7 @@ def start_acquisition(
     source: str = "study",
     due_immediately: bool = False,
     enforce_daily_cap: bool = True,
+    episode_kind: str = ACQUISITION_EPISODE_NEW,
 ) -> UserLemmaKnowledge:
     """Start the acquisition process for a word.
 
@@ -236,7 +279,10 @@ def start_acquisition(
     word is left in (or created in) `encountered` state instead of being
     promoted. Callers must check `ulk.knowledge_state == "acquiring"` if
     they need to behave differently when promotion was deferred.
-    leech_reintro bypasses the cap (re-introducing a known word).
+    ``episode_kind='leech_reintro'`` bypasses the cap because it restarts an
+    old word rather than adding vocabulary. ``source='leech_reintro'`` remains
+    accepted as a compatibility shim for legacy callers, but is not written as
+    provenance for a new row.
     """
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 
@@ -248,6 +294,13 @@ def start_acquisition(
             lemma_id, canonical_id, source,
         )
         lemma_id = canonical_id
+
+    if source == ACQUISITION_EPISODE_LEECH_REINTRO:
+        # Compatibility for old callers while provenance and episode semantics
+        # migrate to separate fields.
+        episode_kind = ACQUISITION_EPISODE_LEECH_REINTRO
+    if episode_kind not in _ACQUISITION_EPISODE_KINDS:
+        raise ValueError(f"Unsupported acquisition episode kind: {episode_kind!r}")
 
     now = datetime.now(timezone.utc)
     next_due = now if due_immediately else now + BOX_INTERVALS[1]
@@ -268,7 +321,7 @@ def start_acquisition(
         return ulk
 
     cap_hit = False
-    if enforce_daily_cap and source != "leech_reintro":
+    if enforce_daily_cap and episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO:
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         intro_count = _daily_intro_count(db, today_start)
         effective_daily_cap = _recovery_mode_intro_budget(db, now, today_start)
@@ -305,13 +358,18 @@ def start_acquisition(
         ulk.acquisition_box = 1
         ulk.acquisition_next_due = next_due
         ulk.acquisition_started_at = now
+        ulk.acquisition_episode_kind = episode_kind
         ulk.entered_acquiring_at = now
         ulk.introduced_at = now
         # Update source: collateral never overrides (weakest mechanism);
         # book/story always win; otherwise keep the more specific existing source.
         _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
         _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "duolingo", "frequency_core"}
-        if source != "collateral" and (not ulk.source or ulk.source in _OVERRIDABLE_SOURCES or source in _HIGH_PRIORITY_SOURCES):
+        if (
+            episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO
+            and source != "collateral"
+            and (not ulk.source or ulk.source in _OVERRIDABLE_SOURCES or source in _HIGH_PRIORITY_SOURCES)
+        ):
             ulk.source = source
         ulk.fsrs_card_json = None  # No FSRS card during acquisition
     else:
@@ -321,9 +379,14 @@ def start_acquisition(
             acquisition_box=1,
             acquisition_next_due=next_due,
             acquisition_started_at=now,
+            acquisition_episode_kind=episode_kind,
             entered_acquiring_at=now,
             introduced_at=now,
-            source=source,
+            source=(
+                "study"
+                if source == ACQUISITION_EPISODE_LEECH_REINTRO
+                else source
+            ),
             fsrs_card_json=None,
             times_seen=0,
             times_correct=0,

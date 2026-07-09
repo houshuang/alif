@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel
 
 
@@ -250,6 +250,24 @@ class RetentionStats(BaseModel):
     retention_pct: float | None
 
 
+class ColdRecallBand(BaseModel):
+    label: str
+    min_gap_days: float
+    max_gap_days: float | None
+    total_reviews: int = 0
+    correct_reviews: int = 0
+    retention_pct: float | None = None
+
+
+class ColdRecallBreakdown(BaseModel):
+    period_days: int
+    population: str = "primary_non_acquisition"
+    total_reviews: int = 0
+    correct_reviews: int = 0
+    retention_pct: float | None = None
+    bands: list[ColdRecallBand]
+
+
 class StateTransitions(BaseModel):
     period: str  # "today" / "7d" / "30d"
     new_to_learning: int = 0
@@ -340,6 +358,7 @@ class DeepAnalyticsOut(BaseModel):
     stability_distribution: list[StabilityBucket]
     retention_7d: RetentionStats
     retention_30d: RetentionStats
+    primary_cold_recall_30d: ColdRecallBreakdown
     transitions_today: StateTransitions
     transitions_7d: StateTransitions
     transitions_30d: StateTransitions
@@ -465,7 +484,9 @@ class ReintroCardOut(BaseModel):
 
 class ReintroResultIn(BaseModel):
     lemma_id: int
-    result: str  # "remember" or "show_again"
+    # ``remember`` / ``show_again`` remain accepted so offline queue entries
+    # created by older clients drain safely without becoming scored reviews.
+    result: Literal["acknowledged", "remember", "show_again"] = "acknowledged"
     session_id: str | None = None
     client_review_id: str | None = None
 
