@@ -46,7 +46,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-07-09 (implemented, not deployed): Return-from-vacation correctness + recovery repair
+## 2026-07-09 (deployed — PR #207): Return-from-vacation correctness + recovery repair
 
 **Trigger.** The first sustained break since Alif usage began (a vacation, not product
 fatigue) created a natural stress test. Read-only production audit at return found 1,197
@@ -85,9 +85,10 @@ inflected/derived surface gets form-aware sentence ranking; a citation-form slip
 SRS. Primary outcome is 7/14-day same-form recall. Curriculum direction: a contemporary
 literary target is the near-term anchor, with a smaller Quran/classical lane preserved.
 
-**Guardrails.** No historical production repair or deploy without a separate dry-run and
-explicit approval. Tier E remains observation-only until its first genuinely-due follow-up
-reviews exist. Mature-collateral credit changes remain shadow-only.
+**Guardrails.** No historical production repair without a separate dry-run and explicit
+approval. Deploying the code and additive nullable migration does not authorize a history
+backfill. Tier E remains observation-only until its first genuinely-due follow-up reviews
+exist. Mature-collateral credit changes remain shadow-only.
 
 **Implementation.** Reintro Continue is now telemetry-only and legacy offline results drain
 without scoring. Acquisition episode kind is stored separately from provenance (nullable
@@ -114,6 +115,15 @@ and 8 reintro-card/endpoint tests passed. Frontend task tests: 44 passed; TypeSc
 The full frontend run passed 182/183 tests; its sole failure is the pre-existing route-manifest
 guard for tracked `app/snap.tsx` (not changed here). Fresh-database Alembic upgrade, migration
 downgrade/re-upgrade, single-head check, Python compilation, and `git diff --check` passed.
+
+**Production deployment (2026-07-09).** Before deployment, backed up `alif.db` to
+`/opt/alif-backups/alif_pre_recovery_correctness_20260709_211500.db`. Forced the server onto
+`main`, verified `ada614a`, installed the backend editable package without dependency churn,
+restarted the backend, cleared Metro/Expo caches, and restarted Expo. Production verification:
+Alembic at `d4f6a8b0c2e4 (head)`; `user_lemma_knowledge.acquisition_episode_kind` present;
+all 2,901 historical rows remain NULL as designed; `/api/stats/deep-analytics` returns the
+new `primary_cold_recall_30d` contract; backend and Expo endpoints return 200; no backend
+errors after restart. No historical learning rows were repaired or backfilled.
 
 ## 2026-07-08 (change): Elapsed-interval graduation — Leitner phase now credits long retention
 

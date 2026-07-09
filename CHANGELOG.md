@@ -14,6 +14,7 @@ This project has been developed entirely with [Claude Code](https://claude.com/c
 - Make mature duplicate-card skipping preserve every due obligation, canonical-form failures, and acquisition repetitions
 - Make speculative session prefetch read-only for learning state and exclude cards that require cold-word promotion
 - Correct FSRS-cleared and state-transition analytics; add primary non-acquisition recall bands by elapsed gap
+- Deploy PR #207 to production with the additive acquisition-episode migration; leave historical episode kinds unbackfilled
 
 ## 2026-03-02
 

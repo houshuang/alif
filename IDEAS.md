@@ -4,7 +4,7 @@
 
 ---
 
-## 🟡 [IMPLEMENTED LOCALLY 2026-07-09 — NOT DEPLOYED] Return recovery: repair state leaks before new pedagogy
+## 🟢 [LIVE 2026-07-09 — PR #207] Return recovery: repair state leaks before new pedagogy
 
 The first vacation break exposed a 1,197-word actionable due backlog and three production
 correctness leaks that directly slow genuine learning. Approved order:
@@ -26,7 +26,7 @@ After correctness/recovery: run a small exact-surface form experiment for yellow
 contemporary literary text as the primary new-word lane while retaining a smaller
 Quran/classical lane. No production history repair without a reviewed dry-run.
 
-Implemented on `sh/recovery-correctness`: acknowledgement-only reintro; explicit acquisition
+Shipped in PR #207 and deployed as `ada614a`: acknowledgement-only reintro; explicit acquisition
 episode kind; due-aware Box-1 recovery debt; primary-card recovery evidence; read-only,
 intro-safe speculative sessions; due/canonical/acquisition-safe frontend skipping; honest
 cleared/transitions/cold-recall metrics. Historical meaningful-source reintro episodes remain
