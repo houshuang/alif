@@ -6,6 +6,10 @@ This project has been developed entirely with [Claude Code](https://claude.com/c
 
 ---
 
+## 2026-07-10
+
+- Deploy PR #208 (`13b25e3`) to production: sustained-break recovery gating, bounded episode-local leech reintroduction, the exact-surface yellow pilot, and explicit primary-story curriculum selection. Backend/API smoke checks passed, Alembic remained at `d4f6a8b0c2e4`, and no data backfill was required.
+
 ## 2026-07-09
 
 - Make informational leech reintro cards acknowledgement-only; Continue no longer writes a synthetic successful review
@@ -19,7 +23,7 @@ This project has been developed entirely with [Claude Code](https://claude.com/c
 - Bound leech reintroduction to 8/day below Box-1/Box-2/FSRS debt ceilings and require five fresh episode-local reviews before re-suspension
 - Add a migration-free, reading-only 50/50 exact-surface retrieval pilot for non-trivial yellow morphology events; no extra cards or schedule changes, and only one unresolved episode per lemma
 - Require explicit `Story.metadata_json.curriculum_role="primary"` before an imported story receives the strong target-text intake tier
-- Document the production-data analysis, simulation thresholds, monitoring windows, and contemporary/classical curriculum boundary; prepare the next-phase code for a later deploy
+- Document the production-data analysis, simulation thresholds, monitoring windows, and contemporary/classical curriculum boundary; implement and independently review the next-phase code
 
 ## 2026-03-02
 

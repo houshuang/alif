@@ -21,26 +21,28 @@ correctness leaks that directly slow genuine learning. Approved order:
 5. Repair due-cleared and transition metrics, then establish cold primary recall by gap and
    graduation reason before changing Tier E/Tier 0 or mature-collateral credit.
 
-After correctness/recovery: run a small exact-surface form experiment for yellow marks
-(Hard remains correct: failed recognition with retained familiarity), then use a selected
-contemporary literary text as the primary new-word lane while retaining a smaller
-Quran/classical lane. No production history repair without a reviewed dry-run.
+PR #208 now runs a small exact-surface form experiment for yellow marks (Hard remains
+correct: failed recognition with retained familiarity). The remaining curriculum step is to
+select an authorized contemporary literary text as the primary new-word lane while retaining
+a smaller Quran/classical lane. No production history repair without a reviewed dry-run.
 
 Shipped in PR #207 and deployed as `ada614a`: acknowledgement-only reintro; explicit acquisition
 episode kind; due-aware Box-1 recovery debt; primary-card recovery evidence; read-only,
 intro-safe speculative sessions; due/canonical/acquisition-safe frontend skipping; honest
 cleared/transitions/cold-recall metrics. Historical meaningful-source reintro episodes remain
-ambiguous by design (no backfill), and recycled-word capacity shaping remains a follow-up.
-The follow-up simulation must jointly test a due-FSRS recovery trigger and a bounded daily or
-per-run leech-reintro lane; neither policy was changed in the correctness slice. Prefetch is
-ULK/introduction-read-only, while existing JIT mapping hardening remains allowed.
+ambiguous by design (no backfill). The completed follow-up simulation supported a strict
+due-FSRS recovery trigger and bounded daily leech-reintro lane, now live in PR #208 below.
+Prefetch remains ULK/introduction-read-only, while existing JIT mapping hardening remains
+allowed.
 
-## 🟡 [IMPLEMENTED 2026-07-09 — DEPLOY NEXT SESSION] Return recovery tuning + exact-form pilot
+## 🟢 [LIVE 2026-07-10 — PR #208] Return recovery tuning + exact-form pilot
 
-The approved follow-up to PR #207 is implemented and self-tested, but intentionally not
-deployed in the same session as the correctness release (one-deploy discipline).
+The approved follow-up to PR #207 was independently reviewed, merged, and deployed from
+`main` as `13b25e3`. Production verification found strict main-lane FSRS debt 912,
+actionable Box 1 / due Box 2 at 136 / 17, and the intended true-new intake budget of zero.
+No schema migration, data backfill, cache rebuild, or cron change was required.
 
-**[DONE locally] Evidence-backed recovery capacity**
+**[LIVE] Evidence-backed recovery capacity**
 
 - Add strict main-lane FSRS due ≥750 to the existing earned 0/8/30 true-new budget. This
   threshold is above normal active-day debt (343–439; observed high 576), above a roughly
@@ -51,7 +53,7 @@ deployed in the same session as the correctness release (one-deploy discipline).
   before a verdict. Production logs showed 102/161 treated episodes re-suspended on review
   one, including 76 first reviews rated Good.
 
-**[DONE locally] Yellow exact-surface N-of-1 pilot**
+**[LIVE] Yellow exact-surface N-of-1 pilot**
 
 - Deterministic 50/50, reading-only, non-acquisition FSRS yellow events; non-trivial
   conjugation/inflection only; require a different reviewable sentence with exactly the
@@ -62,7 +64,7 @@ deployed in the same session as the correctness release (one-deploy discipline).
   exact-form outcomes; integrate undo and pause during acquisition.
 - Review delivery after 4–5 active weeks and retention/safety after 8–10 active weeks.
 
-**[DONE locally] Curriculum safety**
+**[LIVE] Curriculum safety**
 
 - Reader-visible imported stories stay weak +10 unless explicitly marked
   `metadata_json.curriculum_role="primary"`; only an intentionally chosen target text gets

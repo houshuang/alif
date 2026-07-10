@@ -46,7 +46,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-07-09 (implemented, not deployed): Return recovery tuning + exact-surface pilot
+## 2026-07-09 (deployed 2026-07-10 — PR #208): Return recovery tuning + exact-surface pilot
 
 **Trigger.** The learner confirmed the hiatus was a vacation and clarified that yellow means
 the Arabic form was not retrieved, although the meaning became familiar after seeing the
@@ -112,8 +112,20 @@ leech graduation/re-suspension after at least 50 resolved post-change episodes. 
 definitions, cold-recall bands, simulations, limitations, and stop rules:
 `research/analysis-2026-07-09-return-recovery-next-phase.md`.
 
-**Deployment status.** Implemented and tested on `sh/return-recovery-tuning`; intentionally
-not deployed in the same session as PR #207 under the one-deploy rule.
+**Deployment status.** Deployed from `main` at `2026-07-10T07:24:01Z` via PR #208 as
+`13b25e3`. A consistent pre-deploy backup was written to
+`/opt/alif-backups/alif_pre_pr208_20260710_072259.db` (SHA-256
+`14402d39ca993ef4c28202e177cc69b414a90c30c469e2c01f7b29079e21a0b5`). The backend was
+active, `/api/stats` returned 200, and Alembic remained at `d4f6a8b0c2e4`. The live policy
+probe reported actionable Box 1=136, due Box 2=17, strict main-lane FSRS due=912, and an
+intake budget of zero; constants were FSRS gate=750, leech cap=8/day, Box-1 admission
+limit=20, and exact-form slots/session=1. There were zero exact-form episode containers and
+zero primary-story lemmas at launch, both expected prospective states.
+
+No migration, historical backfill, cache rebuild, manual leech run, or cron change was
+needed. Legacy ambiguous acquisition episodes remain protected by runtime fallbacks; the
+randomized form pilot must not be reconstructed retrospectively. Existing cron Step F will
+apply bounded leech admission on its next normal run.
 
 ## 2026-07-09 (deployed — PR #207): Return-from-vacation correctness + recovery repair
 
