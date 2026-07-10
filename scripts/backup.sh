@@ -143,6 +143,12 @@ import sys
 from pathlib import Path
 
 tool, snapshot, max_age_hours = Path(sys.argv[1]), Path(sys.argv[2]), int(sys.argv[3])
+expected = {"manifest.json", "state.tar.gz"}
+actual = {path.name for path in snapshot.iterdir()}
+if actual != expected or any(
+    path.is_symlink() or not path.is_file() for path in snapshot.iterdir()
+):
+    raise SystemExit("Koigen snapshot directory contains unexpected or unsafe entries")
 sys.path.insert(0, str(tool.parent))
 import durable_backup  # noqa: E402
 
@@ -225,7 +231,8 @@ pull_koigen_snapshot() {
     mkdir -p "$staging"
     chmod 700 "$staging_parent" "$staging"
 
-    if ! rsync -rlt -- "$SERVER:$remote_snapshot/" "$staging/"; then
+    if ! rsync -rlt --include='manifest.json' --include='state.tar.gz' --exclude='*' \
+            -- "$SERVER:$remote_snapshot/" "$staging/"; then
         rm -rf "$staging_parent"
         die "Koigen snapshot transfer failed"
     fi
