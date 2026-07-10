@@ -232,20 +232,35 @@ Then use `YOURNAME.duckdns.org` as your `REACT_NATIVE_PACKAGER_HOSTNAME` and in 
 
 ### 9. (Optional) Set up backups
 
-The repo includes a backup script that copies the SQLite DB to your local machine with grandfather-father-son retention:
+`scripts/backup.sh` runs on the Mac at 09:00 local time through
+`~/Library/LaunchAgents/com.alif.backup.plist`. It uses SQLite's online backup API,
+streams into a private temporary file, runs a full local integrity check, and only
+then publishes the final `~/alif-backups/alif_*.db` name. Retention keeps seven days
+of daily backups, Sunday generations through day 30, and first-of-month generations
+indefinitely.
+
+The same job also pulls the newest verified Koigen durable-state snapshot from
+`/var/backups/koigen` into the private `~/alif-backups/koigen/` directory. Koigen
+bundles are verified on alif and again after transfer, must be less than 48 hours old,
+and are atomically renamed only after verification. Local retention is 35 days with a
+minimum of seven verified snapshots; unknown, partial, corrupt, and symlinked evidence
+is never automatically deleted.
+
+Koigen must first be deployed with `ingest/durable_backup.py`, and `/etc/koigen.env`
+must configure:
 
 ```bash
-# On your local machine — edit scripts/backup.sh and set SERVER=alif
-# Then add a daily cron job:
-crontab -e
-# Add: 0 9 * * * /path/to/alif/scripts/backup.sh
+KOIGEN_DURABLE_BACKUP_DIR=/var/backups/koigen
+KOIGEN_BACKUP_RETENTION_DAYS=35
+KOIGEN_BACKUP_MIN_SNAPSHOTS=7
 ```
 
-For server-side backups, add a cron job on the server:
-```bash
-crontab -e
-# Add: 0 */6 * * * sqlite3 /opt/alif/backend/data/alif.db 'PRAGMA wal_checkpoint(TRUNCATE);' && cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_$(date +\%Y\%m\%d_\%H\%M).db
-```
+Create `/var/backups/koigen` as a root-owned `0700` directory. The bundle can include
+private capture/review material, so keep the Mac destination on a FileVault-protected
+volume and do not sync it to an unencrypted shared service. A failed Alif transfer,
+missing/stale/corrupt Koigen snapshot, or verification failure makes the launchd job
+exit nonzero while retaining prior verified generations. Optional interaction-log
+sync failures are reported but do not invalidate the database backups.
 
 ### 10. Deploy updates
 
@@ -285,7 +300,7 @@ This codebase has hardcoded references to the original author's server, SSH alia
 | `.claude/skills/backup.md` | SSH alias, container names | Update or delete |
 | `.claude/skills/smoke-test.md` | Server IP in production section | Update or remove production commands |
 | `scripts/deploy.sh` | SSH alias, DuckDNS domain | Update `SERVER` and `EXPO_URL` variables |
-| `scripts/backup.sh` | SSH alias | Update `SERVER` variable |
+| `scripts/backup.sh` | SSH alias and Koigen checkout paths | Defaults match the `alif` host; override the documented `ALIF_BACKUP_*` / `KOIGEN_*` environment variables for another installation |
 
 If you're using Claude Code, you can just tell it "update all the deployment references to point at my server at X" and it will know what to do — `CLAUDE.md` documents the full architecture.
 

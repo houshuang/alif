@@ -4,6 +4,17 @@
 
 ---
 
+## 🟢 [DONE 2026-07-10] Verified Mac backup transport for Alif and Koigen
+
+The existing 09:00 launchd pull now snapshots the live Alif SQLite database through
+SQLite's online backup API, verifies it before atomic publication, and fixes the
+retention-status bug that made a successful run report exit 1. The same job pulls the
+newest Koigen durable-state bundle from alif, verifies it both before and after transfer,
+rejects stale/corrupt/partial snapshots, publishes by atomic rename, and delegates local
+retention to Koigen's verified 35-day/minimum-seven policy. FileVault protects the Mac
+copy. Time Machine remains unconfigured, so the Mac is the sole off-host copy for now;
+monitor snapshot age and keep a recorded restore drill.
+
 ## 🟢 [LIVE 2026-07-09 — PR #207] Return recovery: repair state leaks before new pedagogy
 
 The first vacation break exposed a 1,197-word actionable due backlog and three production
