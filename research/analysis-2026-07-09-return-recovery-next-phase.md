@@ -1,5 +1,9 @@
 # Return recovery and next-phase learning analysis — 2026-07-09
 
+> **Deployment status:** Live in production since `2026-07-10T07:24:01Z` via PR #208
+> (`13b25e3`). Backend/API smoke checks passed; Alembic remained at `d4f6a8b0c2e4`.
+> The change is migration-free and prospective: no historical rows were backfilled.
+
 ## Decision summary
 
 The vacation break did not reveal a motivation problem. It exposed three places where Alif
@@ -132,7 +136,7 @@ The debt gates matter more than the cap during a vacation: 42 words became eligi
 the break, so an 8/day cap alone would still have fed them all back into an already
 overloaded acquisition queue.
 
-More seriously, the current treatment often never received a fair trial:
+More seriously, the pre-change treatment often never received a fair trial:
 
 - 262 reintroduction episodes were identified;
 - 161 received a post-reintroduction review;
