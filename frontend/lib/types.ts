@@ -1209,8 +1209,8 @@ export interface SessionEndData {
 // --- Snap-to-read: photo → translation + discoverable vocabulary chips ---
 
 /** One candidate word from the discover/snap pipeline (mirrors the backend
- *  /api/discover words schema). Words already in Alif's vocabulary are excluded
- *  upstream, so every chip is a genuinely-new word the reader can add. */
+ *  /api/discover words schema). Words already in active learning are excluded
+ *  upstream; a chip may reuse lexical metadata from an existing corpus lemma. */
 export interface DiscoverWord {
   surface: string;
   surface_forms: string[];

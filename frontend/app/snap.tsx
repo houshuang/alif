@@ -19,7 +19,7 @@ type AddState = "idle" | "adding" | "added" | "known" | "error";
 
 // Snap-to-read: photograph an authentic Arabic page → faithful English translation
 // + the top unknown words as add-to-Alif chips. One synchronous backend round trip
-// (Gemini OCR/translation + Haiku gloss), so the reader gets help in the moment
+// (OCR/translation plus lexical lookup), so the reader gets help in the moment
 // rather than batch-importing a book after the fact.
 export default function SnapScreen() {
   const [busy, setBusy] = useState(false);
