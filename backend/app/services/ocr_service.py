@@ -148,6 +148,7 @@ def _call_gemini_vision(
     prompt: str,
     system_prompt: str = "",
     model_override: str | None = None,
+    timeout_seconds: int = 300,
 ) -> dict:
     """Call Gemini Vision API with an image and prompt.
 
@@ -185,7 +186,7 @@ def _call_gemini_vision(
             model=model,
             messages=messages,
             temperature=0.1,
-            timeout=300,
+            timeout=timeout_seconds,
             api_key=api_key,
             response_format={"type": "json_object"},
         )
@@ -274,9 +275,7 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
 
     Returns {"arabic_text": str, "translation_en": str}.
     """
-    result = _call_gemini_vision(
-        image_bytes,
-        prompt=(
+    prompt = (
             "This image is a page of Arabic text that a reader is studying.\n"
             "1. Extract ALL the Arabic text exactly as written: preserve any diacritics "
             "that are present, preserve paragraph breaks as newlines, do NOT add "
@@ -285,18 +284,58 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
             "2. Provide a faithful, fluent English translation of that text — accurate "
             "to the meaning and natural in English (not a word-for-word gloss).\n"
             'Respond with JSON: {"arabic_text": "the Arabic", "translation_en": "the English"}'
-        ),
-        system_prompt=(
+        )
+    system_prompt = (
             "You are an expert Arabic reader and translator. Extract the Arabic text "
             "accurately and translate it faithfully. Respond with JSON only."
-        ),
-    )
+        )
+
+    # Interactive snaps used to inherit the general OCR call's five-minute timeout
+    # while the app abandoned the request after one minute. Bound each attempt and
+    # retry once: transient provider/JSON failures are common enough that a single
+    # attempt made the feature feel random, but the total still stays within the
+    # client's request window.
+    first_error: Exception | None = None
+    try:
+        result = _call_gemini_vision(
+            image_bytes, prompt=prompt, system_prompt=system_prompt,
+            timeout_seconds=90,
+        )
+    except Exception as e:
+        first_error = e
+        result = {}
+
+    if not isinstance(result, dict) or not (result.get("arabic_text") or "").strip():
+        if first_error:
+            logger.warning("snap vision attempt failed; retrying once: %s", first_error)
+        else:
+            logger.warning("snap vision returned no Arabic; retrying once")
+        result = _call_gemini_vision(
+            image_bytes, prompt=prompt, system_prompt=system_prompt,
+            timeout_seconds=90,
+        )
+
     if not isinstance(result, dict):
         return {"arabic_text": "", "translation_en": ""}
-    return {
-        "arabic_text": result.get("arabic_text") or "",
-        "translation_en": result.get("translation_en") or "",
-    }
+    arabic_text = result.get("arabic_text") or ""
+    translation = result.get("translation_en") or ""
+
+    # A valid OCR result with a missing translation is salvageable without asking
+    # the user to photograph the page again.
+    if arabic_text.strip() and not translation.strip():
+        try:
+            translated = _call_llm_text(
+                "Translate this Arabic text faithfully and fluently into English. "
+                "Return JSON only.\n\n"
+                f"Arabic:\n{arabic_text}\n\n"
+                'Schema: {"translation_en": "the English translation"}',
+                system_prompt="You are an expert Arabic-English translator.",
+            )
+            translation = translated.get("translation_en") or ""
+        except Exception as e:
+            logger.warning("snap translation fallback failed: %s", e)
+
+    return {"arabic_text": arabic_text, "translation_en": translation}
 
 
 def _step1_extract_words(image_bytes: bytes) -> list[str]:

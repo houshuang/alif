@@ -2,7 +2,7 @@
 
 Endpoints:
   POST /api/discover/words  — given a block of Arabic text, return the highest-value
-       lemmas that are NOT yet in Alif's pool, glossed. Two consumers:
+       lemmas that are NOT yet in the learner's active curriculum, glossed. Two consumers:
          • Dragoman: "what should I learn next" — MSA, ranked common-first (default).
          • Bookifier: a glossary attached to a *specific* (often dialectal/vulgar)
            text — `selection="distinctive"` ranks the load-bearing vocabulary of
@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.models import Lemma
+from app.models import Lemma, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.lemma_quality import (
     _load_rank_map,
@@ -81,6 +81,12 @@ _FB_ENCLITICS = (("هما", 2), ("كما", 2), ("هم", 2), ("هن", 2), ("كم"
 # Rank assigned to words absent from the MSA frequency list (treated as maximally
 # rare for distinctive ranking — they carry the most lift).
 _OOV_RANK = 100_000
+# These states mean a word is already in the learner's active curriculum.  A lemma
+# merely existing in the corpus database does not mean the learner knows it: corpus
+# import creates many Lemma rows without UserLemmaKnowledge rows.
+_ALREADY_LEARNING_STATES = {
+    "new", "acquiring", "learning", "known", "lapsed", "suspended"
+}
 
 _GLOSS_SCHEMA = {
     "type": "object",
@@ -249,7 +255,7 @@ class DiscoverIn(BaseModel):
 
 @router.post("/words")
 def discover_words(req: DiscoverIn, db: Session = Depends(get_db)):
-    """High-value Arabic lemmas in `text` not yet in Alif, glossed."""
+    """High-value Arabic lemmas in `text` not yet being learned, glossed."""
     words = discover_words_in_text(
         db, req.text, count=req.count, selection=req.selection, include_oov=req.include_oov
     )
@@ -263,10 +269,23 @@ def discover_words_in_text(
     selection: str = "common_first",
     include_oov: bool = False,
 ) -> list[dict]:
-    """Core word-discovery: the highest-value lemmas in `text` not yet in Alif,
+    """Core word-discovery: the highest-value lemmas in `text` not yet being learned,
     glossed. Shared by the /words endpoint and the photo /snap endpoint so both go
     through one tokenize → classify → rank → gloss path."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
+    already_learning_ids = {
+        lemma_id
+        for (lemma_id,) in db.query(UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.knowledge_state.in_(_ALREADY_LEARNING_STATES))
+        .all()
+    }
+    lemma_cache: dict[int, Lemma | None] = {}
+
+    def get_lemma(lemma_id: int) -> Lemma | None:
+        if lemma_id not in lemma_cache:
+            lemma_cache[lemma_id] = db.get(Lemma, lemma_id)
+        return lemma_cache[lemma_id]
+
     ranks = _load_rank_map()
     # key bare -> {surfaces: {form: count}, lemma_ar, pos, root, count, source}
     cand: dict[str, dict] = {}
@@ -276,18 +295,34 @@ def discover_words_in_text(
         bare = _normalize(tok)
         if len(bare) < 2 or _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
             continue
-        # Already in Alif's vocabulary? The hardened lookup resolves clitics and
-        # variants → canonical, so this catches forms a surface match would miss.
-        if lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(tok)) is not None:
+        # Resolve against the corpus, but only suppress words the learner has actually
+        # introduced.  Previously every corpus Lemma was treated as "known", which
+        # left ordinary book pages with zero or one suggestion.
+        existing_id = lookup_lemma(
+            bare, lemma_lookup, original_bare=strip_diacritics(tok)
+        )
+        if existing_id in already_learning_ids:
             continue
-        c = _classify(tok, bare, camel_cache, include_oov)
+        existing = get_lemma(existing_id) if existing_id is not None else None
+        if existing is not None:
+            existing_bare = _normalize(existing.lemma_ar_bare)
+            c = (
+                existing_bare,
+                existing.lemma_ar or existing.lemma_ar_bare,
+                existing.pos,
+                existing.root.root if existing.root else None,
+                "database",
+            )
+        else:
+            c = _classify(tok, bare, camel_cache, include_oov)
         if c is None:
             continue
         key, lemma_ar, pos, root, source = c
         if not key or _is_function_word(key):
             continue
-        # The citation/fallback form itself may already be known.
-        if key != bare and lookup_lemma(key, lemma_lookup) is not None:
+        # The citation/fallback form itself may already be in active learning.
+        key_id = lookup_lemma(key, lemma_lookup) if key != bare else existing_id
+        if key_id in already_learning_ids:
             continue
         entry = cand.get(key)
         if entry:
@@ -300,6 +335,12 @@ def discover_words_in_text(
             cand[key] = {
                 "surfaces": {tok: 1}, "lemma_ar": lemma_ar, "pos": pos,
                 "root": root, "count": 1, "source": source,
+                "gloss_en": existing.gloss_en if existing is not None else None,
+                "transliteration": (
+                    existing.transliteration_ala_lc if existing is not None else None
+                ),
+                "register": existing.register if existing is not None else None,
+                "dialect": existing.dialect if existing is not None else None,
             }
 
     if not cand:
@@ -322,13 +363,30 @@ def discover_words_in_text(
     find_example = _example_finder(text or "")
     examples = {b: find_example(set(v["surfaces"])) for b, v in ordered}
 
-    glosses = _gloss(
-        [
-            {"index": i, "lemma_ar": v["lemma_ar"], "bare": b, "pos": v["pos"],
-             "example": examples.get(b)}
-            for i, (b, v) in enumerate(ordered)
-        ]
-    )
+    # Corpus lemmas already have reviewed lexical metadata, so use it directly.
+    # Only genuinely new/OOV forms need the second model call.  Besides lowering
+    # latency, this means the common photographed-page path is not made fragile by
+    # an unrelated text-model/CLI failure after OCR has already succeeded.
+    glosses = {
+        i: {
+            "gloss_en": v.get("gloss_en"),
+            "pos": v.get("pos"),
+            "transliteration": v.get("transliteration"),
+            "is_proper_noun": (v.get("pos") or "").lower() in _PROPER_NOUN_POS,
+            "register": v.get("register"),
+            "dialect": v.get("dialect"),
+        }
+        for i, (_, v) in enumerate(ordered)
+        if v["source"] == "database" and v.get("gloss_en")
+    }
+    needs_gloss = [
+        {"index": i, "lemma_ar": v["lemma_ar"], "bare": b, "pos": v["pos"],
+         "example": examples.get(b)}
+        for i, (b, v) in enumerate(ordered)
+        if i not in glosses
+    ]
+    if needs_gloss:
+        glosses.update(_gloss(needs_gloss))
 
     words = []
     for i, (b, v) in enumerate(ordered):
@@ -348,7 +406,10 @@ def discover_words_in_text(
         # /add does. The pre-gloss checks ran on the surface/key; a gloss correction
         # can land on a form that's already in the vocabulary, so re-check here —
         # otherwise we'd offer a word that /add immediately reports "already known".
-        if lookup_lemma(lemma_bare, lemma_lookup, original_bare=lemma_bare) is not None:
+        corrected_id = lookup_lemma(
+            lemma_bare, lemma_lookup, original_bare=lemma_bare
+        )
+        if corrected_id in already_learning_ids:
             continue
         surfaces = sorted(v["surfaces"], key=lambda s: -v["surfaces"][s])
         words.append(

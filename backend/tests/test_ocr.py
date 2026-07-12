@@ -80,6 +80,41 @@ class TestOCRService:
         assert "القِرَاءَةَ" in result
         mock_vision.assert_called_once()
 
+    @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_retries_transient_vision_failure(self, mock_vision):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.side_effect = [
+            TimeoutError("provider timeout"),
+            {"arabic_text": "هذا كتاب", "translation_en": "This is a book."},
+        ]
+
+        result = extract_text_and_translation(b"fake_image_data")
+
+        assert result["translation_en"] == "This is a book."
+        assert mock_vision.call_count == 2
+        assert all(
+            call.kwargs["timeout_seconds"] == 90
+            for call in mock_vision.call_args_list
+        )
+
+    @patch("app.services.ocr_service._call_llm_text")
+    @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_salvages_missing_translation(self, mock_vision, mock_text):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.return_value = {"arabic_text": "هذا كتاب", "translation_en": ""}
+        mock_text.return_value = {"translation_en": "This is a book."}
+
+        result = extract_text_and_translation(b"fake_image_data")
+
+        assert result == {
+            "arabic_text": "هذا كتاب",
+            "translation_en": "This is a book.",
+        }
+        mock_vision.assert_called_once()
+        mock_text.assert_called_once()
+
     @patch("app.services.ocr_service._step3_translate")
     @patch("app.services.ocr_service._step2_morphology")
     @patch("app.services.ocr_service._step1_extract_words")

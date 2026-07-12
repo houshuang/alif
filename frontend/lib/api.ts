@@ -1054,8 +1054,8 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
 // --- Snap-to-read ---
 
 /** Photograph an Arabic page → faithful English translation + the top unknown
- *  words (glossed) ready to add. One synchronous round trip: Gemini OCR/translation
- *  + Haiku gloss run server-side, so allow a generous timeout. */
+ *  words (glossed) ready to add. Corpus words reuse stored metadata; genuinely new
+ *  forms are glossed server-side, so allow a generous recovery timeout. */
 export async function snapDiscover(
   imageUri: string,
   count = 5
@@ -1067,7 +1067,9 @@ export async function snapDiscover(
   formData.append("file", { uri: imageUri, name: filename, type } as any);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  // The backend makes two bounded 90s vision attempts for transient OCR/provider
+  // failures. Keep the mobile request alive long enough for the recovery attempt.
+  const timer = setTimeout(() => controller.abort(), 210000);
   try {
     const res = await fetch(`${BASE_URL}/api/discover/snap?count=${count}`, {
       method: "POST",

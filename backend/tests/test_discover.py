@@ -159,6 +159,31 @@ def test_words_excludes_known_via_hardened_lookup(client, seeded, monkeypatch):
     assert "دستور" in bares
 
 
+def test_words_includes_corpus_lemma_not_yet_in_learning(client, db_session, monkeypatch):
+    """A corpus row is lexical metadata, not proof that the learner knows the word.
+
+    This is the photographed-book regression: the database contains most ordinary
+    page vocabulary, while only UserLemmaKnowledge says what is already learning.
+    """
+    lem = Lemma(
+        lemma_ar="دُسْتُور", lemma_ar_bare="دستور", gloss_en="constitution",
+        pos="noun", source="corpus",
+    )
+    db_session.add(lem)
+    db_session.commit()
+
+    def fail_if_called(_items):
+        raise AssertionError("a corpus lemma with a gloss should not require the gloss LLM")
+
+    monkeypatch.setattr(discover, "_gloss", fail_if_called)
+    r = client.post("/api/discover/words", json={"text": "الدستور", "count": 8})
+
+    assert r.status_code == 200
+    word = next(w for w in r.json()["words"] if w["lemma_ar_bare"] == "دستور")
+    assert word["gloss_en"] == "constitution"
+    assert word["lemma_source"] == "database"
+
+
 def test_words_drops_proper_nouns(client, db_session, monkeypatch):
     _no_llm_gloss(monkeypatch, {"دستور": ("constitution", "noun", True)})
     r = client.post("/api/discover/words", json={"text": "الدستور مهم", "count": 8})
