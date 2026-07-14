@@ -43,7 +43,12 @@ def create_simulation_db(source_path: str | Path) -> tuple:
     # Ensure all model columns exist (backup may predate schema changes)
     _apply_missing_columns(engine)
 
-    SessionFactory = sessionmaker(bind=engine)
+    # expire_on_commit=False: build_session/submit paths commit mid-call; with
+    # the default, every commit expires all loaded instances and the sim's
+    # subsequent attribute access refreshes them one row at a time (~4k extra
+    # SELECTs per build_session — dominated 90-day run cost). The sim is
+    # single-threaded/single-writer, so stale-instance hazards don't apply.
+    SessionFactory = sessionmaker(bind=engine, expire_on_commit=False)
     return engine, SessionFactory, tmp_path
 
 
