@@ -75,6 +75,7 @@ Initial technology research conducted before app development.
 
 | File | Contents |
 |------|----------|
+| [analysis-2026-07-14-recovery-health-check.md](analysis-2026-07-14-recovery-health-check.md) | **Recovery health check, day ~9 of post-hiatus recovery.** Verified learning + generation logs and live gate state: word accuracy 40%→87%, intros throttled to 0–5/day by the 750 strict-FSRS trigger, leech reintro admission correctly closed at Box 1 ≥20, quality gate + Codex→Claude failover healthy. No action needed. |
 | [analysis-2026-07-09-return-recovery-next-phase.md](analysis-2026-07-09-return-recovery-next-phase.md) | **Return recovery + next-phase learning analysis.** Read-only production snapshot/log audit, cold-recall bands, 650/750/850 recovery threshold simulation, 263-event leech admission replay, immediate re-suspension defect, contemporary/classical curriculum audit, and 260-yellow exact-surface analysis. Documents the 750 strict-FSRS trigger, bounded 8/day episode-local leech treatment, explicit primary-story metadata gate, migration-free 50/50 reading-form pilot, evaluation windows, deliberately unchanged policies, and the verified 2026-07-10 PR #208 deployment. |
 | [analysis-2026-02-09.md](analysis-2026-02-09.md) | Early learning data analysis |
 | [analysis-2026-02-10.md](analysis-2026-02-10.md) | OCR import analysis |
