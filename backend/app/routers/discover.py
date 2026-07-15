@@ -47,6 +47,7 @@ from app.services.sentence_validator import (
     _is_function_word,
     build_comprehensive_lemma_lookup,
     lookup_lemma,
+    lookup_lemma_citation,
     strip_diacritics,
 )
 from app.services.word_selector import introduce_word
@@ -537,8 +538,14 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         raise ValueError(f"refusing to add proper noun {w.lemma_ar_bare!r}")
     source = (w.source or "").strip() or "dragoman"
     bare = _normalize(w.lemma_ar_bare)
-    # Hardened existence check: resolves clitics + variants → canonical.
-    existing_id = lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare))
+    # Citation-strict existence check: exact/variant/ال-prefix matches only.
+    # The full lookup_lemma fuzzy path (single-letter clitic strip + CAMeL
+    # last resort) mis-resolved 18 documented citation forms onto wrong
+    # lemmas (لاحظ→حَظّ, كناس→نَاس …) — see
+    # research/spec-2026-07-15-lookup-clitic-collision.md §7.
+    existing_id = lookup_lemma_citation(
+        bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare)
+    )
     created = False
     if existing_id is not None:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()

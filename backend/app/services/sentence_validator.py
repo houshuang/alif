@@ -743,26 +743,15 @@ def _resolve_collision(
     return None
 
 
-def lookup_lemma(
+def _lookup_exact_layers(
     bare_norm: str,
     lemma_lookup: dict[str, int],
     original_bare: str | None = None,
     out_alternatives: list[int] | None = None,
-    out_via_clitic: list[bool] | None = None,
 ) -> int | None:
-    """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
-
-    Args:
-        bare_norm: Alef-normalized bare form.
-        lemma_lookup: Dict from build_lemma_lookup().
-        original_bare: Pre-normalization bare form (preserves hamza/madda).
-            Used for collision disambiguation.
-        out_alternatives: If provided, alternative candidate lemma_ids are
-            appended here when the mapping is ambiguous (collisions or
-            multiple clitic interpretations). Callers can use these for
-            LLM-based contextual disambiguation.
-        out_via_clitic: If provided (as single-element list), set to [True]
-            when the match came from clitic stripping rather than direct match.
+    """High-confidence layers shared by lookup_lemma and lookup_lemma_citation:
+    function-form overrides, direct match (with collision resolution), and
+    plain al-prefix add/strip. Returns None when no exact-layer key matches.
     """
     if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
         exact = _exact_lookup_bare(original_bare)
@@ -808,6 +797,79 @@ def lookup_lemma(
         with_al = "ال" + bare_norm
         if with_al in lemma_lookup:
             return lemma_lookup[with_al]
+
+    return None
+
+
+# Proclitic+article compounds are the only prefixes safe to strip from an
+# isolated citation form: the embedded ال is near-unambiguous, whereas the
+# single-letter proclitics (و ف ب ل ك) are routinely word-initial radicals
+# (كناس "street sweeper" is not كـ+ناس). See the 2026-07-15 collision
+# investigation in research/spec-2026-07-15-lookup-clitic-collision.md §7.
+CITATION_AL_PREFIXES = ["وال", "بال", "فال", "كال", "لل"]
+
+
+def lookup_lemma_citation(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    original_bare: str | None = None,
+) -> int | None:
+    """Strict resolver for isolated citation forms (dictionary headwords).
+
+    ``lookup_lemma`` is built for running text and buys recall with two fuzzy
+    fallbacks — single-letter clitic stripping and a greedy CAMeL last resort
+    — that are exactly wrong for a citation form, which should match
+    (near-)exactly or not at all: 16 of the 18 documented /add collisions
+    (لاحظ→حَظّ, سيجار→جَار …) came from the CAMeL layer and 2 from
+    single-letter clitic strips. This resolver keeps only the
+    high-confidence layers plus ال-bearing prefix stripping (so an explicit
+    بالمكتبة still resolves to مكتبة), and never consults CAMeL.
+
+    Returns None when the citation form is not in the vocabulary — callers
+    like /api/discover/add treat that as "create a new lemma".
+    """
+    exact_match = _lookup_exact_layers(bare_norm, lemma_lookup, original_bare)
+    if exact_match is not None:
+        return exact_match
+
+    for pre in CITATION_AL_PREFIXES:
+        # Remainder must be ≥2 chars — mirrors _strip_clitics' minimum stem
+        # length, and keeps al-initial words like والد/بالغ from stripping.
+        if bare_norm.startswith(pre) and len(bare_norm) > len(pre) + 1:
+            remainder = bare_norm[len(pre):]
+            for key in (remainder, "ال" + remainder):
+                if key in lemma_lookup:
+                    return lemma_lookup[key]
+
+    return None
+
+
+def lookup_lemma(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    original_bare: str | None = None,
+    out_alternatives: list[int] | None = None,
+    out_via_clitic: list[bool] | None = None,
+) -> int | None:
+    """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
+
+    Args:
+        bare_norm: Alef-normalized bare form.
+        lemma_lookup: Dict from build_lemma_lookup().
+        original_bare: Pre-normalization bare form (preserves hamza/madda).
+            Used for collision disambiguation.
+        out_alternatives: If provided, alternative candidate lemma_ids are
+            appended here when the mapping is ambiguous (collisions or
+            multiple clitic interpretations). Callers can use these for
+            LLM-based contextual disambiguation.
+        out_via_clitic: If provided (as single-element list), set to [True]
+            when the match came from clitic stripping rather than direct match.
+    """
+    exact_match = _lookup_exact_layers(
+        bare_norm, lemma_lookup, original_bare, out_alternatives
+    )
+    if exact_match is not None:
+        return exact_match
 
     # Clitic stripping — collect all candidates, prefer CAMeL disambiguation
     candidates = []
