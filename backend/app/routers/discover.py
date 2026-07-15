@@ -13,11 +13,14 @@ Endpoints:
        acquisition pipeline immediately (explicit user adds bypass the daily intro cap),
        and (in the background) run quality gates + generate review material.
 
-Word identity goes through the production-hardened lookup path
-(`build_comprehensive_lemma_lookup` + `lookup_lemma`): clitic stripping, CAMeL
-disambiguation, collision handling, and variant→canonical resolution — the same path
-the corpus importer uses. We never hand-roll surface-only classification (that leaks
-clitic-attached and variant forms — 2026-06-03 lesson).
+Word identity for /words (running-text tokens) goes through the production-hardened
+lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma`): clitic stripping,
+CAMeL disambiguation, collision handling, and variant→canonical resolution — the same
+path the corpus importer uses. We never hand-roll surface-only classification (that
+leaks clitic-attached and variant forms — 2026-06-03 lesson). /add[-batch] submits
+*citation forms*, which use `lookup_lemma_citation` instead: exact/variant/ال-prefix
+matches only, no single-letter clitic strips, no CAMeL fuzzy fallback (18 documented
+collisions like كناس→نَاس — 2026-07-15 lesson, spec-2026-07-15-lookup-clitic-collision.md).
 """
 import logging
 import math

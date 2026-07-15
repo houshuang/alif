@@ -132,6 +132,13 @@ without full morphology) — nouns with clitics (كسها/الكس/وكسها �
 Creates the word (if new) and introduces it into the learner's queue **immediately**.
 Example-sentence generation and enrichment happen in the background.
 
+The existence check is **citation-strict** (since 2026-07-15): the submitted
+`lemma_ar_bare` matches an existing lemma only exactly, via a registered spelling
+variant, or with a definite-article prefix (`المكتبة`/`بالمكتبة` → `مكتبة`). It never
+guesses via single-letter clitic stripping or fuzzy morphology — so a genuinely new
+word that merely *looks like* clitic+known-word (كناس "street sweeper" vs ك+ناس) is
+correctly created instead of silently matching the wrong lemma.
+
 **Request** — echo back the object you got from `/words` (only `lemma_ar_bare` is
 strictly required, but send what you have):
 
