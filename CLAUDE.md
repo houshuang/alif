@@ -27,7 +27,7 @@ npx expo start --web  # opens on localhost:8081
 - **TTS**: ElevenLabs REST, `eleven_multilingual_v2`, PVC voice. Audio cached by SHA256 in `backend/data/audio/`. Story audio in `backend/data/story-audio/`.
 - **NLP**: Rule-based clitic stripping + known-form matching + CAMeL disambiguation + LLM disambiguation. See `docs/nlp-pipeline.md`.
 - **Migrations**: Alembic for SQLite. Every schema change needs a migration. Auto-runs on startup.
-- **Hosting**: Hetzner (46.225.75.29), venv + systemd (no Docker). Backend: systemd service `alif-backend`, port 3000, venv at `/opt/alif/backend/.venv/`. Frontend: systemd service `alif-expo`, port 8081. Spanish Pilot: systemd service `alif-spanish-pilot`, port 3100. Polyglot: systemd service `polyglot-backend`, port 3002, fronted by an in-app reverse proxy at `/polyglot/*` (`backend/app/routers/polyglot_proxy.py`, mounted in `backend/app/main.py`, forwarding to `127.0.0.1:3002`) so the client only needs alif's port 3000. DuckDNS: `alifstian.duckdns.org`. Data at `/opt/alif/backend/data/`. Limbic at `/opt/limbic` (PYTHONPATH), cost DB at `/opt/limbic-data/llm_costs.db`.
+- **Hosting**: Hetzner (46.225.75.29), venv + systemd (no Docker). Backend: systemd service `alif-backend`, port 3000, venv at `/opt/alif/backend/.venv/`. Frontend: systemd service `alif-expo`, port 8081 (serves the **web** version; since 2026-07-15 the iOS app is a standalone EAS `preview` build with expo-updates OTA — it embeds its JS bundle and does not touch Metro; see Deployment). Spanish Pilot: systemd service `alif-spanish-pilot`, port 3100. Polyglot: systemd service `polyglot-backend`, port 3002, fronted by an in-app reverse proxy at `/polyglot/*` (`backend/app/routers/polyglot_proxy.py`, mounted in `backend/app/main.py`, forwarding to `127.0.0.1:3002`) so the client only needs alif's port 3000. DuckDNS: `alifstian.duckdns.org`. Data at `/opt/alif/backend/data/`. Limbic at `/opt/limbic` (PYTHONPATH), cost DB at `/opt/limbic-data/llm_costs.db`.
 - **Spanish Pilot**: Standalone UX-validation prototype at `spanish-pilot/` — separate SQLite, separate systemd `alif-spanish-pilot` on port 3100 (`/opt/alif-pilot/`). Norwegian UI, no English. Tests Alif's word-level SRS + intro cards + memory hooks on 60 Norwegian school students learning Spanish. See `spanish-pilot/README.md`. Does NOT share any code with main Alif backend — completely isolated.
 - **Polyglot**: Sister app at `polyglot/` for Modern Greek (primary), Ancient Greek, and Latin. Separate Python package (`polyglot-backend`), separate venv (`polyglot/.venv`), separate SQLite (`polyglot/polyglot.db`), separate FastAPI process on port 3002 (prod; 3001 dev). Reading-as-mapping primary UX (lazy PDF intake → tap unknowns → next-page presumes rest known). Uses simplemma for lemmatization with a dual-provider LLM-in-context quality gate — Codex `gpt-5.5` primary + Claude failover via `polyglot/app/services/llm_cli.py`. FSRS + acquisition Leitner + leech engine ported from Alif (`/api/reviews/{submit,introduce,due,stats}`); `mark_lemma(state='unknown')` enrols into Box 1 immediately. **Do NOT confuse `backend/` and `polyglot/`** — see `polyglot/CLAUDE.md` for project-specific rules. **Mirror Alif's design and code by default; divergence requires a specific Greek/Latin-driven reason recorded in the change. Alif is the product of 100+ days of real-user iteration — do not redesign it.** See `polyglot/CLAUDE.md` § "Ground design and code in Alif". Frontend (`frontend/`) talks to both; user picks via a Globe tab driven by `frontend/lib/language-context.tsx`. Plan: after ~6 weeks of dogfooding both languages, extract a shared `alif_core/` Python package (FSRS, acquisition, session builder) — premature now.
 - **LLM Cost Tracking**: All litellm calls auto-logged via `limbic.cerebellum.cost_log` callback. Sync to local: `python -m limbic.cerebellum.cost_log sync`. Reports: `python -m limbic.cerebellum.cost_log report --days 7`.
@@ -258,7 +258,24 @@ ssh alif "cd /opt/alif/backend && .venv/bin/pip install -e . -q && systemctl res
 ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && git log --oneline -1 && systemctl restart polyglot-backend && systemctl is-active polyglot-backend"
 # If polyglot dependencies changed: ssh alif "cd /opt/alif/polyglot && .venv/bin/pip install -e . -q && systemctl restart polyglot-backend"
 
-# Deploy frontend (Expo dev server is a systemd service; shared by alif + polyglot)
+# Deploy frontend — TWO targets since 2026-07-15:
+#
+# (a) iOS app (primary): standalone EAS "preview" build with expo-updates (OTA).
+#     The JS bundle is embedded — the app launches instantly offline, NO Metro
+#     dependency. UI changes ship over the air from the local checkout (merge to
+#     main + pull first so you publish exactly what's merged):
+cd frontend && eas update --channel preview --message "<what changed>"
+#     The phone picks the update up in the background on next launch and applies
+#     it the launch after (fallbackToCacheTimeout=0 default). NATIVE changes
+#     (new native module, permissions, icon, app.json ios/android keys) do NOT
+#     ship via OTA: bump "version" in app.json (runtimeVersion policy is
+#     appVersion — the bump is what stops old binaries receiving incompatible JS),
+#     then rebuild + reinstall:
+#       cd frontend && eas build --platform ios --profile preview
+#     Install from the expo.dev build page link on the phone. Ad-hoc profile
+#     expires Mar 2027; device UDID already registered.
+#
+# (b) Web version (+ legacy Expo Go): still the Hetzner Metro dev server.
 # NOTE: a bare `systemctl restart alif-expo` keeps Metro's transform cache and can
 # serve a STALE bundle (frontend code changes silently don't appear; symptom seen
 # 2026-05-25 — a screen showed the wrong language's data though source + backend
@@ -272,9 +289,9 @@ ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && cd backend 
 # scripts/deploy.sh links /opt/alif-update-material.sh to deploy/alif-update-material.sh
 # from the checked-out Git main. Do not scp cron wrappers to production.
 
-# Expo URL (always display after deploy):
-# exp://alifstian.duckdns.org:8081
-# Web: http://alifstian.duckdns.org:8081
+# Web URL (always display after a web deploy):
+# http://alifstian.duckdns.org:8081
+# iOS: standalone app (EAS preview build + OTA) — exp:// URL no longer used on the phone
 ```
 
 Server-side config that lives outside the app process (cron wrappers, etc.) is versioned under `deploy/`. The cron wrapper at `/opt/alif-update-material.sh` is the authoritative supply-chain entry for daily intros — it sets `ALIF_RUN_CRON_PREGENERATION=1`, `ALIF_RUN_CRON_LEMMA_ENRICHMENT=1`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000`, `ALIF_FREQ_CORE_INTAKE_LIMIT=10` so the intake script can keep filling the top-frequency lemma pool past rank 1000. Without these, intros silently dry up once you graduate past the easy tier. See `deploy/README.md` and the 2026-05-13 experiment-log entry.
