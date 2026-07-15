@@ -25,6 +25,19 @@ a real clitic for the POS, (c) reject resolutions where the matched lemma's leng
 use: server-side direct create with exact-bare check (see momo_direct_create.py
 pattern in the queue doc).
 
+**2026-07-15 investigation DONE** — findings in
+`research/spec-2026-07-15-lookup-clitic-collision.md` §7 + fixtures in
+`research/lookup-collision-findings-2026-07-15.json`. Headline: hypothesis
+refuted — 16/18 collisions come from the **CAMeL last-resort layer**
+(`find_best_db_match` greedily scans unranked analyses), only 2 involve clitic
+stripping. 63 more future collisions found among unlinked FCE forms (فستان→سِتّ);
+62 lemmas have corrupt `lemma_ar_bare` currently papered over by the fuzzy layer.
+Blast radius small: 5 reviewable mis-mapped SentenceWords + 116 inactive.
+Recommended: Fix A = citation-strict lookup mode for /add (MLE whole-word gate +
+ال-prefix-only clitic strip + no CAMeL last resort; scores 18/18 bad, keeps all
+بالمكتبة-class good); Fix B (separate) = MLE-gate the shared-path last resort
+(retains 94% of legit layer-4 rescues). Fix not yet implemented.
+
 > This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
 
 ---
