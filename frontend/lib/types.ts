@@ -114,6 +114,7 @@ export interface DailyStats {
   words_learned: number;
   cumulative_known: number;
   accuracy: number | null;
+  due_backlog?: number | null;
 }
 
 export interface LearningPace {
@@ -566,6 +567,59 @@ export interface DailyGoal {
   slow_lane_done: number;
   slow_lane_budget: number;
   slow_lane_remaining: number;
+  intake_gated?: boolean;
+}
+
+export interface RecoveryStatus {
+  active: boolean;
+  box1_actionable: number;
+  box1_trigger_limit: number;
+  box1_reintro_admission_limit: number;
+  box2_due: number;
+  box2_limit: number;
+  main_fsrs_due: number;
+  main_fsrs_limit: number;
+  intro_budget_today: number;
+  intros_used_today: number;
+  reading_cards_today: number;
+  reading_cards_for_any_intro: number;
+  reading_cards_for_full_budget: number;
+  primary_accuracy_today: number | null;
+}
+
+export interface BookGapWord {
+  lemma_id: number | null;
+  display: string;
+  gloss_en: string | null;
+  tokens: number;
+  status: string;
+}
+
+export interface BookSourceCohort {
+  source: string;
+  total: number;
+  encountered: number;
+  box_1: number;
+  box_2: number;
+  box_3: number;
+  learning: number;
+  known: number;
+  lapsed: number;
+  suspended: number;
+}
+
+export interface BookCoverage {
+  title: string;
+  target_pct: number;
+  total_tokens: number;
+  covered_tokens: number;
+  in_progress_tokens: number;
+  gap_tokens: number;
+  unmapped_tokens: number;
+  covered_pct: number;
+  in_progress_pct: number;
+  top_gaps: BookGapWord[];
+  cohort?: BookSourceCohort | null;
 }
 
 export interface FrequencyCoreBand {
@@ -632,6 +686,7 @@ export interface Analytics {
   daily_goal?: DailyGoal | null;
   frequency_core?: FrequencyCoreProgress | null;
   quran_core?: FrequencyCoreProgress | null;
+  recovery?: RecoveryStatus | null;
 }
 
 export interface GraduatedWord {
@@ -796,6 +851,7 @@ export interface DeepAnalytics {
   recent_sessions: SessionDetail[];
   acquisition_pipeline?: AcquisitionPipeline;
   insights?: InsightsData;
+  book_coverage?: BookCoverage[];
 }
 
 export interface StoryWordMeta {

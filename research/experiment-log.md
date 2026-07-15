@@ -46,6 +46,42 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-15: Stats panel — recovery gates, gated daily target, Momo coverage card, backlog burndown
+
+**Trigger.** User asked whether the stats panel gives a good-enough daily overview for the
+two goals that define this month: post-vacation recovery (intake gated since Jul 5) and the
+Momo race to ≥95% token coverage. Assessment: the panel encoded the goals of the era it was
+built in (static 30/day target, Madinah/Al-Kitaab benchmarks) while the actual goals lived
+only in research docs. Worst finding: `overall_pct = min(new_pct, maintenance_pct)` with a
+static 30/day target pinned the Daily-target headline at ~0% on days the learner was doing
+exactly what recovery mode prescribes.
+
+**Changes (PR #TBD, display-layer only — no scheduling behavior touched).**
+1. `_get_daily_goal` now uses the *effective* recovery intro budget (0/8/30 via
+   `_recovery_mode_intro_budget`) as `new_words_target`; target 0 → new-words goal
+   trivially met, headline = maintenance. New `intake_gated` flag; UI shows
+   "intake gated · recovery".
+2. New `acquisition_service.recovery_status()` — read-only snapshot of the gate state
+   (box1 actionable vs 5/20, box2 due vs 30, strict main FSRS due vs 750, earned budget,
+   earn-in progress) reusing the gate's own internals. Rendered as a conditional
+   "Recovery mode" card with per-gate exit bars.
+3. New `book_coverage.py` service + committed `data/benchmarks/book_momo_tokenmap.json`
+   (full-book scan snapshot from `momo-vocab-queue-2026-07-15.md`). Token-weighted live
+   coverage; still-unmapped surfaces re-resolved per request through
+   `lookup_lemma_citation` (strict — avoids the تالي→أَلَا fuzzy-collision class), cached
+   on (mtime, lemma count) so imports move buckets automatically. Card shows readable-now %
+   vs 95% target, in-training band, bookifier cohort funnel, top remaining unlocks.
+   Verified vs research numbers on a fresh prod snapshot: covered 87.8% (doc: 87.8%),
+   +in-progress 94.8% (post-tranche-2), cold compute 0.16s / warm 15ms.
+4. Due-backlog burndown: `daily_history[].due_backlog` = max `total_due_words` across each
+   day's `session_start` events (log-file parse, auto-backfills); dot line on the activity
+   chart. Answers "am I gaining on the backlog or treading water?" without log spelunking.
+
+**Tests.** `tests/test_recovery_stats_panel.py` (11: gate snapshot, gated goal semantics,
+coverage bucket math incl. late-import resolution + inert handling, cohort funnel, log
+parser). Full stats/acquisition suites green (45 + 96); frontend 183/183 (incl. drive-by
+fix: `snap` screen added to language-classifier EXPECTED, missed in PR #210).
+
 ## 2026-07-15: Book/corpus acquiring-gate + Momo authentic-sentence corpus
 
 **Trigger.** The Momo push (July 14–15: 165 book-targeted lemmas imported, ~200 words in

@@ -87,6 +87,9 @@ class DailyStatsPoint(BaseModel):
     words_learned: int
     cumulative_known: int
     accuracy: Optional[float] = None
+    # Max total_due_words across the day's session_start events (start-of-day
+    # backlog peak); None when no session was logged that day.
+    due_backlog: Optional[int] = None
 
 
 class LearningPaceOut(BaseModel):
@@ -214,6 +217,61 @@ class DailyGoalOut(BaseModel):
     slow_lane_done: int = 0
     slow_lane_budget: int = 0
     slow_lane_remaining: int = 0
+    # True when the recovery gate has reduced today's new-word budget below the
+    # normal daily cap (new_words_target then reflects the effective budget).
+    intake_gated: bool = False
+
+
+class RecoveryStatusOut(BaseModel):
+    active: bool
+    box1_actionable: int
+    box1_trigger_limit: int
+    box1_reintro_admission_limit: int
+    box2_due: int
+    box2_limit: int
+    main_fsrs_due: int
+    main_fsrs_limit: int
+    intro_budget_today: int
+    intros_used_today: int
+    reading_cards_today: int
+    reading_cards_for_any_intro: int
+    reading_cards_for_full_budget: int
+    primary_accuracy_today: Optional[float] = None
+
+
+class BookGapWord(BaseModel):
+    lemma_id: Optional[int] = None
+    display: str
+    gloss_en: Optional[str] = None
+    tokens: int
+    status: str  # new / encountered-less states / unmapped
+
+
+class BookSourceCohort(BaseModel):
+    source: str
+    total: int
+    encountered: int = 0
+    box_1: int = 0
+    box_2: int = 0
+    box_3: int = 0
+    learning: int = 0
+    known: int = 0
+    lapsed: int = 0
+    suspended: int = 0
+
+
+class BookCoverageOut(BaseModel):
+    title: str
+    target_pct: float = 95.0
+    total_tokens: int
+    covered_tokens: int      # function/inert + known/learning
+    in_progress_tokens: int  # acquiring/lapsed/encountered
+    gap_tokens: int          # mapped lemma, not yet started
+    unmapped_tokens: int     # not in vocabulary
+    covered_pct: float
+    in_progress_pct: float   # covered + in-progress, cumulative
+    top_gaps: list[BookGapWord] = []
+    cohort: Optional[BookSourceCohort] = None
 
 
 class AnalyticsOut(BaseModel):
@@ -234,6 +292,7 @@ class AnalyticsOut(BaseModel):
     daily_goal: Optional[DailyGoalOut] = None
     frequency_core: Optional[FrequencyCoreProgress] = None
     quran_core: Optional[FrequencyCoreProgress] = None
+    recovery: Optional[RecoveryStatusOut] = None
 
 
 class StabilityBucket(BaseModel):
@@ -369,6 +428,7 @@ class DeepAnalyticsOut(BaseModel):
     recent_sessions: list[SessionDetail]
     acquisition_pipeline: Optional[AcquisitionPipeline] = None
     insights: Optional[InsightsOut] = None
+    book_coverage: list[BookCoverageOut] = []
 
 
 class ImportResultOut(BaseModel):

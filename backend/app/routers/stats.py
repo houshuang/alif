@@ -21,13 +21,17 @@ from app.schemas import (
     InsightsOut,
     TextbookBenchmark, QuranProgress, ProgressBenchmarks,
     DailyGoalOut, FrequencyCoreBand, FrequencyCoreGap, FrequencyCoreProgress,
+    RecoveryStatusOut,
 )
 from app.services.frequency_lanes import (
     due_lane_snapshot,
     frequency_core_ranks,
     is_main_lane_word,
 )
-from app.services.acquisition_service import true_new_acquisition_episode_filter
+from app.services.acquisition_service import (
+    true_new_acquisition_episode_filter,
+    recovery_status,
+)
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -230,16 +234,29 @@ def _count_reviewed_today_by_lane(db: Session, today_start: datetime) -> tuple[i
     return main, slow
 
 
-def _get_daily_goal(db: Session) -> DailyGoalOut:
+def _get_daily_goal(db: Session, new_word_target: int | None = None) -> DailyGoalOut:
     """Progress toward the daily aggressive-learning target.
 
     Maintenance is intentionally computed as completed review work plus current
     due debt. The target can grow during the day when new acquisition cards
     become due, which makes the countdown conservative instead of pretending
     the morning queue was the whole day.
+
+    The new-word target is the *effective* intro budget from the recovery gate
+    (0/8/30), not the static cap: during post-hiatus recovery, intake is
+    intentionally gated to ~zero, and a fixed 30/day target would pin the
+    headline at 0% on days the learner is doing exactly the right thing.
+    It can also grow during the day as reading volume earns budget back.
     """
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if new_word_target is None:
+        from app.services.acquisition_service import _recovery_mode_intro_budget
+
+        new_word_target = _recovery_mode_intro_budget(db, now, today_start)
+    new_word_target = min(new_word_target, DAILY_NEW_WORD_TARGET)
+    intake_gated = new_word_target < DAILY_NEW_WORD_TARGET
 
     introduced_today = _count_introduced_today(db, today_start)
     lanes = due_lane_snapshot(db, now)
@@ -262,7 +279,13 @@ def _get_daily_goal(db: Session) -> DailyGoalOut:
     maintenance_remaining = main_maintenance_remaining + slow_lane_remaining
     maintenance_target = maintenance_done + maintenance_remaining
 
-    new_words_pct = min(100.0, introduced_today / DAILY_NEW_WORD_TARGET * 100.0)
+    # With a zero effective budget there is nothing to introduce, so the
+    # new-word goal is trivially met and the headline reflects maintenance.
+    new_words_pct = (
+        100.0
+        if new_word_target == 0
+        else min(100.0, introduced_today / new_word_target * 100.0)
+    )
     maintenance_pct = (
         100.0
         if maintenance_target == 0
@@ -271,9 +294,9 @@ def _get_daily_goal(db: Session) -> DailyGoalOut:
     overall_pct = min(new_words_pct, maintenance_pct)
 
     return DailyGoalOut(
-        new_words_target=DAILY_NEW_WORD_TARGET,
+        new_words_target=new_word_target,
         introduced_today=introduced_today,
-        introduced_remaining=max(0, DAILY_NEW_WORD_TARGET - introduced_today),
+        introduced_remaining=max(0, new_word_target - introduced_today),
         new_words_pct=round(new_words_pct, 1),
         maintenance_done=maintenance_done,
         maintenance_remaining=maintenance_remaining,
@@ -281,10 +304,11 @@ def _get_daily_goal(db: Session) -> DailyGoalOut:
         maintenance_pct=round(maintenance_pct, 1),
         overall_pct=round(overall_pct, 1),
         is_complete=(
-            introduced_today >= DAILY_NEW_WORD_TARGET
+            introduced_today >= new_word_target
             and main_maintenance_remaining == 0
             and slow_lane_remaining == 0
         ),
+        intake_gated=intake_gated,
         fsrs_reviewed_today=fsrs_reviewed_today,
         acquisition_reviewed_today=acquisition_reviewed_today,
         fsrs_due=fsrs_due,
@@ -422,6 +446,45 @@ def _get_daily_history(
         ))
 
     return points
+
+
+def _get_due_backlog_history(days: int = 14) -> dict[str, int]:
+    """Max total_due_words per day, from session_start interaction events.
+
+    The burndown can't be reconstructed from ReviewLog (reviews done is not
+    due remaining); session_start snapshots the real queue at build time. The
+    per-day max approximates the start-of-day peak, before that day's reviews
+    cleared any of it. Days without a session have no data point.
+    """
+    from app.config import settings
+
+    out: dict[str, int] = {}
+    today = datetime.now(timezone.utc).date()
+    for offset in range(days):
+        day = today - timedelta(days=offset)
+        path = settings.log_dir / f"interactions_{day.isoformat()}.jsonl"
+        if not path.exists():
+            continue
+        peak: int | None = None
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    if '"session_start"' not in line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if event.get("event") != "session_start":
+                        continue
+                    value = event.get("total_due_words")
+                    if isinstance(value, int):
+                        peak = value if peak is None else max(peak, value)
+        except OSError:
+            continue
+        if peak is not None:
+            out[day.isoformat()] = peak
+    return out
 
 
 def _get_study_dates(db: Session) -> list[str]:
@@ -1026,7 +1089,18 @@ def get_analytics(
     unique_recognized_prior_7d = _get_unique_words_recognized(db, 7, 14)
 
     benchmarks = _compute_benchmarks(db)
-    daily_goal = _get_daily_goal(db)
+    recovery = recovery_status(db)
+    daily_goal = _get_daily_goal(db, new_word_target=recovery["intro_budget_today"])
+
+    # Backlog burndown overlay (bounded to a month of log files).
+    backlog_history = _get_due_backlog_history(days=min(days, 30))
+    for point in history:
+        point.due_backlog = backlog_history.get(point.date)
+    today_key = datetime.now(timezone.utc).date().isoformat()
+    if history and history[-1].date == today_key and history[-1].due_backlog is None:
+        # No session logged yet today — fall back to the live due count.
+        history[-1].due_backlog = basic.due_today
+
     frequency_core = _compute_frequency_core_progress(db)
     # Separate Quran-core track: same rows that carry a Quran frequency rank,
     # ordered by Quran frequency (a primary learning goal — surfaced on its own
@@ -1057,6 +1131,7 @@ def get_analytics(
         daily_goal=daily_goal,
         frequency_core=frequency_core,
         quran_core=quran_core,
+        recovery=RecoveryStatusOut(**recovery),
     )
 
 
@@ -1904,6 +1979,18 @@ def _get_insights(db: Session) -> InsightsOut:
 
 @router.get("/deep-analytics", response_model=DeepAnalyticsOut)
 def get_deep_analytics(db: Session = Depends(get_db)):
+    from app.services.book_coverage import compute_book_coverage
+
+    try:
+        book_coverage = compute_book_coverage(db)
+    except Exception:
+        # Coverage is decoration on this endpoint — a tokenmap or lookup
+        # problem must not take down the whole deep-analytics panel.
+        import logging
+
+        logging.getLogger(__name__).exception("book coverage computation failed")
+        book_coverage = []
+
     return DeepAnalyticsOut(
         stability_distribution=_get_stability_distribution(db),
         retention_7d=_get_retention_stats(db, 7),
@@ -1919,4 +2006,5 @@ def get_deep_analytics(db: Session = Depends(get_db)):
         recent_sessions=_get_recent_sessions(db),
         acquisition_pipeline=_get_acquisition_pipeline(db),
         insights=_get_insights(db),
+        book_coverage=book_coverage,
     )
