@@ -1,5 +1,19 @@
 # Alif — Master Ideas File
 
+## 🔵 [TODO 2026-07-15] Enrichment residue backoff — stop re-asking the LLM about permanently unenrichable lemmas
+After the 2026-07-15 Step E fix + heal (PR #216, experiment-log entry), 131 lemmas
+remain "unenriched" forever: ~100 non-noun/verb rows the forms generator correctly
+returns `{}` for (particles etc.) and ~33 legitimately rootless words (loanwords like
+سِينِمَا). Step E's newest-first cap (80/pass) now retries the newest slice of this
+residue every 3h cron pass — bounded but wasted LLM calls (pre-existing behavior,
+not a regression; before the fix the same residue was retried inside the phantom
+1,810-row backlog). Fix idea: record an `enrichment_attempted_at` timestamp (or a
+tri-state "no meaningful X exists" sentinel per field, e.g. `forms_json = {}`
+instead of NULL when the generator confidently returns empty) so the Step E query
+can exclude tried-and-empty rows, with a long re-try horizon (30d) in case model
+quality improves. The empty-object sentinel is the cleaner fix — NULL should mean
+"never generated", not "generated, nothing to store".
+
 ## 🟢 [DONE 2026-07-15 — Fix A shipped+deployed+remediated; follow-ups open below] `/api/discover/add` fuzzy lookup mis-resolves new citation forms — 17 documented collisions
 During the Momo vocab intake, `/api/discover/add` with bare `تالي` resolved through
 the comprehensive lemma lookup to **أَلَا (id 691)** — a false collision (likely
