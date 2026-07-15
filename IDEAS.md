@@ -52,13 +52,14 @@ alternatives (deferred; verification gate is holding, measure first);
 (b) **FCE intake** (`frequency_core_intake._resolve_existing`) still uses the fuzzy
 path + `resolve_existing_lemma` for display-form linking — 63 known future
 collisions when intake reaches those ranks; needs its own linking-policy pass;
-(c) **corrupt/divergent `lemma_ar_bare` fields** — full classified audit in
-`research/corrupt-bare-audit-2026-07-15.json` (102 self-resolution failures under
-citation-strict: 45 bare-truncated زُبْدَة/زبد + 26 display-bare-divergent
-سندويتش-spelling/ه↔ة — repair candidates; the other 31 bare-key-shadowed are the
-intentional function overrides + known homograph issue, out of scope). Repair so
-strict /add no-ops instead of duplicating; per-lemma citation-form judgment needed
-(some "truncations" like غَداً/غد are design-gray: adverbial display vs noun bare);
+(c) ~~corrupt/divergent `lemma_ar_bare` fields~~ **DONE 2026-07-15** (PR #215 +
+prod apply, backup `alif_pre_bare_repair_20260715_095834.db`): 42 bares rewritten
+(old keys stashed in `forms_json.old_bare_form` except 10 curated wrong-word keys
+احتجاب/طن/زق… deliberately removed) + 21 `citation_alias` entries (adverbials غَداً,
+clitic displays بِبُطْء, defective-participle convention, loanword spellings) + 4
+proper-name displays cleaned. Census 104→37, all intentional (35 shadowed + لـ/سـ
+particles). Standing check: `repair_corrupt_bares.py --census`. Audit stays at
+`research/corrupt-bare-audit-2026-07-15.json`;
 (d) ~~post-deploy remap+reverify~~ DONE 2026-07-15 — 4-row residue remains:
 3 reviewable ستين→سِتّ (LLM verifier passes the number-family adjacency; clean
 fix = import ستون with oblique ستين in forms_json, then re-run

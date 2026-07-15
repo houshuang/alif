@@ -320,3 +320,10 @@ bare-field repair for the 62 corrupt lemmas → then evaluate Fix B.
 - **Not done here** (open in IDEAS.md): Fix B (shared-path MLE gating +
   layer-4 alternative reporting), FCE-intake linking policy, the 62
   corrupt-bare repairs.
+- **Corrupt-bare repair executed later the same day** (PR #215 +
+  `repair_corrupt_bares.py --apply` on prod): 42 bares rewritten (old keys
+  stashed, 10 curated wrong-word keys removed), 21 citation aliases, 4
+  proper-name displays cleaned. Citation-strict self-resolution census
+  104 → 37, all remaining failures intentional (function-form overrides +
+  known bare-form homographs + لـ/سـ particles). See the dedicated
+  experiment-log entry and `research/corrupt-bare-audit-2026-07-15.json`.

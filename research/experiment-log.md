@@ -46,6 +46,38 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-15: Corrupt lemma_ar_bare repair — 67 lemmas, census 104→37 (all intentional)
+
+**Trigger.** Follow-up (c) of the same-day collision entry below: ~66 lemmas whose
+citation form only self-resolved via the fuzzy CAMeL layer (truncated bares
+مِقْلَمَة/مقلم, wrong-word bares حَاجِب/احتجاب · فِطْنَة/طن, loanword spelling variance,
+lexicalized adverbials غَداً). With citation-strict /add live, each was a
+duplicate-on-re-add landmine.
+
+**Change (PR #215 + prod apply).** `scripts/repair_corrupt_bares.py` — two-phase
+plan/review/apply in the `bare_shape_check.py` mold, with a curated
+`REVIEW_OVERRIDES` table from a full per-row human review (the mechanical classifier
+mislabeled 12 rows: root-letter ب/و words بلوفر/وجم/بغض/وكر are rewrites not
+"proclitic aliases"; wrong-word bares must NOT be preserved; 4 proper names needed
+display punctuation cleanup, not aliases). Rewrites stash the old bare into
+`forms_json.old_bare_form` so every previously-working lookup key survives — net
+effect is pure key addition + identity correction, except 10 deliberate wrong-word
+key removals (طن no longer maps to "shrewdness"). Rehearsed end-to-end on a prod
+snapshot copy before touching prod; prod plan diffed against the rehearsed plan
+(2 new rows from same-day vocab drift, both reviewed) before apply.
+
+**Result (prod, backup `alif_pre_bare_repair_20260715_095834.db`).** 42 bares
+rewritten + 21 citation aliases + 4 displays cleaned, zero apply-time skips.
+Citation-strict self-resolution census: 104 → 37 failures, all intentional
+(35 shadowed = function-form overrides + the known structural bare-form homograph
+issue, plus the لـ/سـ single-letter particle rows tracked separately in IDEAS).
+Verified live: مقلمة/زبدة/غدا/ببطء/بلوفر/حاجب/كعك/شوارمة all resolve to the right
+lemma via `lookup_lemma_citation`. ActivityLog: `corrupt_bare_repair`.
+
+**Verify later.** `repair_corrupt_bares.py --census` on prod — expect 37, all
+`shadowed` + لـ/سـ; any new `unresolved` row = a new import wrote a bad bare
+(check the import path's `run_quality_gates` / Gate 1b coverage).
+
 ## 2026-07-15: Citation-strict lookup for /add — collision investigation, fix, deploy, remediation
 
 **Trigger.** 18 documented citation-form collisions over two days of Momo vocab intake:
