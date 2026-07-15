@@ -46,6 +46,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-15: Cron Step E lemma enrichment was structurally unable to drain — hooks-query drift + timeout-kill data loss
+
+**Trigger.** User imported 96 words from Bookifier (`POST /api/discover/add-batch`, 06:22 + 06:53 UTC) and found مِهْنَة (#4359) with no enrichment (no root, etymology, pattern, hooks) hours later, despite `gates_completed_at` being stamped.
+
+**What happened, step by step.**
+1. `_gate_and_generate` (discover router background task) ran `run_quality_gates` for the 96 lemmas — variant detection took ~41 min, gates stamped 07:34:26, enrichment fired as a **daemon thread** (`background_enrich=True`).
+2. The backend was restarted at 07:59:34 (iOS/EAS deploy), killing the daemon thread after ~3 of 96 lemmas. `gates_completed_at` stays stamped — the stamp means "safe to schedule", not "enriched".
+3. The designed safety net, cron Step E, could not heal them: the 09:30 pass was skipped (material lock held), the 12:30 pass was killed at the wrapper's 900s timeout (exit 124) with **zero** rows persisted, because forms/etymology results were collected in dicts and applied only after ALL batches.
+4. Step E's backlog query had also drifted: it still selected `memory_hooks_json IS NULL`, but hooks became lazy-generated on first failed review — so the query returned ~1,810 lemmas of which **1,789 were phantom** (hooks-only). Real backlog: 254. The phantom rows guaranteed every pass overran the timeout.
+
+**Fixes (PR: sh/enrichment-heal).**
+- Step E query: dropped the `memory_hooks_json` clause; newest-first ordering; per-pass cap `ALIF_CRON_ENRICH_LIMIT` (default 80) with an explicit "deferring N" line (no silent caps).
+- `enrich_lemmas_batch`: forms and etymology now apply + `db.commit()` **per batch** (etymology coherence-verified per batch before apply), so a timeout kill or restart keeps finished batches; grammar/examples loops commit per iteration (they previously held the SQLite write lock across subsequent LLM calls — Rule 10 violation).
+- Word Detail view now shows `ID <lemma_id>` in the info line (the `#N` badge is frequency rank, which users were mistaking for an ID).
+
+**Data heal.** Manual inline `enrich_lemmas_batch` run over the 254 genuinely unenriched lemmas on prod (nohup), verified مِهْنَة #4359 got root + etymology.
+
+**Lesson.** A "Found N to enrich" line that never shrinks across cron runs is a drained-pipeline alarm, not noise. When a field moves to lazy generation, every backlog/deficit query that references it must be audited the same day (same class as the Rule 8 gate audit, but for maintenance queries).
+
 ## 2026-07-15: Corrupt lemma_ar_bare repair — 67 lemmas, census 104→37 (all intentional)
 
 **Trigger.** Follow-up (c) of the same-day collision entry below: ~66 lemmas whose

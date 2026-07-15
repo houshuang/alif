@@ -607,18 +607,21 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     pass
         db.commit()
 
-        # ── Step 2: Forms (batched LLM calls — collect results first) ──
-        forms_results: dict[int, dict] = {}
+        # ── Step 2: Forms (batched LLM calls — applied + committed per batch) ──
+        # Each batch commits before the next LLM call: a killed run (cron
+        # timeout, deploy restart) keeps the batches it finished, and the
+        # session is always clean while an LLM call is in flight (write-lock
+        # rule). Previously results were collected in a dict and applied only
+        # after ALL batches, so a mid-run kill persisted nothing.
         need_forms = [l for l in lemmas if not l.forms_json]
         for i in range(0, len(need_forms), FORMS_BATCH_SIZE):
             batch = need_forms[i:i + FORMS_BATCH_SIZE]
+            batch_forms: dict[int, dict] = {}
             try:
-                forms_map = _generate_forms_batch(batch)
-                forms_results.update(forms_map)
-                missing = [l for l in batch if l.lemma_id not in forms_map]
+                batch_forms = _generate_forms_batch(batch)
+                missing = [l for l in batch if l.lemma_id not in batch_forms]
                 if missing and len(missing) < len(batch):
-                    retry_map = _generate_forms_batch(missing)
-                    forms_results.update(retry_map)
+                    batch_forms.update(_generate_forms_batch(missing))
                 time.sleep(1)
             except Exception:
                 logger.warning(
@@ -629,13 +632,19 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     try:
                         forms = _generate_forms_single_legacy(lemma)
                         if forms:
-                            forms_results[lemma.lemma_id] = forms
+                            batch_forms[lemma.lemma_id] = forms
                         time.sleep(0.3)
                     except Exception:
                         logger.warning(f"Forms generation failed for lemma {lemma.lemma_id}")
+            if batch_forms:
+                for lemma in batch:
+                    forms = batch_forms.get(lemma.lemma_id)
+                    if forms:
+                        lemma.forms_json = forms
+                        summary["forms"] += 1
+                db.commit()
 
-        # ── Step 3: Etymology (batched LLM calls — collect results first) ──
-        etym_results: dict[int, dict] = {}
+        # ── Step 3: Etymology (batched LLM calls — applied + committed per batch) ──
         need_etymology = [l for l in lemmas if not l.etymology_json]
         if need_etymology:
             root_ids = {l.root_id for l in need_etymology if l.root_id}
@@ -648,40 +657,29 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                 batch = need_etymology[i:i + ETYMOLOGY_BATCH_SIZE]
                 try:
                     etym_map = _generate_etymology_batch(batch, roots_by_id)
-                    etym_results.update(etym_map)
-                    time.sleep(1)
                 except Exception:
                     logger.warning(f"Etymology batch failed for lemmas {[l.lemma_id for l in batch]}")
-
-            # Coherence gate: drop any freshly generated etymology the verifier
-            # judges to describe a different word (hallucination — e.g. a "laptop"
-            # etymology on تَوْب "repentance"). Fails open (None → drop nothing).
-            # Session is clean here (results held in dicts, applied in Step 4), so
-            # the verify LLM call holds no write lock.
-            if etym_results:
-                lemma_by_id = {l.lemma_id: l for l in need_etymology}
-                pairs = [(lemma_by_id[lid], e) for lid, e in etym_results.items()
-                         if lid in lemma_by_id]
-                for i in range(0, len(pairs), ETYMOLOGY_BATCH_SIZE):
-                    chunk = pairs[i:i + ETYMOLOGY_BATCH_SIZE]
-                    incoherent = verify_etymology_coherence_batch(chunk, roots_by_id)
-                    if incoherent:
-                        for lid in incoherent:
-                            etym_results.pop(lid, None)
-                            summary["etymology_rejected"] += 1
-                    time.sleep(1)
-
-        # ── Step 4: Batch-apply all LLM results to DB ──
-        for lemma in lemmas:
-            forms = forms_results.get(lemma.lemma_id)
-            if forms:
-                lemma.forms_json = forms
-                summary["forms"] += 1
-            etym = etym_results.get(lemma.lemma_id)
-            if etym:
-                lemma.etymology_json = etym
-                summary["etymology"] += 1
-        db.commit()
+                    continue
+                if etym_map:
+                    # Coherence gate: drop any freshly generated etymology the
+                    # verifier judges to describe a different word (hallucination
+                    # — e.g. a "laptop" etymology on تَوْب "repentance"). Fails
+                    # open (None → drop nothing). Session is clean during both
+                    # LLM calls — results are applied only after the gate.
+                    batch_by_id = {l.lemma_id: l for l in batch}
+                    pairs = [(batch_by_id[lid], e) for lid, e in etym_map.items()
+                             if lid in batch_by_id]
+                    incoherent = verify_etymology_coherence_batch(pairs, roots_by_id) or []
+                    for lid in incoherent:
+                        etym_map.pop(lid, None)
+                        summary["etymology_rejected"] += 1
+                    for lid, etym in etym_map.items():
+                        lemma = batch_by_id.get(lid)
+                        if lemma and etym:
+                            lemma.etymology_json = etym
+                            summary["etymology"] += 1
+                    db.commit()
+                time.sleep(1)
 
         # Memory hooks are no longer generated upfront — they're generated on
         # first failure (rating <= 2) to avoid wasting processing on already-known words.
@@ -754,10 +752,13 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                             if features:
                                 lemma.grammar_features_json = features
                                 summary["grammar"] += 1
+                                db.commit()
                             time.sleep(0.3)
                         except Exception:
                             logger.warning(f"Grammar tagging failed for lemma {lemma.lemma_id}")
-            db.commit()
+                # Commit per batch: keeps progress on a mid-run kill and
+                # releases the write lock before the next batch's LLM call.
+                db.commit()
 
         # ── Step 7: Example sentences (batched LLM calls) ──
         need_examples = [l for l in lemmas if not l.example_ar
@@ -773,6 +774,7 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                         if pair:
                             lemma.example_ar, lemma.example_en = pair
                             summary["examples"] += 1
+                    db.commit()
                     time.sleep(1)
                 except Exception:
                     logger.warning(f"Example generation failed for lemmas {[l.lemma_id for l in batch]}")
