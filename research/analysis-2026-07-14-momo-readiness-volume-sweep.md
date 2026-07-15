@@ -88,4 +88,34 @@ difficulty in the student model; comprehension params = calibrated profile (base
 
 **Status: Part 2/3 pending sweep completion — resume by running `summarize_sweep.py` and
 `map_coverage.py` over `research/simdata_volume_2026-07-14/` and finishing this doc +
-experiment-log entry.**
+experiment-log entry.** (2026-07-15: overnight launchd sweep died — machine slept/rebooted,
+RAM disk gone, zero JSONs. Relaunch only if the calculated projection below needs
+validating; user questioned marginal value vs calculation.)
+
+## Part 4 — Momo targeted intake EXECUTED (2026-07-15)
+
+The calculated analysis showed the last ~3pp to 95% coverage is OOV vocabulary that
+frequency-core intake never reaches — so it was imported directly (user go-ahead),
+via the sanctioned discover glossary path (`POST /api/discover/words` on prod with
+`include_oov`, `selection=distinctive` → vet → `/add-batch`, quality gates run per
+invariant). DB backup: `alif_pre_momo_intake_20260715_060059.db`.
+
+- prod `/words` returned 48 candidates from the OCR sample; vetting dropped 11 proper
+  names (Momo, Beppo, Gigi, Hora, Cassiopeia…), 8 artifacts (negated verb phrases,
+  multiword expressions, feminine duplicate, dubious singleton lemmatizations), and
+  corrected 4 citation forms (وقائع→واقعة, خبايا→خبيئة, بالتدريج→تدريج, قَاضْ→قَاضٍ).
+- **Result: 20 new lemmas created** (`source='bookifier'`, ids 4214–4233, all
+  `gates_completed_at` stamped, all glossed) **+ 7 existing lemmas introduced**;
+  واقعة correctly resolved to already-known وقع. 26 words now in acquisition
+  (`/add` intentionally bypasses the intro cap for user-initiated adds; per-session
+  intro cards remain budgeted, so sessions won't flood — but Box-1 drain extends
+  by ~1 week).
+- **Bug found, reverted, worth investigating**: `/add` with bare `تالي` resolved via
+  lemma lookup to **أَلَا (id 691)** — a false clitic-strip collision. The interjection
+  was promoted encountered→acquiring; reverted by restoring its pre-import row state.
+  تالي was skipped. Any text containing التالي may be mis-mapping to أَلَا in the
+  comprehensive lookup — check `build_comprehensive_lemma_lookup` collision handling.
+- Sentence generation for the 26 words rides the normal warm-cache/cron pipeline.
+
+Net effect on the goal: recovery conversion (+3.7pp) + these imports (~+2–4pp full-book
+estimated) + frontier intake ≈ **Momo at ~95% within weeks at ≥100 cards/day**.
