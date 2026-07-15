@@ -45,6 +45,7 @@ const EXPECTED: Record<string, AppLanguage | "shared"> = {
   "book-page": "ar",
   "review-lab": "ar",
   words: "ar",
+  snap: "ar",
   // ─── Greek (Polyglot) screens ───────────────────────────────────────
   polyglot: "el",
   "polyglot-review": "el",

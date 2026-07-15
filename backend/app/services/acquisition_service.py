@@ -284,6 +284,74 @@ def _main_fsrs_due_count(db: Session, now: datetime) -> int:
     return count
 
 
+def _primary_reading_reviews_today(db: Session, today_start: datetime) -> list[ReviewLog]:
+    """Primary reading answers today — the earn-in unit for recovery intros.
+
+    One primary reading ReviewLog corresponds to one answered reading card.
+    SentenceReviewLog cannot be used as the unit: a single passage answer
+    writes one child row per sentence, and collateral ReviewLogs inflate both
+    volume and accuracy without testing the card's retrieval target.
+    """
+    return (
+        db.query(ReviewLog)
+        .filter(
+            ReviewLog.reviewed_at >= today_start,
+            ReviewLog.review_mode == "reading",
+            ReviewLog.credit_type == "primary",
+        )
+        .all()
+    )
+
+
+def recovery_status(db: Session, now: datetime | None = None) -> dict:
+    """Read-only snapshot of the recovery-gate state for the stats panel.
+
+    Companion to _recovery_mode_intro_budget: the same counts and thresholds
+    that gate intake, plus the earn-in progress numbers, so the learner can see
+    how far the backlog is from re-opening intros and leech reintroduction.
+    """
+    from app.services.leech_service import LEECH_REINTRO_BOX1_ADMISSION_LIMIT
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    box1_actionable, box2_due = _recovery_backlog_counts(db, now)
+    main_fsrs_due = _main_fsrs_due_count(db, now)
+    active = (
+        box1_actionable >= RECOVERY_BOX1_UNREVIEWED_LIMIT
+        or box2_due >= RECOVERY_BOX2_DUE_LIMIT
+        or main_fsrs_due >= RECOVERY_FSRS_MAIN_DUE_LIMIT
+    )
+    intro_budget_today = _recovery_mode_intro_budget(db, now, today_start)
+    intros_used_today = _daily_intro_count(db, today_start)
+
+    primary = _primary_reading_reviews_today(db, today_start)
+    reading_cards_today = len(primary)
+    primary_accuracy_today = (
+        round(sum(1 for r in primary if r.rating >= 3) / reading_cards_today * 100, 1)
+        if reading_cards_today >= 10
+        else None
+    )
+
+    return {
+        "active": active,
+        "box1_actionable": box1_actionable,
+        "box1_trigger_limit": RECOVERY_BOX1_UNREVIEWED_LIMIT,
+        "box1_reintro_admission_limit": LEECH_REINTRO_BOX1_ADMISSION_LIMIT,
+        "box2_due": box2_due,
+        "box2_limit": RECOVERY_BOX2_DUE_LIMIT,
+        "main_fsrs_due": main_fsrs_due,
+        "main_fsrs_limit": RECOVERY_FSRS_MAIN_DUE_LIMIT,
+        "intro_budget_today": intro_budget_today,
+        "intros_used_today": intros_used_today,
+        "reading_cards_today": reading_cards_today,
+        "reading_cards_for_any_intro": RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO,
+        "reading_cards_for_full_budget": RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
+        "primary_accuracy_today": primary_accuracy_today,
+    }
+
+
 def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetime) -> int:
     """Return the effective daily intro budget under acquisition overload.
 
@@ -305,19 +373,7 @@ def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetim
     if not overloaded:
         return DAILY_INTRO_CAP
 
-    # One primary reading ReviewLog corresponds to one answered reading card.
-    # SentenceReviewLog cannot be used as the unit: a single passage answer
-    # writes one child row per sentence, and collateral ReviewLogs inflate both
-    # volume and accuracy without testing the card's retrieval target.
-    primary_reading_reviews = (
-        db.query(ReviewLog)
-        .filter(
-            ReviewLog.reviewed_at >= today_start,
-            ReviewLog.review_mode == "reading",
-            ReviewLog.credit_type == "primary",
-        )
-        .all()
-    )
+    primary_reading_reviews = _primary_reading_reviews_today(db, today_start)
     reading_cards_today = len(primary_reading_reviews)
     if reading_cards_today < RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO:
         return 0

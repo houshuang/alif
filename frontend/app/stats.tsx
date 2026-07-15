@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, DailyGoal, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions, ProgressBenchmarks } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, BookCoverage, ComprehensionBreakdown, DailyGoal, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, RecoveryStatus, StateTransitions, ProgressBenchmarks } from "../lib/types";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
@@ -85,6 +85,10 @@ export default function StatsScreen() {
         dailyGoal={analytics.daily_goal}
       />
 
+      {analytics.recovery?.active && (
+        <RecoveryCard recovery={analytics.recovery} />
+      )}
+
       {/* ═══ SECTION 2: VOCABULARY ═══ */}
       <SectionHeader label="Vocabulary" />
 
@@ -101,6 +105,11 @@ export default function StatsScreen() {
         flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
         benchmarks={analytics.benchmarks}
       />
+
+      {/* Book races (e.g. Momo): token-weighted live coverage */}
+      {deepAnalytics?.book_coverage?.map((book) => (
+        <BookCoverageCard key={book.title} book={book} />
+      ))}
 
       {analytics.frequency_core && (
         <FrequencyCoreCard data={analytics.frequency_core} />
@@ -131,12 +140,18 @@ export default function StatsScreen() {
             {daily_history.slice(-14).map((day) => {
               const last14 = daily_history.slice(-14);
               const maxReviews = Math.max(...last14.map((d) => d.reviews));
+              const maxBacklog = Math.max(...last14.map((d) => d.due_backlog ?? 0));
               const height = maxReviews > 0
                 ? Math.max((day.reviews / maxReviews) * 80, 4)
                 : 4;
               const learnedH = day.words_learned > 0 && maxReviews > 0
                 ? Math.max((day.words_learned / maxReviews) * 80, 3)
                 : 0;
+              // Due-backlog burndown marker on an independent scale: a falling
+              // dot line means the review debt is shrinking day over day.
+              const backlogH = day.due_backlog != null && maxBacklog > 0
+                ? (day.due_backlog / maxBacklog) * 80
+                : null;
               return (
                 <View key={day.date} style={styles.barContainer}>
                   <View
@@ -152,6 +167,9 @@ export default function StatsScreen() {
                         { height: learnedH, backgroundColor: colors.stateKnown },
                       ]}
                     />
+                  )}
+                  {backlogH != null && (
+                    <View style={[styles.backlogDot, { bottom: 17 + backlogH }]} />
                   )}
                   <Text style={styles.barLabel}>{day.date.slice(8)}</Text>
                 </View>
@@ -171,6 +189,12 @@ export default function StatsScreen() {
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.stateKnown }} />
                 <Text style={styles.legendText}>new known</Text>
               </View>
+              {daily_history.slice(-14).some((d) => d.due_backlog != null) && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.missed }} />
+                  <Text style={styles.legendText}>due backlog</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -1011,6 +1035,145 @@ function GoalProgressRow({
   );
 }
 
+function RecoveryGateRow({
+  label, value, limit, goal,
+}: { label: string; value: number; limit: number; goal: string }) {
+  const over = value >= limit;
+  const pct = Math.min(100, (value / Math.max(limit, 1)) * 100);
+  return (
+    <View style={styles.goalRow}>
+      <View style={styles.goalRowTop}>
+        <Text style={styles.goalLabel}>{label}</Text>
+        <Text style={[styles.goalValue, { color: over ? colors.missed : colors.good, fontWeight: "700" }]}>
+          {value} · {goal}
+        </Text>
+      </View>
+      <View style={styles.goalTrack}>
+        <View style={[styles.goalFill, { width: `${pct}%`, backgroundColor: over ? colors.missed : colors.good }]} />
+      </View>
+    </View>
+  );
+}
+
+function RecoveryCard({ recovery: r }: { recovery: RecoveryStatus }) {
+  const cardsToAny = Math.max(0, r.reading_cards_for_any_intro - r.reading_cards_today);
+  const budgetLine =
+    r.intro_budget_today === 0
+      ? cardsToAny > 0
+        ? `0 intros today · ${cardsToAny} more reading cards to earn some`
+        : "0 intros today · accuracy below 80%"
+      : `${r.intro_budget_today} intros earned today (${Math.min(r.intros_used_today, r.intro_budget_today)} used)`;
+  return (
+    <View style={styles.recoveryCard}>
+      <View style={styles.recoveryHeader}>
+        <Text style={styles.recoveryTitle}>Recovery mode</Text>
+        <Text style={styles.recoveryBadge}>backlog first</Text>
+      </View>
+      <Text style={styles.recoverySubtitle}>
+        New-word intake stays throttled until every gate is back under its limit.
+      </Text>
+      <RecoveryGateRow
+        label="Main review debt"
+        value={r.main_fsrs_due}
+        limit={r.main_fsrs_limit}
+        goal={`exit < ${r.main_fsrs_limit}`}
+      />
+      <RecoveryGateRow
+        label="Box 1 backlog"
+        value={r.box1_actionable}
+        limit={r.box1_reintro_admission_limit}
+        goal={`reintro opens < ${r.box1_reintro_admission_limit}`}
+      />
+      <RecoveryGateRow
+        label="Box 2 due"
+        value={r.box2_due}
+        limit={r.box2_limit}
+        goal={`exit < ${r.box2_limit}`}
+      />
+      <Text style={styles.recoveryEarnin}>
+        {budgetLine}
+        {r.reading_cards_today > 0 && r.primary_accuracy_today != null
+          ? ` · today ${r.reading_cards_today} cards at ${r.primary_accuracy_today}%`
+          : r.reading_cards_today > 0
+          ? ` · today ${r.reading_cards_today} cards`
+          : ""}
+      </Text>
+    </View>
+  );
+}
+
+function BookCoverageCard({ book }: { book: BookCoverage }) {
+  const total = Math.max(book.total_tokens, 1);
+  const coveredW = (book.covered_tokens / total) * 100;
+  const progressW = (book.in_progress_tokens / total) * 100;
+  const gapW = (book.gap_tokens / total) * 100;
+  const cohort = book.cohort;
+  const cohortInBoxes = cohort ? cohort.box_1 + cohort.box_2 + cohort.box_3 : 0;
+  const cohortDone = cohort ? cohort.learning + cohort.known : 0;
+  const gaps = book.top_gaps.slice(0, 6);
+  return (
+    <View style={styles.freqCoreCard}>
+      <View style={styles.freqCoreHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.freqCoreTitle}>Reading {book.title}</Text>
+          <Text style={styles.freqCoreSubtitle}>
+            live token coverage · goal {"≥"}{Math.round(book.target_pct)}%
+          </Text>
+        </View>
+        <View style={styles.freqCoreBadge}>
+          <Text style={[styles.freqCoreBadgePct, { color: book.covered_pct >= book.target_pct ? colors.good : colors.accent }]}>
+            {book.covered_pct}%
+          </Text>
+          <Text style={styles.freqCoreBadgeLabel}>readable now</Text>
+        </View>
+      </View>
+
+      <View style={styles.bookBarTrack}>
+        <View style={{ width: `${coveredW}%`, backgroundColor: colors.good }} />
+        <View style={{ width: `${progressW}%`, backgroundColor: colors.accent }} />
+        <View style={{ width: `${gapW}%`, backgroundColor: colors.noIdea }} />
+        <View style={{ flex: 1, backgroundColor: colors.missed, opacity: 0.55 }} />
+        <View style={[styles.bookTargetMark, { left: `${Math.min(book.target_pct, 100)}%` }]} />
+      </View>
+      <View style={styles.bookLegend}>
+        <Text style={[styles.legendText, { color: colors.good }]}>{book.covered_pct}% readable</Text>
+        <Text style={[styles.legendText, { color: colors.accent }]}>+{Math.round((book.in_progress_pct - book.covered_pct) * 10) / 10}% in training</Text>
+        <Text style={styles.legendText}>{book.gap_tokens + book.unmapped_tokens} gap tokens</Text>
+      </View>
+
+      {cohort && cohort.total > 0 && (
+        <View style={styles.bookCohort}>
+          <Text style={styles.freqCoreGapTitle}>Book imports ({cohort.total} words)</Text>
+          <Text style={styles.bookCohortText}>
+            {cohortInBoxes} acquiring (Box {cohort.box_1}/{cohort.box_2}/{cohort.box_3})
+            {" · "}{cohortDone} learned
+            {cohort.suspended > 0 ? ` · ${cohort.suspended} suspended` : ""}
+            {cohort.lapsed > 0 ? ` · ${cohort.lapsed} lapsed` : ""}
+          </Text>
+        </View>
+      )}
+
+      {gaps.length > 0 && (
+        <View style={styles.freqCoreGaps}>
+          <Text style={styles.freqCoreGapTitle}>Biggest remaining unlocks</Text>
+          {gaps.map((gap) => (
+            <View key={`${gap.display}-${gap.lemma_id ?? "u"}`} style={styles.freqCoreGapRow}>
+              <Text style={styles.freqCoreGapRank}>{gap.tokens}{"×"}</Text>
+              <Text style={styles.freqCoreGapWord}>{gap.display}</Text>
+              <Text style={styles.freqCoreGapGloss} numberOfLines={1}>
+                {gap.gloss_en || ""}
+              </Text>
+              <Text style={styles.freqCoreGapStatus}>
+                {gap.status === "unmapped" ? "not in vocab" : "need intro"}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function TodayHeroCard({
   comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsReviewedToday, streak, transitionsToday, retentionPct, dailyGoal,
 }: {
@@ -1069,9 +1232,13 @@ function TodayHeroCard({
             done={dailyGoal.introduced_today}
             target={dailyGoal.new_words_target}
             pct={dailyGoal.new_words_pct}
-            color={colors.stateAcquiring}
+            color={dailyGoal.intake_gated ? colors.textSecondary : colors.stateAcquiring}
             detail={
-              dailyGoal.introduced_remaining > 0
+              dailyGoal.intake_gated && dailyGoal.new_words_target === 0
+                ? "intake gated · recovery"
+                : dailyGoal.intake_gated
+                ? `${dailyGoal.introduced_remaining} left · reduced budget`
+                : dailyGoal.introduced_remaining > 0
                 ? `${dailyGoal.introduced_remaining} left`
                 : "target hit"
             }
@@ -1430,6 +1597,18 @@ const styles = StyleSheet.create({
   goalValue: { fontSize: 12, color: colors.textSecondary },
   goalTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceLight, overflow: "hidden" },
   goalFill: { height: "100%", borderRadius: 3 },
+  recoveryCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: colors.missed },
+  recoveryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  recoveryTitle: { fontSize: 16, color: colors.text, fontWeight: "700" },
+  recoveryBadge: { fontSize: 10, color: colors.missed, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, backgroundColor: colors.missed + "18", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, overflow: "hidden" },
+  recoverySubtitle: { fontSize: 12, color: colors.textSecondary, marginBottom: 12 },
+  recoveryEarnin: { fontSize: 11, color: colors.textSecondary, marginTop: 4 },
+  backlogDot: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: colors.missed, alignSelf: "center", zIndex: 2 },
+  bookBarTrack: { flexDirection: "row", height: 10, borderRadius: 5, backgroundColor: colors.surfaceLight, overflow: "hidden", marginBottom: 6 },
+  bookTargetMark: { position: "absolute", top: -2, bottom: -2, width: 2, backgroundColor: colors.text, opacity: 0.7 },
+  bookLegend: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  bookCohort: { paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
+  bookCohortText: { fontSize: 12, color: colors.text },
 
   // Word Lifecycle Funnel
   funnelCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16 },
