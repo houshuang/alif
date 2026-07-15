@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🔵 [TODO 2026-07-15] Investigate تالي→أَلَا lemma-lookup collision
+## 🔵 [TODO 2026-07-15] `/api/discover/add` fuzzy lookup mis-resolves new citation forms — 17 documented collisions
 During the Momo vocab intake, `/api/discover/add` with bare `تالي` resolved through
 the comprehensive lemma lookup to **أَلَا (id 691)** — a false collision (likely
 clitic-strip or normalization path), which wrongly promoted the interjection to
@@ -11,6 +11,19 @@ lemma. Check `build_comprehensive_lemma_lookup` collision handling for tail-of-w
 matches; add a regression test for تالي/التالي once fixed. Also: تالي itself (core
 "next/following") is still absent from the vocabulary — add it properly after the
 lookup fix.
+
+**2026-07-15 update — systemic, 17-case dataset.** The full-book Momo sweep hit the
+same bug 16 more times in one batch: the add-path lookup strips non-clitic prefixes
+and matches wrong lemmas — لاحظ→حَظّ (لا treated as negation), كناس→نَاس (ك as
+preposition), سيجار→جَار, رمادي→رَمَاد, اصبح→صُبْح, امير→مَارّ, حقيقي→حَقِيق (this
+one actually introduced the wrong lemma), etc. Full table in
+`research/momo-vocab-queue-2026-07-15.md`. All no-ops against known lemmas EXCEPT
+تالي and حقيقي (wrong introductions). Fix candidates: (a) `strict=true` flag on /add
+that requires exact-bare or camel-lemma match, (b) validate that a stripped prefix is
+a real clitic for the POS, (c) reject resolutions where the matched lemma's length <
+~60% of the query. The 17 pairs are a ready-made regression test set. Workaround in
+use: server-side direct create with exact-bare check (see momo_direct_create.py
+pattern in the queue doc).
 
 > This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
 
