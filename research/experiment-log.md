@@ -46,6 +46,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-15: Book/corpus acquiring-gate + Momo authentic-sentence corpus
+
+**Trigger.** The Momo push (July 14–15: 165 book-targeted lemmas imported, ~200 words in
+acquisition) made authentic-sentence mining attractive: review the book's own sentences
+before reading it. But the durable user rule from 2026-05-26 (polyglot Eutropius incident,
+"the book sentences are too complex to practice with … I don't want to see them until I
+have learnt the words well") had been implemented in **polyglot only** — Alif's selector
+had no such gate; book/corpus sentences even carry a 1.3× source bonus and can stack with
+NEVER_REVIEWED_BOOST for a Box-1 word.
+
+**Change.** New gate `_book_sentence_blocked_for_acquiring()` in `sentence_selector.py`,
+applied at both candidate loops (build_session main scoring + `_find_pregenerated_
+sentences_for_words` fill): a sentence with `source in ("book","corpus")` is skipped when
+any of its **due (practiced)** words is `acquiring`. Collateral (non-due) acquiring
+scaffolds remain governed by the comprehensibility gate — blocking those would gut corpus
+coverage and contradict the every-word-earns-credit invariant. Gate registered in
+`docs/scheduling-system.md` §19.17. Tests: `TestBookSentenceAcquiringGate` (6 cases:
+predicate matrix + fill-path integration both ways).
+
+**Corpus.** `scripts/import_momo_corpus.py` (Hindawi-pipeline wrapper): per-page
+extraction from the full-book OCR (no page-break splices), fragment regex pre-filter,
+strict all-tokens-mapped rule (OCR noise self-excludes), ≥1 bookifier-lemma requirement,
+dedup. 1,646 candidates → 87 machine-accepted → **59 hand-vetted** (Claude read all 87;
+dropped mid-clause fragments, OCR garble, one المرأة/المرآة ambiguity, one احتال-vs-احتل
+mapping trap). Imported `source='corpus'`, `kind='momo_book'`, `is_active=False`,
+unverified/untranslated — invisible until the update_material cron diacritizes/translates/
+verifies (same lifecycle as Hindawi). Expected effect: authentic Momo sentences enter the
+maintenance diet as their target words graduate, i.e. staged authentic-material entry
+(recommended by the 2026-05-10 projection analysis) with the staging enforced by gates.
+
+**Expectation / watch.** No change to acquisition sessions (gate is a strict narrowing);
+corpus sentences appear for graduated Momo words within ~1–3 weeks. Watch: session fill
+rate for FSRS-due Momo words (should rise as sentences activate), and that no momo_book
+sentence is served with a Box-1 due word (grep session logs if in doubt).
+
 ## 2026-07-09 (deployed 2026-07-10 — PR #208): Return recovery tuning + exact-surface pilot
 
 **Trigger.** The learner confirmed the hiatus was a vacation and clarified that yellow means

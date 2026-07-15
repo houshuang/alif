@@ -2022,3 +2022,86 @@ class TestIntroCardTotalCap:
 
         assert len(cards) == INTRO_NEW_CARDS_PER_SESSION
         assert set(textbook_ids) <= card_ids
+
+
+class TestBookSentenceAcquiringGate:
+    """Authentic book/corpus sentences must never practice acquiring-state words.
+
+    Durable user rule (2026-05-26): book sentences are written for fluent
+    readers; Box-1/2/3 words get LLM-scaffolded material only. Book/corpus
+    sentences may serve a word once it has an FSRS card (learning/known/lapsed).
+    """
+
+    def _meta(self, lemma_id, state, is_due):
+        return WordMeta(
+            lemma_id=lemma_id, surface_form="x", gloss_en="x", stability=1.0,
+            is_due=is_due, is_function_word=False, is_proper_name=False,
+            knowledge_state=state, is_fresh_today=False,
+        )
+
+    def test_predicate_blocks_corpus_for_due_acquiring(self):
+        from app.services.sentence_selector import _book_sentence_blocked_for_acquiring
+        sent = Sentence(arabic_text="x", source="corpus")
+        metas = [self._meta(1, "acquiring", True), self._meta(2, "known", False)]
+        assert _book_sentence_blocked_for_acquiring(sent, metas) is True
+
+    def test_predicate_allows_llm_source_for_due_acquiring(self):
+        from app.services.sentence_selector import _book_sentence_blocked_for_acquiring
+        sent = Sentence(arabic_text="x", source="llm")
+        metas = [self._meta(1, "acquiring", True)]
+        assert _book_sentence_blocked_for_acquiring(sent, metas) is False
+
+    def test_predicate_allows_corpus_for_due_known(self):
+        from app.services.sentence_selector import _book_sentence_blocked_for_acquiring
+        sent = Sentence(arabic_text="x", source="book")
+        metas = [self._meta(1, "known", True)]
+        assert _book_sentence_blocked_for_acquiring(sent, metas) is False
+
+    def test_predicate_allows_corpus_with_acquiring_scaffold_only(self):
+        # Collateral (non-due) acquiring scaffold is governed by the
+        # comprehensibility gate, not this one.
+        from app.services.sentence_selector import _book_sentence_blocked_for_acquiring
+        sent = Sentence(arabic_text="x", source="corpus")
+        metas = [self._meta(1, "known", True), self._meta(2, "acquiring", False)]
+        assert _book_sentence_blocked_for_acquiring(sent, metas) is False
+
+    def test_pregenerated_fill_skips_corpus_for_acquiring_target(self, db_session):
+        _, k1 = _seed_word(db_session, 1, "كناس", "sweeper", state="acquiring",
+                           stability=0.1)
+        _seed_word(db_session, 2, "بيت", "house", state="known")
+        _seed_word(db_session, 3, "كبير", "big", state="known")
+        # Corpus sentence and LLM sentence, both containing the acquiring target
+        _seed_sentence(db_session, 1, "الكناس في البيت الكبير", "the sweeper ...",
+                       1, [("الكناس", 1), ("البيت", 2), ("الكبير", 3)],
+                       source="corpus")
+        _seed_sentence(db_session, 2, "الكناس كبير", "the sweeper is big",
+                       1, [("الكناس", 1), ("كبير", 3)], source="llm")
+        k2 = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+        k3 = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=3).one()
+
+        items = _find_pregenerated_sentences_for_words(
+            db_session, {1}, {1: 0.1, 2: 30.0, 3: 30.0},
+            {1: k1, 2: k2, 3: k3}, [k1, k2, k3], limit=5,
+        )
+        picked_sources = {
+            db_session.get(Sentence, it["sentence_id"]).source for it in items
+        }
+        assert "corpus" not in picked_sources, (
+            "corpus sentence must not be served for an acquiring target"
+        )
+        assert picked_sources == {"llm"}
+
+    def test_pregenerated_fill_allows_corpus_for_known_target(self, db_session):
+        _, k1 = _seed_word(db_session, 1, "كناس", "sweeper", state="known",
+                           stability=5.0)
+        _seed_word(db_session, 2, "بيت", "house", state="known")
+        _seed_sentence(db_session, 1, "الكناس في البيت", "the sweeper ...",
+                       1, [("الكناس", 1), ("البيت", 2)], source="corpus")
+        k2 = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+
+        items = _find_pregenerated_sentences_for_words(
+            db_session, {1}, {1: 5.0, 2: 30.0},
+            {1: k1, 2: k2}, [k1, k2], limit=5,
+        )
+        assert len(items) == 1
+        assert db_session.get(Sentence, items[0]["sentence_id"]).source == "corpus"

@@ -2189,6 +2189,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 | Gate | Location | Filters on |
 |------|----------|------------|
 | Comprehensibility gate | `sentence_selector.py` (×2: build_session + fill) | knowledge_state, stability |
+| Book/corpus acquiring gate | `sentence_selector.py` `_book_sentence_blocked_for_acquiring` (×2: build_session + fill) | source, knowledge_state (due words) |
 | Unknown scaffold cap | `sentence_selector.py` | knowledge_state |
 | Pipeline backlog gate | `sentence_selector.py` | acquiring count |
 | Focus cohort | `cohort_service.py` | knowledge_state |

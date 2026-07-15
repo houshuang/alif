@@ -113,6 +113,21 @@ def _source_bonus_for_sentence(sent: Sentence) -> float:
     return 1.0
 
 
+def _book_sentence_blocked_for_acquiring(sent: Sentence, word_metas: list) -> bool:
+    """Authentic book/corpus sentences must never PRACTICE acquiring-state words.
+
+    Durable user rule (2026-05-26, stated repeatedly): authentic sentences are
+    written for fluent readers; a Box-1/2/3 word needs LLM-scaffolded material
+    (warm_sentence_cache's job). Book/corpus sentences may serve a word only
+    once it has graduated to an FSRS card (learning/known/lapsed). The gate
+    applies to the sentence's DUE (practiced) words — collateral scaffold
+    appearances are governed by the comprehensibility gate instead.
+    """
+    if sent.source not in ("book", "corpus"):
+        return False
+    return any(w.is_due and w.knowledge_state == "acquiring" for w in word_metas)
+
+
 def _quality_multiplier_for_sentence(sent: Sentence) -> float:
     """Prefer quality-reviewed LLM rows, but keep unreviewed rows as fallback.
 
@@ -1390,6 +1405,9 @@ def build_session(
         if unknown_scaffold > MAX_UNKNOWN_SCAFFOLD:
             continue
 
+        if _book_sentence_blocked_for_acquiring(sent, word_metas):
+            continue
+
         # Listening mode: skip if any non-function, non-due word isn't listening-ready
         if mode == "listening":
             scaffold_ids = [w.lemma_id for w in word_metas
@@ -2505,6 +2523,9 @@ def _find_pregenerated_sentences_for_words(
             continue
         unknown_scaffold = total_scaffold - known_scaffold
         if unknown_scaffold > MAX_UNKNOWN_SCAFFOLD:
+            continue
+
+        if _book_sentence_blocked_for_acquiring(sent, word_metas):
             continue
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
