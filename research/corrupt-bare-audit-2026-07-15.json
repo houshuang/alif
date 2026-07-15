@@ -1,0 +1,1022 @@
+[
+ {
+  "lemma_id": 447,
+  "lemma_ar": "لأنَّ",
+  "lemma_ar_bare": "لان",
+  "gloss_en": "because",
+  "pos": "conj",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2185,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 451,
+  "lemma_ar": "أَيّ",
+  "lemma_ar_bare": "اي",
+  "gloss_en": "which?",
+  "pos": "interrog",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 360,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 452,
+  "lemma_ar": "لـِ",
+  "lemma_ar_bare": "لـ",
+  "gloss_en": "to",
+  "pos": "prep",
+  "kind": "bare-key-shadowed",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 554,
+  "lemma_ar": "بَانَ",
+  "lemma_ar_bare": "بان",
+  "gloss_en": "to separate, to become distinct, to sunder",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2185,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 943,
+  "lemma_ar": "آنٌ",
+  "lemma_ar_bare": "ان",
+  "gloss_en": "time",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2185,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 2056,
+  "lemma_ar": "سَـ",
+  "lemma_ar_bare": "سـ",
+  "gloss_en": "will",
+  "pos": "particle",
+  "kind": "bare-key-shadowed",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 2071,
+  "lemma_ar": "إِنَّهُ",
+  "lemma_ar_bare": "انه",
+  "gloss_en": "indeed he",
+  "pos": "particle",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2186,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 2072,
+  "lemma_ar": "إِنَّهَا",
+  "lemma_ar_bare": "انها",
+  "gloss_en": "indeed she",
+  "pos": "particle",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2186,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 2187,
+  "lemma_ar": "أَنَّ",
+  "lemma_ar_bare": "انّ",
+  "gloss_en": "that",
+  "pos": "particle",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2185,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 2188,
+  "lemma_ar": "إِنَّ",
+  "lemma_ar_bare": "انّ",
+  "gloss_en": "indeed, that",
+  "pos": "particle",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2186,
+  "via_layer": "0"
+ },
+ {
+  "lemma_id": 2196,
+  "lemma_ar": "غَداً",
+  "lemma_ar_bare": "غد",
+  "gloss_en": "tomorrow",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2197,
+  "lemma_ar": "بِبُطْء",
+  "lemma_ar_bare": "بطء",
+  "gloss_en": "slowly",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2208,
+  "lemma_ar": "عَالٍ",
+  "lemma_ar_bare": "عالي",
+  "gloss_en": "loud",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": 2522,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2214,
+  "lemma_ar": "مِقْلَمَة",
+  "lemma_ar_bare": "مقلم",
+  "gloss_en": "pencil case",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2324,
+  "lemma_ar": "سَنْدَوِيتْش",
+  "lemma_ar_bare": "ساندويتش",
+  "gloss_en": "sandwich",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2325,
+  "lemma_ar": "زُبْدَة",
+  "lemma_ar_bare": "زبد",
+  "gloss_en": "butter",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2329,
+  "lemma_ar": "سَمْبُوسَة",
+  "lemma_ar_bare": "سمبوسه",
+  "gloss_en": "samosa",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2332,
+  "lemma_ar": "زَبَادِي",
+  "lemma_ar_bare": "زباد",
+  "gloss_en": "yogurt",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2336,
+  "lemma_ar": "مَقْلِيّ",
+  "lemma_ar_bare": "مقل",
+  "gloss_en": "fried",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2337,
+  "lemma_ar": "مَشْوِيّ",
+  "lemma_ar_bare": "مشو",
+  "gloss_en": "grilled",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2345,
+  "lemma_ar": "شَوارْمَة",
+  "lemma_ar_bare": "شوارمه",
+  "gloss_en": "Shawarma",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2347,
+  "lemma_ar": "كَعْكَة",
+  "lemma_ar_bare": "كعك",
+  "gloss_en": "cake",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2348,
+  "lemma_ar": "شوكولاتَه",
+  "lemma_ar_bare": "شكولاتة",
+  "gloss_en": "chocolate",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2349,
+  "lemma_ar": "خَمْسَة",
+  "lemma_ar_bare": "خمس",
+  "gloss_en": "five",
+  "pos": "adj",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2371,
+  "lemma_ar": "نَباتِيّ",
+  "lemma_ar_bare": "نبات",
+  "gloss_en": "vegetarian",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": 3171,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2379,
+  "lemma_ar": "إِجّاص",
+  "lemma_ar_bare": "اجاصة",
+  "gloss_en": "pears",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2387,
+  "lemma_ar": "كُوسَة",
+  "lemma_ar_bare": "كوس",
+  "gloss_en": "zucchini",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2403,
+  "lemma_ar": "بِلُوفَر",
+  "lemma_ar_bare": "لوفر",
+  "gloss_en": "pullover",
+  "pos": "noun_prop",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2408,
+  "lemma_ar": "مُجْتَهِدَة",
+  "lemma_ar_bare": "مجتهد",
+  "gloss_en": "diligent",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2410,
+  "lemma_ar": "بَرَّادَة",
+  "lemma_ar_bare": "براد",
+  "gloss_en": "refrigerator",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2423,
+  "lemma_ar": "تَقْرِيبًا",
+  "lemma_ar_bare": "تقريب",
+  "gloss_en": "approximately",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2465,
+  "lemma_ar": "أَم",
+  "lemma_ar_bare": "ام",
+  "gloss_en": "or (disjunctive conjunction)",
+  "pos": "conjunction",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 76,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2467,
+  "lemma_ar": "مَكْياج",
+  "lemma_ar_bare": "ماكياج",
+  "gloss_en": "makeup",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2472,
+  "lemma_ar": "مُثِيرَة",
+  "lemma_ar_bare": "مثير",
+  "gloss_en": "exciting",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2475,
+  "lemma_ar": "مُؤَخَّرَة",
+  "lemma_ar_bare": "مؤخر",
+  "gloss_en": "rear or backside",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2488,
+  "lemma_ar": "حَنْجَرَة",
+  "lemma_ar_bare": "حنجر",
+  "gloss_en": "throat",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2516,
+  "lemma_ar": "حَاجِب",
+  "lemma_ar_bare": "احتجاب",
+  "gloss_en": "eyebrow",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2519,
+  "lemma_ar": "أَكَلَ",
+  "lemma_ar_bare": "اكل",
+  "gloss_en": "to eat",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 324,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2539,
+  "lemma_ar": "أَرُزّ",
+  "lemma_ar_bare": "ارز",
+  "gloss_en": "rice",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 1241,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2547,
+  "lemma_ar": "حَافِظ",
+  "lemma_ar_bare": "حافظ",
+  "gloss_en": "guardian; protector; one who preserves",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 907,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2549,
+  "lemma_ar": "جِدّ",
+  "lemma_ar_bare": "جد",
+  "gloss_en": "seriousness, earnestness, diligence",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 43,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2552,
+  "lemma_ar": "لَزْقَة",
+  "lemma_ar_bare": "زق",
+  "gloss_en": "plaster",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2565,
+  "lemma_ar": "حَسَاسِيَّة",
+  "lemma_ar_bare": "حساسي",
+  "gloss_en": "allergy",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2570,
+  "lemma_ar": "رِبْطَة",
+  "lemma_ar_bare": "ربط",
+  "gloss_en": "tie",
+  "pos": "verb",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2696,
+  "lemma_ar": "الْحَاوِي",
+  "lemma_ar_bare": "الحاوي",
+  "gloss_en": "Al-Hawi",
+  "pos": "noun_prop",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2694,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2703,
+  "lemma_ar": "بَكْر",
+  "lemma_ar_bare": "بكر",
+  "gloss_en": "Bakr",
+  "pos": "noun_prop",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2622,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2704,
+  "lemma_ar": "الرَّازِي",
+  "lemma_ar_bare": "الرازي",
+  "gloss_en": "Al-Razi",
+  "pos": "noun_prop",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2690,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 2711,
+  "lemma_ar": "تَأْشِيرَة",
+  "lemma_ar_bare": "تاشير",
+  "gloss_en": "visa",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2723,
+  "lemma_ar": "جَزِيل",
+  "lemma_ar_bare": "جزل",
+  "gloss_en": "abundant",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2729,
+  "lemma_ar": "مُفْرَدَة",
+  "lemma_ar_bare": "مفرد",
+  "gloss_en": "single",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2771,
+  "lemma_ar": "حَوالَيْ",
+  "lemma_ar_bare": "حوال",
+  "gloss_en": "around",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2793,
+  "lemma_ar": "جَذَّابَة",
+  "lemma_ar_bare": "جذاب",
+  "gloss_en": "attractive",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2807,
+  "lemma_ar": "فُلْكُلُورِيّ",
+  "lemma_ar_bare": "فولكلوري",
+  "gloss_en": "folkloric",
+  "pos": "adj",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2812,
+  "lemma_ar": "كَارِيكَاتُورِيّ",
+  "lemma_ar_bare": "كاريكاتور",
+  "gloss_en": "caricature",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2917,
+  "lemma_ar": "رَبَابَة",
+  "lemma_ar_bare": "رباب",
+  "gloss_en": "rababa",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2918,
+  "lemma_ar": "قِرْفَة",
+  "lemma_ar_bare": "قرف",
+  "gloss_en": "cinnamon",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2945,
+  "lemma_ar": "مَضْغُوط",
+  "lemma_ar_bare": "ضواغط",
+  "gloss_en": "compressed",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2956,
+  "lemma_ar": "صَافٍ",
+  "lemma_ar_bare": "صافي",
+  "gloss_en": "clear",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 2960,
+  "lemma_ar": "طَاهٍ",
+  "lemma_ar_bare": "طاهي",
+  "gloss_en": "cook",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3020,
+  "lemma_ar": "شَحَّاذَة",
+  "lemma_ar_bare": "شحاذ",
+  "gloss_en": "beggar",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3075,
+  "lemma_ar": "خَيَالِيّ",
+  "lemma_ar_bare": "خيال",
+  "gloss_en": "imaginary",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3080,
+  "lemma_ar": "قَدِمَ",
+  "lemma_ar_bare": "قدم",
+  "gloss_en": "to come, to arrive",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 561,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3081,
+  "lemma_ar": "قَدَّمَ",
+  "lemma_ar_bare": "قدم",
+  "gloss_en": "to submit, to present",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 561,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3083,
+  "lemma_ar": "مِثْل",
+  "lemma_ar_bare": "مثل",
+  "gloss_en": "like, similar to",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 976,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3084,
+  "lemma_ar": "قِطّ",
+  "lemma_ar_bare": "قط",
+  "gloss_en": "cat",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 490,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3094,
+  "lemma_ar": "بَهْجَة",
+  "lemma_ar_bare": "بهج",
+  "gloss_en": "joy, delight",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3152,
+  "lemma_ar": "فَضْلَة",
+  "lemma_ar_bare": "فضله",
+  "gloss_en": "dropping; droppings",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 3178,
+  "lemma_ar": "مَغَارَة",
+  "lemma_ar_bare": "مغار",
+  "gloss_en": "cave",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3185,
+  "lemma_ar": "وَفْقاً",
+  "lemma_ar_bare": "وفق",
+  "gloss_en": "according to",
+  "pos": "adv",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3199,
+  "lemma_ar": "وَجَمَ",
+  "lemma_ar_bare": "جم",
+  "gloss_en": "to collect, gather",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3228,
+  "lemma_ar": "تَجْعِيدَة",
+  "lemma_ar_bare": "تجعيده",
+  "gloss_en": "wrinkle",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3244,
+  "lemma_ar": "عَارِيَة",
+  "lemma_ar_bare": "عاري",
+  "gloss_en": "naked, bare",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3254,
+  "lemma_ar": "مَرْحَة",
+  "lemma_ar_bare": "مرح",
+  "gloss_en": "joy",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3263,
+  "lemma_ar": "نَاءٌ",
+  "lemma_ar_bare": "نائي",
+  "gloss_en": "distant, remote",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3277,
+  "lemma_ar": "طَاغٌ",
+  "lemma_ar_bare": "طاغي",
+  "gloss_en": "tyrant",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3284,
+  "lemma_ar": "قَاسٌ",
+  "lemma_ar_bare": "قاسي",
+  "gloss_en": "harsh",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3295,
+  "lemma_ar": "فُوجِئَ",
+  "lemma_ar_bare": "فاجا",
+  "gloss_en": "to surprise",
+  "pos": "verb",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3331,
+  "lemma_ar": "فِطْنَة",
+  "lemma_ar_bare": "طن",
+  "gloss_en": "shrewdness",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3338,
+  "lemma_ar": "كِلَارَا:",
+  "lemma_ar_bare": "كلارا",
+  "gloss_en": "(proper name)",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 3343,
+  "lemma_ar": "بِيجُوتِي،",
+  "lemma_ar_bare": "بيجوتي",
+  "gloss_en": "(proper name)",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 3348,
+  "lemma_ar": "ماكْبِث،",
+  "lemma_ar_bare": "ماكبث",
+  "gloss_en": "(proper name)",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 3362,
+  "lemma_ar": "مَايْلِز:",
+  "lemma_ar_bare": "مايلز",
+  "gloss_en": "(proper name)",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "gate"
+ },
+ {
+  "lemma_id": 3405,
+  "lemma_ar": "فَوْرًا",
+  "lemma_ar_bare": "فور",
+  "gloss_en": "immediately",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3477,
+  "lemma_ar": "نَجَّى",
+  "lemma_ar_bare": "نجي",
+  "gloss_en": "rescued/saved",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3578,
+  "lemma_ar": "صالِح",
+  "lemma_ar_bare": "صالح",
+  "gloss_en": "righteous deeds",
+  "pos": "adj",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 3071,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3585,
+  "lemma_ar": "حَجَر",
+  "lemma_ar_bare": "حجر",
+  "gloss_en": "stone",
+  "pos": "noun",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 512,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3587,
+  "lemma_ar": "نَزَّلَ",
+  "lemma_ar_bare": "نزل",
+  "gloss_en": "to send down, reveal (Form II causative)",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 3569,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3588,
+  "lemma_ar": "أَنْزَلَ",
+  "lemma_ar_bare": "نزل",
+  "gloss_en": "to bring down, send down (Form IV)",
+  "pos": "verb",
+  "kind": "bare-truncated",
+  "resolves_to": 3569,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3597,
+  "lemma_ar": "كَتَمَ",
+  "lemma_ar_bare": "كتم",
+  "gloss_en": "to conceal, hide, keep secret",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 1379,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 3705,
+  "lemma_ar": "مُبالٍ",
+  "lemma_ar_bare": "مبالي",
+  "gloss_en": "caring",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3717,
+  "lemma_ar": "مُسَلٍّ",
+  "lemma_ar_bare": "مسلي",
+  "gloss_en": "entertaining",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3720,
+  "lemma_ar": "بُغْض",
+  "lemma_ar_bare": "غض",
+  "gloss_en": "hatred",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 3927,
+  "lemma_ar": "عَبَدَ",
+  "lemma_ar_bare": "عبد",
+  "gloss_en": "to worship",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 1338,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4027,
+  "lemma_ar": "دَرَسَ",
+  "lemma_ar_bare": "درس",
+  "gloss_en": "to study",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 216,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4028,
+  "lemma_ar": "كَتَبَ",
+  "lemma_ar_bare": "كتب",
+  "gloss_en": "to write",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 229,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4029,
+  "lemma_ar": "تَفَضَّلَ",
+  "lemma_ar_bare": "تفضل",
+  "gloss_en": "be so kind",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 432,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4030,
+  "lemma_ar": "وَضَعَ",
+  "lemma_ar_bare": "وضع",
+  "gloss_en": "put, place",
+  "pos": "verb",
+  "kind": "bare-key-shadowed",
+  "resolves_to": 2190,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4035,
+  "lemma_ar": "وَكْر",
+  "lemma_ar_bare": "كر",
+  "gloss_en": "den, lair",
+  "pos": "noun",
+  "kind": "bare-truncated",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 4044,
+  "lemma_ar": "ثِنتان",
+  "lemma_ar_bare": "ثنة",
+  "gloss_en": "two",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 4075,
+  "lemma_ar": "حِينَئِذٍ",
+  "lemma_ar_bare": "حينئذي",
+  "gloss_en": "then; at that time",
+  "pos": "adverb",
+  "kind": "display-bare-divergent",
+  "resolves_to": 4221,
+  "via_layer": "1"
+ },
+ {
+  "lemma_id": 4178,
+  "lemma_ar": "مِعْرَاج",
+  "lemma_ar_bare": "معرج",
+  "gloss_en": "ascension",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": null,
+  "via_layer": "none"
+ },
+ {
+  "lemma_id": 4212,
+  "lemma_ar": "قَاضٍ",
+  "lemma_ar_bare": "قاضي",
+  "gloss_en": "judge",
+  "pos": "noun",
+  "kind": "display-bare-divergent",
+  "resolves_to": 2450,
+  "via_layer": "1"
+ }
+]

@@ -52,8 +52,13 @@ alternatives (deferred; verification gate is holding, measure first);
 (b) **FCE intake** (`frequency_core_intake._resolve_existing`) still uses the fuzzy
 path + `resolve_existing_lemma` for display-form linking — 63 known future
 collisions when intake reaches those ranks; needs its own linking-policy pass;
-(c) **62 corrupt `lemma_ar_bare` fields** (مقلمة/مقلم, شوارمة/شوارمه — list in
-findings JSON) — repair script so strict /add no-ops instead of duplicating;
+(c) **corrupt/divergent `lemma_ar_bare` fields** — full classified audit in
+`research/corrupt-bare-audit-2026-07-15.json` (102 self-resolution failures under
+citation-strict: 45 bare-truncated زُبْدَة/زبد + 26 display-bare-divergent
+سندويتش-spelling/ه↔ة — repair candidates; the other 31 bare-key-shadowed are the
+intentional function overrides + known homograph issue, out of scope). Repair so
+strict /add no-ops instead of duplicating; per-lemma citation-form judgment needed
+(some "truncations" like غَداً/غد are design-gray: adverbial display vs noun bare);
 (d) ~~post-deploy remap+reverify~~ DONE 2026-07-15 — 4-row residue remains:
 3 reviewable ستين→سِتّ (LLM verifier passes the number-family adjacency; clean
 fix = import ستون with oblique ستين in forms_json, then re-run
