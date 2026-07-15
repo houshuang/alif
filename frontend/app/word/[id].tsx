@@ -114,8 +114,11 @@ export default function WordDetailScreen() {
     word.root,
     word.pos,
     stateLabel,
+    // "#N" is the frequency rank (matches the Words list); "ID N" is the
+    // lemma_id — the stable identifier for scripts/DB lookups.
     word.frequency_rank ? `#${word.frequency_rank}` : null,
     word.cefr_level,
+    `ID ${word.id}`,
   ].filter(Boolean) as string[];
 
   // Filter redundant forms (gender shown as grammar chip)

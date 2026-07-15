@@ -1696,6 +1696,11 @@ async def main():
                 "ALIF_RUN_CRON_LEMMA_ENRICHMENT=1)"
             )
         else:
+            # NOTE: memory_hooks_json is deliberately absent from this filter —
+            # hooks are lazy-generated on first failed review (see the Step 4
+            # note in lemma_enrichment.py), so "missing hooks" is not backlog.
+            # Including it inflated the work list ~7x (1,789 phantom rows on
+            # 2026-07-15) and starved real enrichment out of the cron timeout.
             unenriched = (
                 db.query(Lemma.lemma_id)
                 .filter(
@@ -1703,17 +1708,29 @@ async def main():
                     (
                         Lemma.forms_json.is_(None)
                         | Lemma.etymology_json.is_(None)
-                        | Lemma.memory_hooks_json.is_(None)
                         | (Lemma.grammar_features_json.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
                         | (Lemma.example_ar.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
                         | (Lemma.root_id.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
                     ),
                 )
+                .order_by(Lemma.lemma_id.desc())
                 .all()
             )
             unenriched_ids = [r[0] for r in unenriched]
+            # Bound the pass so it finishes inside the cron wrapper's
+            # MAINTENANCE_TIMEOUT_SECONDS (900s) — an unbounded pass was being
+            # killed at the timeout with all progress lost. Newest lemmas first:
+            # they're the ones the user just imported and is about to review.
+            enrich_cap = int(os.environ.get("ALIF_CRON_ENRICH_LIMIT", "80"))
+            if len(unenriched_ids) > enrich_cap:
+                print(
+                    f"  Found {len(unenriched_ids)} lemmas to enrich; processing the "
+                    f"newest {enrich_cap} this pass, deferring "
+                    f"{len(unenriched_ids) - enrich_cap} (ALIF_CRON_ENRICH_LIMIT)"
+                )
+                unenriched_ids = unenriched_ids[:enrich_cap]
             if unenriched_ids:
-                print(f"  Found {len(unenriched_ids)} lemmas to enrich")
+                print(f"  Enriching {len(unenriched_ids)} lemmas")
                 if not args.dry_run:
                     from app.services.lemma_enrichment import enrich_lemmas_batch
                     result = enrich_lemmas_batch(unenriched_ids)
