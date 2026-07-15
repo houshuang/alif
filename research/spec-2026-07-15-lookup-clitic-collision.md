@@ -291,3 +291,32 @@ Sequencing per §6: Fix A on `sh/lookup-clitic-collision` with the §4 test set
 violations, 400+400 good surfaces) → deploy → remap+reverify the 5 reviewable
 rows + corpus sweep for the 116 inactive ones → re-add تالي/حقيقي via /add →
 bare-field repair for the 62 corrupt lemmas → then evaluate Fix B.
+
+## §8 OUTCOME (fix shipped + remediation executed, 2026-07-15)
+
+- **Fix A shipped** as PR #212 (`lookup_lemma_citation`, wired into
+  `/add`/`add-batch`). Final shape is the deterministic V7: the MLE
+  whole-word gate scored identically to V6 once single-letter strips and the
+  CAMeL last resort were removed, so it was dropped — no CAMeL dependency on
+  the endpoint. `lookup_lemma` itself unchanged (shared layers extracted
+  verbatim). Tests: `TestLookupLemmaCitation` + /add round-trips
+  (كناس-next-to-known-ناس creates; بالمكتبة resolves without duplicating).
+- **Deployed 2026-07-15**, DB backup
+  `alif_pre_collision_remediation_20260715_084914.db`. Live E2E: re-adding
+  تالي through the fixed endpoint — the exact call that started this spec —
+  returned `created=true` (#4374 تَالٍ). حقيقي was already re-created (#4304).
+- **Remediation** via `backend/scripts/remap_collision_mismaps.py`
+  (audit/fix modes; pair list read from the findings JSON): live audit
+  matched the snapshot exactly (121 rows: 5 reviewable + 116 inactive).
+  `--fix` remapped 116 to their now-imported correct lemmas and routed the
+  5 affected active sentences through `reverify_all_active_sentences`
+  (3 re-stamped, 2 positions nulled). ActivityLog:
+  `collision_mismap_remediation`.
+- **Residue: 4 rows** (down from 121). 3 reviewable ستين→سِتّ — the LLM
+  verifier explicitly passed them (number-family adjacency; clean fix is
+  importing ستون with its oblique ستين registered, or Fix B) — plus 1
+  inactive تفوق→فَاقَ (invisible to review; skeleton homograph of a
+  registered conjugation). Both tracked in IDEAS.md.
+- **Not done here** (open in IDEAS.md): Fix B (shared-path MLE gating +
+  layer-4 alternative reporting), FCE-intake linking policy, the 62
+  corrupt-bare repairs.

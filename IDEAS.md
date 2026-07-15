@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🔵 [TODO 2026-07-15] `/api/discover/add` fuzzy lookup mis-resolves new citation forms — 17 documented collisions
+## 🟢 [DONE 2026-07-15 — Fix A shipped+deployed+remediated; follow-ups open below] `/api/discover/add` fuzzy lookup mis-resolves new citation forms — 17 documented collisions
 During the Momo vocab intake, `/api/discover/add` with bare `تالي` resolved through
 the comprehensive lemma lookup to **أَلَا (id 691)** — a false collision (likely
 clitic-strip or normalization path), which wrongly promoted the interjection to
@@ -38,11 +38,15 @@ Recommended: Fix A = citation-strict lookup mode for /add (MLE whole-word gate +
 بالمكتبة-class good); Fix B (separate) = MLE-gate the shared-path last resort
 (retains 94% of legit layer-4 rescues). Fix not yet implemented.
 
-**2026-07-15 Fix A SHIPPED** (`sh/lookup-clitic-collision`): `lookup_lemma_citation()`
+**2026-07-15 Fix A SHIPPED (PR #212) + DEPLOYED + REMEDIATED**: `lookup_lemma_citation()`
 in `sentence_validator.py` (deterministic V7 — the MLE whole-word gate proved
 redundant once single-letter strips + CAMeL last resort were removed, scored
 identically: 18/18 bad, 36/63 FCE, all good cases), wired into
-`/api/discover/add`(+`add-batch`). Remaining open items from this bug family:
+`/api/discover/add`(+`add-batch`). Remediation same day via
+`scripts/remap_collision_mismaps.py`: 121 mis-mapped SentenceWords → 4 residue
+(116 remapped, 5 active sentences reverified — 3 re-stamped / 2 positions nulled);
+تالي re-added as #4374 via the fixed endpoint, حقيقي already #4304. Full outcome:
+spec-2026-07-15 §8. Remaining open items from this bug family:
 (a) **Fix B** — MLE-gate the shared-path CAMeL last resort + make layer 4 report
 alternatives (deferred; verification gate is holding, measure first);
 (b) **FCE intake** (`frequency_core_intake._resolve_existing`) still uses the fuzzy
@@ -50,8 +54,11 @@ path + `resolve_existing_lemma` for display-form linking — 63 known future
 collisions when intake reaches those ranks; needs its own linking-policy pass;
 (c) **62 corrupt `lemma_ar_bare` fields** (مقلمة/مقلم, شوارمة/شوارمه — list in
 findings JSON) — repair script so strict /add no-ops instead of duplicating;
-(d) post-deploy remap+reverify of the 5 reviewable + 116 inactive mis-mapped
-SentenceWords; (e) re-add تالي + حقيقي via the fixed /add.
+(d) ~~post-deploy remap+reverify~~ DONE 2026-07-15 — 4-row residue remains:
+3 reviewable ستين→سِتّ (LLM verifier passes the number-family adjacency; clean
+fix = import ستون with oblique ستين in forms_json, then re-run
+`remap_collision_mismaps.py --fix`) + 1 inactive تفوق→فَاقَ;
+(e) ~~re-add تالي + حقيقي~~ DONE 2026-07-15 (#4374, #4304).
 
 > This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
 

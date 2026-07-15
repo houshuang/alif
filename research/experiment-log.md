@@ -46,6 +46,53 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-15: Citation-strict lookup for /add — collision investigation, fix, deploy, remediation
+
+**Trigger.** 18 documented citation-form collisions over two days of Momo vocab intake:
+`/api/discover/add` silently no-op'd new words onto wrong existing lemmas (لاحظ→حَظّ,
+كناس→نَاس, سيجار→جَار) and twice introduced the wrong lemma (تالي→أَلَا, حقيقي→حَقِيق).
+Investigation spec + full findings: `spec-2026-07-15-lookup-clitic-collision.md` (§7);
+machine-readable traces/census/fixtures: `lookup-collision-findings-2026-07-15.json`.
+
+**Root cause (hypothesis refuted).** Not the clitic stripper: 16/18 came from the CAMeL
+last-resort layer — `find_best_db_match()` scans the analyzer's *unranked* analysis list
+and returns the first lex matching any known lemma, so an unknown citation form descends
+into junk parses until something sticks. 2/18 were single-letter clitic strips (كناس ك-prep,
+ادرك ك-enclitic). Layer-4 matches also report no `out_alternatives` and `via_clitic=False`,
+so downstream LLM disambiguation treats fuzzy rescues as confident matches. Census: 63/1,879
+unlinked FCE display forms were latent future collisions (فستان→سِتّ); 62 canonical lemmas
+have corrupt `lemma_ar_bare` (مقلمة/مقلم) that the fuzzy layer papered over.
+
+**Change (PR #212).** `lookup_lemma_citation()` in `sentence_validator.py`: shared
+high-confidence layers (extracted verbatim to `_lookup_exact_layers`; `lookup_lemma`
+behavior unchanged) + `CITATION_AL_PREFIXES` (وال/بال/فال/كال/لل) stripping only, no
+single-letter clitics, no CAMeL. Wired into `/add`(+`-batch`). Scored on a prod snapshot:
+18/18 bad pairs → None; 36/63 future FCE collisions prevented (27 residual are direct hits
+on vocabulary-registered derived forms — a "known form" claim, different issue); all
+بالمكتبة-class adds and all 16 re-added Momo words still resolve. The MLE whole-word gate
+(fix-shape 2) proved redundant once the fuzzy layers were gone — the shipped resolver is
+fully deterministic. The CAMeL last resort stays on the running-text path where it is
+load-bearing (400/400 sampled verified tanwin/conjugation mappings resolve only there).
+
+**Remediation (deployed 2026-07-15, backup `alif_pre_collision_remediation_20260715_084914.db`).**
+`scripts/remap_collision_mismaps.py` against the live DB: 121 mis-mapped SentenceWord rows
+(momo + FCE classes; census-A skeleton homographs excluded as ambiguous-by-nature) →
+116 remapped to their now-imported correct lemmas, 5 active sentences re-verified via
+`reverify_all_active_sentences` (3 re-stamped, 2 positions nulled). تالي re-added via the
+fixed endpoint (#4374 تَالٍ, created=true — the original bug's exact call now works);
+حقيقي already re-added as #4304. Residue after sweep: 4 rows — 3 reviewable ستين→سِتّ the
+LLM verifier explicitly passed (number-family adjacency; clean fix = import ستون with
+oblique form registered) + 1 inactive تفوق→فَاقَ (invisible to review). ActivityLog:
+`collision_mismap_remediation`.
+
+**Open follow-ups (IDEAS.md).** Fix B (MLE-gate the shared-path last resort + report
+layer-4 alternatives; deferred — LLM verification gate is holding, blast radius measured
+small); FCE-intake linking policy (still fuzzy); 62 corrupt bare-field repairs; ستين/تفوق
+residue.
+
+**Verify.** `TestLookupLemmaCitation` + two /add round-trips in the suite; re-run
+`remap_collision_mismaps.py` (audit mode) — expect the same 4-row residue, nothing new.
+
 ## 2026-07-15: Stats panel — recovery gates, gated daily target, Momo coverage card, backlog burndown
 
 **Trigger.** User asked whether the stats panel gives a good-enough daily overview for the
