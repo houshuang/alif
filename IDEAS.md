@@ -1,5 +1,17 @@
 # Alif — Master Ideas File
 
+## 🔵 [TODO 2026-07-15] Investigate تالي→أَلَا lemma-lookup collision
+During the Momo vocab intake, `/api/discover/add` with bare `تالي` resolved through
+the comprehensive lemma lookup to **أَلَا (id 691)** — a false collision (likely
+clitic-strip or normalization path), which wrongly promoted the interjection to
+acquiring (reverted same day; see ActivityLog `vocab_import` 2026-07-15 and
+`research/analysis-2026-07-14-momo-readiness-volume-sweep.md` Part 4). If التالي in
+running text mis-maps the same way, review sentences containing it credit the wrong
+lemma. Check `build_comprehensive_lemma_lookup` collision handling for tail-of-word
+matches; add a regression test for تالي/التالي once fixed. Also: تالي itself (core
+"next/following") is still absent from the vocabulary — add it properly after the
+lookup fix.
+
 > This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
 
 ---
