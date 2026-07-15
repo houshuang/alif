@@ -38,6 +38,21 @@ Recommended: Fix A = citation-strict lookup mode for /add (MLE whole-word gate +
 بالمكتبة-class good); Fix B (separate) = MLE-gate the shared-path last resort
 (retains 94% of legit layer-4 rescues). Fix not yet implemented.
 
+**2026-07-15 Fix A SHIPPED** (`sh/lookup-clitic-collision`): `lookup_lemma_citation()`
+in `sentence_validator.py` (deterministic V7 — the MLE whole-word gate proved
+redundant once single-letter strips + CAMeL last resort were removed, scored
+identically: 18/18 bad, 36/63 FCE, all good cases), wired into
+`/api/discover/add`(+`add-batch`). Remaining open items from this bug family:
+(a) **Fix B** — MLE-gate the shared-path CAMeL last resort + make layer 4 report
+alternatives (deferred; verification gate is holding, measure first);
+(b) **FCE intake** (`frequency_core_intake._resolve_existing`) still uses the fuzzy
+path + `resolve_existing_lemma` for display-form linking — 63 known future
+collisions when intake reaches those ranks; needs its own linking-policy pass;
+(c) **62 corrupt `lemma_ar_bare` fields** (مقلمة/مقلم, شوارمة/شوارمه — list in
+findings JSON) — repair script so strict /add no-ops instead of duplicating;
+(d) post-deploy remap+reverify of the 5 reviewable + 116 inactive mis-mapped
+SentenceWords; (e) re-add تالي + حقيقي via the fixed /add.
+
 > This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
 
 ---

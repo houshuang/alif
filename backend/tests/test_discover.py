@@ -299,3 +299,42 @@ def test_add_batch_dedupes_repeated_word(client, db_session):
     assert r.status_code == 200
     rows = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "دستور").all()
     assert len(rows) == 1  # second add resolved to the first via in-batch lookup
+
+
+def test_add_new_word_shaped_like_clitic_plus_known(client, db_session):
+    """Regression for the 2026-07-15 collision bug: كناس ("street sweeper")
+    must be created as its own lemma, not silently no-op onto ناس ("people")
+    via a ك-preposition parse. spec-2026-07-15-lookup-clitic-collision.md §7."""
+    nas = Lemma(lemma_ar="نَاس", lemma_ar_bare="ناس", gloss_en="people",
+                pos="noun", source="frequency_core")
+    db_session.add(nas)
+    db_session.flush()
+    db_session.add(UserLemmaKnowledge(lemma_id=nas.lemma_id, knowledge_state="known"))
+    db_session.commit()
+
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "كناس", "lemma_ar": "كَنَّاس",
+        "gloss_en": "street sweeper", "pos": "noun",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is True
+    assert body["lemma_id"] != nas.lemma_id
+    assert body["state"] == "acquiring"
+    lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "كناس").first()
+    assert lem is not None and lem.gloss_en == "street sweeper"
+
+
+def test_add_definite_clitic_form_still_resolves(client, db_session, seeded):
+    """The good case citation mode must preserve: adding بالمكتبة resolves to
+    the existing مكتبة lemma (ال-bearing prefix strip), no duplicate created."""
+    maktaba = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "مكتبة").first()
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "بالمكتبة", "gloss_en": "library",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is False
+    assert body["lemma_id"] == maktaba.lemma_id
+    assert db_session.query(Lemma).filter(
+        Lemma.lemma_ar_bare == "بالمكتبة").first() is None

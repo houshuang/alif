@@ -1651,3 +1651,109 @@ class TestMultiTargetValidation:
         )
         assert result.valid is True
         assert result.target_count == 1
+
+
+class TestLookupLemmaCitation:
+    """Citation-strict resolver (2026-07-15 collision investigation).
+
+    Fixture pairs come from the 18 documented /api/discover/add collisions
+    (research/spec-2026-07-15-lookup-clitic-collision.md §7): a new citation
+    form must never fuzzy-resolve onto an unrelated existing lemma.
+    """
+
+    # (submitted citation bare, wrong-target lemma bare it used to resolve to)
+    MOMO_PAIRS = [
+        ("تالي", "الا"), ("حقيقي", "حقيق"), ("لاحظ", "حظ"), ("كناس", "ناس"),
+        ("سيجار", "جار"), ("رمادي", "رماد"), ("صبي", "صب"), ("توقف", "وقف"),
+        ("نظارة", "ناظر"), ("سحري", "سحر"), ("اصبح", "صبح"), ("تمتم", "تم"),
+        ("عاد", "عادي"), ("عمق", "عميق"), ("امير", "مار"), ("ادرك", "دار"),
+        ("شرطة", "شرط"), ("حجري", "حجر"),
+    ]
+
+    def _collision_lookup(self):
+        """Vocabulary containing only the historical wrong targets."""
+        lemmas = [
+            _FakeLemma(100 + i, bare) for i, (_, bare) in enumerate(self.MOMO_PAIRS)
+        ]
+        return build_lemma_lookup(lemmas)
+
+    def test_no_citation_collisions(self):
+        from app.services.sentence_validator import lookup_lemma_citation
+        lookup = self._collision_lookup()
+        for query, wrong in self.MOMO_PAIRS:
+            got = lookup_lemma_citation(query, lookup, original_bare=query)
+            assert got is None, (
+                f"citation lookup for new word {query!r} must return None, "
+                f"not resolve onto existing {wrong!r} (lemma_id={got})"
+            )
+
+    def test_old_lookup_documents_the_clitic_collision(self):
+        """Contrast case: the running-text lookup DOES strip ك from كناس.
+
+        Documents why /add must not use lookup_lemma — if this ever starts
+        returning None the two resolvers have converged and
+        lookup_lemma_citation may be redundant.
+        """
+        lookup = self._collision_lookup()
+        assert lookup_lemma("كناس", lookup, original_bare="كناس") is not None
+
+    def test_resolves_to_correct_lemma_once_it_exists(self):
+        from app.services.sentence_validator import lookup_lemma_citation
+        lemmas = [_FakeLemma(1, "ناس"), _FakeLemma(2, "كناس", lemma_ar="كَنَّاس")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup_lemma_citation("كناس", lookup, original_bare="كناس") == 2
+
+    def test_hamza_normalized_direct_match(self):
+        from app.services.sentence_validator import lookup_lemma_citation
+        lemmas = [_FakeLemma(1, "أمير", lemma_ar="أَمِير")]
+        lookup = build_lemma_lookup(lemmas)
+        # /add normalizes the submitted bare before lookup
+        assert lookup_lemma_citation("امير", lookup, original_bare="أمير") == 1
+
+    def test_good_clitic_resolutions(self):
+        """ال-bearing prefixes must keep resolving (بالمكتبة→مكتبة class)."""
+        from app.services.sentence_validator import lookup_lemma_citation
+        lemmas = [
+            _FakeLemma(1, "مكتبة"), _FakeLemma(2, "طفل"), _FakeLemma(3, "كتاب"),
+            _FakeLemma(4, "قمر"), _FakeLemma(5, "سيارة"), _FakeLemma(6, "مدرسة"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        cases = [
+            ("بالمكتبة", 1), ("للمدرسة", 6), ("والكتاب", 3),
+            ("كالقمر", 4), ("بالسيارة", 5), ("فالكتاب", 3),
+        ]
+        for query, expected in cases:
+            assert lookup_lemma_citation(query, lookup, original_bare=query) == expected
+
+    def test_al_initial_words_do_not_strip(self):
+        """Words that merely BEGIN with an al-prefix sequence stay whole."""
+        from app.services.sentence_validator import lookup_lemma_citation
+        lemmas = [_FakeLemma(1, "ولد"), _FakeLemma(2, "والد", lemma_ar="وَالِد")]
+        lookup = build_lemma_lookup(lemmas)
+        # والد is its own lemma — must direct-match, not strip وال
+        assert lookup_lemma_citation("والد", lookup, original_bare="والد") == 2
+        # بالغ "adult" absent from vocab: remainder غ is too short to strip,
+        # so this is a clean not-found, not a fuzzy match
+        assert lookup_lemma_citation("بالغ", lookup, original_bare="بالغ") is None
+
+    def test_single_letter_clitics_never_stripped(self):
+        from app.services.sentence_validator import lookup_lemma_citation
+        lemmas = [_FakeLemma(1, "ناس"), _FakeLemma(2, "حظ")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup_lemma_citation("كناس", lookup, original_bare="كناس") is None
+        assert lookup_lemma_citation("لناس", lookup, original_bare="لناس") is None
+        assert lookup_lemma_citation("وحظ", lookup, original_bare="وحظ") is None
+
+    def test_self_resolution_census(self):
+        """Standing invariant: every lemma's own bare resolves to itself."""
+        from app.services.sentence_validator import lookup_lemma_citation
+        bares = [
+            "كتاب", "مكتبة", "ولد", "والد", "مدرسة", "قمر", "شمس", "بيت",
+            "ناس", "حظ", "جار", "رماد", "وقف", "سحر", "صبح", "عميق",
+            "كناس", "لاحظ", "توقف", "امير", "شرطة", "بالغ", "والي",
+        ]
+        lemmas = [_FakeLemma(i + 1, b) for i, b in enumerate(bares)]
+        lookup = build_lemma_lookup(lemmas)
+        for i, b in enumerate(bares):
+            got = lookup_lemma_citation(b, lookup, original_bare=b)
+            assert got == i + 1, f"{b!r} self-resolved to {got}, expected {i + 1}"
