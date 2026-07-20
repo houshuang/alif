@@ -40,11 +40,69 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Polyglot** (history only — current-state authority is `polyglot/CLAUDE.md`) — `2026-05-25 "scaffold confirmation (assumed-known → exposure-verified)"` · `2026-05-24 "Polyglot sentence generation stabilized"` · `2026-05-26 "display orthography flipped to LLPSI / OUP"` · `2026-06-01 "coverage generation (Lever A + Lever B)"` + `"collateral-diversity + reserved confirmation sweep"`.
 
-**Rejected / re-triaged experiments (don't re-propose)** — `2026-05-22 "Triaged five abandoned 2026-03-21 experiment PRs"` · `2026-05-22 "Memory-hook mnemonics DISABLED"` · `2026-05-04 "Aggressive frequency-core acquisition experiment"` · `2026-03-03 "A/B Experiment — Intro Card vs Sentence-First Acquisition"`.
+**Memory-hook mnemonics** — `2026-07-20 "Memory-hook mnemonics RE-ENABLED"` (definitive: recognition-direction generation + calibrated 3-check storage judge, approved_at display gate) · `2026-05-22 "Memory-hook mnemonics DISABLED"` (the original disable + why automated taste-judging failed).
+
+**Rejected / re-triaged experiments (don't re-propose)** — `2026-05-22 "Triaged five abandoned 2026-03-21 experiment PRs"` · `2026-05-04 "Aggressive frequency-core acquisition experiment"` · `2026-03-03 "A/B Experiment — Intro Card vs Sentence-First Acquisition"`.
 
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-20: Memory-hook mnemonics RE-ENABLED — recognition-direction generation + calibrated storage judge
+
+**Trigger.** User asked whether the 2026-05-22 mnemonic disable should be revisited now that
+Codex serves `gpt-5.6-sol`, with two constraints given mid-experiment: (a) the learner only
+practices **recognition** (Arabic→English) — a hook must fire *from reading the Arabic word*
+("it's unlikely that I see tawahhaja and think of TOW A HOT JAR"); (b) the pipeline must be
+**fully automatic** — "false positive is not so expensive," no ongoing human rating.
+
+**Experiment (2 generation rounds × user rating, 60 labels total).**
+- Round 1: old premium prompt on gpt-5.6-sol, 51 rescue/struggling words (the deployment
+  target), 19 rated → 42% show / 32% weak / 26% bad — same base rate as May (29–44%).
+  Model upgrade alone does not clear the bar. Eval: `eval-hook-quality-56sol-2026-07-20.html`.
+- Round 2: rewritten generation prompt — recognition direction, **full-cover rule** (keyword
+  phrase reconstructs the whole word's sound in order; the user's own golds zamjara→"ZOMBIE
+  in a JAR" / muḥāṣar→"MOO HAZARD" as few-shots), compact ≤15-word scenes, null-encouraged
+  self-gate (10/51 declined, incl. 2 of the user's round-1 bads). 41 rated → 46% show / 20%
+  weak / 34% bad. Eval: `eval-hook-quality-round2-2026-07-20.html`.
+
+**Judge iterations (validated against all 60 labels).**
+- v1 (full-cover rubric, golds few-shotted): κ=0.14, precision-of-store 50% — but 0/8 stored
+  hooks were user-bad: works as a *bad-filter*, can't separate show from weak.
+- v2 ("intrinsic meaning"): rejects user favorites where meaning lives in the *scene*
+  (HUSH-SARAH, TAFFY); stored bads were all *mundane* scenes → bizarre-imagery insight.
+- v3 (4 boolean checks: known-word anchor / enacted meaning / automatic trigger / memorable
+  oddity): ALL-FOUR rule = bad-leak 16% but show-recall 48% (oddity vetoes compact favorites,
+  even its own few-shot "I HUG DAN"). **Threshold analysis over the recorded booleans** found
+  the shipped rule: `anchor AND enacted AND trigger` → **85% show-recall, bad-leak 32%→18%**,
+  weaks pass (explicitly acceptable). Oddity is logged in the reason but never blocks.
+
+**Shipped (PR sh/approved-memory-hooks).**
+1. `memory_hooks.py` rewritten: single recognition-direction generation prompt (old
+   SYSTEM/PREMIUM prompts deleted — the non-premium one was dead code), Codex
+   `gpt-5.6-sol`-first via `_call_hooks_llm` (`ALIF_HOOK_MODEL`, Claude Sonnet CLI fallback),
+   independent `judge_memory_hook()` with the 3-check rule, `approved_at`/`approved_by`
+   stamped at storage. Judge-rejected hooks stored WITHOUT the stamp (cognates usable,
+   idempotent, no token-burning retry loop); judge failure = rejection.
+2. Frontend: `showMnemonic()` in `feature-flags.ts` — mnemonic renders only with
+   `approved_at`. Closes a May gap: `WordInfoCard.tsx` bypassed `SHOW_MNEMONIC_HOOKS`
+   entirely, so unvetted mnemonics kept showing in tap-lookup cards while "disabled." The
+   ~2,094 pre-existing unvetted hook rows have no stamp → hidden everywhere.
+3. Prod data (backup `alif_pre_hooks_batch_*`): **35 approved hooks stored** for the current
+   rescue/struggling cohort — 23 user-rated "show" (both rounds; round-2 preferred) + 12
+   judge-approved from unlabeled round-1 hooks. The judge's rejects there were exactly the
+   circular-keyword class (SAMMA, TĀLĀ, KHADDAR, NAKAD, RANA). One judge false-positive
+   (TOW A HOT JAR) manually excluded — the user had explicitly named it.
+   ActivityLog: `memory_hooks_approved_batch`.
+
+**Not enabled yet.** `ALIF_MEMORY_HOOKS_ENABLED=1` must be set on prod **only at deploy of
+this code** — flipping it against the old deployed code would run the ungated May pipeline.
+
+**Expected.** Failing words accumulate judge-approved hooks automatically (trigger sites:
+first failure / lapse / box demotion). Of displayed mnemonics, roughly half "show"-grade,
+~30% weak, ≤~18% bad by the user's own standard — accepted trade for zero rating effort.
+**Verify in 2–4 weeks:** sample 20 newly-approved hooks, spot-check bad-leak vs the 18%
+estimate; check `memory_hook_judge` rejection rate in llm logs (expect ~40-60%).
 
 ## 2026-07-20: Reintro-card cooldown + rescue slot reservation + readable burndown
 

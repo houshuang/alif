@@ -96,3 +96,106 @@ def test_direct_borrowing_is_accepted_as_a_real_hook():
     assert reason == "direct_borrowing"
     assert storage is not None
     assert storage_reason == "direct_borrowing"
+
+
+def test_prepare_hooks_accepts_v2_candidate_score_keys():
+    """Round-2 generation uses cover/trigger/extraction; alias table must map them."""
+    hooks = {
+        "mnemonic": "placeholder",
+        "candidates": [
+            {"keyword": "HUT", "mnemonic": "A HUT surrounds you.", "cover": 5, "trigger": 4, "extraction": 5},
+        ],
+        "best_index": 0,
+    }
+    stored, reason = prepare_hooks_for_storage(hooks)
+    assert stored is not None
+    assert reason == "strong_candidate"
+    assert stored["mnemonic"] == "A HUT surrounds you."
+
+
+def test_judge_decision_rule_ignores_oddity(monkeypatch):
+    """anchor+enacted+trigger store; memorable_oddity is diagnostic only."""
+    from app.services import memory_hooks as mh
+
+    monkeypatch.setattr(mh, "_call_hooks_llm", lambda *a, **k: {
+        "known_anchor": True, "enacted_meaning": True, "automatic_trigger": True,
+        "memorable_oddity": False, "storable": False, "reason": "plain scene",
+    })
+    storable, reason = mh.judge_memory_hook("word=x", "A HUT surrounds you.")
+    assert storable is True
+    assert reason.startswith("[not odd]")
+
+    monkeypatch.setattr(mh, "_call_hooks_llm", lambda *a, **k: {
+        "known_anchor": False, "enacted_meaning": True, "automatic_trigger": True,
+        "memorable_oddity": True, "storable": False, "reason": "circular keyword",
+    })
+    storable, _ = mh.judge_memory_hook("word=x", "A KHADDAR binds your arm.")
+    assert storable is False
+
+
+def test_judge_unavailable_is_rejection(monkeypatch):
+    """Verification failure is never success (project invariant)."""
+    from app.services import memory_hooks as mh
+
+    monkeypatch.setattr(mh, "_call_hooks_llm", lambda *a, **k: None)
+    storable, reason = mh.judge_memory_hook("word=x", "anything")
+    assert storable is False
+    assert reason == "judge_unavailable"
+
+
+def test_generate_judge_and_store_stamps_approval(monkeypatch):
+    """Approved hooks get approved_at/approved_by; rejected hooks stored without."""
+    from app.services import memory_hooks as mh
+
+    class FakeLemma:
+        lemma_id = 1
+        lemma_ar = "بيت"
+        lemma_ar_bare = "بيت"
+        transliteration_ala_lc = "bayt"
+        pos = "noun"
+        gloss_en = "house"
+        root = None
+        etymology_json = None
+        memory_hooks_json = None
+
+    class FakeDB:
+        committed = False
+        def commit(self):
+            self.committed = True
+
+    gen_result = {
+        "candidates": [
+            {"keyword": "BAIT", "mnemonic": "A house made of BAIT.", "cover": 5, "trigger": 5, "extraction": 4},
+        ],
+        "best_index": 0,
+        "mnemonic": "A house made of BAIT.",
+        "cognates": [], "collocations": [], "usage_context": None, "fun_fact": None,
+    }
+
+    def fake_llm(prompt, system_prompt, schema, task_type):
+        if task_type == "memory_hook_judge":
+            return {"known_anchor": True, "enacted_meaning": True,
+                    "automatic_trigger": True, "memorable_oddity": True,
+                    "storable": True, "reason": "ok"}
+        return dict(gen_result)
+
+    monkeypatch.setattr(mh, "_call_hooks_llm", fake_llm)
+    lemma, db = FakeLemma(), FakeDB()
+    mh._generate_judge_and_store(db, lemma, task_type="memory_hooks")
+    assert db.committed
+    assert lemma.memory_hooks_json["approved_at"]
+    assert lemma.memory_hooks_json["approved_by"].startswith("judge:")
+
+    def fake_llm_reject(prompt, system_prompt, schema, task_type):
+        if task_type == "memory_hook_judge":
+            return {"known_anchor": False, "enacted_meaning": True,
+                    "automatic_trigger": True, "memorable_oddity": True,
+                    "storable": False, "reason": "circular"}
+        return dict(gen_result)
+
+    monkeypatch.setattr(mh, "_call_hooks_llm", fake_llm_reject)
+    lemma2, db2 = FakeLemma(), FakeDB()
+    mh._generate_judge_and_store(db2, lemma2, task_type="memory_hooks")
+    assert db2.committed
+    assert lemma2.memory_hooks_json["mnemonic"] == "A house made of BAIT."
+    assert "approved_at" not in lemma2.memory_hooks_json

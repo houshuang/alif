@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, fonts, fontFamily, ltr } from "../lib/theme";
-import { SHOW_MNEMONIC_HOOKS } from "../lib/feature-flags";
+import { showMnemonic } from "../lib/feature-flags";
 import {
   BASE_URL,
   getNextWords,
@@ -153,7 +153,7 @@ export default function LearnScreen() {
       return parts.join("\n");
     };
 
-    const hasMnemonic = SHOW_MNEMONIC_HOOKS && !!c.memory_hooks_json?.mnemonic;
+    const hasMnemonic = showMnemonic(c.memory_hooks_json);
     const hasEtymology = !!c.etymology_json?.derivation;
     const hasCognates = c.memory_hooks_json?.cognates && c.memory_hooks_json.cognates.length > 0;
     const hasFunFact = !!c.memory_hooks_json?.fun_fact;
