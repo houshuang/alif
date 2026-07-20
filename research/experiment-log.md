@@ -46,6 +46,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-20: Reintro-card cooldown + rescue slot reservation + readable burndown
+
+**Trigger.** User report: (1) the same struggling-word reintro cards repeat — حَشَرَة
+"insect" #4230 was shown **9 reintro cards in 3 days** (07-17→19), وَفَّرَ #4300 6 in 3 days —
+while (2) words the user keeps failing get no re-teach cards at all, and (3) the stats
+burndown dot line "gives no sense of progress".
+
+**Diagnosis (analysis-2026-07-20-post-injection-checkup.md is the companion checkup).**
+- Struggling reintro cards (`due + seen≥3 + 0 correct` → `_build_reintro_cards`, limit 3)
+  are rebuilt **every session with no cooldown and no shown-stamp**. The frontend faithfully
+  acked every card (`reintro_acknowledged` ×8 for #4230), but `/reintro-result` — made
+  acknowledgement-only in PR #207 — persisted **nothing**, so each of the day's 3–8 sessions
+  re-fired the same card. (Same failure class as the 2026-05-04 lemma #2650 intro repeat.)
+- Rescue cards (acquiring, seen≥4, acc<50%, 7-day cooldown) were **fully starved since the
+  07-15 202-word bookifier import**: new-word cards have strict priority over the 6-slot
+  intro budget, and 49 un-introed new words consume all 6 slots every session while 50
+  rescue-eligible words wait.
+- The burndown dot was scaled against zero: a −35/day trend on a ~1,150 backlog moves the
+  dot ~2px in 80px — flat by construction.
+
+**Changes (PR sh/reintro-cooldown-rescue-slots).**
+1. `/reintro-result` now stamps `experiment_intro_shown_at` (shared `_stamp_intro_shown`
+   helper with the intro-ack's lock-retry; still **no review credit** — the PR #207
+   acknowledgement-only invariant holds). `build_session` skips struggling words whose stamp
+   is fresher than `REINTRO_SHOWN_COOLDOWN_HOURS=20` → at most ~1 reintro card/day/word.
+   Side effect (intended): a reintro-acked word also starts the 7-day rescue cooldown.
+2. `RESCUE_RESERVED_SLOTS=2`: `_build_intro_cards` caps new cards at 4 when rescue
+   candidates exist, guaranteeing rescue up to 2 of the 6 slots (still bounded by
+   `_dynamic_intro_cap`). No rescue candidates → new keeps all 6.
+3. Stats chart: burndown dots re-scaled to the 14-day min–max window + a numeric readout
+   ("Due backlog now N · ±Δ since MM/DD", green/red).
+
+**Expected.** Reintro repeats drop from up-to-9/3d to ≤3/3d per word; rescue cards reappear
+within a day (50 candidates queued); intro-card mix shifts from 6 new to 4 new + 2 rescue
+until the injection backlog drains. **Verify in ~1 week:** grep `card_shown` logs — no
+lemma with >1 reintro/day; rescue-card share > 0; user-felt repetition gone.
+
+**Tests.** `test_reintro.py` +5: ack stamps ULK; fresh stamp suppresses card; stale stamp
+(21h) re-allows; rescue reservation 4+2 split; existing ack-only invariants untouched.
+
 ## 2026-07-15: Cron Step E lemma enrichment was structurally unable to drain — hooks-query drift + timeout-kill data loss
 
 **Trigger.** User imported 96 words from Bookifier (`POST /api/discover/add-batch`, 06:22 + 06:53 UTC) and found مِهْنَة (#4359) with no enrichment (no root, etymology, pattern, hooks) hours later, despite `gates_completed_at` being stamped.

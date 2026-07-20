@@ -584,16 +584,65 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
     return {"results": results}
 
 
+def _stamp_intro_shown(db: Session, lemma_id: int):
+    """Persist ``experiment_intro_shown_at``, retrying on SQLite lock errors.
+
+    The timestamp gates re-showing of intro, rescue, and struggling-reintro
+    cards. A silent rollback re-fires the same card on the next session build
+    (observed 2026-05-04 for lemma #2650). Returns the ULK row or None.
+    """
+    from datetime import datetime
+    import time
+    from sqlalchemy.exc import OperationalError
+    from app.models import UserLemmaKnowledge
+
+    ulk = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id == lemma_id,
+    ).first()
+    if not ulk:
+        return None
+    ulk.experiment_intro_shown_at = datetime.utcnow()
+    for attempt in range(3):
+        try:
+            db.commit()
+            break
+        except OperationalError:
+            db.rollback()
+            if attempt == 2:
+                logging.getLogger(__name__).warning(
+                    f"experiment_intro_shown_at failed to persist for lemma {lemma_id} "
+                    f"after 3 retries — card may re-fire next session"
+                )
+                break
+            time.sleep(0.1 * (2 ** attempt))
+            # Re-attach the dirty change after rollback cleared the session
+            ulk = db.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id == lemma_id,
+            ).first()
+            if not ulk:
+                return None
+            ulk.experiment_intro_shown_at = datetime.utcnow()
+    return ulk
+
+
 @router.post("/reintro-result")
 def submit_reintro_result(
     body: ReintroResultIn,
+    db: Session = Depends(get_db),
 ):
     """Acknowledge an informational re-introduction card without reviewing it.
 
     The following sentence is the actual retrieval attempt.  Legacy
     ``remember`` / ``show_again`` values may still arrive from the offline
     queue, but they are intentionally treated as acknowledgements only.
+
+    The ack stamps ``experiment_intro_shown_at`` (no review credit — the
+    PR #207 acknowledgement-only invariant holds) so the struggling-reintro
+    cooldown in ``build_session`` can suppress the same card re-firing in
+    every session of the day.
     """
+    _stamp_intro_shown(db, body.lemma_id)
+
     log_interaction(
         event="reintro_acknowledged",
         lemma_id=body.lemma_id,
@@ -655,36 +704,8 @@ def acknowledge_experiment_intro(
     2026-05-04 for lemma #2650 — 3 intros across 3 sessions). Retry on
     OperationalError instead of swallowing it.
     """
-    from datetime import datetime
-    import time
-    from sqlalchemy.exc import OperationalError
-    from app.models import UserLemmaKnowledge
-
-    ulk = db.query(UserLemmaKnowledge).filter(
-        UserLemmaKnowledge.lemma_id == body.lemma_id,
-    ).first()
+    ulk = _stamp_intro_shown(db, body.lemma_id)
     experiment_group = ulk.experiment_group if ulk else None
-    if ulk:
-        ulk.experiment_intro_shown_at = datetime.utcnow()
-        for attempt in range(3):
-            try:
-                db.commit()
-                break
-            except OperationalError:
-                db.rollback()
-                if attempt == 2:
-                    logging.getLogger(__name__).warning(
-                        f"experiment_intro_shown_at failed to persist for lemma {body.lemma_id} "
-                        f"after 3 retries — intro may re-fire next session"
-                    )
-                    break
-                time.sleep(0.1 * (2 ** attempt))
-                # Re-attach the dirty change after rollback cleared the session
-                ulk = db.query(UserLemmaKnowledge).filter(
-                    UserLemmaKnowledge.lemma_id == body.lemma_id,
-                ).first()
-                if ulk:
-                    ulk.experiment_intro_shown_at = datetime.utcnow()
 
     log_interaction(
         event="experiment_intro_shown",

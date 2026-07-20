@@ -993,11 +993,22 @@ def build_session(
         db, due_lemma_ids, knowledge_by_id, overdue_days_map, limit
     )
 
-    # Identify struggling words: seen 3+ times, never correct
+    # Identify struggling words: seen 3+ times, never correct. Skip words whose
+    # reintro card was acknowledged within the cooldown — the /reintro-result
+    # ack stamps experiment_intro_shown_at, and re-teaching the same word in
+    # every one of the day's sessions is wasted exposure (up to 9 repeats in
+    # 3 days observed before the cooldown, 2026-07-20).
+    reintro_cooldown_cutoff = now - timedelta(hours=REINTRO_SHOWN_COOLDOWN_HOURS)
     struggling_ids: set[int] = set()
     for lid in list(due_lemma_ids):
         k = knowledge_by_id.get(lid)
         if k and (k.times_seen or 0) >= 3 and (k.times_correct or 0) == 0:
+            shown_at = k.experiment_intro_shown_at
+            if shown_at is not None:
+                if shown_at.tzinfo is None:
+                    shown_at = shown_at.replace(tzinfo=timezone.utc)
+                if shown_at > reintro_cooldown_cutoff:
+                    continue
             struggling_ids.add(lid)
 
     # Keep struggling words in due_lemma_ids so they get sentences through
@@ -2181,6 +2192,19 @@ def _build_reintro_cards(
 RESCUE_MIN_SEEN = 4
 RESCUE_MAX_ACCURACY = 0.50
 RESCUE_COOLDOWN_DAYS = 7
+# Struggling-word reintro cards re-fire every session build until the word's
+# first correct review; with several sessions per day the same card repeated
+# up to 9× in 3 days (حَشَرَة #4230, observed 2026-07-20). The frontend ack
+# (/reintro-result) now stamps experiment_intro_shown_at, and this cooldown
+# suppresses another reintro card for the same lemma until it elapses.
+# 20h (not 24) so a once-daily rhythm with uneven session times still allows
+# one card per day.
+REINTRO_SHOWN_COOLDOWN_HOURS = 20
+# When both new-word and rescue candidates are present, guarantee rescue this
+# many of the INTRO_NEW_CARDS_PER_SESSION slots. Without a reservation, a
+# large explicit import (202 words on 2026-07-15) fills all 6 slots with new
+# cards for weeks and rescue re-teaching is fully starved.
+RESCUE_RESERVED_SLOTS = 2
 
 
 INTRO_CARDS_BASE = 4
@@ -2295,13 +2319,16 @@ def _build_intro_cards(
 
     rescue_dynamic_cap = _dynamic_intro_cap(db)
     # `INTRO_NEW_CARDS_PER_SESSION` is the total ceiling on intro cards in a
-    # session. Priority order: new (real learning) > rescue (re-teach).
+    # session. Priority order: new (real learning) > rescue (re-teach), but
+    # rescue keeps a small reservation so a large new-word backlog (e.g. an
+    # explicit 200-word import) can't starve re-teaching for weeks.
     total_budget = INTRO_NEW_CARDS_PER_SESSION
+    rescue_reserve = min(RESCUE_RESERVED_SLOTS, len(rescue_card_ids), rescue_dynamic_cap)
 
     new_cards = _build_reintro_cards(
         db,
         new_card_ids,
-        limit=min(len(new_card_ids), total_budget),
+        limit=min(len(new_card_ids), total_budget - rescue_reserve),
     )
     remaining = max(0, total_budget - len(new_cards))
     rescue_cards = (
