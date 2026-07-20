@@ -1776,6 +1776,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification (seen 3+, 0 correct) |
+| `REINTRO_SHOWN_COOLDOWN_HOURS` | 20 | Suppress another struggling-reintro card for a lemma after its `/reintro-result` ack stamped `experiment_intro_shown_at` (2026-07-20; a word had repeated 9× in 3 days with several sessions/day) |
+| `RESCUE_RESERVED_SLOTS` | 2 | Of the 6 `INTRO_NEW_CARDS_PER_SESSION` slots, guarantee this many to rescue re-teach cards when rescue candidates exist — a large explicit import otherwise fills all slots with new cards for weeks (2026-07-20) |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
 | Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |

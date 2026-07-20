@@ -147,10 +147,18 @@ export default function StatsScreen() {
               const learnedH = day.words_learned > 0 && maxReviews > 0
                 ? Math.max((day.words_learned / maxReviews) * 80, 3)
                 : 0;
-              // Due-backlog burndown marker on an independent scale: a falling
-              // dot line means the review debt is shrinking day over day.
-              const backlogH = day.due_backlog != null && maxBacklog > 0
-                ? (day.due_backlog / maxBacklog) * 80
+              // Due-backlog burndown marker, zoomed to the window's min–max
+              // range. Scaled against zero the daily net change (±3% of a
+              // ~1,100-word backlog) moved the dot ~2px and the line read as
+              // flat even while the learner was gaining ~35 words/day.
+              const backlogVals = last14
+                .map((d) => d.due_backlog)
+                .filter((v): v is number => v != null);
+              const minBacklog = backlogVals.length > 0 ? Math.min(...backlogVals) : 0;
+              const backlogH = day.due_backlog != null && backlogVals.length > 0
+                ? maxBacklog > minBacklog
+                  ? ((day.due_backlog - minBacklog) / (maxBacklog - minBacklog)) * 70 + 5
+                  : 40
                 : null;
               return (
                 <View key={day.date} style={styles.barContainer}>
@@ -197,6 +205,28 @@ export default function StatsScreen() {
               )}
             </View>
           </View>
+          {(() => {
+            // Numeric burndown readout: the zoomed dot line shows shape, this
+            // shows magnitude — current backlog and the net change over the
+            // last ~week of days that have data.
+            const withBacklog = daily_history
+              .slice(-14)
+              .filter((d) => d.due_backlog != null);
+            if (withBacklog.length < 2) return null;
+            const latest = withBacklog[withBacklog.length - 1].due_backlog as number;
+            const ref = withBacklog[Math.max(0, withBacklog.length - 8)];
+            const delta = latest - (ref.due_backlog as number);
+            const refDay = ref.date.slice(5).replace("-", "/");
+            return (
+              <Text style={[styles.legendText, { marginTop: 4 }]}>
+                Due backlog now {latest.toLocaleString()} ·{" "}
+                <Text style={{ color: delta <= 0 ? colors.stateKnown : colors.missed }}>
+                  {delta <= 0 ? "" : "+"}{delta.toLocaleString()}
+                </Text>{" "}
+                since {refDay}
+              </Text>
+            );
+          })()}
         </View>
       )}
 

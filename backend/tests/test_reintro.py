@@ -274,6 +274,95 @@ class TestReintroEndpoint:
         assert knowledge.times_correct == 0
         assert db_session.query(ReviewLog).count() == 0
 
+    def test_acknowledgement_stamps_intro_shown(self, db_session, client):
+        """The reintro ack must persist experiment_intro_shown_at so the
+        struggling-reintro cooldown can suppress same-day repeats (a word got
+        9 reintro cards in 3 days before this, 2026-07-20)."""
+        _, knowledge = _seed_word(
+            db_session, 1, "صعب", "difficult",
+            state="acquiring", stability=0.1, due_hours=-1,
+            times_seen=5, times_correct=0,
+        )
+        assert knowledge.experiment_intro_shown_at is None
+        db_session.commit()
+
+        resp = client.post(
+            "/api/review/reintro-result",
+            json={"lemma_id": 1, "result": "acknowledged", "session_id": "s"},
+        )
+        assert resp.status_code == 200
+        db_session.refresh(knowledge)
+        assert knowledge.experiment_intro_shown_at is not None
+
+
+class TestReintroCooldown:
+    def test_fresh_ack_suppresses_reintro_card(self, db_session):
+        """A struggling word acked within the cooldown gets no reintro card."""
+        _, knowledge = _seed_word(
+            db_session, 1, "صعب", "difficult",
+            stability=0.1, due_hours=-1, times_seen=5, times_correct=0,
+        )
+        # Naive datetime, matching how the ack endpoint writes the stamp.
+        knowledge.experiment_intro_shown_at = datetime.utcnow() - timedelta(hours=1)
+        db_session.commit()
+
+        result = build_session(db_session, limit=10, log_events=False)
+        assert result.get("reintro_cards", []) == []
+
+    def test_stale_ack_allows_reintro_card(self, db_session):
+        """Once the cooldown has elapsed the reintro card may fire again."""
+        _, knowledge = _seed_word(
+            db_session, 1, "صعب", "difficult",
+            stability=0.1, due_hours=-1, times_seen=5, times_correct=0,
+        )
+        knowledge.experiment_intro_shown_at = datetime.utcnow() - timedelta(hours=21)
+        db_session.commit()
+
+        result = build_session(db_session, limit=10, log_events=False)
+        reintro = result.get("reintro_cards", [])
+        assert len(reintro) == 1
+        assert reintro[0]["lemma_id"] == 1
+
+
+class TestRescueReservation:
+    def test_rescue_not_starved_by_new_backlog(self, db_session):
+        """With a big never-reviewed backlog, rescue still gets reserved slots.
+
+        Before 2026-07-20 a 200-word explicit import filled all 6 intro slots
+        with new cards for weeks while 50 rescue-eligible words waited.
+        """
+        from app.services.sentence_selector import _build_intro_cards
+
+        new_ids, rescue_ids = [], []
+        for i in range(1, 9):  # 8 new candidates (times_seen=0)
+            _, k = _seed_word(
+                db_session, i, f"جديد{i}", f"new-{i}",
+                state="acquiring", times_seen=0, times_correct=0,
+            )
+            k.acquisition_box = 1
+            new_ids.append(i)
+        for i in range(20, 22):  # 2 rescue candidates (seen 6, correct 1)
+            _, k = _seed_word(
+                db_session, i, f"عالق{i}", f"stuck-{i}",
+                state="acquiring", times_seen=6, times_correct=1,
+            )
+            k.acquisition_box = 1
+            rescue_ids.append(i)
+        db_session.commit()
+
+        knowledge_by_id = {
+            u.lemma_id: u for u in db_session.query(UserLemmaKnowledge).all()
+        }
+        cards = _build_intro_cards(
+            db_session, knowledge_by_id, set(new_ids) | set(rescue_ids)
+        )
+        card_ids = [c["lemma_id"] for c in cards]
+        n_new = sum(1 for cid in card_ids if cid in new_ids)
+        n_rescue = sum(1 for cid in card_ids if cid in rescue_ids)
+        assert len(cards) <= 6
+        assert n_rescue == 2, f"rescue starved: {card_ids}"
+        assert n_new == 4
+
 
 class TestContextDiversity:
     def test_least_shown_sentence_preferred(self, db_session):
