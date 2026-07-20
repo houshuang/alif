@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Evaluation</title>
+<style>
+  :root {
+    --bg: #eff1f5; --surface: #ffffff; --mantle: #e6e9ef;
+    --text: #4c4f69; --dim: #6c6f85; --faint: #9ca0b0;
+    --green: #40a02b; --red: #d20f39; --yellow: #df8e1d; --blue: #1e66f5;
+    --purple: #8839ef; --teal: #179299;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 15px/1.6 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+  /* Layout modes */
+  .layout-single { max-width: 720px; margin: 0 auto; padding: 16px 24px; }
+  .layout-split { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 48px); }
+  .layout-split .context-panel { background: var(--mantle); overflow-y: auto; padding: 16px 20px; border-right: 1px solid #ccd0da; }
+  .layout-split .main-panel { overflow-y: auto; padding: 16px 24px; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 20px; background: var(--surface); border-bottom: 1px solid #ccd0da;
+    font-size: 13px; color: var(--dim); flex-wrap: wrap; gap: 6px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar .progress-text { font-weight: 600; }
+  .topbar .stats { display: flex; gap: 12px; align-items: center; }
+  .topbar .stat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+  .topbar button {
+    background: none; border: 1px solid #ccd0da; border-radius: 4px;
+    padding: 3px 12px; cursor: pointer; font-size: 12px; color: var(--dim); font-family: inherit;
+  }
+  .topbar button:hover { background: var(--mantle); }
+  .topbar button.primary { background: var(--blue); color: white; border-color: var(--blue); }
+  .topbar button.primary:hover { opacity: 0.9; }
+
+  /* Progress bar */
+  .progress-bar { height: 3px; background: var(--mantle); width: 100%; }
+  .progress-bar .fill { height: 100%; background: var(--blue); transition: width 0.2s; }
+
+  /* Card */
+  .card {
+    background: var(--surface); border-radius: 10px; padding: 20px 24px;
+    margin: 16px 0; border-left: 4px solid #ccd0da;
+    animation: slideUp 0.15s ease-out;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card.no-anim { animation: none; }
+  .card.rated-good { border-left-color: var(--green); }
+  .card.rated-bad { border-left-color: var(--red); }
+  .card.rated-skip { border-left-color: var(--faint); opacity: 0.6; }
+  .card.rated-partial { border-left-color: var(--yellow); }
+
+  .card-id { font-size: 11px; color: var(--faint); font-family: monospace; margin-bottom: 4px; }
+  .card-content { font-size: 16px; font-weight: 500; margin-bottom: 8px; line-height: 1.5; }
+  .card-context { font-size: 13px; color: var(--dim); margin-bottom: 12px; line-height: 1.5; }
+  .card-output { font-size: 14px; background: var(--mantle); padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; line-height: 1.5; }
+  .card-output-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+  .card-meta { font-size: 12px; color: var(--faint); margin-bottom: 12px; }
+
+  /* Compare mode */
+  .compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .compare-col { background: var(--mantle); padding: 10px 14px; border-radius: 6px; font-size: 14px; line-height: 1.5; }
+  .compare-col-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+
+  /* Dimension labels + buttons */
+  .dim-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--dim); margin: 12px 0 6px;
+  }
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .btn {
+    padding: 7px 16px; border: 1px solid #ccd0da; border-radius: 6px;
+    background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text);
+    transition: all 0.1s; font-family: inherit;
+  }
+  .btn:hover { background: var(--mantle); }
+  .btn .key-hint {
+    display: inline-block; width: 18px; height: 18px; line-height: 18px;
+    text-align: center; border-radius: 3px; background: var(--mantle);
+    font-size: 11px; font-weight: 700; margin-right: 6px; font-family: monospace;
+  }
+  .btn.active-green { background: #d5f0cd; border-color: var(--green); color: var(--green); font-weight: 600; }
+  .btn.active-red { background: #fdd; border-color: var(--red); color: var(--red); font-weight: 600; }
+  .btn.active-yellow { background: #fef3cd; border-color: var(--yellow); color: #8a6d00; font-weight: 600; }
+  .btn.active-gray { background: #e8e8e8; border-color: var(--faint); color: var(--faint); font-weight: 600; }
+  .btn.active-blue { background: #dbeafe; border-color: var(--blue); color: var(--blue); font-weight: 600; }
+  .btn.active-purple { background: #f0e6ff; border-color: var(--purple); color: var(--purple); font-weight: 600; }
+  .btn.active-teal { background: #d5f5f6; border-color: var(--teal); color: var(--teal); font-weight: 600; }
+
+  /* Text input for corrections */
+  .correction-input {
+    width: 100%; padding: 8px 12px; border: 1px solid #ccd0da; border-radius: 6px;
+    font-size: 14px; margin-top: 4px; font-family: inherit;
+  }
+  .correction-input:focus { outline: none; border-color: var(--blue); }
+
+  /* Navigation */
+  .nav-bottom { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-top: 8px; }
+  .nav-bottom button {
+    padding: 8px 20px; border-radius: 6px; border: 1px solid #ccd0da;
+    background: var(--surface); cursor: pointer; font-size: 14px; font-family: inherit;
+  }
+  .nav-bottom button:hover { background: var(--mantle); }
+  .nav-bottom .nav-hint { font-size: 12px; color: var(--faint); }
+
+  /* Key legend */
+  .key-legend { font-size: 12px; color: var(--faint); margin-top: 12px; text-align: center; }
+  .key-legend kbd {
+    display: inline-block; padding: 1px 5px; border: 1px solid #ccd0da; border-radius: 3px;
+    background: var(--surface); font-family: monospace; font-size: 11px;
+  }
+
+  /* Done screen */
+  .done-screen { text-align: center; padding: 60px 24px; }
+  .done-screen h2 { font-size: 24px; margin-bottom: 12px; }
+  .done-screen .done-stats { font-size: 16px; color: var(--dim); margin-bottom: 24px; line-height: 1.8; }
+  .done-screen button { font-size: 16px; padding: 12px 32px; }
+
+  /* Filter indicator */
+  .filter-active { background: var(--blue) !important; color: white !important; border-color: var(--blue) !important; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 10px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 500; z-index: 999; opacity: 0; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media(max-width: 700px) {
+    .layout-split { grid-template-columns: 1fr; }
+    .layout-split .context-panel { max-height: 35vh; }
+    .compare-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <span class="progress-text" id="progress">Loading...</span>
+  <div class="stats" id="stats"></div>
+  <div style="display:flex;gap:6px">
+    <button id="filter-btn" onclick="H.toggleFilter()">Unrated only</button>
+    <button onclick="H.copyClipboard()" class="primary">Copy results</button>
+    <button onclick="H.exportJSON()">Export JSON</button>
+  </div>
+</div>
+<div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Harness core ───────────────────────────────────────────────────
+const H = {
+  config: null,
+  data: null,
+  evals: {},
+  current: 0,
+  filterUnrated: false,
+  filteredIndices: null,
+
+  // Timing: track seconds per rating for fatigue detection
+  _itemStartTime: null,
+  _timings: [],
+
+  // Gold items: set of indices in this.data that are gold (known-answer) items
+  _goldPositions: new Set(),
+
+  init(config, data) {
+    this.config = config;
+
+    // Inject gold items at random positions if configured
+    if (config.goldItems && config.goldItems.length) {
+      const goldRatio = config.goldRatio || 0.15;
+      const targetGoldCount = Math.max(1, Math.round(data.length * goldRatio));
+      const goldsToInsert = config.goldItems.length <= targetGoldCount
+        ? config.goldItems
+        : config.goldItems.slice(0, targetGoldCount);
+
+      // Generate random insertion positions (spread evenly with jitter)
+      const totalLen = data.length + goldsToInsert.length;
+      const positions = [];
+      for (let i = 0; i < goldsToInsert.length; i++) {
+        // Spread evenly across the data range with random jitter
+        const basePos = Math.round((i + 0.5) * data.length / goldsToInsert.length);
+        const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(data.length / goldsToInsert.length / 2)));
+        const pos = Math.max(0, Math.min(data.length, basePos + jitter - Math.floor(jitter / 2)));
+        positions.push(pos);
+      }
+      // Sort descending so insertions don't shift earlier indices
+      positions.sort((a, b) => b - a);
+
+      // Tag gold items and insert
+      const merged = [...data];
+      for (let i = 0; i < positions.length; i++) {
+        const goldItem = { ...goldsToInsert[goldsToInsert.length - 1 - i], _isGold: true };
+        merged.splice(positions[i], 0, goldItem);
+      }
+
+      this.data = merged;
+      // Build the gold positions set
+      this._goldPositions = new Set();
+      merged.forEach((item, idx) => { if (item._isGold) this._goldPositions.add(idx); });
+    } else {
+      this.data = data;
+      this._goldPositions = new Set();
+    }
+
+    document.getElementById('page-title').textContent = config.title || 'Evaluation';
+
+    // Load persisted evals
+    const stored = localStorage.getItem(config.storageKey);
+    if (stored) {
+      try { this.evals = JSON.parse(stored); } catch(e) {}
+    }
+
+    // Load persisted position
+    const pos = localStorage.getItem(config.storageKey + '_pos');
+    if (pos) this.current = Math.min(parseInt(pos) || 0, this.data.length - 1);
+
+    // Load persisted timings
+    const timings = localStorage.getItem(config.storageKey + '_timings');
+    if (timings) { try { this._timings = JSON.parse(timings); } catch(e) {} }
+
+    this._itemStartTime = Date.now();
+    this.render();
+    this.setupKeyboard();
+  },
+
+  isGold(idx) { return this._goldPositions.has(idx); },
+
+  realItemCount() { return this.data.length - this._goldPositions.size; },
+
+  save() {
+    localStorage.setItem(this.config.storageKey, JSON.stringify(this.evals));
+    localStorage.setItem(this.config.storageKey + '_pos', String(this.current));
+  },
+
+  getEval(idx) { return this.evals[idx] || {}; },
+
+  setEval(idx, dim, value) {
+    if (!this.evals[idx]) this.evals[idx] = {};
+    // Toggle: clicking same value deselects
+    if (this.evals[idx][dim] === value) {
+      delete this.evals[idx][dim];
+    } else {
+      this.evals[idx][dim] = value;
+    }
+    this.save();
+  },
+
+  setNote(idx, text) {
+    if (!this.evals[idx]) this.evals[idx] = {};
+    this.evals[idx]._note = text;
+    this.save();
+  },
+
+  getVisibleIndices() {
+    if (!this.filterUnrated) return this.data.map((_, i) => i);
+    return this.data.map((_, i) => i).filter(i => {
+      const ev = this.getEval(i);
+      const dims = this.config.dimensions || [];
+      return !dims.length || !dims.some(d => ev[d.name] !== undefined);
+    });
+  },
+
+  ratedCount() {
+    const dims = this.config.dimensions || [];
+    if (!dims.length) return 0;
+    const primaryDim = dims[0].name;
+    return this.data.filter((_, i) => !this.isGold(i) && this.getEval(i)[primaryDim] !== undefined).length;
+  },
+
+  dimStats() {
+    const stats = {};
+    const dims = this.config.dimensions || [];
+    dims.forEach(d => {
+      stats[d.name] = {};
+      d.options.forEach(o => { stats[d.name][o.value] = 0; });
+    });
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return; // exclude gold items from visible stats
+      const ev = this.getEval(i);
+      dims.forEach(d => {
+        const val = ev[d.name];
+        if (val !== undefined && stats[d.name][val] !== undefined) {
+          stats[d.name][val]++;
+        }
+      });
+    });
+    return stats;
+  },
+
+  toggleFilter() {
+    this.filterUnrated = !this.filterUnrated;
+    document.getElementById('filter-btn').className = this.filterUnrated ? 'filter-active' : '';
+    const vis = this.getVisibleIndices();
+    if (vis.length > 0 && !vis.includes(this.current)) {
+      this.current = vis[0];
+    }
+    this.render();
+  },
+
+  navigate(delta) {
+    const vis = this.getVisibleIndices();
+    if (!vis.length) return;
+    const curPos = vis.indexOf(this.current);
+    let newPos;
+    if (curPos === -1) {
+      newPos = delta > 0 ? 0 : vis.length - 1;
+    } else {
+      newPos = Math.max(0, Math.min(vis.length - 1, curPos + delta));
+    }
+    this.current = vis[newPos];
+    this._itemStartTime = Date.now();
+    this.save();
+    this.render();
+    // Scroll main panel to top
+    const mp = document.querySelector('.main-panel') || document.querySelector('.layout-single');
+    if (mp) mp.scrollTop = 0;
+  },
+
+  // autoAdvance is handled inline in rate() — immediate, no timeout, no re-render of current card
+
+  rate(dim, value) {
+    // Record timing for primary dimension ratings
+    const dims = this.config.dimensions || [];
+    if (dims.length && dim === dims[0].name && this._itemStartTime) {
+      const elapsed = (Date.now() - this._itemStartTime) / 1000;
+      this._timings.push({ idx: this.current, seconds: Math.round(elapsed * 10) / 10 });
+      localStorage.setItem(this.config.storageKey + '_timings', JSON.stringify(this._timings));
+    }
+
+    this.setEval(this.current, dim, value);
+    // Auto-advance immediately after rating primary dimension (no re-render of current card)
+    if (dims.length && dim === dims[0].name && this.config.autoAdvance !== false) {
+      this._skipAnim = true;
+      this.navigate(1);
+      this._skipAnim = false;
+    } else {
+      this.render();
+    }
+  },
+
+  // ─── Render ─────────────────────────────────────────────
+  render() {
+    const vis = this.getVisibleIndices();
+    const rated = this.ratedCount();
+    const total = this.realItemCount(); // exclude gold items from displayed total
+    const pct = total ? Math.round(rated / total * 100) : 0;
+
+    // Progress with estimated time remaining
+    let progressText = `${rated}/${total} rated (${pct}%)`;
+    // Item position excludes gold items so the denominator matches the progress total
+    const visNonGold = vis.filter(i => !this.isGold(i));
+    if (this.isGold(this.current)) {
+      // On a gold item: show position of the nearest preceding non-gold item
+      const visPos = vis.indexOf(this.current);
+      let precedingNonGold = 0;
+      for (let j = 0; j < visPos; j++) {
+        if (!this.isGold(vis[j])) precedingNonGold++;
+      }
+      progressText += ` · Item ${precedingNonGold + 1}/${visNonGold.length}`;
+    } else {
+      const posInNonGold = visNonGold.indexOf(this.current);
+      progressText += ` · Item ${posInNonGold + 1}/${visNonGold.length}`;
+    }
+
+    if (this._timings.length >= 3) {
+      const recent = this._timings.slice(-10).map(t => t.seconds).filter(t => t < 120);
+      if (recent.length) {
+        const avgSec = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const remaining = total - rated;
+        if (remaining > 0) {
+          const estMin = Math.ceil(remaining * avgSec / 60);
+          progressText += ` · ~${estMin}min left`;
+        }
+      }
+    }
+    document.getElementById('progress').textContent = progressText;
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+
+    // Stats
+    const stats = this.dimStats();
+    const dims = this.config.dimensions || [];
+    let statsHtml = '';
+    if (dims.length) {
+      const d = dims[0];
+      d.options.forEach(o => {
+        const color = o.color || 'gray';
+        const count = stats[d.name][o.value] || 0;
+        statsHtml += `<span><span class="stat-dot" style="background:var(--${color})"></span>${o.label}: ${count}</span>`;
+      });
+    }
+    document.getElementById('stats').innerHTML = statsHtml;
+
+    // Done?
+    if (vis.length === 0 && this.filterUnrated) {
+      this.renderDone();
+      return;
+    }
+    if (this.current >= this.data.length) {
+      this.renderDone();
+      return;
+    }
+
+    const item = this.data[this.current];
+    const ev = this.getEval(this.current);
+    const type = this.config.type || 'rate';
+
+    // Determine layout
+    const hasContext = item.context || type === 'compare';
+    const root = document.getElementById('root');
+
+    let html = '';
+    if (hasContext && type !== 'compare') {
+      html += `<div class="layout-split">`;
+      html += `<div class="context-panel">${this.renderContext(item)}</div>`;
+      html += `<div class="main-panel">${this.renderCard(item, ev, this.current)}</div>`;
+      html += `</div>`;
+    } else {
+      html += `<div class="layout-single">${this.renderCard(item, ev, this.current)}</div>`;
+    }
+    root.innerHTML = html;
+  },
+
+  renderContext(item) {
+    if (!item.context) return '';
+    if (typeof item.context === 'string') return `<div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(item.context)}</div>`;
+    // context can be an array of {label, text} sections
+    return item.context.map(c =>
+      `<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:4px">${esc(c.label)}</div><div style="font-size:14px;line-height:1.5;white-space:pre-wrap">${esc(c.text)}</div></div>`
+    ).join('');
+  },
+
+  renderCard(item, ev, idx) {
+    const type = this.config.type || 'rate';
+    const dims = this.config.dimensions || [];
+
+    // Border class based on primary dimension rating
+    let borderClass = '';
+    if (dims.length && ev[dims[0].name]) {
+      const opt = dims[0].options.find(o => o.value === ev[dims[0].name]);
+      if (opt) borderClass = `rated-${opt.color === 'green' ? 'good' : opt.color === 'red' ? 'bad' : opt.color === 'faint' ? 'skip' : 'partial'}`;
+    }
+
+    const animClass = this._skipAnim ? 'no-anim' : '';
+    let html = `<div class="card ${borderClass} ${animClass}">`;
+
+    // ID
+    if (item.id !== undefined) {
+      html += `<div class="card-id">#${item.id}</div>`;
+    }
+
+    // Content
+    html += `<div class="card-content">${esc(item.content || item.title || item.text || '')}</div>`;
+
+    // Metadata
+    if (item.meta) {
+      html += `<div class="card-meta">${esc(item.meta)}</div>`;
+    }
+
+    // Type-specific rendering
+    if (type === 'compare') {
+      html += `<div class="compare-row">`;
+      html += `<div class="compare-col"><div class="compare-col-label">A${item.label_a ? ': ' + esc(item.label_a) : ''}</div>${esc(item.output_a || '')}</div>`;
+      html += `<div class="compare-col"><div class="compare-col-label">B${item.label_b ? ': ' + esc(item.label_b) : ''}</div>${esc(item.output_b || '')}</div>`;
+      html += `</div>`;
+    } else if (item.output) {
+      html += `<div class="card-output-label">${esc(item.output_label || 'System output')}</div>`;
+      html += `<div class="card-output">${esc(item.output)}</div>`;
+    }
+
+    // Dimensions
+    dims.forEach((d, di) => {
+      // Skip conditional dimensions
+      if (d.showWhen) {
+        const cond = d.showWhen;
+        const depVal = ev[cond.dimension];
+        if (Array.isArray(cond.values) ? !cond.values.includes(depVal) : depVal !== cond.value) return;
+      }
+
+      const keyRow = di === 0 ? '123456789' : di === 1 ? 'qwerty' : 'asdfgh';
+      html += `<div class="dim-label">${esc(d.label || d.name)}</div>`;
+      html += `<div class="btn-row">`;
+      d.options.forEach((o, oi) => {
+        const key = d.keys ? d.keys[oi] : keyRow[oi];
+        const active = ev[d.name] === o.value;
+        const colorClass = active ? `active-${o.color || 'blue'}` : '';
+        html += `<button class="btn ${colorClass}" onclick="H.rate('${d.name}','${o.value}')">`;
+        if (key) html += `<span class="key-hint">${key}</span>`;
+        html += `${esc(o.label)}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Note/correction input
+    if (this.config.allowNotes !== false) {
+      const showNote = !this.config.noteOnlyWhen || (
+        this.config.noteOnlyWhen.dimension &&
+        this.config.noteOnlyWhen.values &&
+        this.config.noteOnlyWhen.values.includes(ev[this.config.noteOnlyWhen.dimension])
+      );
+      if (showNote) {
+        html += `<div class="dim-label">${esc(this.config.noteLabel || 'Notes / correction')}</div>`;
+        html += `<input class="correction-input" placeholder="${esc(this.config.notePlaceholder || 'Optional note...')}"
+          value="${esc(ev._note || '')}" onchange="H.setNote(${idx}, this.value)" onfocus="H._inputFocused=true" onblur="H._inputFocused=false">`;
+      }
+    }
+
+    html += `</div>`; // card
+
+    // Navigation
+    const vis = this.getVisibleIndices();
+    const pos = vis.indexOf(idx);
+    html += `<div class="nav-bottom">`;
+    html += `<button onclick="H.navigate(-1)" ${pos <= 0 ? 'disabled' : ''}>← Previous</button>`;
+    html += `<span class="nav-hint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>c</kbd> copy · <kbd>e</kbd> export</span>`;
+    html += `<button onclick="H.navigate(1)" ${pos >= vis.length - 1 ? 'disabled' : ''}>Next →</button>`;
+    html += `</div>`;
+
+    // Key legend
+    html += `<div class="key-legend">`;
+    dims.forEach((d, di) => {
+      const keyRow = di === 0 ? '123456789' : di === 1 ? 'qwerty' : 'asdfgh';
+      d.options.forEach((o, oi) => {
+        const key = d.keys ? d.keys[oi] : keyRow[oi];
+        if (key) html += `<kbd>${key}</kbd> ${esc(o.label)}  `;
+      });
+      html += ' · ';
+    });
+    html += `<kbd>←</kbd><kbd>→</kbd> nav · <kbd>Space</kbd> skip · <kbd>c</kbd> copy · <kbd>e</kbd> export</div>`;
+
+    return html;
+  },
+
+  renderDone() {
+    const rated = this.ratedCount();
+    const total = this.realItemCount();
+    const stats = this.dimStats();
+    const dims = this.config.dimensions || [];
+
+    let statsText = '';
+    if (dims.length) {
+      dims.forEach(d => {
+        statsText += `<strong>${d.label || d.name}:</strong> `;
+        statsText += d.options.map(o => `${o.label}: ${stats[d.name][o.value] || 0}`).join(' · ');
+        statsText += '<br>';
+      });
+    }
+
+    document.getElementById('root').innerHTML = `
+      <div class="done-screen">
+        <h2>Evaluation complete</h2>
+        <div class="done-stats">${rated}/${total} items rated<br>${statsText}</div>
+        <div style="display:flex;gap:12px;justify-content:center">
+          <button class="btn primary" onclick="H.copyClipboard()" style="font-size:16px;padding:12px 32px">Copy to clipboard</button>
+          <button class="btn" onclick="H.exportJSON()" style="font-size:16px;padding:12px 32px">Export JSON</button>
+        </div>
+        <div style="margin-top:24px">
+          <button class="btn" onclick="H.filterUnrated=false;document.getElementById('filter-btn').className='';H.current=0;H.render()">Review all items</button>
+        </div>
+      </div>`;
+  },
+
+  // ─── Keyboard ──────────────────────────────────────────
+  setupKeyboard() {
+    document.addEventListener('keydown', e => {
+      if (this._inputFocused) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      const dims = this.config.dimensions || [];
+      const keyRows = ['123456789', 'qwerty', 'asdfgh'];
+
+      // Check dimension key bindings
+      for (let di = 0; di < dims.length; di++) {
+        const d = dims[di];
+        const keys = d.keys || keyRows[di];
+        for (let oi = 0; oi < d.options.length; oi++) {
+          if (e.key === keys[oi]) {
+            e.preventDefault();
+            this.rate(d.name, d.options[oi].value);
+            return;
+          }
+        }
+      }
+
+      // Navigation
+      if (e.key === 'ArrowLeft') { e.preventDefault(); this.navigate(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); this.navigate(1); }
+      if (e.key === ' ') { e.preventDefault(); this.navigate(1); } // space = skip
+      if (e.key === 'Backspace') { e.preventDefault(); this.navigate(-1); }
+
+      // Actions
+      if (e.key === 'c') { e.preventDefault(); this.copyClipboard(); }
+      if (e.key === 'e') { e.preventDefault(); this.exportJSON(); }
+      if (e.key === 'f') { e.preventDefault(); this.toggleFilter(); }
+    });
+  },
+
+  // ─── Gold item analysis ───────────────────────────────
+  goldResults() {
+    if (!this._goldPositions.size) return null;
+    const dims = this.config.dimensions || [];
+    const results = [];
+    this._goldPositions.forEach(idx => {
+      const item = this.data[idx];
+      const ev = this.getEval(idx);
+      const expected = item.expected || {};
+      const mismatches = {};
+      let matched = true;
+      for (const [dim, expectedVal] of Object.entries(expected)) {
+        const actualVal = ev[dim];
+        if (actualVal !== expectedVal) {
+          matched = false;
+          mismatches[dim] = { expected: expectedVal, actual: actualVal || '(unrated)' };
+        }
+      }
+      results.push({ id: item.id, expected, actual: ev, matched, mismatches });
+    });
+    const matchCount = results.filter(r => r.matched).length;
+    return { total: results.length, matched: matchCount, items: results };
+  },
+
+  // ─── Export ────────────────────────────────────────────
+  buildClipboardText() {
+    const dims = this.config.dimensions || [];
+    const stats = this.dimStats();
+    const rated = this.ratedCount();
+    const total = this.realItemCount();
+    const title = this.config.title || 'Evaluation';
+    const date = new Date().toISOString().slice(0, 10);
+
+    let text = `# ${title} — Results (${date})\n`;
+    text += `# ${rated}/${total} items rated\n\n`;
+
+    // Summary stats
+    text += `## Summary\n`;
+    if (dims.length) {
+      dims.forEach(d => {
+        d.options.forEach(o => {
+          const count = stats[d.name][o.value] || 0;
+          const pct = rated ? Math.round(count / rated * 100) : 0;
+          text += `- ${o.label}: ${count} (${pct}%)\n`;
+        });
+        text += '\n';
+      });
+    }
+
+    // Compact mode: only include IDs + ratings + notes, skip full content to save tokens
+    const maxLabel = this.config.clipboardMaxLabel || 60;
+    function shortContent(item, idx) {
+      const label = item.content || item.title || item.text || `Item ${idx}`;
+      return label.length > maxLabel ? label.slice(0, maxLabel - 3) + '...' : label;
+    }
+
+    // Items with notes/corrections (most valuable signal) — exclude gold items
+    const noted = [];
+    this.data.forEach((item, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (ev._note) noted.push({ idx: i, item, ev });
+    });
+    if (noted.length) {
+      text += `## Notes & Corrections\n`;
+      noted.forEach(({ idx, item, ev }) => {
+        text += `- #${item.id || idx}: "${shortContent(item, idx)}" — ${ev._note}\n`;
+      });
+      text += '\n';
+    }
+
+    // Items rated negatively (options with color "red") — exclude gold items
+    if (dims.length) {
+      const primaryDim = dims[0];
+      const badOpts = primaryDim.options.filter(o => o.color === 'red');
+      badOpts.forEach(badOpt => {
+        const badItems = [];
+        this.data.forEach((item, i) => {
+          if (this.isGold(i)) return;
+          const ev = this.getEval(i);
+          if (ev[primaryDim.name] === badOpt.value) badItems.push({ idx: i, item, ev });
+        });
+        if (badItems.length) {
+          text += `## Items rated "${badOpt.label}"\n`;
+          badItems.forEach(({ idx, item, ev }) => {
+            let line = `- #${item.id || idx}: "${shortContent(item, idx)}"`;
+            if (ev._note) line += ` (note: ${ev._note})`;
+            text += line + '\n';
+          });
+          text += '\n';
+        }
+      });
+    }
+
+    // Self-consistency (gold items)
+    const goldRes = this.goldResults();
+    if (goldRes) {
+      const pct = goldRes.total ? Math.round(goldRes.matched / goldRes.total * 100) : 0;
+      text += `## Self-Consistency (gold items)\n`;
+      text += `- ${goldRes.matched}/${goldRes.total} gold items matched expected (${pct}%)\n`;
+      const mismatched = goldRes.items.filter(r => !r.matched);
+      if (mismatched.length) {
+        text += `- Mismatches:\n`;
+        mismatched.forEach(r => {
+          for (const [dim, info] of Object.entries(r.mismatches)) {
+            text += `  - #${r.id}: expected "${info.expected}", rated "${info.actual}"\n`;
+          }
+        });
+      }
+      text += '\n';
+    }
+
+    // Timing summary
+    if (this._timings.length) {
+      const times = this._timings.map(t => t.seconds).filter(t => t < 120); // exclude pauses
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      const total = times.reduce((a, b) => a + b, 0);
+      text += `## Timing\n`;
+      text += `- avg ${avg.toFixed(1)}s/item, total ${Math.round(total / 60)}min ${Math.round(total % 60)}s\n\n`;
+    }
+
+    // Full eval data as compact JSON (IDs + ratings only, no content) — exclude gold items
+    text += `## Raw ratings (JSON)\n\`\`\`json\n`;
+    const compact = {};
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (Object.keys(ev).length) {
+        const id = this.data[i].id !== undefined ? this.data[i].id : i;
+        compact[id] = { ...ev };
+      }
+    });
+    text += JSON.stringify(compact) + '\n\`\`\`\n';
+
+    return text;
+  },
+
+  copyClipboard() {
+    const text = this.buildClipboardText();
+    navigator.clipboard.writeText(text).then(() => {
+      this.toast('Copied to clipboard — paste into Claude');
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      this.toast('Copied to clipboard — paste into Claude');
+    });
+  },
+
+  exportJSON() {
+    const result = {
+      config: { title: this.config.title, type: this.config.type, dimensions: this.config.dimensions },
+      date: new Date().toISOString(),
+      totalItems: this.realItemCount(),
+      ratedCount: this.ratedCount(),
+      stats: this.dimStats(),
+      evals: {},
+    };
+    // Exclude gold items from evals export
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (Object.keys(ev).length) {
+        result.evals[i] = ev;
+      }
+    });
+    // Add gold results if applicable
+    const goldRes = this.goldResults();
+    if (goldRes) result.goldResults = goldRes;
+
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(this.config.storageKey || 'eval').replace(/[^a-z0-9_-]/gi, '-')}-results.json`;
+    a.click();
+  },
+
+  toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2000);
+  },
+};
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+// ─── Boot ────────────────────────────────────────────────
+// Config and data are injected by the assembler as JSON
+const CONFIG = /*CONFIG_SLOT*/{"title": "Memory hook quality — gpt-5.6-sol on rescue/struggling words (2026-07-20)", "type": "rate", "storageKey": "calibration-alif-2026-07-20-hook-56sol", "autoAdvance": true, "allowNotes": true, "noteLabel": "What's wrong?", "notePlaceholder": "Forced sound link / meaning not extractable / annoying...", "noteOnlyWhen": {"dimension": "verdict", "values": ["bad"]}, "dimensions": [{"name": "verdict", "label": "Would you want this hook shown on the card?", "options": [{"value": "show", "label": "Show it — helps me", "color": "green"}, {"value": "weak", "label": "Weak — wouldn't miss it", "color": "yellow"}, {"value": "bad", "label": "Bad — don't show", "color": "red"}]}]}/*END_CONFIG*/;
+const DATA = /*DATA_SLOT*/[{"id": 2693, "content": "اِسْتَفاد  (istafād) — to benefit", "meta": "pos=verb · root ف.ي.د \"to benefit, help, or be of use\"", "output": "You realize IT'S A FAD, immediately sell the trendy item, and BENEFIT from the craze as money pours into your hands: اِسْتَفاد (istafād) means “to benefit.”", "output_label": "Proposed hook"}, {"id": 1289, "content": "مَتُنَ  (matuna) — to be firm", "meta": "pos=verb · root م.ت.ن \"related to firmness, strength, texts, solid ground\"", "output": "You step onto a giant MAT-TUNA as if it were a bridge. Instead of squishing, the tuna becomes rock-firm beneath your feet and supports your full weight: مَتُنَ means “to be firm/strong.”", "output_label": "Proposed hook"}, {"id": 3237, "content": "تَأَوَّهَ  (taʾawwaha) — to sigh, moan", "meta": "pos=verb · root أ.و.ه \"Sigh, moan, cry out\"", "output": "You try to lift a massive TOWER—HUH! The crushing weight makes you SIGH and MOAN with every heave: “ta-ʾaw-wa-ha!”", "output_label": "Proposed hook"}, {"id": 1368, "content": "احْتِمَالٌ  (ḥtimāl) — probability, possibility", "meta": "pos=noun · root ح.م.ل \"related to carrying, bearing, pregnancy, burdens, possibility\"", "output": "You test the POSSIBILITY of carrying an ITTY MALL in your backpack. A giant possibility gauge flashes “POSSIBLE!” as you lift the tiny mall and bear its weight.", "output_label": "Proposed hook"}, {"id": 996, "content": "رَاجَ  (rāja) — to circulate, spread", "meta": "pos=verb · root ر.و.ج \"related to circulation, promotion, marketing, popularity, movement\"", "output": "You seize a RAJAH’s royal proclamation and make it CIRCULATE through the marketplace; everyone who receives it copies it and spreads it to another person until the whole city is buzzing.", "output_label": "Proposed hook"}, {"id": 1436, "content": "خَمَّ  (khamma) — to rot, stink", "meta": "pos=verb · root خ.م.م \"related to decay, foul smells, rotting, stinking\"", "output": "You HAMMER a slab of meat; with every blow, it rapidly ROTS, and a green cloud of STINK blasts into your face: kham-ma, HAMMER → rot and stink.", "output_label": "Proposed hook"}, {"id": 1245, "content": "عَجَلَة  (ʿajala) — wheel; haste", "meta": "pos=noun · root ع.ج.ل \"related to haste, speed, calves, wheels, rushing\"", "output": "You slam a WHEEL onto A JALOPY; the moment it locks in place, the jalopy drags you away in such HASTE that your feet fly off the ground.", "output_label": "Proposed hook"}, {"id": 3257, "content": "احْتَضَن  (ḥtaḍan) — to embrace", "meta": "pos=verb · root ح.ض.ن \"holding close, embracing affectionately\"", "output": "You yell “I HUG DAN!”—iḥtaḍan—and immediately EMBRACE Dan, squeezing him affectionately against your chest.", "output_label": "Proposed hook"}, {"id": 2481, "content": "نَمَا  (namā) — to grow", "meta": "pos=verb · root ن.م.و \"Growth, increase, development, expansion, progress\"", "output": "You shout the seed’s NAMA—its name—and it immediately GROWS into a towering tree, each repeated NAMA making it grow another meter.", "output_label": "Proposed hook"}, {"id": 2733, "content": "زَبْدِيَّة  (zabdiyya) — bowl", "meta": "pos=noun · root ز.ب.د \"Relating to foam, froth, butter, or the cream of something.\"", "output": "You DIY a BOWL, but each time you touch it, it goes ZAP! Your ZAP-DIY project keeps shocking you until you finish the bowl.", "output_label": "Proposed hook"}, {"id": 2648, "content": "اِبْتِعاد  (ibtiʿād) — avoidance", "meta": "pos=noun · root ب.ع.د \"related to distance, being far, remoteness, later time\"", "output": "You practice AVOIDANCE whenever a pushy gambler approaches: the instant he says “I BET HE’D—,” you forcefully push him away and retreat into the distance.", "output_label": "Proposed hook"}, {"id": 1278, "content": "حَشَدَ  (ḥashada) — to mobilize, mass", "meta": "pos=verb · root ح.ش.د \"related to gathering, crowds, mobilizing, assembling\"", "output": "You MOBILIZE a massive army of HASHED potatoes, scooping them into tight ranks until the whole field is packed with assembled troops: ḥashada means “to mobilize, mass.”", "output_label": "Proposed hook"}, {"id": 2937, "content": "طَفَا  (ṭafā) — to float", "meta": "pos=verb · root ط.ف.و \"buoyancy, floating, rising above surface\"", "output": "You drop a giant piece of TAFFY into the sea. It refuses to sink, so you climb onto it and FLOAT across the water like a sticky raft.", "output_label": "Proposed hook"}, {"id": 3708, "content": "مُسَاوَاة  (al-musāwāa) — equality", "meta": "pos=noun · root س.و.ي \"equality, sameness, being equal alike\"", "output": "You order ALL MOOSE A-WEIGH on a giant balance, adding or removing weights until every moose is perfectly level. The moment their weights become equal, the scale flashes EQUALITY—al-musāwāh.", "output_label": "Proposed hook"}, {"id": 931, "content": "عَصَبَ  (ʿaṣaba) — to twist, wrap around", "meta": "pos=verb · root ع.ص.ب \"related to nerves, binding, wrapping, fanaticism, and groups\"", "output": "You grab A SOBBER’s long scarf, TWIST it tightly, and WRAP it around the sobber like a mummy: ʿAṢABA—twist and wrap around.", "output_label": "Proposed hook"}, {"id": 3705, "content": "مُبالٍ  (mubāl) — caring", "meta": "pos=noun · root ب.ا.ل \"to care about, concern, heed, regard\"", "output": "You show you are CARING by cradling a frightened MOO-BALL, feeding it, polishing it, and protecting it whenever it moos.", "output_label": "Proposed hook"}, {"id": 3808, "content": "أَحاط  (aḥāṭ) — to surround", "meta": "pos=verb · root ح.ي.ط \"to encircle, enclose, or encompass something completely\"", "output": "You SURROUND A HOT coal completely with a thick ring of ice, trapping it on every side until it cannot escape: أَحاطَ (aḥāṭa) means “surrounded.”", "output_label": "Proposed hook"}, {"id": 4230, "content": "حَشَرَة  (ḥasharah) — insect", "meta": "pos=noun · root ح.ش.ر \"small crawling or flying creature organism\"", "output": "You chase a loudly buzzing INSECT around the room, shouting “HUSH, SARAH!” The INSECT lands on your lips and hushes you instead.", "output_label": "Proposed hook"}, {"id": 2612, "content": "حصبه  (w«ālḥṣbh») — measles", "meta": "pos=noun · root ح.ص.ب \"measles; contagious viral disease\"", "output": "You shout “HE HAS BUMPS!” as MEASLES actively erupts in red spots across his skin; you quarantine him while the bumps multiply. HAS BUMPS → ḥaṣba → measles.", "output_label": "Proposed hook"}, {"id": 3210, "content": "تَوَهَّجَ  (tawahhaja) — to glow", "meta": "pos=verb · root و.ه.ج \"Glow, shine, emit light\"", "output": "You TOW A HOT JAR through a dark room; the hotter it gets, the more intensely it begins TO GLOW, lighting your path.", "output_label": "Proposed hook"}, {"id": 1267, "content": "نَحُلَ  (naḥula) — to grow thin", "meta": "pos=verb · root ن.ح.ل \"related to bees, thinness, emaciation, giving gifts\"", "output": "You perform the NACHO-HULA with a huge nacho wrapped around your waist; every hula spin shaves off both the nacho and your body until you GROW THIN and your belt falls down.", "output_label": "Proposed hook"}, {"id": 2523, "content": "شَمّ  (shamm) — smelling/smell", "meta": "pos=noun · root ش.م.م \"Relating to the sense of smell and olfactory perception.\"", "output": "You expose a fake perfume as a SHAM by repeatedly SMELLING it—the suspicious smell makes the label peel off and reveal “FAKE.”", "output_label": "Proposed hook"}, {"id": 3875, "content": "اِعْتَذَرَ  (iʿtadhara) — to apologize", "meta": "pos=verb · root ع.ذ.ر \"excusing oneself and seeking forgiveness\"", "output": "You EAT THE RAW—AH!—you swallow someone’s uncooked meal, recoil in horror, and immediately apologize to the cook: “I’m so sorry!”", "output_label": "Proposed hook"}, {"id": 3429, "content": "ضَمّ  (ḍamm) — to annex", "meta": "pos=verb · root ض.م.م \"Joining together or incorporating into whole\"", "output": "You ANNEX the neighboring kingdom by slamming a giant DAM across its border; the DAM hooks into the province and drags the whole territory inside your frontier.", "output_label": "Proposed hook"}, {"id": 2402, "content": "جَوْرَب  (jawārib) — socks", "meta": "pos=noun · root ج.ر.ب \"Relating to testing, experience, or containers like bags and socks.\"", "output": "You pull two enormous SOCKS onto your body—one clamps over your JAW, the other stretches around your RIBS—as you shout “JAW-RIBS!”", "output_label": "Proposed hook"}, {"id": 2132, "content": "أَنْجَز  (anjaz) — to accomplish", "meta": "pos=verb · root ن.ج.ز \"To carry out, complete, fulfill, or achieve a task.\"", "output": "You must accomplish a huge checklist. You shout “AND JAZZ!” and play a jazzy chord; each note physically stamps another task مُنْجَز—COMPLETED—until you accomplish everything.", "output_label": "Proposed hook"}, {"id": 3316, "content": "مَنَح  (mnḥ) — grant, bestow", "meta": "pos=noun · root م.ن.ح \"grant, bestow, give as favor\"", "output": "You BESTOW a huge golden grant on a German MANN by stamping his application “GRANTED!” He clutches the money and cries “ACH!”—MANN–ACH, مَنَح: you granted/bestowed it.", "output_label": "Proposed hook"}, {"id": 2890, "content": "بَعُوضَةٗ  (baʿūḍaٗ) — mosquito", "meta": "pos=noun · root ب.ع.ض \"related to parts, portions, gnawing, some\"", "output": "You spot a mosquito lighting a pile of BAROOD. It bites you, so you swat it onto the fuse—and the tiny biter explodes with the gunpowder: ba-ʿū-ḍa means mosquito.", "output_label": "Proposed hook"}, {"id": 1215, "content": "تَابَعَ  (tābaʿa) — to continue, carry on", "meta": "pos=verb · root ت.ب.ع \"related to following, sequence, succession, continuation, tracking\"", "output": "You are a TABBER on a giant keyboard-road: whenever the road stops, you hammer TAB and force your journey to CONTINUE and carry on.", "output_label": "Proposed hook"}, {"id": 3507, "content": "شِبْرٌ  (shibr) — span", "meta": "pos=noun · root ش.ب.ر \"hand span, measure of distance from thumb\"", "output": "You stretch the paw of a giant SHE-BEAR from thumb to little finger, mark the distance, and declare: “One span!” She then measures the whole room for you, span by span.", "output_label": "Proposed hook"}, {"id": 1197, "content": "قَبَضَ  (qabaḍa) — to seize", "meta": "pos=verb · root ق.ب.ض \"related to seizing, grabbing, catching, arresting, grip\"", "output": "You play KABADDI and suddenly SEIZE your opponent in a crushing grip, refusing to let go until the referee whistles.", "output_label": "Proposed hook"}, {"id": 2706, "content": "اِعْتَمَد  (iʿtamad) — to rely", "meta": "pos=verb · root ع.م.د \"Supporting, relying upon, intending, or acting with specific purpose.\"", "output": "You must RELY on a huge lion to cross a collapsing bridge. You grab its mane and yell, “I TAMED you—support me now!” The lion braces itself and carries you safely across.", "output_label": "Proposed hook"}, {"id": 3249, "content": "ارْتَمَى  (rtmā) — to throw oneself, to fall", "meta": "pos=verb · root ر.م.ي \"Throw, cast, hurl\"", "output": "You throw yourself onto a gym mat and fall sideways—your EAR hits the MAT: EAR-TO-MAT, اِرْتَمَى, “to throw oneself; to fall.”", "output_label": "Proposed hook"}, {"id": 3258, "content": "خَدَّر  (khaddar) — numbness", "meta": "pos=noun · root خ.د.ر \"tingling sensation, numbness, paralysis\"", "output": "You wind rough KHADDAR tightly around your arm; NUMBNESS spreads beneath the cloth and switches off every sensation until your arm hangs like a lifeless sleeve.", "output_label": "Proposed hook"}, {"id": 1104, "content": "مَنَّى  (mannā) — to arouse desire", "meta": "pos=verb · root م.ن.ي \"related to desires, semen, fate, testing, wishing\"", "output": "You smell heavenly MANNA, and its irresistible sweetness AROUSES DESIRE in you—you lunge for it, aching to taste it.", "output_label": "Proposed hook"}, {"id": 726, "content": "قَطَبَ  (qaṭaba) — to frown, contract", "meta": "pos=verb · root ق.ط.ب \"related to poles, gathering, concentration, central axes\"", "output": "You frown and contract your brow so fiercely that one sharp forehead crease shoots out and CUTS A BUN in half: qaṭaba — you frown and contract.", "output_label": "Proposed hook"}, {"id": 3464, "content": "أَغْلَظ  (aghlaẓ) — harsh", "meta": "pos=noun · root غ.ل.ظ \"harshness, severity, coarseness in manner\"", "output": "You speak so HARSHLY to A GLASS that each cutting word scratches it, and your final harsh shout shatters it.", "output_label": "Proposed hook"}, {"id": 961, "content": "رُمَّانٌ  (rummān) — pomegranate", "meta": "pos=noun · root ر.م.ن \"related to pomegranates, being swollen, red fruit, abundance\"", "output": "You are the ROM-MANN when a gigantic POMEGRANATE swells until it becomes your entire room, splattering the walls red and trapping you inside its juicy seeds.", "output_label": "Proposed hook"}, {"id": 4300, "content": "وَفَّرَ  (waffara) — to save (time, money); to provide", "meta": "pos=verb · root و.ف.ر \"To provide, supply, or make available\"", "output": "You shove a rambling WAFFLER into a giant SAVE machine: it stops him wasting your time, turns his empty words into saved coins, and forces him to provide exactly what you need.", "output_label": "Proposed hook"}, {"id": 501, "content": "سَمَّى  (sammā) — to name", "meta": "pos=verb · root س.م.و \"related to naming, height, elevation, names, titles\"", "output": "You NAME two identical twins, but a giant SAMMA (“same”) stamp keeps stamping the same name on both. You tear off the duplicate labels and NAME each twin separately.", "output_label": "Proposed hook"}, {"id": 3038, "content": "اِرْتَجَى  (rtajja) — to hope for", "meta": "pos=verb · root ر.ج.ج \"hoping, wishing, desiring, anticipating future outcome\"", "output": "You HOPE FOR good news; whenever you whisper a hope into your EAR, a jeweled TAJ (Hindi: crown) sprouts from it and grows brighter—the more you hope, the bigger your EAR–TAJ becomes.", "output_label": "Proposed hook"}, {"id": 3706, "content": "ضَحَّى  (ḍaḥḥā) — to sacrifice", "meta": "pos=verb · root ض.ح.ي \"Eid al-Adha; festival of sacrifice\"", "output": "You shout Spanish TAJA (“slice!”) as you SACRIFICE a ram, cutting the offering on the altar: TAJA → ḍaḥḥā → to sacrifice.", "output_label": "Proposed hook"}, {"id": 2665, "content": "ذَابَ  (dhāb) — to melt", "meta": "pos=verb · root ذ.و.ب \"liquefaction, dissolution, state change\"", "output": "You MELT a giant butter sculpture shaped like a roadside DHABA; its walls liquefy, the roof drips away, and the whole DHABA dissolves into a golden puddle.", "output_label": "Proposed hook"}, {"id": 3410, "content": "اِنْتِساب  (intisāb) — affiliation", "meta": "pos=noun · root ن.س.ب \"Relating to lineage, kinship, proportion, and suitability between things.\"", "output": "You prove your AFFILIATION with the Saab owners’ club by climbing INTO SAAB; the moment you enter, the car stamps the club emblem onto your chest and announces, “You belong with us!”", "output_label": "Proposed hook"}, {"id": 1032, "content": "رَانَ  (rāna) — to take possession of", "meta": "pos=verb · root ر.ي.ن \"related to rust, covering, seizing, overtaking\"", "output": "You TAKE POSSESSION OF an island by wrestling its deed from a giant RANA frog; as you seize the deed, a rusty coating spreads over the frog’s heart and the island becomes yours.", "output_label": "Proposed hook"}, {"id": 3586, "content": "نَقَض  (naqaḍ) — to break, undo", "meta": "pos=verb · root ن.ق.ض \"related to contradiction, demolition, undoing, breaking contracts\"", "output": "You slam a bundle of NAKAD cash through a signed contract, BREAKING its seal and UNDOING the binding knot until the agreement falls apart.", "output_label": "Proposed hook"}, {"id": 3247, "content": "آذَىً  (ādhā) — harm, injury", "meta": "pos=noun · root أ.ذ.ي \"Harm, injury, damage\"", "output": "You scream “AADHA!” as harm swings a huge blade, slices your shield in half, and leaves an injury on your arm: AADHA—half—reminds you of the harm and injury.", "output_label": "Proposed hook"}, {"id": 1054, "content": "شَفَةٌ  (shafa) — lip", "meta": "pos=noun · root ش.ف.ه \"related to lips, speech, margins, edges\"", "output": "You command “SCHAFFE!”—German for “create!”—and your giant LIP springs to life, actively creating spoken words and stamping each one with a kiss.", "output_label": "Proposed hook"}, {"id": 4229, "content": "ضَجِيج  (ḍajīj) — noise", "meta": "pos=noun · root ض.ج.ج \"loud clamor, commotion, or disturbing sound\"", "output": "You DODGE a JEEP as it blasts deafening NOISE from its horn; every time you dodge, the JEEP answers with an even louder blast: ḍajīj means “noise.”", "output_label": "Proposed hook"}, {"id": 650, "content": "تَلَا  (talā) — to follow, walk behind another", "meta": "pos=verb · root ت.ل.و \"related to following, reciting, succession, reading aloud\"", "output": "A giant TĀLĀ snaps your belt to another person’s backpack, forcing you to FOLLOW them and WALK directly BEHIND them.", "output_label": "Proposed hook"}, {"id": 2660, "content": "راوَد  (rāwad) — to entice", "meta": "pos=verb · root ر.و.د \"related to wanting, seeking, desiring, exploring\"", "output": "You entice a wary wolf toward you by dangling a glowing RAW WAD of meat; the wad becomes a lure, coils around the wolf, and gently reels it closer.", "output_label": "Proposed hook"}]/*END_DATA*/;
+if (CONFIG && DATA) H.init(CONFIG, DATA);
+</script>
+</body>
+</html>
