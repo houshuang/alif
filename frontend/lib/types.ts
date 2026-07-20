@@ -161,6 +161,10 @@ export interface EtymologyData {
 
 export interface MemoryHooksData {
   mnemonic: string | null;
+  // ISO date the storage-time quality judge approved this mnemonic. Mnemonics
+  // display ONLY when present (see lib/feature-flags.ts showMnemonic).
+  approved_at?: string | null;
+  approved_by?: string | null;
   cognates: { lang: string; word: string; note: string }[] | null;
   collocations: { ar: string; en: string }[] | null;
   usage_context: string | null;

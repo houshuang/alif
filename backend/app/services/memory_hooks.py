@@ -13,99 +13,185 @@ logger = logging.getLogger(__name__)
 
 
 def memory_hooks_enabled() -> bool:
-    """Master switch for mnemonic generation. Disabled by default since 2026-05-22:
-    a calibration study found most auto-generated mnemonics low-quality and the
-    quality boundary not reliably gateable (held-out kappa = -0.12). Set
-    ALIF_MEMORY_HOOKS_ENABLED=1 to re-enable. See
-    research/analysis-2026-05-22-stale-pr-ideas.md."""
+    """Master switch for mnemonic generation. Disabled 2026-05-22 after a
+    calibration study found most auto-generated mnemonics low-quality and the
+    quality boundary not reliably gateable (held-out kappa = -0.12). Re-enabled
+    2026-07-20 with a redesigned pipeline: recognition-direction full-cover
+    generation prompt + independent 4-check storage judge calibrated on 60 user
+    ratings (see the 2026-07-20 experiment-log entry). Set
+    ALIF_MEMORY_HOOKS_ENABLED=1 to enable."""
     return os.getenv("ALIF_MEMORY_HOOKS_ENABLED", "0") == "1"
 
-SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary using the keyword mnemonic method (Atkinson & Raugh 1975). The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
-BUILD THE MNEMONIC IN 4 STEPS:
+# Model for hook generation + judging. gpt-5.6-sol chosen by the 2026-07-20
+# eval; falls back to the Claude CLI chain when codex is unavailable.
+HOOK_MODEL = os.getenv("ALIF_HOOK_MODEL", "gpt-5.6-sol")
 
-STEP 1 — KEYWORD CANDIDATES: List 3-5 words/phrases from any of the learner's languages that SOUND LIKE all or part of the Arabic transliteration. Each must be concrete and visualizable. Prioritize first-syllable match. Multi-word phrases OK.
+GENERATION_SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary. The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
-STEP 2 — PICK BEST: Choose the keyword with the best combination of (a) phonetic overlap and (b) ease of visualization. If a candidate also relates semantically to the meaning, prefer it.
+CRITICAL DIRECTION: the learner ONLY practices recognition — they SEE or HEAR the Arabic word and must recall the English meaning. Never the reverse. The hook must FIRE when reading the Arabic word: its sound must automatically summon the keyword phrase without effort.
 
-STEP 3 — INTERACTIVE SCENE: Build ONE scene where the keyword and the word's meaning INTERACT — they must DO something to each other. Critical rules:
-  - The meaning must be the ACTION or CENTRAL ELEMENT of the scene, not a label
-  - Use "you" as the actor (self-reference aids memory)
-  - 1-2 sentences max, specific and vivid
-  - The keyword must appear in CAPS so the sound link is visible
+THE FULL-COVER RULE (the single most important criterion, from this learner's own ratings):
+The keyword phrase, spoken aloud, must reconstruct (nearly) the ENTIRE Arabic word's sound IN ORDER. Not just the first syllable. Not a loose rhyme. Not scrambled. The keyword must be real, common words in the learner's languages — NEVER the Arabic word itself dressed up as a name or object, and never obscure terms.
 
-STEP 4 — VERIFY: Re-read the scene. If someone hears the Arabic word, recalls the keyword, and remembers this scene — can they extract the meaning? If not, revise.
+GOLD EXAMPLES (this learner's actual favorites):
+- zamjara (to growl) → "a ZOMBIE in a JAR, growling" — zam-jar covers the whole word
+- muḥāṣar (surrounded) → "a MOO HAZARD: surrounded by cows" — mu-ha-sar fully covered
+- ḥasharah (insect) → "you whisper HUSH, SARAH! as she stalks a buzzing insect" — ha-sha-ra in order
+- iḥtaḍan (to embrace) → "I HUG DAN" — ih-ta-dan, and the phrase IS the meaning
+- iʿtadhar (to apologize) → "I ATE THE RAW onion, then apologized" — meaning as natural consequence
 
-GOOD EXAMPLES:
-  "kitab (book) — you see a CAT open a TAB on her laptop and start reading a BOOK, so engrossed she knocks her coffee over"
-  WHY: cat+tab = sound link, BOOK = central action, interactive (cat reads book), self-reference nearby
+REJECTED BY THIS LEARNER (do not produce these patterns):
+- iḥtimāl → "ITTY MALL" — drops the iḥ-; partial cover fails
+- namā → "shout the seed's NAMA (name)" — circular, no real sound-alike
+- khaddar → "KHADDAR cloth" — the "keyword" is just the Arabic word; anchors nothing
+- tawahhaja → "TOW A HEDGE — it suddenly glows" — the meaning is bolted on, nothing in the scene produces it
+- "SAM names MA on her name tag" — mundane, fully plausible scenes leave no memory trace
+- long elaborate scenes — ONE compact vivid image, max ~15 words
 
-  "husn (beauty) — you're in a HOOSEGOW jail cell, but the sunset through the bars is so BEAUTIFUL the guards stop to stare"
-  WHY: hoosegow = sound link, BEAUTY = central quality that drives the action
+METHOD:
+1. Say the transliteration aloud syllable by syllable. Find keyword phrases (any of the learner's languages) that cover ALL of it in order. Generate 4-5 candidates; discard any that miss syllables or use the Arabic word itself.
+2. For each survivor, build ONE compact image (max ~15 words) where the keyword ENACTS the meaning — the meaning should be the action or punchline, and the scene should be surprising or absurd enough to stick.
+3. Self-score each candidate 1-5 on: cover (whole word in order?), trigger (auto-evoked on reading?), extraction (image hands you the meaning?).
+4. Pick the best. If NO candidate scores >=4 on ALL THREE, return null for the entire entry — a missing hook is better than a bad one. Returning null for a third of words is correct behavior.
 
-  "raghm (despite) — a RAGTIME musician keeps playing DESPITE the rain pouring on his piano"
-  WHY: rag = sound link, DESPITE = shown through consequence (playing through opposition)
+ALSO GENERATE: cognates (genuine ones in the learner's languages, [] if none; mark direct borrowings prominently), collocations (2-3, Arabic with full diacritics + English only), usage_context (1-2 specific sentences), fun_fact (or null).
 
-BAD EXAMPLES:
-  "husn — a hoosegow (jail) for ugly thoughts" — no interaction, meaning is a label, not extractable
-  "it means knowledge, think of a scholar" — no sound link at all
-  "picture a cat and a book on a table" — separate images, no interaction (no better than rote)
+Particles, pronouns, function words, proper nouns: return null for the entire entry.
 
-ABSTRACT WORDS (prepositions, conjunctions, abstract nouns like "freedom", "despite", "situation"):
-  - Concretize through CONSEQUENCE: show what the concept DOES in concrete terms
-  - Or use a VERBAL mnemonic: a sentence that links the sound-alike to the definition naturally
-  - Example: "hurriyya (freedom) — you're in a HURRY to escape, sprinting through the gate into FREEDOM"
+Return JSON: {"candidates": [{"keyword": "...", "mnemonic": "...", "cover": N, "trigger": N, "extraction": N}], "best_index": 0, "mnemonic": "...", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}"""
 
-RETURN ONLY the final mnemonic text in the "mnemonic" field (not the intermediate steps).
 
-ALSO GENERATE:
+JUDGE_SYSTEM_PROMPT = """You judge Arabic vocabulary mnemonics for a learner who ONLY practices recognition: they see/hear the Arabic word and must recall the English meaning. Decide if a mnemonic is worth storing.
 
-2. cognates: Words in the learner's OTHER languages from this Arabic root or sharing origin. Arabic has lent extensively to: Hindi/Urdu, Indonesian/Malay, Spanish (800 years Moorish rule), and lesser extent French, Italian, English. If the word IS a direct borrowing, mark prominently. Format: [{"lang": "Hindi", "word": "किताब (kitab)", "note": "direct borrowing — you already know this!"}]. Return [] if no cognates.
+FOUR CHECKS — the mnemonic must pass ALL four:
 
-3. collocations: 2-3 common Arabic phrases. Format: [{"ar": "Arabic with full diacritics ONLY", "en": "English ONLY"}]. No transliteration in either field.
+1. KNOWN-WORD ANCHOR: the keyword must be real, common words or phrases in the learner's languages (English, Norwegian, Swedish, Danish, German, French, Italian, Spanish, Hindi, Indonesian, Greek, Latin). FAIL if the "keyword" is the Arabic word itself dressed up (e.g. "KHADDAR cloth", "a TALA lock", "NAQAD cash", "a RANA frog"), an invented word, or an obscure term.
 
-4. usage_context: 1-2 specific sentences ("in news headlines about...", "on restaurant menus"). Not generic.
+2. ENACTED MEANING: keyword and meaning must combine into ONE unified scene in which the meaning is physically enacted or directly expressed — not merely asserted as an afterthought.
+   PASS: whispering "HUSH, SARAH!" while she stalks a buzzing INSECT · "I ATE THE RAW onion, then apologized" · a giant TAFFY slab that FLOATS you across the sea.
+   FAIL: "TOW A HEDGE — it suddenly glows" (glow merely asserted) · "OUAF, FARAH! — her dog provides coupons, saving money" (nothing connects) · "hey ADA, don't spill the JUICE" for ada=juice (meaning has no role in the scene).
 
-5. fun_fact: One genuinely surprising fact. Return null if nothing truly interesting.
+3. AUTOMATIC TRIGGER: spoken aloud, the keyword phrase reconstructs enough of the Arabic word's sound, in order, that reading the Arabic evokes it without effort. Near-covers are fine ("TAFFY" for tafa, "ZAP-DIY" for zabdiyya). FAIL only when scrambled or fragmentary ("ALL MOOSE A-WEIGH" for musawaa).
 
-SHORTCUTS:
-- Direct borrowing in Hindi/Urdu or Indonesian: note in cognates with "direct borrowing — you already know this!" and keep mnemonic brief.
-- Particles, pronouns, basic function words: return null for the ENTIRE entry.
-- Proper nouns: return null for the entire entry.
+4. MEMORABLE ODDITY: the scene must be surprising, absurd, or vivid enough to stick. Mundane, fully plausible scenes FAIL even when everything else passes.
+   PASS: a MAT of TUNA rock-firm underfoot · a DAM crossing a border to annex land · a ZOMBIE in a JAR growling.
+   FAIL: "one smell of the SHAM perfume exposes the fake" · "a DAUB of wax melts down the candle" · "SAM names MA on her name tag" · "ANN finishes the jazz set — accomplished".
 
-Return JSON: {"mnemonic": "...", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}"""
+CALIBRATION: a false STORE (a mediocre hook shown) is cheap; storing a hook that fails check 1, 2, or 4 is worthless. Be strict on 1, 2, 4. On check 3, lean toward pass when genuinely borderline.
 
-PREMIUM_SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary. This word is HARD for the learner — previous mnemonics didn't stick. Use the overgenerate-and-rank method to produce a superior mnemonic.
+Return JSON: {"known_anchor": bool, "enacted_meaning": bool, "automatic_trigger": bool, "memorable_oddity": bool, "storable": bool, "reason": "one short sentence"}
+storable = all four true."""
 
-The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
-GENERATE 3 CANDIDATE MNEMONICS, then pick the best:
+HOOK_GENERATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "candidates": {
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "keyword": {"type": "string"},
+                    "mnemonic": {"type": "string"},
+                    "cover": {"type": "integer"},
+                    "trigger": {"type": "integer"},
+                    "extraction": {"type": "integer"},
+                },
+                "required": ["keyword", "mnemonic", "cover", "trigger", "extraction"],
+            },
+        },
+        "best_index": {"type": ["integer", "null"]},
+        "mnemonic": {"type": ["string", "null"]},
+        "cognates": {
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lang": {"type": "string"},
+                    "word": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+                "required": ["lang", "word", "note"],
+            },
+        },
+        "collocations": {
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {"ar": {"type": "string"}, "en": {"type": "string"}},
+                "required": ["ar", "en"],
+            },
+        },
+        "usage_context": {"type": ["string", "null"]},
+        "fun_fact": {"type": ["string", "null"]},
+    },
+    "required": ["candidates", "best_index", "mnemonic", "cognates", "collocations", "usage_context", "fun_fact"],
+}
 
-For each candidate:
-1. Pick a different keyword (English/Norwegian/etc. word that sounds like the Arabic transliteration)
-2. Build an interactive scene where keyword and meaning DO something to each other
-3. Use "you" as actor, meaning as the ACTION/central element, keyword in CAPS
+JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "known_anchor": {"type": "boolean"},
+        "enacted_meaning": {"type": "boolean"},
+        "automatic_trigger": {"type": "boolean"},
+        "memorable_oddity": {"type": "boolean"},
+        "storable": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["known_anchor", "enacted_meaning", "automatic_trigger", "memorable_oddity", "storable", "reason"],
+}
 
-Then SELF-EVALUATE each candidate on 3 criteria (1-5 scale):
-  - Sound match: how closely does the keyword sound like the Arabic word?
-  - Interaction: do keyword and meaning actively interact, or just coexist?
-  - Meaning extraction: if you recall the image, can you extract the definition?
 
-Pick the candidate with the highest total score.
+def _call_hooks_llm(prompt: str, system_prompt: str, schema: dict, task_type: str) -> dict | None:
+    """Codex gpt-5.6-sol first (2026-07-20 eval winner), Claude CLI chain fallback."""
+    from app.services.codex_cli import generate_via_codex_cli, CodexCLIError
 
-QUALITY GATE:
-- Only return hooks if the winning candidate is genuinely memorable: sound_match >= 4, interaction >= 4, and extraction >= 4.
-- If every candidate is forced, vague, weakly connected to the sound, or only loosely related to the meaning, return null for the entire entry.
-- Do not invent a mediocre mnemonic just to fill the field. A missing hook is better than a bad hook.
+    try:
+        return generate_via_codex_cli(
+            prompt=prompt, system_prompt=system_prompt, json_mode=True,
+            json_schema=schema, timeout=180, model=HOOK_MODEL,
+        )
+    except CodexCLIError as e:
+        logger.info(f"codex hook call failed ({task_type}), falling back to Claude: {e}")
 
-ALSO GENERATE cognates, collocations, usage_context, fun_fact (same rules as standard prompt).
+    from app.services.llm import generate_completion, AllProvidersFailed
 
-Return JSON: {"candidates": [{"keyword": "...", "mnemonic": "...", "sound_match": N, "interaction": N, "extraction": N}], "best_index": 0, "mnemonic": "THE WINNING MNEMONIC TEXT", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}
-best_index is zero-based.
+    try:
+        return generate_completion(
+            prompt=prompt, system_prompt=system_prompt, json_mode=True,
+            temperature=0.8, model_override="claude_sonnet", task_type=task_type,
+        )
+    except AllProvidersFailed as e:
+        logger.warning(f"All providers failed for {task_type}: {e}")
+        return None
 
-SHORTCUTS:
-- Particles, pronouns, basic function words: return null for the ENTIRE entry.
-- Proper nouns: return null for the entire entry."""
+
+def judge_memory_hook(word_info: str, mnemonic: str) -> tuple[bool, str]:
+    """Independent storage judge: 4 checks calibrated on 60 user ratings
+    (2026-07-20). Judge failure counts as rejection — verification failure
+    is never success."""
+    prompt = f"""Judge this mnemonic:
+
+{word_info}
+
+Mnemonic: {mnemonic}"""
+    result = _call_hooks_llm(prompt, JUDGE_SYSTEM_PROMPT, JUDGE_SCHEMA, "memory_hook_judge")
+    if not isinstance(result, dict) or "known_anchor" not in result:
+        return False, "judge_unavailable"
+    # Decision rule from the 2026-07-20 threshold analysis over 60 user labels:
+    # anchor AND enacted AND trigger — 85% show-recall, bad-leak 32%→18%.
+    # memorable_oddity vetoed too many user favorites (48% recall); it is
+    # recorded in the reason but does not block.
+    storable = bool(
+        result.get("known_anchor")
+        and result.get("enacted_meaning")
+        and result.get("automatic_trigger")
+    )
+    reason = str(result.get("reason", ""))[:200]
+    if not result.get("memorable_oddity"):
+        reason = f"[not odd] {reason}"[:200]
+    return storable, reason
 
 
 def _build_word_info(lemma: "Lemma") -> str:
@@ -142,8 +228,8 @@ def _normalize_collocations(collocations):
 
 QUALITY_MIN_COMPONENT_SCORE = 4
 _SCORE_ALIASES = {
-    "sound_match": ("sound_match", "sound", "phonetic_match", "phonetic_overlap"),
-    "interaction": ("interaction", "imagery", "interactive_scene"),
+    "sound_match": ("sound_match", "cover", "sound", "phonetic_match", "phonetic_overlap"),
+    "interaction": ("interaction", "trigger", "imagery", "interactive_scene"),
     "extraction": ("extraction", "meaning_extraction", "meaning", "extractability"),
 }
 
@@ -281,15 +367,11 @@ def generate_memory_hooks(lemma_id: int) -> None:
     """Background task: generate memory hooks for a single word.
 
     Opens its own DB session so it can run in a background thread.
-    Idempotent — skips if hooks already exist.
-    Uses overgenerate-and-rank (3 candidates, self-evaluate, pick best)
-    with Sonnet for quality. Since hooks are always background tasks
-    and Claude CLI is free, there's no cost to better quality.
+    Idempotent — skips if hooks already exist. Generation and judging run
+    while the session holds no dirty state (write happens last, Rule 10).
     """
     if not memory_hooks_enabled():
         return
-
-    from app.services.llm import generate_completion, AllProvidersFailed
 
     db = SessionLocal()
     try:
@@ -299,50 +381,7 @@ def generate_memory_hooks(lemma_id: int) -> None:
         if lemma.memory_hooks_json:
             return  # already populated
 
-        word_info = _build_word_info(lemma)
-        prompt = f"""Generate memory hooks for this Arabic word:
-
-{word_info}
-
-Generate 3 candidate mnemonics with different keywords, self-evaluate, pick the best.
-Return null if no candidate deserves >=4/5 on sound_match, interaction, and extraction.
-Return JSON with keys: candidates, best_index (zero-based), mnemonic, cognates, collocations, usage_context, fun_fact.
-Return null if the word is a particle/pronoun/function word."""
-
-        try:
-            result = generate_completion(
-                prompt=prompt,
-                system_prompt=PREMIUM_SYSTEM_PROMPT,
-                json_mode=True,
-                temperature=0.8,
-                model_override="claude_sonnet",
-                task_type="memory_hooks",
-            )
-        except AllProvidersFailed as e:
-            logger.warning(f"Memory hooks LLM failed for lemma {lemma_id}: {e}")
-            return
-
-        if result is None:
-            return
-
-        # Handle null response (function words)
-        if not isinstance(result, dict) or not result:
-            return
-
-        # Sometimes LLM wraps in extra layer
-        hooks = result.get("hooks", result) if "hooks" in result else result
-
-        storage_hooks, reason = prepare_hooks_for_storage(hooks)
-        if storage_hooks is None:
-            logger.info(f"Discarded memory hooks for lemma {lemma_id}: {reason}")
-            return
-
-        lemma.memory_hooks_json = storage_hooks
-        db.commit()
-        logger.info(
-            f"Generated memory hooks for lemma {lemma_id} "
-            f"({lemma.lemma_ar_bare}, quality={reason})"
-        )
+        _generate_judge_and_store(db, lemma, task_type="memory_hooks")
     except Exception:
         logger.exception(f"Error generating memory hooks for lemma {lemma_id}")
         db.rollback()
@@ -350,18 +389,66 @@ Return null if the word is a particle/pronoun/function word."""
         db.close()
 
 
-def regenerate_memory_hooks_premium(lemma_id: int) -> None:
-    """Background task: regenerate hooks using overgenerate-and-rank.
+def _generate_judge_and_store(db, lemma, task_type: str, failed_note: str = "") -> None:
+    """Generate → self-gate → independent judge → store.
 
-    Triggered when a word lapses or repeatedly fails — the existing
-    mnemonic didn't stick. Generates 3 candidates, self-evaluates,
-    picks the best. Uses Sonnet (stronger model) for better quality.
-    Always overwrites existing hooks.
+    Judge-approved hooks get ``approved_at``/``approved_by`` stamped — the
+    frontend displays ONLY approved mnemonics. Rejected hooks are stored
+    WITHOUT the stamp: cognates/collocations remain usable, the mnemonic stays
+    hidden, and the populated row keeps lazy-generation idempotent (no retry
+    loop burning tokens on the same hard word).
+    """
+    from datetime import datetime, timezone
+
+    word_info = _build_word_info(lemma)
+    prompt = f"""Generate a recognition-direction memory hook for this Arabic word:
+
+{word_info}{failed_note}
+
+Follow the METHOD. Full cover in order, compact image, meaning as the punchline.
+Return null (entire entry) if no candidate reaches 4/5 on cover, trigger, AND extraction."""
+
+    result = _call_hooks_llm(prompt, GENERATION_SYSTEM_PROMPT, HOOK_GENERATION_SCHEMA, task_type)
+    if result is None or not isinstance(result, dict) or not result:
+        return
+
+    hooks = result.get("hooks", result) if "hooks" in result else result
+
+    storage_hooks, reason = prepare_hooks_for_storage(hooks)
+    if storage_hooks is None:
+        logger.info(f"Discarded memory hooks for lemma {lemma.lemma_id}: {reason}")
+        return
+
+    mnemonic = storage_hooks.get("mnemonic")
+    if mnemonic:
+        storable, judge_reason = judge_memory_hook(word_info, mnemonic)
+        if storable:
+            storage_hooks["approved_at"] = datetime.now(timezone.utc).isoformat()
+            storage_hooks["approved_by"] = f"judge:{HOOK_MODEL}"
+        else:
+            logger.info(
+                f"Hook judge rejected mnemonic for lemma {lemma.lemma_id} "
+                f"({lemma.lemma_ar_bare}): {judge_reason}"
+            )
+
+    lemma.memory_hooks_json = storage_hooks
+    db.commit()
+    logger.info(
+        f"Stored memory hooks for lemma {lemma.lemma_id} "
+        f"({lemma.lemma_ar_bare}, quality={reason}, "
+        f"approved={'yes' if storage_hooks.get('approved_at') else 'no'})"
+    )
+
+
+def regenerate_memory_hooks_premium(lemma_id: int) -> None:
+    """Background task: regenerate hooks for a word whose mnemonic didn't stick.
+
+    Triggered when a word lapses or repeatedly fails. Same judged pipeline as
+    generate_memory_hooks, with the failed mnemonic excluded. Overwrites
+    existing hooks.
     """
     if not memory_hooks_enabled():
         return
-
-    from app.services.llm import generate_completion, AllProvidersFailed
 
     db = SessionLocal()
     try:
@@ -372,49 +459,15 @@ def regenerate_memory_hooks_premium(lemma_id: int) -> None:
         old_mnemonic = ""
         if lemma.memory_hooks_json and isinstance(lemma.memory_hooks_json, dict):
             old_mnemonic = lemma.memory_hooks_json.get("mnemonic", "")
-
-        word_info = _build_word_info(lemma)
         failed_note = ""
         if old_mnemonic:
-            failed_note = f'\n\nThe previous mnemonic FAILED (the learner lapsed). Do NOT reuse it:\n  "{old_mnemonic}"'
-
-        prompt = f"""Generate premium memory hooks for this HARD Arabic word:
-
-{word_info}{failed_note}
-
-Generate 3 candidate mnemonics with different keywords, self-evaluate, pick the best.
-Return null if no candidate deserves >=4/5 on sound_match, interaction, and extraction.
-Return JSON with keys: candidates, best_index (zero-based), mnemonic, cognates, collocations, usage_context, fun_fact.
-Return null if the word is a particle/pronoun/function word."""
-
-        try:
-            result = generate_completion(
-                prompt=prompt,
-                system_prompt=PREMIUM_SYSTEM_PROMPT,
-                json_mode=True,
-                temperature=0.8,
-                model_override="claude_sonnet",
-                task_type="memory_hooks_premium",
+            failed_note = (
+                "\n\nThe previous mnemonic FAILED (the learner lapsed). "
+                f'Do NOT reuse it:\n  "{old_mnemonic}"'
             )
-        except AllProvidersFailed as e:
-            logger.warning(f"Premium memory hooks LLM failed for lemma {lemma_id}: {e}")
-            return
 
-        if result is None or not isinstance(result, dict) or not result:
-            return
-
-        hooks = result.get("hooks", result) if "hooks" in result else result
-
-        storage_hooks, reason = prepare_hooks_for_storage(hooks)
-        if storage_hooks is None:
-            logger.info(f"Discarded premium hooks for lemma {lemma_id}: {reason}")
-            return
-
-        lemma.memory_hooks_json = storage_hooks
-        db.commit()
-        logger.info(
-            f"Regenerated premium memory hooks for lemma {lemma_id} "
-            f"({lemma.lemma_ar_bare}, quality={reason})"
+        _generate_judge_and_store(
+            db, lemma, task_type="memory_hooks_premium", failed_note=failed_note
         )
     except Exception:
         logger.exception(f"Error generating premium hooks for lemma {lemma_id}")

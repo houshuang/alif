@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily, arabicFontForSentence, ltr } from "../lib/theme";
-import { SHOW_MNEMONIC_HOOKS } from "../lib/feature-flags";
+import { showMnemonic } from "../lib/feature-flags";
 import {
   getSentenceReviewSession,
   fetchFreshSession,
@@ -1783,9 +1783,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     {ltr(wc.etymology_json.derivation)}
                   </Text>
                 )}
-                {SHOW_MNEMONIC_HOOKS && wc.memory_hooks_json?.mnemonic && (
+                {showMnemonic(wc.memory_hooks_json) && (
                   <View style={[styles.eiMnemonicCard, { marginTop: 4 }]}>
-                    <Text style={styles.eiInfoText}>{ltr(wc.memory_hooks_json.mnemonic)}</Text>
+                    <Text style={styles.eiInfoText}>{ltr(wc.memory_hooks_json!.mnemonic!)}</Text>
                   </View>
                 )}
               </>
@@ -1989,11 +1989,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {SHOW_MNEMONIC_HOOKS && card.memory_hooks?.mnemonic && (
+            {showMnemonic(card.memory_hooks) && (
               <View style={[styles.expIntroHighlight, { backgroundColor: "rgba(74, 158, 255, 0.12)" }]}>
                 <Text style={styles.expIntroHighlightLabel}>Remember</Text>
                 <Text style={styles.expIntroHighlightText}>
-                  {ltr(card.memory_hooks.mnemonic)}
+                  {ltr(card.memory_hooks!.mnemonic!)}
                 </Text>
               </View>
             )}
@@ -2044,7 +2044,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
     const freqRank = card.frequency_rank ?? null;
     const freqSourceCount = card.frequency_source_count ?? null;
-    const eiHasMnemonic = SHOW_MNEMONIC_HOOKS && !!card.memory_hooks?.mnemonic;
+    const eiHasMnemonic = showMnemonic(card.memory_hooks);
     const eiHasEtymology = !!card.etymology?.derivation;
     const eiHasFunFact = !!card.memory_hooks?.fun_fact;
     const eiHasCulturalNote = !!card.etymology?.cultural_note;

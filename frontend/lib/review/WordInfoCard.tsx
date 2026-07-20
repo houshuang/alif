@@ -7,6 +7,7 @@ import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
 import { FormsStrip } from "../WordCardComponents";
 import { bareArabicForm, bestVocalizedDisplayForm, stripArabicDiacritics } from "../arabic-display";
+import { showMnemonic } from "../feature-flags";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -642,15 +643,18 @@ function RevealedView({
         </View>
       )}
 
-      {/* Memory hooks — full */}
-      {result.memory_hooks_json?.mnemonic && (
+      {/* Memory hooks — mnemonic line requires judge approval; cognates and
+          collocations are unaffected by the mnemonic gate (2026-05-22 rule) */}
+      {result.memory_hooks_json && (
         <View style={styles.hooksSection}>
-          <View style={styles.mnemonicLine}>
-            <Ionicons name="bulb-outline" size={12} color={colors.accent} />
-            <Text style={styles.mnemonicSmall}>
-              {ltr(result.memory_hooks_json.mnemonic)}
-            </Text>
-          </View>
+          {showMnemonic(result.memory_hooks_json) && (
+            <View style={styles.mnemonicLine}>
+              <Ionicons name="bulb-outline" size={12} color={colors.accent} />
+              <Text style={styles.mnemonicSmall}>
+                {ltr(result.memory_hooks_json.mnemonic!)}
+              </Text>
+            </View>
+          )}
 
           {result.memory_hooks_json.cognates && result.memory_hooks_json.cognates.length > 0 && (
             <View style={styles.hooksSub}>

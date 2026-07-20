@@ -12,7 +12,7 @@ import {
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
-import { SHOW_MNEMONIC_HOOKS } from "../../lib/feature-flags";
+import { showMnemonic } from "../../lib/feature-flags";
 import { getWordDetail, postponeWord, suspendWord, unsuspendWord, flagContent } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
@@ -305,7 +305,7 @@ export default function WordDetailScreen() {
       )}
 
       {word.memory_hooks_json && (
-        (SHOW_MNEMONIC_HOOKS && word.memory_hooks_json.mnemonic) ||
+        showMnemonic(word.memory_hooks_json) ||
         (word.memory_hooks_json.cognates && word.memory_hooks_json.cognates.length > 0) ||
         (word.memory_hooks_json.collocations && word.memory_hooks_json.collocations.length > 0) ||
         word.memory_hooks_json.usage_context ||
@@ -314,11 +314,11 @@ export default function WordDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Memory Hooks</Text>
           <View style={styles.etymologyCard}>
-            {SHOW_MNEMONIC_HOOKS && word.memory_hooks_json.mnemonic && (
+            {showMnemonic(word.memory_hooks_json) && (
               <View style={styles.mnemonicRow}>
                 <Ionicons name="bulb-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
                 <Text style={styles.mnemonicText}>
-                  {ltr(word.memory_hooks_json.mnemonic)}
+                  {ltr(word.memory_hooks_json.mnemonic!)}
                 </Text>
               </View>
             )}
