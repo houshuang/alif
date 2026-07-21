@@ -176,7 +176,8 @@ strictly required, but send what you have):
   "source": "bookifier",
   "created": true,
   "state": "acquiring",
-  "already_known": false
+  "already_known": false,
+  "sense_rerouted_from": null
 }
 ```
 
@@ -187,6 +188,7 @@ strictly required, but send what you have):
 | `created` | `true` if a new word was created; `false` if it already existed and was just (re)introduced. |
 | `state` | Learning state after the call — normally `acquiring` (now in the active queue). |
 | `already_known` | `true` if the learner already knew this word. |
+| `sense_rerouted_from` | Normally `null`. Set to a lemma_id when the bare-form lookup landed on a same-skeleton homograph whose gloss/POS conflicted with what you sent (e.g. sending مَلِك "king" while Alif's ملك is مَلَك "angel"): the add was re-routed to a sense-compatible sibling or created as a new word instead, and this field records the lemma it was steered away from. Purely informational — the word in `lemma_id` is the one that was added. |
 
 **Response `400`** — the request was rejected (response body: `{"detail": "<reason>"}`):
 

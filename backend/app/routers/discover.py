@@ -47,8 +47,10 @@ from app.services.material_generator import (
 from app.services.morphology import get_best_lemma_mle
 from app.services.ocr_service import extract_text_and_translation
 from app.services.sentence_validator import (
+    _candidate_matches_correction,
     _is_function_word,
     build_comprehensive_lemma_lookup,
+    correct_mapping,
     lookup_lemma,
     lookup_lemma_citation,
     strip_diacritics,
@@ -550,8 +552,41 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare)
     )
     created = False
+    sense_rerouted_from = None
     if existing_id is not None:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
+        # A bare-form match can be the wrong same-skeleton homograph: مَلِك
+        # "king" bare-matches مَلَك "angel" (and would no-op as already-known),
+        # a verb bare-matches its masdar noun. When the caller supplied a
+        # sense, hold the match to the same fail-closed gloss/POS gate that
+        # corrections use; on conflict, re-route to a sense-compatible
+        # same-bare sibling or fall through to creation. A same-lexeme
+        # duplicate created because two gloss phrasings share no token is
+        # folded back by run_quality_gates variant detection — the opposite
+        # failure (silently enrolling the wrong sense) has no healer.
+        # 2026-07-21 Kalila import: 5/36 curated words hit this.
+        if lemma is not None and (w.gloss_en or "").strip():
+            if not _candidate_matches_correction(lemma, w.gloss_en, w.pos or ""):
+                sense_rerouted_from = existing_id
+                sibling = correct_mapping(
+                    db, w.lemma_ar or bare, w.gloss_en, w.pos or "",
+                    current_lemma_id=existing_id, lemma_lookup=lemma_lookup,
+                )
+                if sibling is not None and sibling != existing_id:
+                    existing_id = sibling
+                    lemma = db.query(Lemma).filter(
+                        Lemma.lemma_id == sibling
+                    ).first()
+                else:
+                    existing_id = None
+                    lemma = None
+                logger.info(
+                    "discover add: %r (%s) sense-conflicts with bare-match "
+                    "#%s — %s",
+                    w.lemma_ar or bare, w.gloss_en, sense_rerouted_from,
+                    f"re-routed to #{existing_id}" if existing_id else
+                    "treating as new lemma",
+                )
     if existing_id is None or lemma is None:
         gloss = (w.gloss_en or "").strip()
         if not gloss:
@@ -584,6 +619,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         "created": created,
         "state": res.get("state"),
         "already_known": res.get("already_known", False),
+        "sense_rerouted_from": sense_rerouted_from,
     }
 
 

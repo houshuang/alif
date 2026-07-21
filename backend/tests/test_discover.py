@@ -338,3 +338,95 @@ def test_add_definite_clitic_form_still_resolves(client, db_session, seeded):
     assert body["lemma_id"] == maktaba.lemma_id
     assert db_session.query(Lemma).filter(
         Lemma.lemma_ar_bare == "بالمكتبة").first() is None
+
+
+def test_add_homograph_creates_new_instead_of_wrong_sense(client, db_session):
+    """Regression for the 2026-07-21 Kalila import finding: مَلِك "king"
+    bare-matches مَلَك "angel" (known), which used to no-op as already_known —
+    the word was silently never added. The sense gate must create it."""
+    angel = Lemma(lemma_ar="مَلَك", lemma_ar_bare="ملك", gloss_en="angel",
+                  pos="noun", source="frequency_core")
+    db_session.add(angel)
+    db_session.flush()
+    db_session.add(UserLemmaKnowledge(lemma_id=angel.lemma_id, knowledge_state="known"))
+    db_session.commit()
+
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "مَلِك", "lemma_ar": "مَلِك",
+        "gloss_en": "king", "pos": "noun",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is True
+    assert body["lemma_id"] != angel.lemma_id
+    assert body["sense_rerouted_from"] == angel.lemma_id
+    assert body["already_known"] is False
+    assert body["state"] == "acquiring"
+    # The angel lemma's knowledge state is untouched.
+    ulk = db_session.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id == angel.lemma_id).first()
+    assert ulk.knowledge_state == "known"
+
+
+def test_add_verb_does_not_attach_to_masdar_noun(client, db_session):
+    """زَعَمَ (verb) bare-matches its masdar زَعْم (noun). Verb/noun POS are
+    intentionally incompatible in the correction gate — the verb must become
+    its own lemma, mirroring the lemma-identity design (verb ≠ masdar)."""
+    masdar = Lemma(lemma_ar="زَعْم", lemma_ar_bare="زعم",
+                   gloss_en="claim; allegation", pos="noun", source="frequency_core")
+    db_session.add(masdar)
+    db_session.commit()
+
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "زَعَمَ", "lemma_ar": "زَعَمَ",
+        "gloss_en": "to claim, assert", "pos": "verb",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is True
+    assert body["lemma_id"] != masdar.lemma_id
+    assert body["sense_rerouted_from"] == masdar.lemma_id
+
+
+def test_add_compatible_gloss_still_attaches(client, db_session):
+    """The gate must not turn synonym-phrased adds into duplicates: overlapping
+    gloss tokens + same POS attach to the existing lemma as before."""
+    lem = Lemma(lemma_ar="حِيلَة", lemma_ar_bare="حيلة",
+                gloss_en="trick/stratagem", pos="noun", source="frequency_core")
+    db_session.add(lem)
+    db_session.commit()
+
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "حِيلَة", "lemma_ar": "حِيلَة",
+        "gloss_en": "stratagem, ruse", "pos": "noun",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is False
+    assert body["lemma_id"] == lem.lemma_id
+    assert body["sense_rerouted_from"] is None
+    assert db_session.query(Lemma).filter(
+        Lemma.lemma_ar_bare == "حيلة").count() == 1
+
+
+def test_add_reroutes_to_sense_compatible_sibling(client, db_session):
+    """When both homographs exist, an add whose sense conflicts with the
+    bare-lookup winner lands on the compatible sibling — never a duplicate,
+    never the wrong sense."""
+    angel = Lemma(lemma_ar="مَلَك", lemma_ar_bare="ملك", gloss_en="angel",
+                  pos="noun", source="frequency_core")
+    king = Lemma(lemma_ar="مَلِك", lemma_ar_bare="ملك", gloss_en="king",
+                 pos="noun", source="frequency_core")
+    db_session.add_all([angel, king])
+    db_session.commit()
+
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "مَلِك", "lemma_ar": "مَلِك",
+        "gloss_en": "king, monarch", "pos": "noun",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["created"] is False
+    assert body["lemma_id"] == king.lemma_id
+    assert db_session.query(Lemma).filter(
+        Lemma.lemma_ar_bare == "ملك").count() == 2
