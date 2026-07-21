@@ -48,6 +48,37 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-21: Kalila wa-Dimna high-value vocab injection — 34 words into Box 1
+
+**Trigger.** User-directed import of the curated Kalila wa-Dimna reading-support list
+(`~/src/bookifier/kalila-binding/vocab-for-alif.md`): lemmas appearing ≥10× across all 19
+chapters, absent from learner knowledge, and inside the 5,000-word frequency core.
+
+**What was done.** DB backed up (`alif_pre_kalila36_20260721_090949.db`). A read-only
+pre-flight rehearsed `/api/discover/add-batch`'s citation resolution for all 36 words
+against prod first; it changed the plan in three ways:
+1. **2 skipped as already known** — أَب #158 and ذَكَرَ #572 both sat at `known` (the
+   bookifier-side "not known" claim was stale for these).
+2. **29 imported via `POST /api/discover/add-batch`** (source=`bookifier`, cap-bypassed,
+   due immediately — same route as the 2026-07-15 202-word import): 9 resolved to the
+   correct existing lemma (incl. مُخَالَفَة → its canonical verb خَالَفَ #3941, and عَجْز
+   #3697 whose gloss was broadened from "deficit"; جَوْهَر #3726 broadened to include
+   "jewel"), 20 created new (#4503–#4522).
+3. **5 homograph traps created directly** (#4523–#4527), because the endpoint's bare-form
+   citation lookup would have mis-resolved them: مَلِك "king"→would hit مَلَك "angel"
+   (known, silent no-op), زَعَمَ verb→masdar زَعْم, ظَفَر noun→adj ظَفِر, جُنْد noun→verb
+   جَنَّدَ, سِيَّمَا→سِيمَا "mark". Created with the endpoint's exact field semantics +
+   `run_quality_gates` + `introduce_word(due_immediately=True, enforce_daily_cap=False)`.
+
+All 34 verified in `acquiring` Box 1. ActivityLog `manual_import` entry carries the id lists.
+
+**Expected.** Intro-card queue grows by 34 on top of the 07-15 injection backlog — the
+"~3wk dig-out" from `analysis-2026-07-20-post-injection-checkup.md` extends accordingly
+(≈+6–9 days at 4 new + 2 rescue per session). Deliberate trade: these words directly serve
+the active Kalila reading goal. **Verify in ~1 week:** the 5 specials have
+`gates_completed_at` + enrichment (root/etymology) + ≥1 reviewable sentence each; homograph
+pairs (ملك king/angel, زعم verb/noun, سيما) map correctly in new sentences.
+
 ## 2026-07-20: Memory-hook mnemonics RE-ENABLED — recognition-direction generation + calibrated storage judge
 
 **Trigger.** User asked whether the 2026-05-22 mnemonic disable should be revisited now that
