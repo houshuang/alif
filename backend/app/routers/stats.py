@@ -20,7 +20,7 @@ from app.schemas import (
     AcquisitionWord, RecentGraduation, AcquisitionPipeline,
     InsightsOut,
     TextbookBenchmark, QuranProgress, ProgressBenchmarks,
-    DailyGoalOut, FrequencyCoreBand, FrequencyCoreGap, FrequencyCoreProgress,
+    DailyGoalOut, DebtBreakdownOut, FrequencyCoreBand, FrequencyCoreGap, FrequencyCoreProgress,
     RecoveryStatusOut,
 )
 from app.services.frequency_lanes import (
@@ -485,6 +485,79 @@ def _get_due_backlog_history(days: int = 14) -> dict[str, int]:
         if peak is not None:
             out[day.isoformat()] = peak
     return out
+
+
+def _get_debt_breakdown(db: Session, now: datetime) -> DebtBreakdownOut:
+    """Composition + 7-day trajectory of the FSRS due stock.
+
+    Same basis as _count_due_cards' fsrs_due (non-function-word FSRS rows with
+    a past due date), split by urgency so the headline stops mixing harmless
+    mature backlog with the low-stability churn that actually needs attention.
+    """
+    func_word_ids = _get_func_word_ids(db)
+    now_str = now.isoformat()
+    rows = (
+        db.query(
+            UserLemmaKnowledge.lemma_id,
+            UserLemmaKnowledge.knowledge_state,
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.stability'),
+        )
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= now_str,
+        )
+        .all()
+    )
+    due = [(lid, state, stab) for lid, state, stab in rows if lid not in func_word_ids]
+
+    urgent = mid = mature = 0
+    for _lid, state, stab in due:
+        try:
+            s = float(stab) if stab is not None else 0.0
+        except (TypeError, ValueError):
+            s = 0.0
+        if state in ("lapsed", "learning") or s < 7:
+            urgent += 1
+        elif s < 30:
+            mid += 1
+        else:
+            mature += 1
+
+    untouched = 0
+    due_ids = [lid for lid, _state, _stab in due]
+    if due_ids:
+        touched = {
+            lid
+            for (lid,) in db.query(ReviewLog.lemma_id)
+            .filter(
+                ReviewLog.lemma_id.in_(due_ids),
+                ReviewLog.reviewed_at >= now - timedelta(days=14),
+            )
+            .distinct()
+        }
+        untouched = sum(1 for lid in due_ids if lid not in touched)
+
+    # 7-day trajectory from the session_start backlog snapshots. Compare
+    # today's peak to the nearest available day 6-8 days back (sessions
+    # don't happen every day).
+    hist = _get_due_backlog_history(days=9)
+    trend: int | None = None
+    today_val = hist.get(now.date().isoformat())
+    if today_val is not None:
+        for back in (7, 8, 6):
+            key = (now.date() - timedelta(days=back)).isoformat()
+            if key in hist:
+                trend = today_val - hist[key]
+                break
+
+    return DebtBreakdownOut(
+        fsrs_due_total=len(due),
+        urgent=urgent,
+        mid=mid,
+        mature=mature,
+        untouched_14d=untouched,
+        trend_7d=trend,
+    )
 
 
 def _get_study_dates(db: Session) -> list[str]:
@@ -1132,6 +1205,7 @@ def get_analytics(
         frequency_core=frequency_core,
         quran_core=quran_core,
         recovery=RecoveryStatusOut(**recovery),
+        debt=_get_debt_breakdown(db, datetime.now(timezone.utc)),
     )
 
 
