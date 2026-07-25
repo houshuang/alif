@@ -26,6 +26,7 @@ import {
 import { TopicSettings, TopicInfo } from "../lib/types";
 import { TOPIC_LABELS } from "../lib/topic-labels";
 import { invalidateSessions } from "../lib/offline-store";
+import { getVersionInfo, versionLabel } from "../lib/app-version";
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -346,6 +347,12 @@ export default function MoreScreen() {
           );
         })
       )}
+
+      <Text style={styles.sectionHeader}>About</Text>
+      <View style={styles.versionRow}>
+        <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
+        <Text style={styles.versionText}>{versionLabel(getVersionInfo())}</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -441,6 +448,17 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
+  },
+  versionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingBottom: 32,
+  },
+  versionText: {
+    color: colors.textSecondary,
+    fontSize: 13,
   },
   topicRow: {
     flexDirection: "row",

@@ -30,6 +30,7 @@ import {
   EBGaramond_600SemiBold,
 } from "@expo-google-fonts/eb-garamond";
 import { colors } from "../lib/theme";
+import { detectNewlyAppliedUpdate, versionLabel } from "../lib/app-version";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
@@ -101,6 +102,20 @@ function LayoutInner({ online }: { online: boolean }) {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState(false);
+  // "App updated" toast: shown once on the first launch that runs a new OTA
+  // bundle, so "is the new version loaded?" is answerable at a glance.
+  const [updateToast, setUpdateToast] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    detectNewlyAppliedUpdate().then(info => {
+      if (!info || cancelled) return;
+      setUpdateToast(versionLabel(info));
+      setTimeout(() => setUpdateToast(null), 8000);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const isArabic = language === "ar";
   // Greek and Latin share the Polyglot tab group + polyglot-* screens.
   const isPolyglot = language === "el" || language === "la";
@@ -142,6 +157,15 @@ function LayoutInner({ online }: { online: boolean }) {
             Offline — reviews will sync when connected
           </Text>
         </View>
+      )}
+      {updateToast && (
+        <Pressable
+          style={[styles.updateToast, { top: insets.top + 8 }]}
+          onPress={() => setUpdateToast(null)}
+        >
+          <Ionicons name="cloud-download-outline" size={16} color="#1a1a2e" />
+          <Text style={styles.updateToastText}>App updated — {updateToast}</Text>
+        </Pressable>
       )}
       <Tabs
         // Every screen — including detail pages like word/[id] and
@@ -388,6 +412,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   offlineBannerText: {
+    color: "#1a1a2e",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  updateToast: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#7ec8a9",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  updateToastText: {
     color: "#1a1a2e",
     fontSize: 13,
     fontWeight: "600",
