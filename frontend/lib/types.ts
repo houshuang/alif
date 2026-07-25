@@ -574,6 +574,15 @@ export interface DailyGoal {
   intake_gated?: boolean;
 }
 
+export interface DebtBreakdown {
+  fsrs_due_total: number;
+  urgent: number;
+  mid: number;
+  mature: number;
+  untouched_14d: number;
+  trend_7d?: number | null;
+}
+
 export interface RecoveryStatus {
   active: boolean;
   box1_actionable: number;
@@ -691,6 +700,7 @@ export interface Analytics {
   frequency_core?: FrequencyCoreProgress | null;
   quran_core?: FrequencyCoreProgress | null;
   recovery?: RecoveryStatus | null;
+  debt?: DebtBreakdown | null;
 }
 
 export interface GraduatedWord {

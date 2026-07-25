@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, BookCoverage, ComprehensionBreakdown, DailyGoal, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, RecoveryStatus, StateTransitions, ProgressBenchmarks } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, BookCoverage, ComprehensionBreakdown, DailyGoal, DebtBreakdown, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, RecoveryStatus, StateTransitions, ProgressBenchmarks } from "../lib/types";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
@@ -87,6 +87,10 @@ export default function StatsScreen() {
 
       {analytics.recovery?.active && (
         <RecoveryCard recovery={analytics.recovery} />
+      )}
+
+      {analytics.debt && analytics.debt.fsrs_due_total > 0 && (
+        <DebtCard debt={analytics.debt} recovery={analytics.recovery ?? null} />
       )}
 
       {/* ═══ SECTION 2: VOCABULARY ═══ */}
@@ -1132,6 +1136,54 @@ function RecoveryCard({ recovery: r }: { recovery: RecoveryStatus }) {
   );
 }
 
+function DebtCard({ debt, recovery }: { debt: DebtBreakdown; recovery: RecoveryStatus | null }) {
+  const total = Math.max(debt.fsrs_due_total, 1);
+  const trend = debt.trend_7d;
+  const trendLabel =
+    trend == null
+      ? null
+      : trend < -5
+      ? `▼ ${Math.abs(trend)} this week`
+      : trend > 5
+      ? `▲ ${trend} this week`
+      : "flat this week";
+  const trendColor = trend == null ? colors.textSecondary : trend < -5 ? colors.good : trend > 5 ? colors.missed : colors.textSecondary;
+  const toUnlock = recovery ? recovery.main_fsrs_due - recovery.main_fsrs_limit : null;
+  return (
+    <View style={styles.debtCard}>
+      <View style={styles.recoveryHeader}>
+        <Text style={styles.recoveryTitle}>Review debt</Text>
+        {trendLabel && (
+          <Text style={[styles.debtTrend, { color: trendColor, backgroundColor: trendColor + "18" }]}>
+            {trendLabel}
+          </Text>
+        )}
+      </View>
+      <Text style={styles.recoverySubtitle}>
+        {debt.urgent} need attention · {debt.mid + debt.mature} stable words waiting (low urgency)
+      </Text>
+      <View style={styles.bookBarTrack}>
+        <View style={{ width: `${(debt.urgent / total) * 100}%`, backgroundColor: colors.missed }} />
+        <View style={{ width: `${(debt.mid / total) * 100}%`, backgroundColor: colors.noIdea }} />
+        <View style={{ width: `${(debt.mature / total) * 100}%`, backgroundColor: colors.accent }} />
+      </View>
+      <View style={styles.bookLegend}>
+        <Text style={[styles.legendText, { color: colors.missed }]}>{debt.urgent} fragile</Text>
+        <Text style={[styles.legendText, { color: colors.noIdea }]}>{debt.mid} mid</Text>
+        <Text style={[styles.legendText, { color: colors.accent }]}>{debt.mature} solid (30d+ memory)</Text>
+      </View>
+      <Text style={styles.debtDetail}>
+        {debt.untouched_14d} due words not seen in 14+ days
+        {toUnlock != null
+          ? toUnlock > 0
+            ? ` · ${toUnlock} above the ${recovery!.main_fsrs_limit} gate — pay down to unlock new words`
+            : ` · under the ${recovery!.main_fsrs_limit} intake gate ✓`
+          : ""}
+      </Text>
+    </View>
+  );
+}
+
 function BookCoverageCard({ book }: { book: BookCoverage }) {
   const total = Math.max(book.total_tokens, 1);
   const coveredW = (book.covered_tokens / total) * 100;
@@ -1634,6 +1686,9 @@ const styles = StyleSheet.create({
   recoverySubtitle: { fontSize: 12, color: colors.textSecondary, marginBottom: 12 },
   recoveryEarnin: { fontSize: 11, color: colors.textSecondary, marginTop: 4 },
   backlogDot: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: colors.missed, alignSelf: "center", zIndex: 2 },
+  debtCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16 },
+  debtTrend: { fontSize: 11, fontWeight: "700", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, overflow: "hidden" },
+  debtDetail: { fontSize: 11, color: colors.textSecondary, marginTop: 4 },
   bookBarTrack: { flexDirection: "row", height: 10, borderRadius: 5, backgroundColor: colors.surfaceLight, overflow: "hidden", marginBottom: 6 },
   bookTargetMark: { position: "absolute", top: -2, bottom: -2, width: 2, backgroundColor: colors.text, opacity: 0.7 },
   bookLegend: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },

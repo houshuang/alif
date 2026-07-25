@@ -222,6 +222,22 @@ class DailyGoalOut(BaseModel):
     intake_gated: bool = False
 
 
+class DebtBreakdownOut(BaseModel):
+    """Composition + trajectory of the FSRS due stock, for the stats panel.
+
+    The single headline due number hides that most of it is low-urgency mature
+    backlog and shows no direction of travel (user feedback 2026-07-25).
+    Buckets are exclusive: urgent = lapsed/learning state or stability < 7d;
+    mid = stability 7-30d; mature = stability >= 30d.
+    """
+    fsrs_due_total: int
+    urgent: int
+    mid: int
+    mature: int
+    untouched_14d: int  # due words with no review of any kind in 14 days
+    trend_7d: Optional[int] = None  # today's backlog peak minus ~7 days ago; negative = paying down
+
+
 class RecoveryStatusOut(BaseModel):
     active: bool
     box1_actionable: int
@@ -293,6 +309,7 @@ class AnalyticsOut(BaseModel):
     frequency_core: Optional[FrequencyCoreProgress] = None
     quran_core: Optional[FrequencyCoreProgress] = None
     recovery: Optional[RecoveryStatusOut] = None
+    debt: Optional[DebtBreakdownOut] = None
 
 
 class StabilityBucket(BaseModel):
