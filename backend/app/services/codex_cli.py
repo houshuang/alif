@@ -226,6 +226,10 @@ def generate_via_codex_cli(
             "--output-schema", schema_path,
             "--output-last-message", output_path,
             "-c", f'model_reasoning_effort="{reasoning_effort or CODEX_REASONING_EFFORT}"',
+            # Web search is on by default for gpt-5.6 models; leaving it on
+            # makes the model cite sources (arabdict.com + utm_source=openai
+            # URLs) inside stored learner-facing text (seen 2026-07-25).
+            "-c", "tools.web_search=false",
             full_prompt,
         ]
         try:
@@ -287,6 +291,7 @@ def _generate_via_codex_cli_text(
             "--color", "never",
             "--output-last-message", output_path,
             "-c", f'model_reasoning_effort="{reasoning_effort or CODEX_REASONING_EFFORT}"',
+            "-c", "tools.web_search=false",
             full_prompt,
         ]
         try:
