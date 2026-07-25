@@ -48,7 +48,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR TBD)
+## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR #220)
 
 **Trigger.** User report: "I still get waffara far too frequently… after flipping cards I
 might not spend enough time/attention to fix the missed words to my memory." Full data
