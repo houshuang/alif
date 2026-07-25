@@ -352,8 +352,23 @@ def _recent_accuracy(
     window: int = LEECH_WINDOW_SIZE,
     since: datetime | None = None,
 ) -> float | None:
-    """Compute accuracy over the last `window` reviews. Returns None if < LEECH_MIN_REVIEWS."""
-    query = db.query(ReviewLog.rating).filter(ReviewLog.lemma_id == lemma_id)
+    """Compute accuracy over the last `window` reviews. Returns None if < LEECH_MIN_REVIEWS.
+
+    Quiz-mode successes (wrap-up / checkpoint bare-recall cards, usually minutes
+    after a failure) are excluded: same-session recall is working memory and
+    must not mask a leech. Quiz misses still count — a failed bare recall is
+    genuine evidence.
+    """
+    from sqlalchemy import or_
+
+    query = db.query(ReviewLog.rating).filter(
+        ReviewLog.lemma_id == lemma_id,
+        or_(
+            ReviewLog.review_mode.is_(None),
+            ReviewLog.review_mode != "quiz",
+            ReviewLog.rating < 3,
+        ),
+    )
     if since is not None:
         query = query.filter(ReviewLog.reviewed_at >= since)
     recent = query.order_by(ReviewLog.reviewed_at.desc()).limit(window).all()

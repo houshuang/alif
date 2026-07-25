@@ -48,6 +48,76 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR #220)
+
+**Trigger.** User report: "I still get waffara far too frequently… after flipping cards I
+might not spend enough time/attention to fix the missed words to my memory." Full data
+analysis + design: `research/analysis-2026-07-25-rapid-reexposure-proposal.md`.
+
+**Data basis (120 days, 3,762 rating-1 failures).** Downstream recall (success on the
+review *after* the re-exposure) peaks when the failed word is re-seen 10 min–24 h later
+(78–79%) vs 68% at >3 d; the <10 min bucket shows massed-practice inflation (87% immediate,
+no downstream gain). Today only 6.6% of FSRS primary failures are re-seen within 2 h. The
+scheduler already *intends* rapid re-test (Again w/ 0 correct → due +5 min; FSRS relearning
+step 10 min) but nothing delivers those due-dates until the next session build — this is
+delivery, not a new policy.
+
+**Intervention — one policy, three delivery tiers (treatment arm only):**
+- **Tier 1 (checkpoint):** on a rating-1 failure, the client queues a re-test; once ≥4 min
+  AND ≥3 cards have passed (expired after 20 min), it shows the existing wrap-up bare-recall
+  card mid-session as an out-of-band phase ("Quick check"). Caps: ≤2/session, ≤1/lemma/session,
+  a lemma that fails its re-test is dropped for the session. Frontend: `index.tsx`
+  (`retestArm`, `enqueueRetest`, `maybeFireCheckpoint`), constants `RETEST_MIN_GAP_MS=4min`,
+  `RETEST_EXPIRE_MS=20min`, `RETEST_MIN_CARDS_BETWEEN=3`, `CHECKPOINT_MAX_PER_SESSION=2`.
+- **Tier 2 (auto wrap-up):** at session completion, the wrap-up quiz auto-runs for
+  treatment-arm failed lemmas not already checkpointed (`parent_card_type="wrapup_auto"`).
+  Manual wrap-up unchanged.
+- **Tier 3 (status quo):** broken/abandoned sessions fall through to the stored +5/+10 min
+  due-dates and next-build priority (unchanged).
+
+**Randomization.** Deterministic 50/50 per (session_id, canonical lemma_id): djb2-xor hash
+of `"{session_id}:{lemma_id}"`, unsigned-32, even → treatment. Python mirror:
+`h=5381; for c in s: h=((h*33)&0xFFFFFFFF)^ord(c); arm = h%2==0`. Stable across offline
+retries; recomputable in analysis from `sentence_review` events.
+
+**Credit rules (the safety design).** Re-tests submit through the normal review path
+(`review_mode="quiz"`, `sentence_id: null`). Asymmetric consequences, enforced server-side:
+- Missed → counts normally (Box-1 reset / relearning re-entry).
+- Got it within `RETEST_CREDIT_GAP=30 min` of a rating-1 review → logs the review and clears
+  the 5-min retry due-date to the box interval, but does **not** advance a box, fast-graduate,
+  Tier-E/1/2 graduate, or count as a success in the leech sliding window
+  (`acquisition_service._quiz_retest_after_failure`, `leech_service._recent_accuracy`
+  quiz-success exclusion). This extends the `FAST_GRAD_INTRO_GAP` lesson (2026-05-17) and
+  avoids the PR #207 phantom-credit incident (62 zero-correct lemmas → 40 leeches).
+- FSRS words: standard FSRS-6 same-day handling (w17–w19), no extra guard.
+- Reading-mode reviews are untouched → control-arm behavior is exactly today's.
+
+**Isolation from live experiments.** Trigger is rating-1 (Again) only; the exact-surface
+pilot (`__exact_surface_v1`, PR #208) triggers on rating-2/`was_confused` — disjoint
+populations. Additionally `wrap_up_quiz` now skips lemmas with an open exact-surface episode
+(`surface_form_experiment.has_open_episode`), and the pilot's resolver already ignores
+quiz-mode reviews (`review_mode != "reading"` early-return). `wrap_up_quiz` also now drops
+function words and proper names (bare recall of و is useless). PR #217's reintro cooldown
+(passive re-teach throttle) is unrelated and untouched — this is capped *active retrieval*.
+
+**Endpoints (pre-registered).**
+- Primary (intention-to-treat): success rate (rating ≥3) of the lemma's first review ≥12 h
+  after the triggering failure, any form, any credit type. NOT same-session success (the
+  2026-02-10 H1 lesson: 10-min success ≠ stability).
+- Secondary: time-to-next-success; leech-suspension rate within 30 d of treated vs control
+  failures; user-felt repetition (subjective check-in — PR #217 history).
+- Guardrail: session completion rate and cards/session must not drop (PR #22 finding:
+  bad sessions end early).
+- Power: ~31 failures/day → 10 pp lift detectable in ~3 weeks; readout at 4 weeks (coarse),
+  8+ weeks (fine). Analysis reconstructs arms from the hash; delivery from `card_shown`
+  (`card_type="checkpoint"` with `{arm, gap_ms, cards_since}` detail; wrap-up detail
+  `variant="wrapup_auto"`) and `sentence_review.parent_card_type` ∈ {checkpoint, wrapup_auto,
+  wrapup}; `fsrs_log_json.retest_credit_blocked` marks guarded acquisition reviews.
+
+**Also fixed in the same PR:** stale comprehension-recency docs (review-modes.md claimed
+7d/2d/4h, scheduling diagram claimed 4d) — code is understood 1 d / partial 4 h / no_idea
+30 min since the high-volume pool-exhaustion change.
+
 ## 2026-07-21: Kalila wa-Dimna high-value vocab injection — 34 words into Box 1
 
 **Trigger.** User-directed import of the curated Kalila wa-Dimna reading-support list

@@ -2206,8 +2206,8 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - Consider a two-step learning flow: step 1 = flashcard with root info, step 2 = simple sentence with strong context clues, step 3 = varied sentence contexts in subsequent reviews
 
 #### Within-Session Spacing for Failed Items
-- If a word is rated "Again," re-show it after 5-10 intervening items rather than immediately -- leverages spacing effect even within a single session
-- If the same word fails twice in one session, do not show it again in that session; let FSRS schedule it for the next session to avoid frustration and wasted working memory
+- If a word is rated "Again," re-show it after 5-10 intervening items rather than immediately -- leverages spacing effect even within a single session **[SHIPPED 2026-07-25 as the rapid re-exposure checkpoint re-test: ≥4 min AND ≥3 cards after a rating-1 failure, bare-recall wrap-up card, 50/50 experiment — see experiment-log 2026-07-25]**
+- If the same word fails twice in one session, do not show it again in that session; let FSRS schedule it for the next session to avoid frustration and wasted working memory **[SHIPPED 2026-07-25 — a lemma that fails its checkpoint re-test is dropped for the session (1 re-test/lemma/session cap)]**
 
 #### Expertise Reversal Awareness
 - As the learner advances, progressively reduce scaffolding: offer transliteration as tap-to-reveal rather than always-visible, increase default sentence complexity, reduce auto-display of root/morphology info

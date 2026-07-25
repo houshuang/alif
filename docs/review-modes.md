@@ -7,7 +7,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 3. Ternary ratings: understood (rating=3 for all) / partial (tap to cycle: confused=rating 2 Hard, missed=rating 1 Again, rest=3) / no_idea (rating=1 for all)
 4. **All words reviewed equally**: every word in the sentence gets an FSRS review based on the user's marking. The scheduling reason for selecting the sentence is irrelevant — unmarked words get rating=3, just like completing a story or scanning a textbook page. The `credit_type` field (primary/collateral) in review_log is purely metadata tracking which word triggered sentence selection; it does NOT affect ratings.
 5. Falls back to word-only cards when no sentences available for uncovered due words
-6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 2 day cooldown, no_idea: 4 hour cooldown
+6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 1 day cooldown, partial: 4 hour cooldown, no_idea: 30 min cooldown (`sentence_selector.py` cutoffs)
 7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in reading sessions (gated by 75% accuracy over last 20 reviews). **Not auto-introduced** — candidates are returned to the frontend for user to accept via Learn mode. No intro candidates in listening mode.
 
 ### Pre-Sentence Cards

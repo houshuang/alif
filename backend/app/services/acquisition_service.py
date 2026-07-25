@@ -59,6 +59,32 @@ FAST_INTRO_RETRY_INTERVAL = timedelta(minutes=30)
 # this signal; FSRS's whole premise is that surviving a long interval is high-value
 # evidence, so a word recognized after this long graduates straight to FSRS.
 ELAPSED_GRADUATION_MIN_INTERVAL = timedelta(days=3)
+# Rapid re-exposure re-test (2026-07-25): a correct bare-recall quiz answer
+# (checkpoint / wrap-up card) within this gap of a rating-1 failure is
+# working memory, not consolidation — it clears the short retry due-date but
+# must not advance a box, graduate, or feed accuracy-tier graduation.
+RETEST_CREDIT_GAP = timedelta(minutes=30)
+
+
+def _quiz_retest_after_failure(
+    db: Session, lemma_id: int, now: datetime, review_mode: str, rating_int: int
+) -> bool:
+    """True when a correct quiz-mode review lands within RETEST_CREDIT_GAP
+    of the lemma's most recent rating-1 review."""
+    if review_mode != "quiz" or rating_int < 3:
+        return False
+    last_fail = (
+        db.query(ReviewLog.reviewed_at)
+        .filter(ReviewLog.lemma_id == lemma_id, ReviewLog.rating == 1)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .first()
+    )
+    if not last_fail or last_fail[0] is None:
+        return False
+    failed_at = last_fail[0]
+    if failed_at.tzinfo is None:
+        failed_at = failed_at.replace(tzinfo=timezone.utc)
+    return timedelta(0) <= now - failed_at < RETEST_CREDIT_GAP
 
 
 def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
@@ -612,6 +638,7 @@ def submit_acquisition_review(
     old_knowledge_state = ulk.knowledge_state
     old_last_reviewed = ulk.last_reviewed  # captured before the update below (Tier E elapsed)
     recent_intro = _intro_shown_recently(ulk, now)
+    retest_gate = _quiz_retest_after_failure(db, lemma_id, now, review_mode, rating_int)
 
     # Update review counts
     ulk.times_seen = old_times_seen + 1
@@ -635,7 +662,7 @@ def submit_acquisition_review(
     graduated = False
     grad_reason: Optional[str] = None
     if old_times_seen == 0 and rating_int >= 3:
-        if not recent_intro:
+        if not recent_intro and not retest_gate:
             graduated = True
             grad_reason = "first_correct"
 
@@ -643,7 +670,13 @@ def submit_acquisition_review(
     # Box 1→2: allowed for encoding unless this is intro-card working memory
     # Box 2→3 and graduation: only when due (enforce inter-session spacing)
     if not graduated and rating_int >= 3:
-        if old_box == 1:
+        if retest_gate:
+            # Correct bare-recall re-test minutes after a failure: count the
+            # exposure, clear the 5-min retry due-date, but keep the box —
+            # consolidation is proven at the next spaced review, not here.
+            ulk.acquisition_box = old_box
+            ulk.acquisition_next_due = now + BOX_INTERVALS[old_box]
+        elif old_box == 1:
             if recent_intro:
                 # Still inside the intro-card working-memory window. Count the
                 # correct exposure, but keep the word in encoding instead of
@@ -722,7 +755,7 @@ def submit_acquisition_review(
         # long gap means it was forgotten — no graduation), unlike tiers 1-3 which
         # ignore the current rating. The intro working-memory gate is definitionally
         # satisfied by a multi-day gap; not_recent_intro kept for symmetry.
-        if (not recent_intro and rating_int >= 3
+        if (not recent_intro and not retest_gate and rating_int >= 3
                 and elapsed_since_last is not None
                 and elapsed_since_last >= ELAPSED_GRADUATION_MIN_INTERVAL):
             graduated = True
@@ -730,11 +763,11 @@ def submit_acquisition_review(
         # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box.
         # The intro-card gap blocks this too; otherwise three immediate
         # same-session correct answers could still graduate on working memory.
-        elif not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
+        elif not recent_intro and not retest_gate and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
             grad_reason = "perfect_accuracy"
         # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
-        elif not recent_intro and accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
+        elif not recent_intro and not retest_gate and accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
             graduated = True
             grad_reason = "high_accuracy"
         # Tier 3: Standard (existing criteria) — requires due for spacing
@@ -771,6 +804,7 @@ def submit_acquisition_review(
             "pre_times_correct": old_times_correct,
             "pre_knowledge_state": old_knowledge_state,
             "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
+            "retest_credit_blocked": retest_gate,
         },
     )
     db.add(log_entry)
