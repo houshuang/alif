@@ -640,10 +640,16 @@ def submit_acquisition_review(
     recent_intro = _intro_shown_recently(ulk, now)
     retest_gate = _quiz_retest_after_failure(db, lemma_id, now, review_mode, rating_int)
 
-    # Update review counts
-    ulk.times_seen = old_times_seen + 1
-    if rating_int >= 3:
-        ulk.times_correct = old_times_correct + 1
+    # Update review counts. A guarded re-test success (retest_gate) is pure
+    # re-encoding: it enters neither the graduation numerator NOR denominator.
+    # Incrementing only times_seen would unfairly depress cumulative accuracy
+    # (Tier 1/2 read it); incrementing both would inflate it (conformance v2,
+    # 2026-07-25). The event still logs to ReviewLog with
+    # fsrs_log_json.retest_credit_blocked and bumps total_encounters.
+    if not retest_gate:
+        ulk.times_seen = old_times_seen + 1
+        if rating_int >= 3:
+            ulk.times_correct = old_times_correct + 1
     ulk.last_reviewed = now
     ulk.total_encounters = (ulk.total_encounters or 0) + 1
 
