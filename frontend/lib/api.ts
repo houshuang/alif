@@ -942,7 +942,7 @@ export async function acknowledgeReintro(
 }
 
 export interface CardShownPayload {
-  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup";
+  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint";
   session_id?: string | null;
   lemma_id?: number | null;
   sentence_id?: number | null;

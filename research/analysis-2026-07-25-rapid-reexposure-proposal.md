@@ -1,7 +1,7 @@
 # Rapid Re-exposure After Failure — Data Analysis + Design Proposal
 
 **Date:** 2026-07-25
-**Status:** Proposal (nothing implemented; pre-registration entry to be added to experiment-log.md at implementation time)
+**Status:** Implemented 2026-07-25 (same day) — see the 2026-07-25 experiment-log entry for the pre-registration and final parameter values. §5–§7 below are the design as proposed; the implementation follows it with one addition (wrap-up endpoint also filters function words / proper names / open exact-surface episodes).
 **Trigger:** User report — "introductions have gotten better, but I still get waffara far too frequently… after flipping cards and noting the ones I don't know, I might not spend enough time/attention to fix the missed words to my memory."
 
 ---

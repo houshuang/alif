@@ -662,10 +662,10 @@ build_session(db, limit=10, mode="reading")
 │ Find active sentences containing ≥1 due word │
 │ Apply comprehension-aware recency filters:   │
 │   • Never shown: always eligible             │
-│   • understood: 4-day cooldown               │
+│   • understood: 1-day cooldown               │
 │   • partial: 4-hour cooldown                 │
 │   • no_idea: 30-min cooldown                 │
-│   • no record: 4-day cooldown               │
+│   • shown, no comprehension: 1-day cooldown  │
 │                                              │
 │ Rescue pass: due words with zero fresh       │
 │ sentences get stale ones (0.3× penalty)      │
@@ -1766,6 +1766,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `JACCARD_VETO_THRESHOLD` | 0.7 | Hard veto: skip candidate sentence if lemma-set Jaccard ≥ this with any prior selection (2026-04-27) |
 | `FAST_GRAD_INTRO_GAP` | 10 min | Correct reviews inside this post-intro window count as exposure but cannot promote Box 1→2 or graduate (working-memory guard, expanded 2026-05-17) |
 | `FAST_INTRO_RETRY_INTERVAL` | 30 min | Retry interval for correct Box 1 reviews blocked by `FAST_GRAD_INTRO_GAP` |
+| `RETEST_CREDIT_GAP` | 30 min | Quiz-mode (checkpoint/wrap-up) success within this gap of a rating-1 review cannot promote a box, graduate, or count in the leech window (rapid re-exposure experiment, 2026-07-25) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
@@ -1975,18 +1976,35 @@ Storage: `Sentence.target_lemma_id` gets the target with fewest existing sentenc
 all targets marked via `SentenceWord.is_target_word=True`. Session builder already
 discovers coverage via `SentenceWord` join — no schema change needed.
 
-### 19.4 Wrap-Up Quiz — Backend Done, Frontend Incomplete
+### 19.4 Wrap-Up Quiz + Rapid Re-exposure Re-test (2026-07-25 experiment)
 
 **Research says**: Within-session recall testing strengthens encoding. 3 retrievals
-per session is the sweet spot (Nakata 2017).
+per session is the sweet spot (Nakata 2017). Own-data failure-gap analysis
+(2026-07-25, `research/analysis-2026-07-25-rapid-reexposure-proposal.md`): downstream
+recall after a failure peaks when re-exposed 10 min–24 h later; <10 min is
+massed-practice inflation.
 
-**Original plan said**: Wrap-up quiz with word-level recall cards for acquiring +
-missed words at end of session.
+**Current implementation**: `POST /api/review/wrap-up` returns bare-recall cards
+(word + transliteration front; gloss/root/wazn/forms/hook back; Got it / Missed →
+real review with `review_mode="quiz"`, `sentence_id: null`). It now excludes
+function words, proper names, and lemmas with an open exact-surface pilot episode.
+Since 2026-07-25 it is delivered three ways (the **rapid re-exposure experiment**,
+treatment arm = deterministic hash of `session_id:lemma_id`, see experiment-log):
 
-**Current implementation**: `POST /api/review/wrap-up` endpoint exists and works.
-Frontend has basic integration but the wrap-up flow is not prominent or polished.
+1. **Mid-session checkpoint** ("Quick check"): a rating-1 failure queues a re-test;
+   after ≥4 min AND ≥3 cards (expires at 20 min) the card renders as an out-of-band
+   phase. Caps: 2/session, 1/lemma/session; a failed re-test drops the lemma for
+   the session. Client-side only — no session-build involvement.
+2. **Auto wrap-up**: at session completion the quiz auto-runs for treatment-arm
+   failed lemmas not already checkpointed (`parent_card_type="wrapup_auto"`).
+3. **Manual wrap-up**: unchanged action-menu button.
 
-**Gap**: Feature exists but may not be reaching users effectively.
+**Credit guard** (`RETEST_CREDIT_GAP = 30 min`, `acquisition_service.py`): a quiz-mode
+success within the gap of a rating-1 review clears the 5-min retry due-date to the box
+interval but cannot promote a box, fast-graduate, or Tier-E/1/2 graduate — the intro
+working-memory gate extended to failure re-tests. Quiz successes are also excluded
+from the leech sliding window (`leech_service._recent_accuracy`); quiz misses count
+normally everywhere.
 
 ### 19.5 ~~Next-Session Recap~~ — REMOVED (2026-02-14)
 

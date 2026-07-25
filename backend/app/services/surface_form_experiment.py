@@ -64,6 +64,16 @@ def _episode_is_open(episode: object, now: datetime) -> bool:
     return expires_at is not None and now <= expires_at
 
 
+def has_open_episode(knowledge: UserLemmaKnowledge, now: datetime) -> bool:
+    """True when the lemma has an unresolved exact-surface episode.
+
+    Used by the rapid re-exposure re-test (2026-07-25) to keep its treatment
+    away from lemmas the exact-form pilot is still measuring.
+    """
+    _stats, _container, episodes = _experiment_container(knowledge)
+    return any(_episode_is_open(episode, now) for episode in episodes)
+
+
 def eligible_surface_morphology(surface: str, lemma: Lemma | None) -> dict | None:
     """Return non-trivial morphology metadata or None for citation/clitic noise."""
     if lemma is None:

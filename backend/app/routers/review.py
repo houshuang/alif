@@ -753,7 +753,13 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             )
             .all()
         )
-        missed_ids = {u.lemma_id for u in missed_ulks} - acquiring_ids
+        # Lemmas with an open exact-surface pilot episode stay out of the
+        # bare-recall re-test path — the pilot is still measuring them.
+        from app.services.surface_form_experiment import has_open_episode
+        now_utc = datetime.now(timezone.utc)
+        missed_ids = {
+            u.lemma_id for u in missed_ulks if not has_open_episode(u, now_utc)
+        } - acquiring_ids
 
     all_ids = acquiring_ids | missed_ids
     if not all_ids:
@@ -764,6 +770,13 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
         .filter(Lemma.lemma_id.in_(all_ids))
         .all()
     )
+    # Bare-word recall of function words or proper names is useless — drop them.
+    from app.services.sentence_validator import _is_function_word
+    lemmas = [
+        l for l in lemmas
+        if l.word_category != "proper_name"
+        and not (l.lemma_ar_bare and _is_function_word(l.lemma_ar_bare))
+    ]
 
     cards = []
     # Acquiring words first, then missed

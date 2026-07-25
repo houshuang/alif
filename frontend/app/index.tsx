@@ -96,6 +96,33 @@ type SessionSlot =
   | { type: "experiment_intro"; introIndex: number }
   | { type: "verse"; verseIndex: number };
 
+// --- Rapid re-exposure re-test experiment (2026-07-25) ---
+// A rating-1 failure in the treatment arm earns one active bare-recall
+// re-test a few minutes later (mid-session checkpoint) or at session end
+// (auto wrap-up). Timing is wall-clock based: the <10min massed-practice
+// window is deliberately avoided (failure-gap analysis 2026-07-25).
+const RETEST_MIN_GAP_MS = 4 * 60 * 1000;
+const RETEST_EXPIRE_MS = 20 * 60 * 1000;
+const RETEST_MIN_CARDS_BETWEEN = 3;
+const CHECKPOINT_MAX_PER_SESSION = 2;
+
+/**
+ * Deterministic 50/50 arm assignment per (session, lemma) failure event.
+ * djb2-xor over `${sessionId}:${lemmaId}`, unsigned-32; even hash → treatment.
+ * Python mirror for analysis:
+ *   h = 5381
+ *   for c in f"{session_id}:{lemma_id}": h = ((h * 33) ^ ord(c)) & 0xFFFFFFFF
+ *   arm = "treatment" if h % 2 == 0 else "control"
+ */
+function retestArm(sessionId: string, lemmaId: number): "treatment" | "control" {
+  const s = `${sessionId}:${lemmaId}`;
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0;
+  }
+  return h % 2 === 0 ? "treatment" : "control";
+}
+
 /**
  * Build an interleaved session: an intro card is emitted immediately before
  * the first sentence that contains its lemma, so the learner never sees a
@@ -369,6 +396,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wrapUpIndex, setWrapUpIndex] = useState(0);
   const [wrapUpRevealed, setWrapUpRevealed] = useState(false);
   const [inWrapUp, setInWrapUp] = useState(false);
+  // Rapid re-exposure re-test (2026-07-25): distinguishes the mid-session
+  // checkpoint and end-of-session auto wrap-up from the manual wrap-up so
+  // analytics can split the delivery tiers via parent_card_type.
+  const [wrapUpVariant, setWrapUpVariant] = useState<"wrapup" | "wrapup_auto" | "checkpoint">("wrapup");
+  const retestQueueRef = useRef<Array<{ lemmaId: number; failedAtMs: number; cardsSince: number }>>([]);
+  const retestTestedRef = useRef<Set<number>>(new Set());
+  const checkpointShownCountRef = useRef(0);
+  const checkpointFetchingRef = useRef(false);
+  const autoWrapUpTriggeredRef = useRef(false);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const [storyInfoVisible, setStoryInfoVisible] = useState(false);
@@ -605,6 +641,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   useEffect(() => {
     if (!inWrapUp) return;
+    // Checkpoint cards log their own card_shown (with gap/cards-since detail)
+    // at fire time in maybeFireCheckpoint.
+    if (wrapUpVariant === "checkpoint") return;
     const card = wrapUpCards[wrapUpIndex];
     if (card) {
       logCardShown({
@@ -613,9 +652,41 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         lemma_id: card.lemma_id,
         card_index: wrapUpIndex,
         total_cards: wrapUpCards.length,
+        detail: wrapUpVariant === "wrapup_auto" ? { variant: "wrapup_auto" } : undefined,
       });
     }
-  }, [inWrapUp, wrapUpIndex, wrapUpCards, sentenceSession?.session_id]);
+  }, [inWrapUp, wrapUpIndex, wrapUpCards, wrapUpVariant, sentenceSession?.session_id]);
+
+  // Tier 2 of the rapid re-exposure experiment: when the session completes,
+  // auto-run a wrap-up quiz for treatment-arm failed words that didn't get a
+  // mid-session checkpoint. Manual wrap-up (action menu) is unchanged.
+  useEffect(() => {
+    const done = !!(results && !inWrapUp && totalCards > 0 && results.total >= totalCards);
+    if (!done || autoWrapUpTriggeredRef.current) return;
+    if (mode !== "reading" || !sentenceSession) return;
+    autoWrapUpTriggeredRef.current = true;
+    const missedTreatment: number[] = [];
+    for (const [lemmaId, outcome] of wordOutcomes) {
+      if (!outcome.failed) continue;
+      const cid = outcome.canonical_lemma_id ?? lemmaId;
+      if (retestTestedRef.current.has(cid)) continue;
+      if (retestArm(sentenceSession.session_id, cid) !== "treatment") continue;
+      if (!missedTreatment.includes(cid)) missedTreatment.push(cid);
+    }
+    if (missedTreatment.length === 0) return;
+    getWrapUpCards([], missedTreatment, sentenceSession.session_id)
+      .then(cards => {
+        if (cards.length === 0) return;
+        for (const c of cards) retestTestedRef.current.add(c.lemma_id);
+        setWrapUpCards(cards);
+        setWrapUpIndex(0);
+        setWrapUpRevealed(false);
+        setWrapUpVariant("wrapup_auto");
+        setInWrapUp(true);
+        showTime.current = Date.now();
+      })
+      .catch(() => {}); // offline → tier 3 (next-build priority) covers it
+  }, [results, inWrapUp, totalCards, mode, sentenceSession, wordOutcomes]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {
@@ -748,6 +819,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setWrapUpIndex(0);
     setWrapUpRevealed(false);
     setInWrapUp(false);
+    setWrapUpVariant("wrapup");
+    retestQueueRef.current = [];
+    retestTestedRef.current = new Set();
+    checkpointShownCountRef.current = 0;
+    checkpointFetchingRef.current = false;
+    autoWrapUpTriggeredRef.current = false;
     setSeenLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
@@ -1261,6 +1338,31 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
+    // Queue rating-1 failures for a rapid re-exposure re-test (treatment arm).
+    // Confused words (rating 2) are the exact-surface pilot's population and
+    // are deliberately excluded.
+    if (mode === "reading") {
+      const failedCanonicalIds = new Set<number>();
+      if (signal === "no_idea") {
+        for (const w of item.words) {
+          if (w.lemma_id != null && !w.is_proper_name && !w.is_function_word) {
+            failedCanonicalIds.add(w.canonical_lemma_id ?? w.lemma_id);
+          }
+        }
+        failedCanonicalIds.add(item.primary_lemma_id);
+      } else if (signal === "partial") {
+        for (const lid of missedLemmaIds) {
+          const w = item.words.find(x => x.lemma_id === lid);
+          if (w) {
+            if (!w.is_function_word) failedCanonicalIds.add(w.canonical_lemma_id ?? lid);
+          } else {
+            failedCanonicalIds.add(lid); // word-only card's implicit primary miss
+          }
+        }
+      }
+      for (const lid of failedCanonicalIds) enqueueRetest(lid);
+    }
+
     const clientReviewId = generateUuid();
 
     try {
@@ -1439,6 +1541,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardReviewIds([]);
     setCardSnapshots([]);
     setUndoing(false);
+    setInWrapUp(false);
+    setWrapUpVariant("wrapup");
+    retestQueueRef.current = [];
+    retestTestedRef.current = new Set();
+    checkpointShownCountRef.current = 0;
+    checkpointFetchingRef.current = false;
+    autoWrapUpTriggeredRef.current = false;
     prefetchTriggered.current = false;
     if (fresh.reintro_cards && fresh.reintro_cards.length > 0) {
       setReintroCards(fresh.reintro_cards);
@@ -1470,6 +1579,59 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setGrammarLessons([]);
       setGrammarLessonIndex(0);
     }
+  }
+
+  function enqueueRetest(lemmaId: number) {
+    if (!sentenceSession) return;
+    if (retestArm(sentenceSession.session_id, lemmaId) !== "treatment") return;
+    if (retestTestedRef.current.has(lemmaId)) return;
+    if (retestQueueRef.current.some(e => e.lemmaId === lemmaId)) return;
+    retestQueueRef.current.push({ lemmaId, failedAtMs: Date.now(), cardsSince: 0 });
+  }
+
+  /** Fire a mid-session checkpoint re-test when a queued failure has matured:
+   * ≥4 min AND ≥3 intervening cards (avoid the massed-practice window), not
+   * yet expired (>20 min → the word's short due-date reaches the next session
+   * build instead). Hard caps: 2 checkpoints/session, 1 per lemma. */
+  function maybeFireCheckpoint() {
+    if (mode !== "reading" || !sentenceSession) return;
+    if (inWrapUp || checkpointFetchingRef.current) return;
+    if (checkpointShownCountRef.current >= CHECKPOINT_MAX_PER_SESSION) {
+      retestQueueRef.current = [];
+      return;
+    }
+    const now = Date.now();
+    retestQueueRef.current = retestQueueRef.current.filter(
+      e => now - e.failedAtMs < RETEST_EXPIRE_MS
+    );
+    const ready = retestQueueRef.current.find(
+      e => now - e.failedAtMs >= RETEST_MIN_GAP_MS && e.cardsSince >= RETEST_MIN_CARDS_BETWEEN
+    );
+    if (!ready) return;
+    retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
+    retestTestedRef.current.add(ready.lemmaId);
+    checkpointFetchingRef.current = true;
+    const gapMs = now - ready.failedAtMs;
+    getWrapUpCards([], [ready.lemmaId], sentenceSession.session_id)
+      .then(cards => {
+        if (cards.length === 0) return;
+        checkpointShownCountRef.current += 1;
+        setWrapUpCards(cards);
+        setWrapUpIndex(0);
+        setWrapUpRevealed(false);
+        setWrapUpVariant("checkpoint");
+        setInWrapUp(true);
+        logCardShown({
+          card_type: "checkpoint",
+          session_id: sentenceSession.session_id,
+          lemma_id: ready.lemmaId,
+          detail: { arm: "treatment", gap_ms: gapMs, cards_since: ready.cardsSince },
+        });
+      })
+      .catch(() => {}) // offline / error → tiers 2 and 3 cover the word
+      .finally(() => {
+        checkpointFetchingRef.current = false;
+      });
   }
 
   function advanceAfterSubmit(signal: ComprehensionSignal) {
@@ -1505,6 +1667,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setResults(next);
       resetSentenceCardUi();
       setCardIndex(nextCardIndex);
+      for (const e of retestQueueRef.current) e.cardsSince += 1;
+      maybeFireCheckpoint();
     }
   }
 
@@ -1535,6 +1699,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setWrapUpCards(cards);
         setWrapUpIndex(0);
         setWrapUpRevealed(false);
+        setWrapUpVariant("wrapup");
         setInWrapUp(true);
       } else {
         // No words to quiz — just end session
@@ -1550,6 +1715,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function handleWrapUpAnswer(gotIt: boolean) {
     const card = wrapUpCards[wrapUpIndex];
+    // A quizzed lemma is done for this session — the re-test cap is 1/lemma
+    // regardless of which tier (checkpoint / auto / manual) delivered it.
+    retestTestedRef.current.add(card.lemma_id);
+    retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== card.lemma_id);
     // Submit as acquisition review
     try {
       await submitSentenceReview({
@@ -1560,7 +1729,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         response_ms: Date.now() - showTime.current,
         session_id: sentenceSession?.session_id ?? generateUuid(),
         review_mode: "quiz",
-        parent_card_type: "wrapup",
+        parent_card_type: wrapUpVariant,
       });
     } catch {}
 
@@ -1568,9 +1737,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setWrapUpIndex(wrapUpIndex + 1);
       setWrapUpRevealed(false);
       showTime.current = Date.now();
+    } else if (wrapUpVariant === "checkpoint") {
+      // Mid-session checkpoint done — return to the session where it left off
+      setInWrapUp(false);
+      setWrapUpVariant("wrapup");
+      showTime.current = Date.now();
     } else {
       // Done — show session results
       setInWrapUp(false);
+      setWrapUpVariant("wrapup");
       const r = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
       setResults({ ...r, total: totalCards });
     }
@@ -1730,7 +1905,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            Wrap-up {wrapUpIndex + 1}/{wrapUpCards.length}
+            {wrapUpVariant === "checkpoint"
+              ? "Quick check"
+              : `Wrap-up ${wrapUpIndex + 1}/${wrapUpCards.length}`}
           </Text>
         </View>
         <ScrollView
