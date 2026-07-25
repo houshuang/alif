@@ -104,7 +104,7 @@ type SessionSlot =
 const RETEST_MIN_GAP_MS = 4 * 60 * 1000;
 const RETEST_EXPIRE_MS = 20 * 60 * 1000;
 const RETEST_MIN_CARDS_BETWEEN = 3;
-const CHECKPOINT_MAX_PER_SESSION = 2;
+const CHECKPOINT_MAX_PER_SESSION = 3;
 
 /**
  * Deterministic 50/50 arm assignment per (session, lemma) failure event.
@@ -657,9 +657,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [inWrapUp, wrapUpIndex, wrapUpCards, wrapUpVariant, sentenceSession?.session_id]);
 
-  // Tier 2 of the rapid re-exposure experiment: when the session completes,
-  // auto-run a wrap-up quiz for treatment-arm failed words that didn't get a
-  // mid-session checkpoint. Manual wrap-up (action menu) is unchanged.
+  // Tier 2: when the session completes, auto-run a wrap-up quiz for ALL failed
+  // words not already checkpointed. Since 2026-07-25 (user feedback: "marking
+  // things wrong is pointless unless I get to try again") this covers both
+  // arms — the 50/50 experiment applies only to the mid-session checkpoint.
   useEffect(() => {
     const done = !!(results && !inWrapUp && totalCards > 0 && results.total >= totalCards);
     if (!done || autoWrapUpTriggeredRef.current) return;
@@ -670,7 +671,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (!outcome.failed) continue;
       const cid = outcome.canonical_lemma_id ?? lemmaId;
       if (retestTestedRef.current.has(cid)) continue;
-      if (retestArm(sentenceSession.session_id, cid) !== "treatment") continue;
       if (!missedTreatment.includes(cid)) missedTreatment.push(cid);
     }
     if (missedTreatment.length === 0) return;
@@ -820,7 +820,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setWrapUpRevealed(false);
     setInWrapUp(false);
     setWrapUpVariant("wrapup");
-    retestQueueRef.current = [];
+    // NB: retestQueueRef deliberately survives session loads. The user reviews
+    // in short fragments (sessions abandoned mid-way, swapped by staleness
+    // refresh) — resetting here silently discarded pending re-tests (observed
+    // 2026-07-25: treatment failures in 2 consecutive fragments, 0 delivered).
+    // Entries expire by wall-clock (RETEST_EXPIRE_MS) instead.
     retestTestedRef.current = new Set();
     checkpointShownCountRef.current = 0;
     checkpointFetchingRef.current = false;
@@ -1543,7 +1547,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setUndoing(false);
     setInWrapUp(false);
     setWrapUpVariant("wrapup");
-    retestQueueRef.current = [];
+    // retestQueueRef survives the swap — see the loadSession comment.
     retestTestedRef.current = new Set();
     checkpointShownCountRef.current = 0;
     checkpointFetchingRef.current = false;

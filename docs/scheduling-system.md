@@ -1991,12 +1991,15 @@ function words, proper names, and lemmas with an open exact-surface pilot episod
 Since 2026-07-25 it is delivered three ways (the **rapid re-exposure experiment**,
 treatment arm = deterministic hash of `session_id:lemma_id`, see experiment-log):
 
-1. **Mid-session checkpoint** ("Quick check"): a rating-1 failure queues a re-test;
-   after ≥4 min AND ≥3 cards (expires at 20 min) the card renders as an out-of-band
-   phase. Caps: 2/session, 1/lemma/session; a failed re-test drops the lemma for
-   the session. Client-side only — no session-build involvement.
-2. **Auto wrap-up**: at session completion the quiz auto-runs for treatment-arm
-   failed lemmas not already checkpointed (`parent_card_type="wrapup_auto"`).
+1. **Mid-session checkpoint** ("Quick check", treatment arm only): a rating-1 failure
+   queues a re-test; after ≥4 min AND ≥3 cards (expires at 20 min) the card renders
+   as an out-of-band phase. Caps: 3/session, 1/lemma/session; a failed re-test drops
+   the lemma for the session. The queue **persists across session fragments/swaps**
+   (wall-clock expiry only — same-day amendment after fragments silently dropped it).
+   Client-side only — no session-build involvement.
+2. **Auto wrap-up** (both arms — product policy, not a treatment, per same-day
+   amendment): at session completion the quiz auto-runs for ALL failed lemmas not
+   already checkpointed (`parent_card_type="wrapup_auto"`).
 3. **Manual wrap-up**: unchanged action-menu button.
 
 **Credit guard** (`RETEST_CREDIT_GAP = 30 min`, `acquisition_service.py`): a quiz-mode

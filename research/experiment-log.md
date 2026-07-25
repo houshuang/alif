@@ -50,6 +50,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR #220)
 
+**Amendment (same day, before any treatment data accrued, commit after `7afbe39`):**
+after first real use the user reported (a) receiving almost nothing, (b) "marking
+things wrong that I should know, unless I get to try it again, is no point."
+Log diagnosis: sessions run as short abandoned fragments (idx 16/24, 11/22) and the
+client reset `retestQueueRef` on every session load/swap, silently discarding pending
+re-tests — plus the 50/50 filter removed half of the rest. Three changes:
+1. **Tier 2 (auto wrap-up) now covers ALL failed words, both arms** — the retry itself
+   is product policy, not a treatment. The 50/50 hash now gates only the mid-session
+   checkpoint, so the experiment's contrast becomes "does a mid-session retry add value
+   over the end-of-session retry everyone gets." Endpoints/analysis unchanged otherwise;
+   the original any-retry-vs-none question falls back to pre/post-2026-07-25 comparison.
+2. **Re-test queue persists across session fragments/swaps** (wall-clock expiry only).
+3. `CHECKPOINT_MAX_PER_SESSION` 2 → 3.
+
 **Trigger.** User report: "I still get waffara far too frequently… after flipping cards I
 might not spend enough time/attention to fix the missed words to my memory." Full data
 analysis + design: `research/analysis-2026-07-25-rapid-reexposure-proposal.md`.
