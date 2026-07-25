@@ -72,6 +72,12 @@ def test_quiz_success_after_recent_failure_does_not_advance_box(db_session):
     if due.tzinfo is None:
         due = due.replace(tzinfo=timezone.utc)
     assert due > datetime.now(timezone.utc) + BOX_INTERVALS[1] - timedelta(minutes=5)
+    # Counter neutrality (conformance v2): the guarded success enters neither
+    # the graduation numerator nor denominator — otherwise a later organic
+    # review would see inflated (or unfairly deflated) cumulative accuracy.
+    assert ulk.times_seen == 3
+    assert ulk.times_correct == 1
+    assert ulk.total_encounters == 1  # still recorded as an encounter
 
 
 def test_reading_success_after_recent_failure_still_advances(db_session):
@@ -128,6 +134,9 @@ def test_quiz_miss_still_resets_box(db_session):
         review_mode="quiz", comprehension_signal="no_idea", commit=False,
     )
     assert ulk.acquisition_box == 1
+    # Misses are genuine evidence and DO count in the lifetime counters
+    assert ulk.times_seen == 5
+    assert ulk.times_correct == 3
 
 
 def test_leech_window_excludes_quiz_successes(db_session):

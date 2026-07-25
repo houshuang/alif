@@ -83,6 +83,33 @@ should sanitize as if the model will disobey the prompt.
 
 ## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR #220)
 
+**Amendment 2 — conformance v2 (same day, evening).** An adversarial review of
+`research/alif-learning-system-proposal-2026-07-25.md` (and its counter-review) found
+three implementation defects that violated this registration; all three are FIXES back
+to the registered spec, not protocol changes. Analysis must treat deploy time of the
+conformance PR as the **v2 window boundary** (telemetry carries `v: 2` in checkpoint /
+wrapup_auto `card_shown` detail); v1-window treatment deliveries are contaminated and
+excluded from the primary analysis.
+1. **Auto wrap-up leaked rating-2/confused words** (`wordOutcomes.failed` included the
+   confused set — the exact-surface pilot's population). Fixed: new `rating1` flag;
+   auto wrap-up is strictly rating-1.
+2. **A failed checkpoint card fetch consumed the re-test** (entry dequeued + marked
+   tested before fetch; on error, tier 2 was also blocked). Fixed: entry stays queued
+   until a non-empty fetch succeeds (`pickReadyRetest` in `lib/review/retest.ts`);
+   empty responses drop the entry un-tested (tier 3 covers).
+3. **Guarded successes still fed graduation accuracy** (`times_seen`/`times_correct`
+   incremented before the advancement block, inflating later Tier-1/2 checks). Fixed:
+   counter-neutral — a `retest_gate` success increments neither counter (not just the
+   numerator, which would unfairly deflate accuracy); `total_encounters` + ReviewLog
+   (`retest_credit_blocked`) still record the event.
+Also from the same review: session-completion data (31% completion; completed sessions
+median ~16-17 distinct rating-1 lemmas incl. collateral no_idea fan-out; observed 10-
+and 8-card auto wrap-ups on day 1) — workload is a watch item under the existing
+completion-rate guardrail, no cap added. FSRS matched-prediction calibration (predicted
+at actual review time vs observed: ~89-93% vs ~77-79% across stability buckets, version
+caveat) → DebtCard labels softened ("solid/low urgency" → interval-based wording).
+Protocol is now FROZEN for the pre-registered readout window.
+
 **Amendment (same day, before any treatment data accrued, commit after `7afbe39`):**
 after first real use the user reported (a) receiving almost nothing, (b) "marking
 things wrong that I should know, unless I get to try it again, is no point."

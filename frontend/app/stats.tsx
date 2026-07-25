@@ -1160,7 +1160,7 @@ function DebtCard({ debt, recovery }: { debt: DebtBreakdown; recovery: RecoveryS
         )}
       </View>
       <Text style={styles.recoverySubtitle}>
-        {debt.urgent} need attention · {debt.mid + debt.mature} stable words waiting (low urgency)
+        {debt.urgent} fragile · {debt.mid + debt.mature} on longer intervals (slower decay, still ~75% recall when served)
       </Text>
       <View style={styles.bookBarTrack}>
         <View style={{ width: `${(debt.urgent / total) * 100}%`, backgroundColor: colors.missed }} />
@@ -1170,14 +1170,14 @@ function DebtCard({ debt, recovery }: { debt: DebtBreakdown; recovery: RecoveryS
       <View style={styles.bookLegend}>
         <Text style={[styles.legendText, { color: colors.missed }]}>{debt.urgent} fragile</Text>
         <Text style={[styles.legendText, { color: colors.noIdea }]}>{debt.mid} mid</Text>
-        <Text style={[styles.legendText, { color: colors.accent }]}>{debt.mature} solid (30d+ memory)</Text>
+        <Text style={[styles.legendText, { color: colors.accent }]}>{debt.mature} at 30d+ intervals</Text>
       </View>
       <Text style={styles.debtDetail}>
         {debt.untouched_14d} due words not seen in 14+ days
         {toUnlock != null
           ? toUnlock > 0
-            ? ` · ${toUnlock} above the ${recovery!.main_fsrs_limit} gate — pay down to unlock new words`
-            : ` · under the ${recovery!.main_fsrs_limit} intake gate ✓`
+            ? ` · ${toUnlock} above the ${recovery!.main_fsrs_limit} FSRS gate (one of the recovery gates above)`
+            : ` · under the ${recovery!.main_fsrs_limit} FSRS gate ✓`
           : ""}
       </Text>
     </View>

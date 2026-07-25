@@ -67,6 +67,12 @@ import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
+import {
+  CHECKPOINT_MAX_PER_SESSION,
+  RETEST_PROTOCOL_VERSION,
+  pickReadyRetest,
+  retestArm,
+} from "../lib/review/retest";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 import { bestVocalizedDisplayForm } from "../lib/arabic-display";
@@ -85,7 +91,8 @@ interface SessionResults {
 interface WordOutcome {
   arabic: string;
   english: string | null;
-  failed: boolean;
+  failed: boolean; // missed OR confused — display/manual-wrapup semantics
+  rating1: boolean; // strictly rating-1 (missed / no_idea) — re-test eligibility
   prevState: string; // knowledge_state before this session
   canonical_lemma_id: number | null;
 }
@@ -95,33 +102,6 @@ type SessionSlot =
   | { type: "intro"; candidateIndex: number }
   | { type: "experiment_intro"; introIndex: number }
   | { type: "verse"; verseIndex: number };
-
-// --- Rapid re-exposure re-test experiment (2026-07-25) ---
-// A rating-1 failure in the treatment arm earns one active bare-recall
-// re-test a few minutes later (mid-session checkpoint) or at session end
-// (auto wrap-up). Timing is wall-clock based: the <10min massed-practice
-// window is deliberately avoided (failure-gap analysis 2026-07-25).
-const RETEST_MIN_GAP_MS = 4 * 60 * 1000;
-const RETEST_EXPIRE_MS = 20 * 60 * 1000;
-const RETEST_MIN_CARDS_BETWEEN = 3;
-const CHECKPOINT_MAX_PER_SESSION = 3;
-
-/**
- * Deterministic 50/50 arm assignment per (session, lemma) failure event.
- * djb2-xor over `${sessionId}:${lemmaId}`, unsigned-32; even hash → treatment.
- * Python mirror for analysis:
- *   h = 5381
- *   for c in f"{session_id}:{lemma_id}": h = ((h * 33) ^ ord(c)) & 0xFFFFFFFF
- *   arm = "treatment" if h % 2 == 0 else "control"
- */
-function retestArm(sessionId: string, lemmaId: number): "treatment" | "control" {
-  const s = `${sessionId}:${lemmaId}`;
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0;
-  }
-  return h % 2 === 0 ? "treatment" : "control";
-}
 
 /**
  * Build an interleaved session: an intro card is emitted immediately before
@@ -652,7 +632,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         lemma_id: card.lemma_id,
         card_index: wrapUpIndex,
         total_cards: wrapUpCards.length,
-        detail: wrapUpVariant === "wrapup_auto" ? { variant: "wrapup_auto" } : undefined,
+        detail: wrapUpVariant === "wrapup_auto" ? { variant: "wrapup_auto", v: RETEST_PROTOCOL_VERSION } : undefined,
       });
     }
   }, [inWrapUp, wrapUpIndex, wrapUpCards, wrapUpVariant, sentenceSession?.session_id]);
@@ -668,7 +648,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     autoWrapUpTriggeredRef.current = true;
     const missedTreatment: number[] = [];
     for (const [lemmaId, outcome] of wordOutcomes) {
-      if (!outcome.failed) continue;
+      // rating-1 only (conformance v2): confused/rating-2 words belong to the
+      // exact-surface pilot and must not receive bare-recall re-tests.
+      if (!outcome.rating1) continue;
       const cid = outcome.canonical_lemma_id ?? lemmaId;
       if (retestTestedRef.current.has(cid)) continue;
       if (!missedTreatment.includes(cid)) missedTreatment.push(cid);
@@ -1315,10 +1297,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         if (w.is_proper_name || w.is_function_word) continue;
 
         let failed = false;
+        let rating1 = false;
         if (signal === "no_idea") {
           failed = true;
+          rating1 = true;
         } else if (signal === "partial") {
-          if (missedSet.has(w.lemma_id) || confusedSet.has(w.lemma_id)) failed = true;
+          if (missedSet.has(w.lemma_id)) {
+            failed = true;
+            rating1 = true;
+          } else if (confusedSet.has(w.lemma_id)) {
+            failed = true; // rating 2 — display only, never re-test eligible
+          }
         }
 
         const existing = next.get(w.lemma_id);
@@ -1326,6 +1315,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           next.set(w.lemma_id, {
             ...existing,
             failed: existing.failed || failed,
+            rating1: existing.rating1 || rating1,
             canonical_lemma_id:
               existing.canonical_lemma_id ?? w.canonical_lemma_id ?? null,
           });
@@ -1334,6 +1324,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             arabic: w.surface_form,
             english: w.gloss_en,
             failed,
+            rating1,
             prevState: w.knowledge_state ?? "new",
             canonical_lemma_id: w.canonical_lemma_id ?? null,
           });
@@ -1605,20 +1596,25 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return;
     }
     const now = Date.now();
-    retestQueueRef.current = retestQueueRef.current.filter(
-      e => now - e.failedAtMs < RETEST_EXPIRE_MS
-    );
-    const ready = retestQueueRef.current.find(
-      e => now - e.failedAtMs >= RETEST_MIN_GAP_MS && e.cardsSince >= RETEST_MIN_CARDS_BETWEEN
-    );
+    const { queue, ready } = pickReadyRetest(retestQueueRef.current, now);
+    retestQueueRef.current = queue;
     if (!ready) return;
-    retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
-    retestTestedRef.current.add(ready.lemmaId);
+    // Conformance v2: the entry stays queued (and un-"tested") until the card
+    // fetch returns a non-empty result — a network failure must not consume
+    // the learner's one re-test. Double-fire is prevented by the fetching flag.
     checkpointFetchingRef.current = true;
     const gapMs = now - ready.failedAtMs;
     getWrapUpCards([], [ready.lemmaId], sentenceSession.session_id)
       .then(cards => {
-        if (cards.length === 0) return;
+        if (cards.length === 0) {
+          // Endpoint filtered the lemma (suspended / function word / open
+          // exact-surface episode) — retrying would return empty again. Drop
+          // the entry but leave it un-tested so tier 3 handles it normally.
+          retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
+          return;
+        }
+        retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
+        retestTestedRef.current.add(ready.lemmaId);
         checkpointShownCountRef.current += 1;
         setWrapUpCards(cards);
         setWrapUpIndex(0);
@@ -1629,10 +1625,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           card_type: "checkpoint",
           session_id: sentenceSession.session_id,
           lemma_id: ready.lemmaId,
-          detail: { arm: "treatment", gap_ms: gapMs, cards_since: ready.cardsSince },
+          detail: { arm: "treatment", gap_ms: gapMs, cards_since: ready.cardsSince, v: RETEST_PROTOCOL_VERSION },
         });
       })
-      .catch(() => {}) // offline / error → tiers 2 and 3 cover the word
+      .catch(() => {}) // network error — entry stays queued; retried on a later advance until expiry
       .finally(() => {
         checkpointFetchingRef.current = false;
       });

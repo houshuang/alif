@@ -1995,19 +1995,25 @@ treatment arm = deterministic hash of `session_id:lemma_id`, see experiment-log)
    queues a re-test; after ≥4 min AND ≥3 cards (expires at 20 min) the card renders
    as an out-of-band phase. Caps: 3/session, 1/lemma/session; a failed re-test drops
    the lemma for the session. The queue **persists across session fragments/swaps**
-   (wall-clock expiry only — same-day amendment after fragments silently dropped it).
-   Client-side only — no session-build involvement.
+   (wall-clock expiry only) and an entry is consumed **only by a successful non-empty
+   card fetch** — network errors leave it queued for retry (conformance v2). Pure
+   queue logic lives in `frontend/lib/review/retest.ts` (`pickReadyRetest`, `retestArm`,
+   `RETEST_PROTOCOL_VERSION`). Client-side only — no session-build involvement.
 2. **Auto wrap-up** (both arms — product policy, not a treatment, per same-day
-   amendment): at session completion the quiz auto-runs for ALL failed lemmas not
-   already checkpointed (`parent_card_type="wrapup_auto"`).
+   amendment): at session completion the quiz auto-runs for ALL **rating-1** lemmas
+   not already checkpointed (`parent_card_type="wrapup_auto"`). Rating-2/confused
+   words are excluded (exact-surface pilot population; conformance v2).
 3. **Manual wrap-up**: unchanged action-menu button.
 
 **Credit guard** (`RETEST_CREDIT_GAP = 30 min`, `acquisition_service.py`): a quiz-mode
 success within the gap of a rating-1 review clears the 5-min retry due-date to the box
 interval but cannot promote a box, fast-graduate, or Tier-E/1/2 graduate — the intro
-working-memory gate extended to failure re-tests. Quiz successes are also excluded
-from the leech sliding window (`leech_service._recent_accuracy`); quiz misses count
-normally everywhere.
+working-memory gate extended to failure re-tests. It is also **counter-neutral**
+(conformance v2): neither `times_seen` nor `times_correct` increments, so later
+organic reviews see unbiased cumulative accuracy (`total_encounters` + ReviewLog with
+`fsrs_log_json.retest_credit_blocked` still record it). Quiz successes are also
+excluded from the leech sliding window (`leech_service._recent_accuracy`); quiz
+misses count normally everywhere.
 
 ### 19.5 ~~Next-Session Recap~~ — REMOVED (2026-02-14)
 
