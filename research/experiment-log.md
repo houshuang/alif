@@ -48,6 +48,39 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-25: Codex web-search citations leaked into memory hooks — search off + storage sanitizer (PR #221)
+
+**Trigger.** User screenshot: intro card Usage / Did You Know sections rendering raw
+markdown citations — `([arabdict.com](https://www.arabdict.com/...?utm_source=openai))`.
+
+**Root cause.** The memory-hooks pipeline (re-enabled 2026-07-20, `gpt-5.6-sol` via
+Codex CLI) ran with Codex's web-search tool at its default, which is ON for gpt-5.6
+models. The model searched arabdict.com and appended citations (the `utm_source=openai`
+suffix is OpenAI's web-search citation fingerprint) to `usage_context`/`fun_fact`;
+these were stored verbatim and shown raw. Only memory hooks were affected — scans of
+`etymology_json`, roots `enrichment_json`, glosses, and Polyglot's DB found zero URLs
+elsewhere (Polyglot runs gpt-5.5, where search doesn't default on — but its
+`llm_cli.py` has no guard either; add `-c tools.web_search=false` there if it ever
+moves to a 5.6 model).
+
+**Fix (three layers, PR #221):** (1) all `codex exec` calls pass
+`-c tools.web_search=false` — protects every Codex-routed task, not just hooks;
+(2) `strip_citations()` in `memory_hooks.py` removes parenthesized citations, markdown
+links (keeping labels), and bare URLs from every string field in
+`prepare_hooks_for_storage()` — covers the Claude CLI fallback too; (3) generation
+prompt gained a PLAIN TEXT ONLY rule. Regression tests use the exact citation shape
+from the screenshot.
+
+**Data repair.** 10 prod rows cleaned in place with the same sanitizer (9 at first
+count, 10 by deploy time — it was actively growing). Backup
+`alif_pre_citation_clean_*`; logged as `manual_fix` in ActivityLog; lemma_ids
+503, 2244, 3092, 3514, 3533, 4149, 4179, 4317, 4348, 4514.
+
+**Lesson.** A provider-side default flipped remotely (new model tier → search on) and
+contaminated stored learner-facing text with no code change on our side. Provider
+shims should pin every behavioral toggle explicitly; storage paths for LLM prose
+should sanitize as if the model will disobey the prompt.
+
 ## 2026-07-25: Rapid re-exposure re-test after failure — pre-registered 50/50 experiment (PR #220)
 
 **Amendment (same day, before any treatment data accrued, commit after `7afbe39`):**
