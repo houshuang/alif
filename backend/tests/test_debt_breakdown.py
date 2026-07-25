@@ -5,7 +5,6 @@ untouched 14-day tail, and reports the 7-day backlog trend so the stats panel
 shows direction of travel instead of one immovable number.
 """
 
-import json
 from datetime import datetime, timedelta, timezone
 
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge

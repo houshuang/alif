@@ -487,7 +487,11 @@ def _get_due_backlog_history(days: int = 14) -> dict[str, int]:
     return out
 
 
-def _get_debt_breakdown(db: Session, now: datetime) -> DebtBreakdownOut:
+def _get_debt_breakdown(
+    db: Session,
+    now: datetime,
+    backlog_history: dict[str, int] | None = None,
+) -> DebtBreakdownOut:
     """Composition + 7-day trajectory of the FSRS due stock.
 
     Same basis as _count_due_cards' fsrs_due (non-function-word FSRS rows with
@@ -539,8 +543,9 @@ def _get_debt_breakdown(db: Session, now: datetime) -> DebtBreakdownOut:
 
     # 7-day trajectory from the session_start backlog snapshots. Compare
     # today's peak to the nearest available day 6-8 days back (sessions
-    # don't happen every day).
-    hist = _get_due_backlog_history(days=9)
+    # don't happen every day). Callers that already scanned the log files
+    # pass the history in to avoid a second scan.
+    hist = backlog_history if backlog_history is not None else _get_due_backlog_history(days=9)
     trend: int | None = None
     today_val = hist.get(now.date().isoformat())
     if today_val is not None:
@@ -1205,7 +1210,9 @@ def get_analytics(
         frequency_core=frequency_core,
         quran_core=quran_core,
         recovery=RecoveryStatusOut(**recovery),
-        debt=_get_debt_breakdown(db, datetime.now(timezone.utc)),
+        debt=_get_debt_breakdown(
+            db, datetime.now(timezone.utc), backlog_history=backlog_history
+        ),
     )
 
 
