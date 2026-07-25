@@ -312,6 +312,12 @@ export default function MoreScreen() {
         </Text>
       )}
 
+      <Text style={styles.sectionHeader}>About</Text>
+      <View style={styles.versionRow}>
+        <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
+        <Text style={styles.versionText}>{versionLabel(getVersionInfo())}</Text>
+      </View>
+
       <Text style={styles.sectionHeader}>Activity</Text>
       {loadingActivity ? (
         <ActivityIndicator
@@ -347,12 +353,6 @@ export default function MoreScreen() {
           );
         })
       )}
-
-      <Text style={styles.sectionHeader}>About</Text>
-      <View style={styles.versionRow}>
-        <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
-        <Text style={styles.versionText}>{versionLabel(getVersionInfo())}</Text>
-      </View>
     </ScrollView>
   );
 }
@@ -454,7 +454,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingVertical: 10,
-    paddingBottom: 32,
   },
   versionText: {
     color: colors.textSecondary,
