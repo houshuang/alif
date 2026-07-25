@@ -5,11 +5,42 @@ Called as a background task when words enter acquisition, or via backfill script
 
 import logging
 import os
+import re
 
 from app.database import SessionLocal
 from app.models import Lemma
 
 logger = logging.getLogger(__name__)
+
+# Web-search-enabled models append citations like
+# "([arabdict.com](https://www.arabdict.com/...?utm_source=openai))" to prose.
+# These leak raw into intro cards if stored. Strip: whole parenthesized
+# citations, then markdown links (keep the label), then bare URLs.
+_PAREN_CITATION_RE = re.compile(r"\s*\(\s*\[[^\]]*\]\([^)]*\)\s*\)")
+_MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(\s*(?:https?://|www\.)[^)]*\)")
+_BARE_URL_RE = re.compile(r"\(?\s*(?:https?://|www\.)[^\s)\]]+\)?")
+
+
+def strip_citations(text: str) -> str:
+    """Remove URL citations from LLM prose, keeping the surrounding text."""
+    text = _PAREN_CITATION_RE.sub("", text)
+    text = _MD_LINK_RE.sub(r"\1", text)
+    text = _BARE_URL_RE.sub("", text)
+    text = re.sub(r"\(\s*\)", "", text)  # empty parens left behind
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r" +([.,;:!?])", r"\1", text)
+    return text.strip()
+
+
+def _strip_citations_deep(value):
+    """Apply strip_citations to every string in a nested hooks structure."""
+    if isinstance(value, str):
+        return strip_citations(value)
+    if isinstance(value, list):
+        return [_strip_citations_deep(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _strip_citations_deep(v) for k, v in value.items()}
+    return value
 
 
 def memory_hooks_enabled() -> bool:
@@ -56,6 +87,8 @@ METHOD:
 4. Pick the best. If NO candidate scores >=4 on ALL THREE, return null for the entire entry — a missing hook is better than a bad one. Returning null for a third of words is correct behavior.
 
 ALSO GENERATE: cognates (genuine ones in the learner's languages, [] if none; mark direct borrowings prominently), collocations (2-3, Arabic with full diacritics + English only), usage_context (1-2 specific sentences), fun_fact (or null).
+
+PLAIN TEXT ONLY: never include URLs, links, citations, source references, or markdown formatting in any field. Do not cite dictionaries or websites.
 
 Particles, pronouns, function words, proper nouns: return null for the entire entry.
 
@@ -360,7 +393,7 @@ def prepare_hooks_for_storage(hooks: dict) -> tuple[dict | None, str]:
     hooks.pop("best_index", None)
     hooks.pop("quality", None)
     hooks.pop("quality_reason", None)
-    return hooks, reason
+    return _strip_citations_deep(hooks), reason
 
 
 def generate_memory_hooks(lemma_id: int) -> None:

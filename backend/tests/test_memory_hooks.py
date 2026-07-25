@@ -199,3 +199,45 @@ def test_generate_judge_and_store_stamps_approval(monkeypatch):
     assert db2.committed
     assert lemma2.memory_hooks_json["mnemonic"] == "A house made of BAIT."
     assert "approved_at" not in lemma2.memory_hooks_json
+
+
+def test_strip_citations_removes_web_search_citation():
+    from app.services.memory_hooks import strip_citations
+
+    text = (
+        "It is especially common in لَا مَثِيلَ لَهُ, describing something "
+        "unique or unequalled. ([arabdict.com](https://www.arabdict.com/ar/"
+        "%D8%B9%D8%B1%D8%A8%D9%8A?utm_source=openai))"
+    )
+    cleaned = strip_citations(text)
+    assert "http" not in cleaned
+    assert "arabdict" not in cleaned
+    assert "(" not in cleaned
+    assert cleaned.endswith("unique or unequalled.")
+
+
+def test_strip_citations_keeps_markdown_link_label_and_drops_bare_urls():
+    from app.services.memory_hooks import strip_citations
+
+    assert strip_citations("see [Wehr](https://ejtaal.net/aa) for more") == "see Wehr for more"
+    assert strip_citations("common word (https://example.com/x) indeed") == "common word indeed"
+    assert strip_citations("no links here") == "no links here"
+
+
+def test_prepare_hooks_strips_citations_from_all_fields():
+    hooks = _hooks([(5, 5, 5)])
+    hooks["usage_context"] = "Very common. ([arabdict.com](https://www.arabdict.com/ar/x?utm_source=openai))"
+    hooks["fun_fact"] = "Its plural is odd. ([wiki](https://en.wikipedia.org/wiki/x?utm_source=openai))"
+    hooks["candidates"][0]["mnemonic"] = "a MAT of TUNA ([src](https://a.b/c))"
+    hooks["cognates"] = [{"lang": "en", "word": "mat", "note": "see https://a.b/c for details"}]
+
+    storage, reason = prepare_hooks_for_storage(hooks)
+
+    assert reason == "strong_candidate"
+    flat = repr(storage)
+    assert "http" not in flat
+    assert "utm_source" not in flat
+    assert storage["usage_context"] == "Very common."
+    assert storage["fun_fact"] == "Its plural is odd."
+    assert storage["mnemonic"] == "a MAT of TUNA"
+    assert storage["cognates"][0]["note"] == "see for details"
