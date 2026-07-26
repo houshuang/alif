@@ -1,0 +1,139 @@
+{
+  "definitions": {
+    "calibration": "stored pre-card at actual review timestamp",
+    "metric_spec": "research/learning-metrics-spec.md",
+    "primary_collateral": "equal word-memory validity; primary-only recovery effort gate",
+    "session_completion": "final planned display followed by sentence review"
+  },
+  "inputs": {
+    "database": {
+      "bytes": 119635968,
+      "filename": "alif.db",
+      "sha256": "3b8ba1d566185ebe908139e24851f4f02214dbd6d6334a3638b6da5f30ef0069"
+    },
+    "fsrs_version": "6.3.0",
+    "git_commit": "0dff93402b2449795f60eaa3f1f0625e906256c9",
+    "interaction_logs": [
+      {
+        "bytes": 158616,
+        "filename": "interactions_2026-07-05.jsonl",
+        "sha256": "0b02fc86bf86e9f3a2f87f9231bae03dbaf98482c158f86abfbb247498c70fad"
+      },
+      {
+        "bytes": 512,
+        "filename": "interactions_2026-07-07.jsonl",
+        "sha256": "2283849787d18bc1b627b849d066b9a5933dd4b330a8ce2f3e38bf9b615c989a"
+      },
+      {
+        "bytes": 158092,
+        "filename": "interactions_2026-07-08.jsonl",
+        "sha256": "975710b867816c5a5b1c2b3b303d210832f250784a8c1f3e58427eebb0bc94cb"
+      },
+      {
+        "bytes": 201001,
+        "filename": "interactions_2026-07-09.jsonl",
+        "sha256": "ef34e1fb84145477c86cc9921f4211ab82eaecbffd797d146ebba3e847b825aa"
+      },
+      {
+        "bytes": 168320,
+        "filename": "interactions_2026-07-10.jsonl",
+        "sha256": "0ca8dc4dc6aaefecc3dcdb4440a6c53ea020b7c52aa5b1dce208d912a6a8ef96"
+      },
+      {
+        "bytes": 61783,
+        "filename": "interactions_2026-07-11.jsonl",
+        "sha256": "0a971a8746349213360cc05a118f2d6e3fceab10c6783ebb468582410bd36005"
+      },
+      {
+        "bytes": 67700,
+        "filename": "interactions_2026-07-12.jsonl",
+        "sha256": "d297258f02fb32d48bf4c2dcdd7343bde58ed254f236f6d87c86928dbb6d6ac7"
+      },
+      {
+        "bytes": 179332,
+        "filename": "interactions_2026-07-13.jsonl",
+        "sha256": "b4ec9a082db48207fa70289e1da9af2b6f59c606b03b4842c434c8b2281c8f3b"
+      },
+      {
+        "bytes": 114810,
+        "filename": "interactions_2026-07-14.jsonl",
+        "sha256": "76e820ed0ddf5e4fd3f817a00bbbb50b17e18969940b801f5ed45fcefeaa05bd"
+      },
+      {
+        "bytes": 305866,
+        "filename": "interactions_2026-07-15.jsonl",
+        "sha256": "f7d99351f4c5c1a775a3841f2dea205fe03356689b604f34908283d2fe4e024d"
+      },
+      {
+        "bytes": 132202,
+        "filename": "interactions_2026-07-16.jsonl",
+        "sha256": "0ced4b4e18c1d34e4beb444c70d4f37644d58c002cdf4c1c9486d061aa838eea"
+      },
+      {
+        "bytes": 152635,
+        "filename": "interactions_2026-07-17.jsonl",
+        "sha256": "9e159e883dd03967c4953f33272653a275e7582751e60ce99e837cec93de5dc8"
+      },
+      {
+        "bytes": 132300,
+        "filename": "interactions_2026-07-18.jsonl",
+        "sha256": "f5c26ef8c00776cb361c91e67568fec0193e23cb8cc67ae87ae1d0aa1d9d76f6"
+      },
+      {
+        "bytes": 136664,
+        "filename": "interactions_2026-07-19.jsonl",
+        "sha256": "a3f187388ef732458a2df408523c44253125d2bf31ac3e4f8c7afea9067b0c87"
+      },
+      {
+        "bytes": 121543,
+        "filename": "interactions_2026-07-20.jsonl",
+        "sha256": "3e96743184b71c67b864b409cf221c546ca04c611a30cdcaebebd40e306e7e53"
+      },
+      {
+        "bytes": 251266,
+        "filename": "interactions_2026-07-21.jsonl",
+        "sha256": "c31ffe0e9cb58c168b87050477dfe9a7d8ecb90a2ad3ed190812949fb759bc61"
+      },
+      {
+        "bytes": 175041,
+        "filename": "interactions_2026-07-22.jsonl",
+        "sha256": "5dd63ad84d99b1dcd3c5c95d1bb46c127f5642f1001de3ca93b144a93c364207"
+      },
+      {
+        "bytes": 109709,
+        "filename": "interactions_2026-07-23.jsonl",
+        "sha256": "579e9b34b50508e550c73a749fd6ca4bae8ba40bd872982b7868e7f93f5ffbed"
+      },
+      {
+        "bytes": 86018,
+        "filename": "interactions_2026-07-24.jsonl",
+        "sha256": "e3971e1dc971a28c60e512b6876a30ce6f4d2f1ed5dca0b9e19a1ad0fcb670a4"
+      },
+      {
+        "bytes": 327524,
+        "filename": "interactions_2026-07-25.jsonl",
+        "sha256": "e6b2e475df78dd1480a869688a76906c2c4ced5a40b7dfa85c04b608f67d2c35"
+      }
+    ],
+    "metric_spec": {
+      "bytes": 7447,
+      "filename": "learning-metrics-spec.md",
+      "sha256": "43874463b725aebc370f95fe47aa1aa56333ac51515b02289f5af1fedfa55b9f"
+    },
+    "python_version": "3.11.6",
+    "script": {
+      "bytes": 44866,
+      "filename": "analyze_learning_system.py",
+      "sha256": "e52a4de87613a11b1fdb9d6b54e0c340d2e42b53bb03614dc7cd69284db07dc3"
+    },
+    "sqlite_version": "3.42.0",
+    "strict_read_only": true
+  },
+  "schema_version": 1,
+  "window": {
+    "cutoff": "2026-07-25T17:30:44.409771Z",
+    "semantics": "half-open [start, cutoff)",
+    "session_start": "2026-07-05T00:00:00Z",
+    "start": "2026-03-27T00:00:00Z"
+  }
+}

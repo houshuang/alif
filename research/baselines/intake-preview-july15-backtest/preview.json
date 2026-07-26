@@ -1,0 +1,82 @@
+{
+  "candidate_file": null,
+  "capacity_cutoff": "2026-07-15T00:00:00Z",
+  "classification": {
+    "canonical_or_duplicate_collapses": 0,
+    "categories": {
+      "unresolved_or_not_yet_created": 202
+    },
+    "input_entries": 202,
+    "maximum_new_fsrs_arrivals": 202,
+    "missing_lemma_ids": [],
+    "projected_box1_additions": 202,
+    "resolved_entries": 0,
+    "unique_canonical_lemmas": 0
+  },
+  "current_baseline_summary": {
+    "bytes": 9587,
+    "filename": "summary.json",
+    "sha256": "2f601767ad01030a69cf882a26b89585b67774493985d6608ba804812c0a8394"
+  },
+  "current_recovery": {
+    "active": true,
+    "box1_actionable": 127,
+    "box2_due": 39,
+    "strict_main_fsrs_due": 805
+  },
+  "cutoff": "2026-07-25T17:30:44.409771Z",
+  "database": {
+    "bytes": 119635968,
+    "filename": "alif.db",
+    "sha256": "3b8ba1d566185ebe908139e24851f4f02214dbd6d6334a3638b6da5f30ef0069"
+  },
+  "limitations": [
+    "capacity projection, not causal simulation",
+    "unresolved entries require quality-gated lemma creation before intake",
+    "reviews-to-graduation is success-conditioned and understates suspended or censored demand",
+    "maximum FSRS arrivals ignores suspension and censoring",
+    "does not apply or stage intake"
+  ],
+  "method_version": "wp8-intake-preview-v1",
+  "recent_capacity": {
+    "acquisition_accuracy": 0.7674,
+    "days": 30,
+    "graduation_episodes_observed": 119,
+    "mean_acquisition_reviews_per_calendar_day": 22.07,
+    "mean_graduations_per_calendar_day": 3.97,
+    "median_acquisition_reviews_per_calendar_day": 16.0,
+    "median_episode_reviews_to_graduation": 4,
+    "median_graduations_per_calendar_day": 1.5,
+    "median_primary_reading_cards_per_calendar_day": 14.5,
+    "window_start": "2026-06-15T00:00:00Z"
+  },
+  "scenarios": [
+    {
+      "admission_days": 1,
+      "peak_daily_additions": 202,
+      "scenario": "immediate",
+      "success_conditioned_capacity_days": 36.6,
+      "success_conditioned_review_reference": 808
+    },
+    {
+      "admission_days": 26,
+      "peak_daily_additions": 8,
+      "scenario": "stage_8_per_day",
+      "success_conditioned_capacity_days": 36.6,
+      "success_conditioned_review_reference": 808
+    },
+    {
+      "admission_days": 7,
+      "peak_daily_additions": 30,
+      "scenario": "stage_30_per_day",
+      "success_conditioned_capacity_days": 36.6,
+      "success_conditioned_review_reference": 808
+    }
+  ],
+  "schema_version": 1,
+  "script": {
+    "bytes": 15198,
+    "filename": "preview_intake_impact.py",
+    "sha256": "6d9b2caee4f9c38f60b64a4ff3adcc478a0ce998d0b896be412fdc1a5bdcf2c2"
+  }
+}

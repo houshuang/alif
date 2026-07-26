@@ -64,6 +64,10 @@ ELAPSED_GRADUATION_MIN_INTERVAL = timedelta(days=3)
 # working memory, not consolidation — it clears the short retry due-date but
 # must not advance a box, graduate, or feed accuracy-tier graduation.
 RETEST_CREDIT_GAP = timedelta(minutes=30)
+# Explicit analysis boundary for graduation evidence written by this service.
+# Version 2 adds the rating>=3 graduation success gate and prospective evidence
+# fields; older rows are intentionally left unstamped rather than backfilled.
+ACQUISITION_GRADUATION_POLICY_VERSION = 2
 
 
 def _quiz_retest_after_failure(
@@ -661,6 +665,13 @@ def submit_acquisition_review(
             acq_due = acq_due.replace(tzinfo=timezone.utc)
         is_due = acq_due <= now
 
+    elapsed_since_last = None
+    if old_last_reviewed is not None:
+        olr = old_last_reviewed
+        if olr.tzinfo is None:
+            olr = olr.replace(tzinfo=timezone.utc)
+        elapsed_since_last = now - olr
+
     # Fast-track: first correct review → graduate immediately to FSRS.
     # Skip when the intro card was shown within FAST_GRAD_INTRO_GAP — a
     # correct rating seconds after seeing the card is working memory, not
@@ -742,18 +753,15 @@ def submit_acquisition_review(
     # required is_due, which blocked graduation for words getting 80%+ accuracy
     # across many collateral exposures but only one "due" review per 3-day cycle.
     # Tier 3: still requires is_due to enforce inter-session spacing.
-    if not graduated:
+    # Graduation must end on demonstrated success. A rating-2 Hard/confused
+    # answer can leave cumulative accuracy at a tier threshold (for example
+    # 3/4 correct -> Hard -> 3/5 = 60% in box 3), but it is not evidence that
+    # the word is ready to leave acquisition. Historical audit found two such
+    # graduations, including one in the 2026-07-15 bookifier cohort.
+    if not graduated and rating_int >= 3:
         new_times_seen = ulk.times_seen
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
-
-        # Elapsed since the previous review — the retention interval just proven.
-        elapsed_since_last = None
-        if old_last_reviewed is not None:
-            olr = old_last_reviewed
-            if olr.tzinfo is None:
-                olr = olr.replace(tzinfo=timezone.utc)
-            elapsed_since_last = now - olr
 
         # Tier E: Elapsed-interval graduation. A correct recognition after a long
         # real gap proves consolidation more strongly than the Leitner ramp itself,
@@ -808,7 +816,15 @@ def submit_acquisition_review(
             "graduation_reason": grad_reason,
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
+            "post_times_seen": ulk.times_seen,
+            "post_times_correct": ulk.times_correct,
             "pre_knowledge_state": old_knowledge_state,
+            "graduation_policy_version": ACQUISITION_GRADUATION_POLICY_VERSION,
+            "is_due_at_review": is_due,
+            "elapsed_since_last_seconds": (
+                elapsed_since_last.total_seconds()
+                if elapsed_since_last is not None else None
+            ),
             "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
             "retest_credit_blocked": retest_gate,
         },

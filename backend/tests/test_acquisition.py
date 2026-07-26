@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.acquisition_service import (
+    ACQUISITION_GRADUATION_POLICY_VERSION,
     BOX_INTERVALS,
     DAILY_INTRO_CAP,
     ELAPSED_GRADUATION_MIN_INTERVAL,
@@ -492,6 +493,39 @@ def test_graduation_tier3(db_session):
     assert ulk.fsrs_card_json is not None
 
 
+def test_hard_review_cannot_trigger_standard_graduation(db_session):
+    """A due Box-3 Hard/confused answer must not graduate on cumulative 60%.
+
+    Regression for the observed 3/4 correct -> rating 2 -> 3/5 (60%) path that
+    graduated lemma 4254 on 2026-07-25.
+    """
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(
+        lemma_id=lemma.lemma_id
+    ).first()
+    ulk.acquisition_box = 3
+    ulk.acquisition_next_due = datetime.now(timezone.utc) - timedelta(hours=1)
+    ulk.last_reviewed = datetime.now(timezone.utc) - timedelta(days=1)
+    ulk.times_seen = 4
+    ulk.times_correct = 3
+    utc_today = datetime.now(timezone.utc).date()
+    _add_review_on_date(db_session, lemma.lemma_id, utc_today - timedelta(days=1))
+    db_session.flush()
+
+    result = submit_acquisition_review(
+        db_session,
+        lemma.lemma_id,
+        rating_int=2,
+    )
+
+    assert result.get("graduated") is not True
+    assert result["new_state"] == "acquiring"
+    assert result["acquisition_box"] == 3
+    db_session.refresh(ulk)
+    assert ulk.fsrs_card_json is None
+
+
 def test_graduation_returns_graduated_flag(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
@@ -619,6 +653,14 @@ def test_review_creates_review_log(db_session):
     assert good_log.fsrs_log_json is not None
     assert good_log.fsrs_log_json["acquisition_box_before"] == 1
     assert good_log.fsrs_log_json["acquisition_box_after"] == 2
+    assert (
+        good_log.fsrs_log_json["graduation_policy_version"]
+        == ACQUISITION_GRADUATION_POLICY_VERSION
+    )
+    assert good_log.fsrs_log_json["is_due_at_review"] is False
+    assert good_log.fsrs_log_json["post_times_seen"] == 2
+    assert good_log.fsrs_log_json["post_times_correct"] == 1
+    assert good_log.fsrs_log_json["elapsed_since_last_seconds"] is not None
 
 
 def test_review_updates_total_encounters(db_session):

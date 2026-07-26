@@ -243,6 +243,7 @@ def next_sentences(
                 fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
                 intro_candidates=len(result.get("intro_candidates", [])),
                 verse_cards=len(result.get("verse_cards", [])),
+                selection_diagnostics=result.get("selection_diagnostics", {}),
             )
             # Trigger background generation so next session has more sentences
             from app.services.material_generator import warm_sentence_cache

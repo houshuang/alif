@@ -1,0 +1,230 @@
+{
+  "current_state": {
+    "acquisition": {
+      "1": {
+        "age_max_days": 10.07,
+        "age_median_days": 4.71,
+        "age_p90_days": 8.02,
+        "box": 1,
+        "due": 14,
+        "total": 15,
+        "zero_correct": 4
+      },
+      "2": {
+        "age_max_days": 26.96,
+        "age_median_days": 5.24,
+        "age_p90_days": 12.37,
+        "box": 2,
+        "due": 21,
+        "total": 27,
+        "zero_correct": 0
+      },
+      "3": {
+        "age_max_days": 59.96,
+        "age_median_days": 6.11,
+        "age_p90_days": 24.75,
+        "box": 3,
+        "due": 5,
+        "total": 19,
+        "zero_correct": 0
+      }
+    },
+    "acquisition_total": 61,
+    "fsrs": {
+      "raw_actionable_due": 176,
+      "shadowed_due_variants": 0,
+      "stability_bands": {
+        "7-30d": 46,
+        "<7d": 108,
+        ">=30d": 14,
+        "unknown": 8
+      },
+      "strict_main_due": 158
+    },
+    "recovery": {
+      "active": true,
+      "limits": {
+        "box1_actionable": 5,
+        "box2_due": 30,
+        "strict_main_fsrs_due": 750
+      },
+      "tripped": [
+        "box1_actionable"
+      ],
+      "values": {
+        "box1_actionable": 11,
+        "box2_due": 21,
+        "strict_main_fsrs_due": 158
+      }
+    },
+    "state_counts": {
+      "acquiring": 61,
+      "encountered": 198,
+      "known": 1852,
+      "lapsed": 19,
+      "learning": 52,
+      "suspended": 89
+    }
+  },
+  "fsrs_calibration": {
+    "by_month": {
+      "2026-02": {
+        "brier_score": 0.0726,
+        "median_lateness_days": 0.2,
+        "observed_recall": 0.9122,
+        "predicted_recall": 0.9402,
+        "reviews": 410
+      },
+      "2026-03": {
+        "brier_score": 0.1335,
+        "median_lateness_days": 0.67,
+        "observed_recall": 0.8425,
+        "predicted_recall": 0.9099,
+        "reviews": 1333
+      },
+      "2026-04": {
+        "brier_score": 0.1652,
+        "median_lateness_days": 1.86,
+        "observed_recall": 0.7897,
+        "predicted_recall": 0.8836,
+        "reviews": 1717
+      },
+      "2026-05": {
+        "brier_score": 0.1381,
+        "median_lateness_days": 1.13,
+        "observed_recall": 0.8326,
+        "predicted_recall": 0.9088,
+        "reviews": 1219
+      }
+    },
+    "by_stability": {
+      "7-30d": {
+        "brier_score": 0.1635,
+        "median_lateness_days": 2.0,
+        "observed_recall": 0.8019,
+        "predicted_recall": 0.9065,
+        "reviews": 863
+      },
+      "<7d": {
+        "brier_score": 0.1338,
+        "median_lateness_days": 0.87,
+        "observed_recall": 0.8346,
+        "predicted_recall": 0.9014,
+        "reviews": 3712
+      },
+      ">=30d": {
+        "brier_score": 0.212,
+        "median_lateness_days": 2.12,
+        "observed_recall": 0.75,
+        "predicted_recall": 0.9132,
+        "reviews": 104
+      }
+    },
+    "excluded": {
+      "acquisition": 8182,
+      "incomplete_pre_card": 103,
+      "missing_pre_card": 418,
+      "not_due": 22604,
+      "not_sentence_reading": 2926
+    },
+    "version_caveat": "Current installed FSRS retrievability is applied to historical stored pre-card states; segment by application/scheduler version before retuning."
+  },
+  "graduations": {
+    "duration_median_days": 2.12,
+    "duration_missing_or_invalid": 37,
+    "duration_observed": 1776,
+    "duration_p90_days": 9.57,
+    "graduations": 1813
+  },
+  "provenance": {
+    "database": {
+      "bytes": 75718656,
+      "filename": "2026-05-19.db",
+      "sha256": "c8d77fe678a50197aa703ecb4a303de3a7a24dbfce146be0040514151a8ac7d6"
+    },
+    "fsrs_version": "6.3.0",
+    "git_commit": "0dff93402b2449795f60eaa3f1f0625e906256c9",
+    "interaction_logs": [],
+    "metric_spec": {
+      "bytes": 7447,
+      "filename": "learning-metrics-spec.md",
+      "sha256": "43874463b725aebc370f95fe47aa1aa56333ac51515b02289f5af1fedfa55b9f"
+    },
+    "python_version": "3.11.6",
+    "script": {
+      "bytes": 44866,
+      "filename": "analyze_learning_system.py",
+      "sha256": "e52a4de87613a11b1fdb9d6b54e0c340d2e42b53bb03614dc7cd69284db07dc3"
+    },
+    "sqlite_version": "3.42.0",
+    "strict_read_only": true
+  },
+  "reviews": {
+    "distinct_canonical_words": 1968,
+    "duplicate_client_review_ids": 0,
+    "invalid_rows": {
+      "function_word": 1304,
+      "inert_category": 210
+    },
+    "phase": {
+      "acquisition": 8213,
+      "fsrs": 30699
+    },
+    "ratings": {
+      "1": 3008,
+      "2": 560,
+      "3": 35344
+    },
+    "review_modes": {
+      "listening": 47,
+      "quiz": 31,
+      "reading": 38463,
+      "reintro": 135,
+      "textbook_scan": 236
+    },
+    "sentence_credit": {
+      "collateral": 28651,
+      "primary": 7384
+    },
+    "sentence_credit_accuracy_diagnostic_only": {
+      "collateral": {
+        "accuracy": 0.9315,
+        "reviews": 28651,
+        "successes": 26687
+      },
+      "primary": {
+        "accuracy": 0.796,
+        "reviews": 7384,
+        "successes": 5878
+      }
+    },
+    "sentence_reading_word_reviews": 35986,
+    "sentence_word_reviews": 36035,
+    "valid_word_reviews": 38912
+  },
+  "schema_version": 1,
+  "sessions": {
+    "abandoned_answered_sentences_median": null,
+    "abandoned_distinct_rating1_median": null,
+    "analyzable_sessions": 0,
+    "approximately_complete": 0,
+    "auto_wrap_card_sizes": [],
+    "auto_wrap_cards_median": null,
+    "auto_wrap_count": 0,
+    "bad_or_timestamp_missing_log_lines": 0,
+    "complete_distinct_rating1_max": null,
+    "complete_distinct_rating1_median": null,
+    "complete_distinct_rating1_min": null,
+    "completion_rate": null,
+    "protocol_v2_first_telemetry": null
+  },
+  "warnings": [
+    "No interaction-log directory supplied; session metrics are empty"
+  ],
+  "window": {
+    "cutoff": "2026-05-12T14:55:50.375703Z",
+    "semantics": "half-open [start, cutoff)",
+    "session_start": "2026-02-01T00:00:00Z",
+    "start": "2026-02-01T00:00:00Z"
+  }
+}

@@ -1,8 +1,12 @@
 from fsrs import Card
 
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.fsrs_service import (
+    FSRS_LIBRARY_VERSION,
+    FSRS_PARAMETERS_SHA256,
+    FSRS_SCHEDULER_POLICY_VERSION,
     create_new_card,
+    scheduler,
     submit_review,
 )
 
@@ -46,6 +50,17 @@ def test_submit_review_good(db_session):
     db_session.refresh(knowledge)
     assert knowledge.times_seen == 1
     assert knowledge.times_correct == 1
+    log = db_session.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).one()
+    assert (
+        log.fsrs_log_json["fsrs_scheduler_policy_version"]
+        == FSRS_SCHEDULER_POLICY_VERSION
+    )
+    assert log.fsrs_log_json["fsrs_library_version"] == FSRS_LIBRARY_VERSION
+    assert (
+        log.fsrs_log_json["fsrs_desired_retention"]
+        == scheduler.desired_retention
+    )
+    assert log.fsrs_log_json["fsrs_parameters_sha256"] == FSRS_PARAMETERS_SHA256
 
 
 def test_submit_review_again(db_session):

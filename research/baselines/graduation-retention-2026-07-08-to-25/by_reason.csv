@@ -1,0 +1,6 @@
+reason,graduations,non_success_graduations,episode_reviews_median,episode_sessions_median,one_session_graduations,episode_hours_median,eligible_1d,delivered_1d,delivery_fraction_1d,successes_1d,recall_among_delivered_1d,eligible_3d,delivered_3d,delivery_fraction_3d,successes_3d,recall_among_delivered_3d,eligible_7d,delivered_7d,delivery_fraction_7d,successes_7d,recall_among_delivered_7d
+elapsed_interval,104,0,3.0,3.0,19,427.01,82,49,0.5976,38,0.7755,76,42,0.5526,33,0.7857,46,20,0.4348,13,0.65
+first_correct,31,0,1,1,31,11.87,31,22,0.7097,18,0.8182,29,18,0.6207,13,0.7222,19,8,0.4211,6,0.75
+high_accuracy,17,0,5,3,0,173.05,16,12,0.75,10,0.8333,14,10,0.7143,8,0.8,8,5,0.625,4,0.8
+perfect_accuracy,23,0,3,2,7,144.15,20,15,0.75,10,0.6667,17,12,0.7059,7,0.5833,9,3,0.3333,3,1.0
+standard,12,1,6.0,4.0,0,685.57,9,6,0.6667,6,1.0,7,5,0.7143,5,1.0,5,2,0.4,2,1.0

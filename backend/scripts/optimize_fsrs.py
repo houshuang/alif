@@ -5,10 +5,15 @@ Usage:
 
 Only non-acquisition reviews (is_acquisition=0) are used, since acquisition reviews
 are Leitner-box transitions, not FSRS card updates.
+
+This legacy loader still mixes review modes, early reviews, scheduler versions,
+and card origins. Its output is exploratory and must not be deployed without
+the clean rolling-origin replay in the learning-system proposal.
 """
 from __future__ import annotations
 
 import argparse
+from importlib.metadata import version as package_version
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +25,10 @@ RATING_MAP = {1: Rating.Again, 2: Rating.Hard, 3: Rating.Good, 4: Rating.Easy}
 
 
 def load_reviews(db_path: Path) -> list[FsrsReviewLog]:
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(
+        f"file:{db_path.resolve()}?mode=ro&immutable=1",
+        uri=True,
+    )
     cur = conn.cursor()
     rows = cur.execute(
         """
@@ -54,12 +62,9 @@ def load_reviews(db_path: Path) -> list[FsrsReviewLog]:
     return logs
 
 
-# FSRS-6 default weights (what the library ships with; what we're running in production)
-DEFAULT_W = [
-    0.2172, 1.1771, 3.2602, 16.1507, 7.0114, 0.57, 2.0966, 0.0069,
-    1.5261, 0.112, 1.0178, 1.849, 0.1133, 0.3127, 2.2934, 0.2191,
-    3.0004, 0.7536, 0.3332, 0.1437, 0.2,
-]
+# Installed-library defaults. Never hard-code these: FSRS parameters changed
+# between compatible 6.x releases while Alif allowed ``fsrs>=6.0.0``.
+DEFAULT_W = list(Scheduler().parameters)
 W_LABELS = [
     "w0  init stability (Again)",
     "w1  init stability (Hard)",
@@ -81,7 +86,7 @@ W_LABELS = [
     "w17 short-term stability (same-day)",
     "w18 short-term stability modifier",
     "w19 initial retrievability ceiling",
-    "w20 (unused/reserved)",
+    "w20 forgetting-curve decay",
 ]
 
 
@@ -102,7 +107,10 @@ def main():
     if not db_path.exists():
         raise SystemExit(f"DB not found: {db_path}")
 
-    print(f"Loading review logs from {db_path}…")
+    print(
+        f"Loading review logs from {db_path} "
+        f"(fsrs {package_version('fsrs')})…"
+    )
     logs = load_reviews(db_path)
     print(f"Loaded {len(logs)} FSRS reviews across "
           f"{len({l.card_id for l in logs})} lemmas")
@@ -128,8 +136,16 @@ def main():
     # Sanity: what post-lapse stability does each parameter set predict
     # for a well-learned word (stability=30, difficulty=5, retrievability=0.9)?
     def post_lapse_stability(w, S=30.0, D=5.0, R=0.9):
-        # FSRS-6 post-lapse stability formula
-        return w[11] * (D ** -w[12]) * ((S + 1) ** w[13] - 1) * (2.718281828 ** ((1 - R) * w[14]))
+        # FSRS 6.3 takes the lower of its long- and short-term forgetting
+        # branches. Reporting only the long-term branch overstates recovery.
+        long_term = (
+            w[11]
+            * (D ** -w[12])
+            * ((S + 1) ** w[13] - 1)
+            * (2.718281828 ** ((1 - R) * w[14]))
+        )
+        short_term = S / (2.718281828 ** (w[17] * w[18]))
+        return min(long_term, short_term)
 
     print("\n== Predicted post-lapse stability for S=30d, D=5, R=0.9 ==")
     d_lapse = post_lapse_stability(DEFAULT_W)
@@ -139,8 +155,10 @@ def main():
     print()
     print("Higher post-lapse stability = gentler recovery path after a lapse.")
     print()
-    print("To deploy: copy the optimized weights into Scheduler(parameters=...) "
-          "in backend/app/services/fsrs_service.py and restart alif-backend.")
+    print(
+        "DO NOT DEPLOY THIS OUTPUT DIRECTLY. Validate on clean, versioned, "
+        "sentence-reading rolling-origin folds and replay workload first."
+    )
 
 
 if __name__ == "__main__":

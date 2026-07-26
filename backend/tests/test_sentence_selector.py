@@ -16,6 +16,9 @@ from app.services.sentence_selector import (
     MAX_AUTO_INTRO_PER_SESSION,
     MID_ACCURACY_INTRO_BACKLOG_CAP,
     PIPELINE_BACKLOG_THRESHOLD,
+    SELECTOR_POLICY_S0,
+    SELECTOR_POLICY_S1,
+    SELECTOR_POLICY_S1B,
     SESSION_SCAFFOLD_DECAY,
     SentenceCandidate,
     WordMeta,
@@ -131,6 +134,105 @@ class TestDifficultyMatchQuality:
 
     def test_strong_word_any_scaffold(self):
         assert _difficulty_match_quality(10.0, [1.0, 2.0]) == 1.0
+
+
+class TestFilledOpeningPolicy:
+    def test_s1_scans_past_unserviceable_top_obligations(self, db_session):
+        for lemma_id in range(1, 7):
+            _seed_word(
+                db_session,
+                lemma_id,
+                f"word-{lemma_id}",
+                f"word {lemma_id}",
+                frequency_rank=lemma_id,
+            )
+        _seed_sentence(
+            db_session,
+            600,
+            "word-6",
+            "word 6",
+            6,
+            [("word-6", 6)],
+        )
+        db_session.commit()
+
+        s0 = build_session(
+            db_session,
+            limit=5,
+            log_events=False,
+            allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_S0,
+        )
+        s1 = build_session(
+            db_session,
+            limit=5,
+            log_events=False,
+            allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_S1,
+        )
+        s1b = build_session(
+            db_session,
+            limit=5,
+            log_events=False,
+            allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_S1B,
+        )
+
+        assert s0["items"][0]["selection_info"]["reason"] == "greedy_cover"
+        assert s1["items"][0]["selection_info"]["reason"] == "frequency_due_first_s1"
+        assert s1b["items"][0]["selection_info"]["reason"] == "frequency_due_first_s1b"
+
+    def test_s1b_optional_card_respects_marginal_coverage_budget(self, db_session):
+        for lemma_id in range(1, 7):
+            _seed_word(
+                db_session,
+                lemma_id,
+                f"budget-{lemma_id}",
+                f"budget {lemma_id}",
+                frequency_rank=lemma_id,
+            )
+        _seed_sentence(db_session, 101, "budget-1", "one", 1, [("budget-1", 1)])
+        _seed_sentence(db_session, 102, "budget-2", "two", 2, [("budget-2", 2)])
+        _seed_sentence(db_session, 103, "budget-3", "three", 3, [("budget-3", 3)])
+        _seed_sentence(
+            db_session,
+            104,
+            "budget-4 budget-5 budget-6",
+            "four five six",
+            4,
+            [("budget-4", 4), ("budget-5", 5), ("budget-6", 6)],
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=5,
+            log_events=False,
+            allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_S1B,
+        )
+        by_sentence = {item["sentence_id"]: item for item in result["items"]}
+
+        assert by_sentence[103]["selection_info"]["reason"] == "greedy_cover"
+        assert by_sentence[104]["selection_info"]["reason"] == "frequency_due_first_s1b"
+        assert (
+            by_sentence[104]["selection_info"]["components"]["s1b_marginal_coverage_loss"]
+            == 0
+        )
+        assert result["selection_diagnostics"] == {
+            "base_card_count": 4,
+            "acquisition_repeat_card_count": 0,
+            "returned_card_count": 4,
+            "base_distinct_due_words": 6,
+            "total_distinct_due_words": 6,
+            "acquisition_due_words": 0,
+            "maintenance_due_words": 6,
+            "distinct_all_words_presented": 6,
+            "selection_reason_counts": {
+                "frequency_due_first_s1b": 1,
+                "greedy_cover": 3,
+            },
+        }
 
 
 class TestExactSurfaceExperimentSelection:

@@ -1,6 +1,8 @@
 import json
+import hashlib
 import logging
 from datetime import datetime, timezone
+from importlib.metadata import version as package_version
 from typing import Optional
 
 from fsrs import Scheduler, Card, Rating, State
@@ -14,6 +16,11 @@ logger = logging.getLogger(__name__)
 # Default library weights are well-fit; our only deviation is the retention target,
 # which the optimizer judged optimal at 0.95 for this user's low lapse rate (~4.6%).
 scheduler = Scheduler(desired_retention=0.95)
+FSRS_SCHEDULER_POLICY_VERSION = 1
+FSRS_LIBRARY_VERSION = package_version("fsrs")
+FSRS_PARAMETERS_SHA256 = hashlib.sha256(
+    json.dumps(list(scheduler.parameters), separators=(",", ":")).encode("utf-8")
+).hexdigest()
 
 
 def parse_json_column(data, default=None):
@@ -158,6 +165,10 @@ def submit_review(
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
             "pre_knowledge_state": old_knowledge_state,
+            "fsrs_scheduler_policy_version": FSRS_SCHEDULER_POLICY_VERSION,
+            "fsrs_library_version": FSRS_LIBRARY_VERSION,
+            "fsrs_desired_retention": scheduler.desired_retention,
+            "fsrs_parameters_sha256": FSRS_PARAMETERS_SHA256,
         },
     )
     db.add(log_entry)
