@@ -18,7 +18,7 @@ Feature-level design decisions and implementation details. For bug-preventing in
 ## Graduation & Acquisition
 
 - **Tiered graduation** — acquisition uses aggressive graduation tiers: (0) first correct review -> instant graduation, (1) 100% accuracy + 3 reviews -> any box, (2) >=80% accuracy + 4 reviews + box >= 2, (3) standard: box >= 3 + 5 reviews + >=60% accuracy + 2 calendar days. Tiers 0-2 fire on **any review** (including collateral appearances), tier 3 requires word to be due. FSRS safety net catches false positives from fast graduation.
-- **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
+- **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). Graduation uses the same 95% retention scheduler as subsequent FSRS reviews, producing an initial interval around 2–4 days after fuzzing; before 2026-07-27 a local default scheduler silently used 90% and produced ~8 days. `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
 
 ## Review UX
 

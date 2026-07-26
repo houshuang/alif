@@ -450,17 +450,21 @@ def _graduate(ulk, now):
     ulk.acquisition_box = None
     ulk.acquisition_next_due = None
     ulk.graduated_at = now
-    # Create initial FSRS card with Good rating
+    # Create initial FSRS card with the shared production scheduler.
+    # Use Easy when 2+ known root siblings provide a familiarity boost.
     card = Card()
-    new_card, _ = scheduler.review_card(card, Rating.Good, now)
+    rating = Rating.Easy if known_root_siblings >= 2 else Rating.Good
+    new_card, _ = fsrs_scheduler.review_card(card, rating, now)
     ulk.fsrs_card_json = new_card.to_dict()
 ```
 
-The initial FSRS stability after graduation is S₀(Good) ≈ 2.3 days. For words
-graduating via tier 0 (first-correct), this acts as a 2-day safety net — if the word
-was a false positive, FSRS will detect it quickly. For standard graduates, the word
-has been seen 5+ times with 60%+ accuracy
-over 4+ days — a genuine learning signal.
+The initial FSRS stability after ordinary graduation is S₀(Good) ≈ 2.3 days,
+with the standard 10-minute learning step first. Root-boost Easy graduation
+skips into Review with S₀(Easy) ≈ 8.3 days and, under the shared 95% retention
+policy, is due in about 3 days. Before 2026-07-27 that path accidentally used a
+local 90% scheduler and waited about 8 days. For standard graduates, the word
+has been seen 5+ times with 60%+ accuracy over 4+ days — a genuine learning
+signal.
 
 ### Within-Session Repetition
 
@@ -2103,7 +2107,10 @@ consolidation. "Forced day-1 review regardless of box position."
 **Implemented** (2026-02-20): When a word graduates from acquisition, `_graduate()` in
 `acquisition_service.py` checks for known root siblings via `_count_known_root_siblings()`.
 If 2+ siblings have `knowledge_state="known"`, the word graduates with `Rating.Easy`
-(S₀ ≈ 8.3d) instead of the default `Rating.Good` (S₀ ≈ 2.3d) — a ~3.6x stability boost.
+(S₀ ≈ 8.3d) instead of the default `Rating.Good` (S₀ ≈ 2.3d) — a ~3.6x
+stability boost. The shared 95% scheduler converts that Easy stability into an
+initial fuzzed interval around 2–4 days. The initialization decision is stamped in the
+graduating acquisition row for version-segmented replay.
 
 Root familiarity still affects word selection (30% weight in learn mode). Now it also
 accelerates FSRS scheduling for words with established root families.

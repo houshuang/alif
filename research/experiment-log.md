@@ -88,6 +88,19 @@ applied-rating provenance. This prevents post-v2 rating-2 lapses from being
 silently counted as scheduler successes while preserving raw rating-2
 diagnostics.
 
+**Graduation scheduler leak corrected.** `_graduate()` had constructed a fresh
+default 90%-retention scheduler instead of using production's 95% scheduler.
+Good graduates were unaffected because both policies enter the 10-minute
+learning step, but root-boost Easy graduates were scheduled near eight days
+instead of the intended roughly 2–4 fuzzed days. In the available July 8–26 interaction window, 71/199
+graduates (35.7%) were root-boosted; the correction shifts roughly 4.4 due
+arrivals per active graduation day earlier (maximum observed 14), without
+adding an initialization card. Delivered first FSRS outcomes were 44/48 strict
+success within four days versus 5/9 after four days; these small,
+selector-confounded cells support the safer declared policy but are not a
+causal interval estimate. New acquisition rows stamp the complete FSRS
+initialization decision. No historical card rewrite.
+
 ## 2026-07-26: Established-lapse recovery lane — bounded activation
 
 **Problem.** The frozen retry-v2 protocol gives a rating-1 sentence a rapid

@@ -30,7 +30,13 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
-from app.services.fsrs_service import create_new_card, parse_json_column, STATE_MAP
+from app.services.fsrs_service import (
+    FSRS_SCHEDULER_POLICY_VERSION,
+    STATE_MAP,
+    create_new_card,
+    parse_json_column,
+    scheduler as fsrs_scheduler,
+)
 from app.services.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
@@ -68,6 +74,9 @@ RETEST_CREDIT_GAP = timedelta(minutes=30)
 # Version 2 adds the rating>=3 graduation success gate and prospective evidence
 # fields; older rows are intentionally left unstamped rather than backfilled.
 ACQUISITION_GRADUATION_POLICY_VERSION = 2
+# First explicit boundary for the FSRS card created at graduation. Version 1
+# aligns root-boost Easy intervals with the production 95% retention policy.
+FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION = 1
 
 
 def _quiz_retest_after_failure(
@@ -792,8 +801,11 @@ def submit_acquisition_review(
             graduated = True
             grad_reason = "standard"
 
+    graduation_fsrs_initialization = None
     if graduated:
-        _graduate(ulk, now, db=db, reason=grad_reason)
+        graduation_fsrs_initialization = _graduate(
+            ulk, now, db=db, reason=grad_reason
+        )
 
     # Log review
     log_entry = ReviewLog(
@@ -820,6 +832,7 @@ def submit_acquisition_review(
             "post_times_correct": ulk.times_correct,
             "pre_knowledge_state": old_knowledge_state,
             "graduation_policy_version": ACQUISITION_GRADUATION_POLICY_VERSION,
+            "graduation_fsrs_initialization": graduation_fsrs_initialization,
             "is_due_at_review": is_due,
             "elapsed_since_last_seconds": (
                 elapsed_since_last.total_seconds()
@@ -873,9 +886,9 @@ def _graduate(
     now: datetime,
     db: Session | None = None,
     reason: Optional[str] = None,
-) -> None:
+) -> dict:
     """Graduate a word from acquisition to FSRS."""
-    from fsrs import Scheduler, Card, Rating
+    from fsrs import Card, Rating
 
     ulk.knowledge_state = "learning"
     ulk.acquisition_box = None
@@ -890,9 +903,11 @@ def _graduate(
             rating = Rating.Easy
             root_boost = True
 
-    scheduler = Scheduler()
     card = Card()
-    new_card, _ = scheduler.review_card(card, rating, now)
+    # Use the same scheduler policy as every subsequent FSRS review. The old
+    # local Scheduler() silently used 90% retention, making root-boost Easy
+    # graduates wait about eight days instead of the production policy's three.
+    new_card, _ = fsrs_scheduler.review_card(card, rating, now)
     ulk.fsrs_card_json = new_card.to_dict()
 
     log_interaction(
@@ -903,6 +918,14 @@ def _graduate(
         root_boost=root_boost,
         graduation_reason=reason,
     )
+    return {
+        "policy_version": FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION,
+        "scheduler_policy_version": FSRS_SCHEDULER_POLICY_VERSION,
+        "desired_retention": fsrs_scheduler.desired_retention,
+        "applied_rating": int(rating),
+        "root_boost": root_boost,
+        "due": new_card.due.isoformat(),
+    }
 
 
 def get_acquisition_due(
