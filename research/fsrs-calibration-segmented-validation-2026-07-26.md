@@ -117,7 +117,7 @@ The clean next comparison is:
 Only then should a replay compare higher desired retention, state repair, or
 relearning-specific treatment under the same learner-minute budget.
 
-## Reproducibility fixes implemented in the workspace
+## Reproducibility fixes shipped in PR #224
 
 No scheduling behavior was intentionally changed.
 
@@ -133,7 +133,9 @@ No scheduling behavior was intentionally changed.
 - `replay_fsrs.py` is explicitly labeled as a frozen April historical
   reproduction, not current calibration.
 
-These changes are workspace-only and not deployed.
+These changes were deployed on 2026-07-26. Live verification confirmed FSRS
+6.3.1, desired retention 0.95, and the expected parameter hash; no scheduling
+parameter changed.
 
 ## Risks and open validation
 

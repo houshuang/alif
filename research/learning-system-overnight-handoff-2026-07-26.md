@@ -3,11 +3,11 @@
 ## Outcome
 
 The broad learning/retention plan advanced across measurement, intake,
-selection, acquisition graduation, and FSRS calibration. No production data,
-deployment, scheduler weights, desired retention, intake, or live selector
-policy changed.
+selection, acquisition graduation, and FSRS calibration. PR #224 merged and
+was deployed on 2026-07-26. No production data, scheduler weights, desired
+retention, intake, retry protocol, or live selector policy changed.
 
-One narrow behavior fix is implemented in the workspace:
+One narrow behavior fix shipped:
 
 - acquisition graduation now requires the current review to be successful
   (`rating >= 3`).
@@ -29,7 +29,7 @@ the word was the selector's primary target or collateral. All new analyses and
 replays count those rows equally. `credit_type` is used only for diagnostics or
 the explicitly primary-only intake effort gate.
 
-## Implemented workspace changes
+## Shipped changes
 
 ### Runtime behavior
 
@@ -166,40 +166,33 @@ very different populations.
 - installed environment dependency check: no broken requirements;
 - targeted diff whitespace check passed.
 
-The full repository test suite was not rerun overnight. An earlier attempt in
-this work stopped at an existing live-network crawl after 511 passing tests and
-no failures. The focused suite covers every runtime area changed here.
+The full backend suite subsequently completed:
+`1488 passed, 9 deselected` with only pre-existing SQLAlchemy deprecation
+warnings. Production verification confirmed commit `cb4cfc4d`, FSRS 6.3.1,
+desired retention 0.95, the expected parameter hash, acquisition policy v2,
+selector default S0, an active backend, and an HTTP 200 smoke test.
 
-## Proposed next steps, in order
+## Next steps, in order
 
-1. Review the workspace diff before creating commits. The worktree contains
-   unrelated user edits; isolate learning-system files carefully.
-2. Split any PRs by concern:
-   - analysis/replay foundation;
-   - rating-2 graduation correctness + acquisition telemetry;
-   - FSRS exact pin + config telemetry/optimizer safety;
-   - selector diagnostics and dormant replay-only candidates.
-3. Before deploying the FSRS pin, read the server's installed package version
-   and parameter hash. The pin is intended to freeze current behavior, not
-   upgrade it accidentally.
-4. Deploy the rating-2 success gate only with its additive policy telemetry and
-   record the first production v2 timestamp.
-5. Let protocol-v2 rapid retry run untouched to its planned coarse readout.
-6. Collect selector diagnostics long enough to learn actual base/repetition
+Release preparation, isolated commits, production-version verification, PR
+review, merge, and the single backend deployment are complete in PR #224.
+
+1. Let protocol-v2 rapid retry run untouched to its planned coarse readout.
+2. Collect selector diagnostics long enough to learn actual base/repetition
    workload before designing S1c.
-7. Build a full state replay from clean telemetry boundaries:
+3. Build a full state replay from clean telemetry boundaries:
    - box transitions and due dates;
    - counter-neutral retry semantics;
    - perfect/high graduation spacing candidates;
    - selector delivery and acquisition stock displacement.
-8. For FSRS, run rolling-origin comparisons separately for:
+4. For FSRS, run rolling-origin comparisons separately for:
    - post-acquisition Review-state cards;
    - legacy/untracked cards;
    - Relearning/old-lapse recovery.
-9. Compare higher desired retention, state repair, and recovery-specific
+5. Compare higher desired retention, state repair, and recovery-specific
    treatment under an equal learner-minute budget. Do not lower desired
    retention while observed recall trails prediction.
-10. Use retained sentence success at ≥1/3/7 days, completion, distinct
+6. Use retained sentence success at ≥1/3/7 days, completion, distinct
     obligations served, and acquiring/FSRS debt as joint outcomes.
 
 ## Open questions and risks for another agent
@@ -235,4 +228,5 @@ No schema migrations or historical data rewrites were made.
 - Telemetry keys are additive JSON.
 - The FSRS version pin is one dependency line.
 - Every generated artifact is removable without runtime effect.
-- No deployment occurred.
+- PR #224 deployed once from `main`; no database migration or historical-data
+  mutation occurred.
