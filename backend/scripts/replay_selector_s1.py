@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +32,7 @@ from app.services.sentence_selector import (
     SELECTOR_POLICY_S0,
     SELECTOR_POLICY_S1,
     SELECTOR_POLICY_S1B,
+    SELECTOR_POLICY_RECOVERY,
     build_session,
 )
 
@@ -67,18 +70,24 @@ def summarize(
         if isinstance(quality, (int, float)):
             quality_values.append(float(quality))
         for word in item.get("words") or []:
-            lemma_id = word.get("lemma_id")
-            if lemma_id:
-                all_word_ids.add(int(lemma_id))
+            if word.get("is_function_word") or word.get("is_proper_name"):
+                continue
+            lemma_id = word.get("canonical_lemma_id") or word.get("lemma_id")
+            if isinstance(lemma_id, int):
+                all_word_ids.add(lemma_id)
                 if reason != "acquisition_repeat":
-                    base_all_word_ids.add(int(lemma_id))
+                    base_all_word_ids.add(lemma_id)
         for passage_sentence in item.get("passage_sentences") or []:
             for word in passage_sentence.get("words") or []:
-                lemma_id = word.get("lemma_id")
-                if lemma_id:
-                    all_word_ids.add(int(lemma_id))
+                if word.get("is_function_word") or word.get("is_proper_name"):
+                    continue
+                lemma_id = (
+                    word.get("canonical_lemma_id") or word.get("lemma_id")
+                )
+                if isinstance(lemma_id, int):
+                    all_word_ids.add(lemma_id)
                     if reason != "acquisition_repeat":
-                        base_all_word_ids.add(int(lemma_id))
+                        base_all_word_ids.add(lemma_id)
     opening = sum(
         count for reason, count in reasons.items()
         if reason in {
@@ -87,6 +96,16 @@ def summarize(
             "frequency_due_first_s1b",
         }
     )
+    recovery_ids = sorted({
+        int(primary_lemma_id)
+        for item in items
+        if (
+            (item.get("selection_info") or {}).get("reason")
+            == "established_lapse_recovery_v1"
+        )
+        for primary_lemma_id in [item.get("primary_lemma_id")]
+        if isinstance(primary_lemma_id, int)
+    })
     return {
         "requested_base_limit": limit,
         "returned_cards_including_repetitions": len(items),
@@ -100,6 +119,11 @@ def summarize(
         "opening_cards": opening,
         "opening_quota": min(opening_quota, limit),
         "opening_quota_filled": opening >= min(opening_quota, limit),
+        "established_lapse_recovery_cards": reasons.get(
+            "established_lapse_recovery_v1",
+            0,
+        ),
+        "established_lapse_recovery_lemma_ids": recovery_ids,
         "mean_quality_multiplier": round(mean(quality_values), 4) if quality_values else None,
         "selection_reasons": dict(sorted(reasons.items())),
         "sentence_ids": sorted(sid for sid in sentence_ids if sid),
@@ -136,6 +160,20 @@ def compare(s0: dict[str, Any], s1: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def public_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """Remove stable learner/content identifiers from committed replay output."""
+    private_keys = {
+        "sentence_ids",
+        "due_lemma_ids",
+        "established_lapse_recovery_lemma_ids",
+    }
+    return {
+        key: value
+        for key, value in summary.items()
+        if key not in private_keys
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, required=True)
@@ -146,7 +184,11 @@ def main() -> int:
     parser.add_argument("--depletion-rounds", type=int, default=4)
     parser.add_argument(
         "--candidate-policy",
-        choices=[SELECTOR_POLICY_S1, SELECTOR_POLICY_S1B],
+        choices=[
+            SELECTOR_POLICY_S1,
+            SELECTOR_POLICY_S1B,
+            SELECTOR_POLICY_RECOVERY,
+        ],
         default=SELECTOR_POLICY_S1,
     )
     parser.add_argument(
@@ -207,7 +249,11 @@ def main() -> int:
                     arms[policy] = summarize(
                         raw,
                         limit,
-                        opening_quota=3 if policy == SELECTOR_POLICY_S1B else 5,
+                        opening_quota=(
+                            3
+                            if policy == SELECTOR_POLICY_S1B
+                            else 5
+                        ),
                     )
                 comparison = compare(arms[SELECTOR_POLICY_S0], arms[candidate_policy])
                 rows.append({
@@ -241,8 +287,8 @@ def main() -> int:
         )
     ]
     result = {
-        "schema_version": 2,
-        "method_version": "selector-candidate-bounded-snapshot-v2",
+        "schema_version": 3,
+        "method_version": "selector-candidate-bounded-snapshot-v3",
         "candidate_policy": candidate_policy,
         "script": file_identity(Path(__file__).resolve()),
         "dependencies": {
@@ -254,8 +300,8 @@ def main() -> int:
                 Path(sentence_eligibility.__file__).resolve()
             ),
         },
-        "database": db_before,
-        "baseline_summary": baseline_identity,
+        "database": {"filename": db_before["filename"]},
+        "baseline_summary": {"filename": baseline_identity["filename"]},
         "cutoff": cutoff_text,
         "scope": {
             "historical_state_reconstruction": False,
@@ -269,7 +315,18 @@ def main() -> int:
                 else sentence_eligibility.MAPPING_VERIFICATION_MIN_AT.isoformat()
             ),
         },
-        "rows": rows,
+        "rows": [
+            {
+                **{
+                    key: value
+                    for key, value in row.items()
+                    if key not in {"s0", "candidate"}
+                },
+                "s0": public_summary(row["s0"]),
+                "candidate": public_summary(row["candidate"]),
+            }
+            for row in rows
+        ],
         "aggregate": {
             "paired_requests": len(rows),
             "requests_with_due_coverage_regression": sum(
@@ -290,6 +347,17 @@ def main() -> int:
             "requests_with_base_all_word_breadth_regression": sum(
                 row["comparison"]["base_all_word_breadth_delta"] < 0 for row in rows
             ),
+            "requests_serving_established_lapse_recovery": sum(
+                row["candidate"]["established_lapse_recovery_cards"] > 0
+                for row in rows
+            ),
+            "distinct_established_lapse_recovery_lemmas": len({
+                lemma_id
+                for row in rows
+                for lemma_id in row["candidate"][
+                    "established_lapse_recovery_lemma_ids"
+                ]
+            }),
             "mean_due_coverage_delta": round(
                 mean(row["comparison"]["due_coverage_delta"] for row in rows), 4
             ),
@@ -324,16 +392,27 @@ def main() -> int:
     }
 
     args.output_dir.mkdir(parents=True)
-    (args.output_dir / "replay.json").write_bytes(stable_json_bytes(result))
+    with (args.output_dir / "replay.json.gz").open("wb") as raw_handle:
+        with gzip.GzipFile(
+            filename="",
+            mode="wb",
+            fileobj=raw_handle,
+            mtime=0,
+        ) as gzip_handle:
+            gzip_handle.write(stable_json_bytes(result))
     with (args.output_dir / "paired_requests.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=[
-            "limit", "depletion_round", "excluded_sentence_count",
-            "s0_due", "candidate_due", "due_delta",
-            "s0_all_words", "candidate_all_words",
-            "all_words_delta", "base_due_delta", "returned_cards_delta",
-            "base_all_words_delta",
-            "s0_opening", "candidate_opening", "jaccard",
-        ])
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "limit", "depletion_round", "excluded_sentence_count",
+                "s0_due", "candidate_due", "due_delta",
+                "s0_all_words", "candidate_all_words",
+                "all_words_delta", "base_due_delta", "returned_cards_delta",
+                "base_all_words_delta",
+                "s0_opening", "candidate_opening", "jaccard",
+            ],
+            lineterminator="\n",
+        )
         writer.writeheader()
         for row in rows:
             writer.writerow({
@@ -353,6 +432,14 @@ def main() -> int:
                 "candidate_opening": row["candidate"]["opening_cards"],
                 "jaccard": row["comparison"]["sentence_set_jaccard"],
             })
+    checksum_lines = []
+    for name in ("paired_requests.csv", "replay.json.gz"):
+        digest = hashlib.sha256((args.output_dir / name).read_bytes()).hexdigest()
+        checksum_lines.append(f"{digest}  {name}")
+    (args.output_dir / "SHA256SUMS").write_text(
+        "\n".join(checksum_lines) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(result["aggregate"], sort_keys=True))
     print(f"Verdict: {result['verdict']}")
     return 0

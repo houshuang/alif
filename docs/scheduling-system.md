@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-22
+> **Last updated**: 2026-07-26
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -1006,6 +1006,33 @@ Before normal greedy set cover, the selector reserves up to five early selection
 the oldest overdue due words. This shrinks aged debt without letting old single-word
 cards dominate the entire session.
 
+#### Established-Lapse Recovery Lane (2026-07-26)
+
+The live selector policy is `r1_established_lapse`. It starts with the exact S0
+selection and mandatory acquisition repetitions, then may replace at most one
+later maintenance card with a currently due Relearning word when the word's
+**latest** non-acquisition rating-1 event had pre-card stability of at least
+seven days. This separates a once-established memory lapse from a fragile
+Box-1/early-FSRS repeat failure.
+
+The swap is allowed only when the complete returned workload stays
+non-regressing: same card count, no lower total/base due-word count, no lower
+total/base canonical creditable-word breadth, no greater acquisition-repeat
+liability, no lower sentence quality, and no near duplicate. Function words,
+proper names, and duplicate canonical variants cannot inflate the breadth
+guard. The full live selection and cold-filtered speculative selection must
+both pass. The five-card
+oldest/high-priority opening, exact-surface cards, passage cards,
+acquisition-due cards, and cold words requiring an intro are protected. Cold
+status uses the same canonical, counter-aware helper as speculative response
+filtering.
+
+This lane does not replace retry-v2. Retry-v2 provides the rapid few-minute
+retest of the failed sentence; the selector lane improves later delivery of
+older FSRS lapses without adding cards. Primary and collateral labels have no
+effect on validity or eligibility—every word in the selected sentence earns
+the same review credit.
+
 #### Whole-Sentence Near-Duplicate Veto (2026-04-27)
 
 Per-word scaffold decay isn't enough when two sentences for the same target word share their
@@ -1787,6 +1814,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `RETEST_CREDIT_GAP` | 30 min | Quiz-mode (checkpoint/wrap-up) success within this gap of a rating-1 review cannot promote a box, graduate, or count in the leech window (rapid re-exposure experiment, 2026-07-25) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
+| `ESTABLISHED_LAPSE_MIN_PRE_STABILITY_DAYS` | 7 days | Latest non-acquisition rating-1 pre-card stability required for the one-slot established-lapse recovery lane |
+| Live selector policy | `r1_established_lapse` | S0 plus at most one workload-neutral later-slot established-lapse swap; rollback is `s0` |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
 | `OVERDUE_ESCALATION_MAX` | 6.0 | Max score multiplier for severely overdue words (linear ramp over 14 days) |
 | FSRS package | `6.3.1` exact | Scheduler defaults are model state; exact pin plus per-review library/parameter hash prevents silent compatible-release drift |

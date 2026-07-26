@@ -12,7 +12,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **FSRS / lapse / leech** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
-**Session building / selection / comprehensibility** — `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
+**Session building / selection / comprehensibility** — `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
 **Sentence generation pipeline** — `2026-03-21 "Unify Sentence Generation Through Verified Pipeline"` (single-pipeline invariant) · `2026-05-10 "Batch material now has a mandatory quality gate"` · `2026-04-20 "Self-correcting batch sentence generation"` (⚠ later gated OFF — current default is legacy batch, `ALIF_USE_LEGACY_BATCH=1`) · `2026-05-04 "Backoff-aware multi-target"` · `2026-05-03 "Generation-pipeline investigation — three concurrent bugs"`.
 
@@ -47,6 +47,58 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-26: Established-lapse recovery lane — bounded activation
+
+**Problem.** The frozen retry-v2 protocol gives a rating-1 sentence a rapid
+checkpoint/wrap-up opportunity, but older FSRS lapses still compete in the
+ordinary selector after that session. A right-censored audit found 2,208
+non-acquisition rating-1 word outcomes since March; 1,088 had pre-lapse
+stability ≥7 days and 435 had stability ≥30 days. At the pinned cutoff,
+Relearning held 90 words: 37 latest lapses came from ≥7-day stability and 21
+from ≥30-day stability. Primary/collateral is diagnostic only; every sentence
+word is equally valid in these counts.
+
+**Change.** The default selector policy becomes
+`r1_established_lapse`. After normal S0 selection and mandatory acquisition
+repetitions, it may make at most one later-slot, one-for-one swap for a
+currently due lapsed word whose **latest** non-acquisition rating-1 row has
+pre-card stability ≥7 days. It never replaces the five-card opening block,
+exact-surface treatment, passages, acquisition-due cards, or cold/intro-state
+cards. It rejects near duplicates, lower-quality sentences, increased
+acquisition-repeat liability, fewer returned due words, or lower total/base
+canonical creditable-word breadth. Function words, proper names, and duplicate
+canonical variants cannot satisfy the breadth guard. Both the full live
+selection and the cold-filtered speculative selection must remain
+non-regressing. The same canonical cold-state helper used by speculative
+response filtering supplies the comparison set.
+
+**Replay.** Five pinned production states (June 28, July 12, July 18, July 25,
+and July 26 current) produced 60 paired S0/candidate requests at limits
+5/10/20 with four union-depletion rounds each. The lane served an established
+lapse in 35/60 requests and had **zero** returned-card increases, due-coverage
+regressions, base-due regressions, all-word breadth regressions, base-breadth
+regressions, quality regressions, or opening-block regressions. A broader
+generic debt optimizer was rejected after historical replay increased workload
+on some states; none of that policy is active.
+
+The final replay is the post-review-correction run: it closes a live/cold-card
+coverage edge case and counts only canonical words that can actually earn
+credit. The follow-up analyzer also includes acquisition/reintroduction rows
+when choosing the first subsequent outcome and classifies current stock from
+full pre-cutoff history rather than the reporting window.
+
+**Boundaries and rollback.** No retry-v2, FSRS parameters, acquisition
+repetition, counters, schema, or learner data change. `selection_diagnostics`
+stamps the selector policy, recovery-card count, and reason
+`established_lapse_recovery_v1`. Exact recovery evidence stays in private
+server logs rather than the HTTP response. Roll back by returning the
+`build_session` default to `s0`; historical learning state needs no repair.
+
+**Evidence.** `research/established-lapse-recovery-validation-2026-07-26.md`;
+artifacts:
+`research/baselines/established-lapse-recovery-2026-07-26/` and
+`research/baselines/lapse-followup-2026-03-01-to-07-26/`.
 
 ## 2026-07-26: Learning-system validation package deployed (PR #224)
 

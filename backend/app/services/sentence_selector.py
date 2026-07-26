@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Optional
 
+from sqlalchemy import or_
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, joinedload
 
@@ -93,14 +94,17 @@ OLDEST_DUE_FIRST_BLOCK = 5  # first cards should shrink aged debt before normal 
 SELECTOR_POLICY_S0 = "s0"
 SELECTOR_POLICY_S1 = "s1_filled_opening"
 SELECTOR_POLICY_S1B = "s1b_coverage_budgeted"
+SELECTOR_POLICY_RECOVERY = "r1_established_lapse"
 SELECTOR_POLICIES = {
     SELECTOR_POLICY_S0,
     SELECTOR_POLICY_S1,
     SELECTOR_POLICY_S1B,
+    SELECTOR_POLICY_RECOVERY,
 }
 S1B_BASE_OPENING_CARDS = 2
 S1B_MAX_OPENING_CARDS = 3
 S1B_MAX_MARGINAL_COVERAGE_LOSS = 0
+ESTABLISHED_LAPSE_MIN_PRE_STABILITY_DAYS = 7.0
 PASSAGE_MIN_SENTENCES = 3
 PASSAGE_MAX_SENTENCES = 5
 PASSAGE_MIN_DUE_WORDS = 3
@@ -240,6 +244,451 @@ class SentenceCandidate:
     selection_order: int = 0
     exact_surface_lemma_ids: set[int] = field(default_factory=set)
     primary_override_lemma_id: int | None = None
+    # Private, server-side evidence for interaction telemetry. Never serialize
+    # this into selection_info: it contains the learner's exact lapse history.
+    recovery_evidence: dict | None = None
+
+
+def _candidate_due_acquiring_ids(
+    candidate: SentenceCandidate,
+    remaining_due: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> set[int]:
+    return {
+        lemma_id
+        for lemma_id in candidate.due_words_covered & remaining_due
+        if (
+            knowledge_by_id.get(lemma_id) is not None
+            and knowledge_by_id[lemma_id].knowledge_state == "acquiring"
+        )
+    }
+
+
+def _candidate_has_cold_content(
+    candidate: SentenceCandidate,
+    cold_lemma_ids: set[int] | None = None,
+    canonical_by_id: dict[int, int] | None = None,
+) -> bool:
+    """Conservatively reject swaps that could add intro workload.
+
+    The exact intro-state gate also considers encounter counters and canonical
+    mappings later in the response pipeline. At selection time, treating every
+    mapped content word in ``new`` or ``encountered`` state as cold is stricter
+    but guarantees a debt-lane swap cannot create an intro card or disappear
+    from a speculative response after replacing an otherwise safe card.
+    """
+    if cold_lemma_ids is not None:
+        canonical_by_id = canonical_by_id or {}
+        return any(
+            word.lemma_id is not None
+            and canonical_by_id.get(word.lemma_id, word.lemma_id)
+            in cold_lemma_ids
+            for word in candidate.words_meta
+        )
+    return any(
+        word.lemma_id is not None
+        and not word.is_function_word
+        and not word.is_proper_name
+        and word.knowledge_state in {"new", "encountered"}
+        for word in candidate.words_meta
+    )
+
+
+def _established_lapse_evidence(
+    db: Session,
+    lapsed_lemma_ids: set[int],
+    now: datetime,
+) -> dict[int, dict]:
+    """Latest lapse evidence for established words currently in Relearning."""
+    if not lapsed_lemma_ids:
+        return {}
+    rows = (
+        db.query(ReviewLog)
+        .filter(
+            ReviewLog.lemma_id.in_(lapsed_lemma_ids),
+            ReviewLog.rating == 1,
+            or_(
+                ReviewLog.is_acquisition.is_(False),
+                ReviewLog.is_acquisition.is_(None),
+            ),
+            ReviewLog.reviewed_at <= now.replace(tzinfo=None),
+        )
+        .order_by(
+            ReviewLog.reviewed_at.desc(),
+            ReviewLog.id.desc(),
+        )
+        .all()
+    )
+    evidence: dict[int, dict] = {}
+    seen_lemma_ids: set[int] = set()
+    for row in rows:
+        if row.lemma_id in seen_lemma_ids:
+            continue
+        # The latest lapse is authoritative even when it is below threshold.
+        # Do not scan backward to an older, once-stable lapse and misclassify a
+        # currently fragile repeat-failure as established.
+        seen_lemma_ids.add(row.lemma_id)
+        payload = parse_json_column(row.fsrs_log_json)
+        if not isinstance(payload, dict):
+            continue
+        pre_card = payload.get("pre_card")
+        if not isinstance(pre_card, dict):
+            continue
+        pre_stability = pre_card.get("stability")
+        if not isinstance(pre_stability, (int, float)):
+            continue
+        if float(pre_stability) < ESTABLISHED_LAPSE_MIN_PRE_STABILITY_DAYS:
+            continue
+        reviewed_at = row.reviewed_at
+        if reviewed_at.tzinfo is None:
+            reviewed_at = reviewed_at.replace(tzinfo=timezone.utc)
+        evidence[row.lemma_id] = {
+            "pre_lapse_stability": float(pre_stability),
+            "lapsed_at": reviewed_at,
+            "lapse_age_days": max(
+                0.0,
+                (now - reviewed_at).total_seconds() / 86400,
+            ),
+        }
+    return evidence
+
+
+def _selection_due_ids(
+    selected: list[SentenceCandidate],
+) -> set[int]:
+    due_ids: set[int] = set()
+    for candidate in selected:
+        due_ids |= candidate.due_words_covered
+    return due_ids
+
+
+def _selection_reviewable_breadth(
+    selected: list[SentenceCandidate],
+    canonical_by_id: dict[int, int] | None = None,
+) -> set[int]:
+    """Canonical content words that can earn sentence-review credit."""
+    canonical_by_id = canonical_by_id or {}
+    lemma_ids: set[int] = set()
+    for candidate in selected:
+        lemma_ids.update(
+            canonical_by_id.get(word.lemma_id, word.lemma_id)
+            for word in candidate.words_meta
+            if word.lemma_id is not None
+            and not word.is_function_word
+            and not word.is_proper_name
+        )
+    return lemma_ids
+
+
+def _projected_acquisition_repeat_liability(
+    selected: list[SentenceCandidate],
+    due_lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> int:
+    counts: dict[int, int] = {}
+    targets: dict[int, int] = {}
+    for candidate in selected:
+        for lemma_id in candidate.due_words_covered & due_lemma_ids:
+            knowledge = knowledge_by_id.get(lemma_id)
+            if not knowledge or knowledge.knowledge_state != "acquiring":
+                continue
+            counts[lemma_id] = counts.get(lemma_id, 0) + 1
+            if lemma_id not in targets:
+                targets[lemma_id] = (
+                    BOX2_MIN_EXPOSURES
+                    if (knowledge.acquisition_box or 1) >= 2
+                    else BOX1_MIN_EXPOSURES
+                )
+    return sum(
+        max(0, targets[lemma_id] - count)
+        for lemma_id, count in counts.items()
+    )
+
+
+def _apply_dominating_debt_swap(
+    selected: list[SentenceCandidate],
+    candidates: list[SentenceCandidate],
+    target_lemma_ids: list[int],
+    due_lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+    reason: str,
+    evidence_by_lemma_id: dict[int, dict] | None = None,
+    cold_lemma_ids: set[int] | None = None,
+    canonical_by_id: dict[int, int] | None = None,
+) -> int | None:
+    """Serve one unserved target by a one-for-one globally non-regressing swap.
+
+    The replacement must preserve or improve full-set due coverage and
+    all-sentence-word breadth, cannot increase projected acquisition-repeat
+    liability, cannot lower sentence quality, and cannot disturb reserved
+    exact-surface or generated-passage cards.
+    """
+    # Compare the same warm subset that a speculative response will return.
+    # Exact cold IDs are computed with the shared intro-state helper, including
+    # canonical mappings and encounter counters.
+    old_observable = [
+        candidate
+        for candidate in selected
+        if not _candidate_has_cold_content(
+            candidate,
+            cold_lemma_ids,
+            canonical_by_id,
+        )
+    ]
+    old_full_due_ids = _selection_due_ids(selected)
+    old_full_breadth_ids = _selection_reviewable_breadth(
+        selected,
+        canonical_by_id,
+    )
+    old_due_ids = _selection_due_ids(old_observable)
+    old_breadth_ids = _selection_reviewable_breadth(
+        old_observable,
+        canonical_by_id,
+    )
+    old_full_base = [
+        candidate
+        for candidate in selected
+        if candidate.selection_reason != "acquisition_repeat"
+    ]
+    old_full_base_due_ids = _selection_due_ids(old_full_base)
+    old_full_base_breadth_ids = _selection_reviewable_breadth(
+        old_full_base,
+        canonical_by_id,
+    )
+    old_base = [
+        candidate
+        for candidate in old_observable
+        if candidate.selection_reason != "acquisition_repeat"
+    ]
+    old_base_due_ids = _selection_due_ids(old_base)
+    old_base_breadth_ids = _selection_reviewable_breadth(
+        old_base,
+        canonical_by_id,
+    )
+    old_liability = _projected_acquisition_repeat_liability(
+        selected,
+        due_lemma_ids,
+        knowledge_by_id,
+    )
+    for target_lemma_id in target_lemma_ids:
+        # A cold-containing card remains in a live response even though a
+        # speculative response filters it. Never duplicate a target already
+        # served by either response shape.
+        if target_lemma_id in old_full_due_ids:
+            continue
+        target_candidates = sorted(
+            (
+                candidate
+                for candidate in candidates
+                if (
+                    target_lemma_id in candidate.due_words_covered
+                    and getattr(candidate.sentence, "source", None) != "passage"
+                )
+            ),
+            key=lambda candidate: (
+                candidate.score,
+                -candidate.sentence_id,
+            ),
+            reverse=True,
+        )
+        best_swap: tuple | None = None
+        for replacement in target_candidates:
+            if _candidate_has_cold_content(
+                replacement,
+                cold_lemma_ids,
+                canonical_by_id,
+            ):
+                continue
+            if _candidate_due_acquiring_ids(
+                replacement,
+                due_lemma_ids,
+                knowledge_by_id,
+            ):
+                continue
+            for victim_index, victim in enumerate(selected):
+                if (
+                    victim.selection_reason
+                    in {
+                        "acquisition_repeat",
+                        "exact_surface_v1",
+                        "frequency_due_first",
+                        "frequency_due_first_s1",
+                        "frequency_due_first_s1b",
+                        "generated_passage_seed",
+                    }
+                    or getattr(victim.sentence, "source", None) == "passage"
+                    or _candidate_has_cold_content(
+                        victim,
+                        cold_lemma_ids,
+                        canonical_by_id,
+                    )
+                    or _candidate_due_acquiring_ids(
+                        victim,
+                        due_lemma_ids,
+                        knowledge_by_id,
+                    )
+                ):
+                    continue
+                other_selected = [
+                    candidate
+                    for index, candidate in enumerate(selected)
+                    if index != victim_index
+                ]
+                if _is_near_duplicate_candidate(replacement, other_selected):
+                    continue
+                proposed = [
+                    replacement if index == victim_index else candidate
+                    for index, candidate in enumerate(selected)
+                ]
+                new_observable = [
+                    candidate
+                    for candidate in proposed
+                    if not _candidate_has_cold_content(
+                        candidate,
+                        cold_lemma_ids,
+                        canonical_by_id,
+                    )
+                ]
+                new_full_due_ids = _selection_due_ids(proposed)
+                new_full_breadth_ids = _selection_reviewable_breadth(
+                    proposed,
+                    canonical_by_id,
+                )
+                new_due_ids = _selection_due_ids(new_observable)
+                new_breadth_ids = _selection_reviewable_breadth(
+                    new_observable,
+                    canonical_by_id,
+                )
+                new_full_base = [
+                    candidate
+                    for candidate in proposed
+                    if candidate.selection_reason != "acquisition_repeat"
+                ]
+                new_full_base_due_ids = _selection_due_ids(new_full_base)
+                new_full_base_breadth_ids = _selection_reviewable_breadth(
+                    new_full_base,
+                    canonical_by_id,
+                )
+                new_base = [
+                    candidate
+                    for candidate in new_observable
+                    if candidate.selection_reason != "acquisition_repeat"
+                ]
+                new_base_due_ids = _selection_due_ids(new_base)
+                new_base_breadth_ids = _selection_reviewable_breadth(
+                    new_base,
+                    canonical_by_id,
+                )
+                new_liability = _projected_acquisition_repeat_liability(
+                    proposed,
+                    due_lemma_ids,
+                    knowledge_by_id,
+                )
+                if len(new_full_due_ids) < len(old_full_due_ids):
+                    continue
+                if len(new_full_breadth_ids) < len(old_full_breadth_ids):
+                    continue
+                if len(new_full_base_due_ids) < len(old_full_base_due_ids):
+                    continue
+                if (
+                    len(new_full_base_breadth_ids)
+                    < len(old_full_base_breadth_ids)
+                ):
+                    continue
+                if len(new_due_ids) < len(old_due_ids):
+                    continue
+                if len(new_breadth_ids) < len(old_breadth_ids):
+                    continue
+                if len(new_base_due_ids) < len(old_base_due_ids):
+                    continue
+                if len(new_base_breadth_ids) < len(old_base_breadth_ids):
+                    continue
+                if new_liability > old_liability:
+                    continue
+                if (
+                    _quality_multiplier_for_sentence(replacement.sentence)
+                    < _quality_multiplier_for_sentence(victim.sentence)
+                ):
+                    continue
+                rank = (
+                    len(new_full_due_ids) - len(old_full_due_ids),
+                    len(new_full_breadth_ids) - len(old_full_breadth_ids),
+                    len(new_full_base_due_ids) - len(old_full_base_due_ids),
+                    (
+                        len(new_full_base_breadth_ids)
+                        - len(old_full_base_breadth_ids)
+                    ),
+                    len(new_due_ids) - len(old_due_ids),
+                    len(new_breadth_ids) - len(old_breadth_ids),
+                    len(new_base_due_ids) - len(old_base_due_ids),
+                    len(new_base_breadth_ids) - len(old_base_breadth_ids),
+                    old_liability - new_liability,
+                    replacement.score,
+                    -replacement.sentence_id,
+                    victim_index,
+                )
+                if best_swap is None or rank > best_swap[0]:
+                    best_swap = (
+                        rank,
+                        victim_index,
+                        replacement,
+                        new_full_due_ids,
+                        new_full_breadth_ids,
+                        new_full_base_due_ids,
+                        new_full_base_breadth_ids,
+                        new_due_ids,
+                        new_breadth_ids,
+                        new_base_due_ids,
+                        new_base_breadth_ids,
+                        new_liability,
+                    )
+        if best_swap is None:
+            continue
+        (
+            _,
+            victim_index,
+            replacement,
+            new_full_due_ids,
+            new_full_breadth_ids,
+            new_full_base_due_ids,
+            new_full_base_breadth_ids,
+            new_due_ids,
+            new_breadth_ids,
+            new_base_due_ids,
+            new_base_breadth_ids,
+            new_liability,
+        ) = best_swap
+        victim = selected[victim_index]
+        replacement.selection_reason = reason
+        replacement.selection_order = victim.selection_order
+        replacement.primary_override_lemma_id = target_lemma_id
+        replacement.score_components = dict(replacement.score_components)
+        replacement.score_components.update({
+            "workload_neutral_swap_v1": True,
+            "swap_due_coverage_delta": (
+                len(new_full_due_ids) - len(old_full_due_ids)
+            ),
+            "swap_all_word_breadth_delta": (
+                len(new_full_breadth_ids) - len(old_full_breadth_ids)
+            ),
+            "swap_base_due_coverage_delta": (
+                len(new_full_base_due_ids) - len(old_full_base_due_ids)
+            ),
+            "swap_base_all_word_breadth_delta": (
+                len(new_full_base_breadth_ids)
+                - len(old_full_base_breadth_ids)
+            ),
+            "swap_acquisition_repeat_liability_before": old_liability,
+            "swap_acquisition_repeat_liability_after": new_liability,
+        })
+        evidence = (evidence_by_lemma_id or {}).get(target_lemma_id)
+        if evidence:
+            replacement.score_components["established_lapse_recovery_v1"] = True
+            replacement.recovery_evidence = dict(evidence)
+        selected[victim_index] = replacement
+        candidates.remove(replacement)
+        return target_lemma_id
+    return None
 
 
 def _is_maintenance_passage_candidate(
@@ -821,7 +1270,7 @@ def build_session(
     log_events: bool = True,
     exclude_sentence_ids: set[int] | None = None,
     allow_intro_mutations: bool = True,
-    selector_policy: str = SELECTOR_POLICY_S0,
+    selector_policy: str = SELECTOR_POLICY_RECOVERY,
     at: datetime | None = None,
 ) -> dict:
     """Assemble a sentence-based review session.
@@ -1072,7 +1521,16 @@ def build_session(
             }
 
     # Build reintro cards for struggling words (limit 3 per session)
-    reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
+    reintro_cards = (
+        _build_reintro_cards(
+            db,
+            struggling_ids,
+            limit=3,
+            trigger_background_enrichment=allow_intro_mutations,
+        )
+        if struggling_ids
+        else []
+    )
 
     if not due_lemma_ids:
         return {
@@ -1095,9 +1553,15 @@ def build_session(
     if exclude_sentence_ids:
         sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode, allow_intro_mutations=allow_intro_mutations)
-
-    from sqlalchemy import or_
+        return _with_fallbacks(
+            db, session_id, due_lemma_ids, stability_map, total_due, [], limit,
+            reintro_cards=reintro_cards,
+            knowledge_by_id=knowledge_by_id,
+            all_knowledge=all_knowledge,
+            mode=mode,
+            allow_intro_mutations=allow_intro_mutations,
+            selector_policy=selector_policy,
+        )
 
     # Use mode-specific comprehension columns for recency filter
     if mode == "listening":
@@ -1155,7 +1619,15 @@ def build_session(
                 sentences.extend(rescue_sents)
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode, allow_intro_mutations=allow_intro_mutations)
+        return _with_fallbacks(
+            db, session_id, due_lemma_ids, stability_map, total_due, [], limit,
+            reintro_cards=reintro_cards,
+            knowledge_by_id=knowledge_by_id,
+            all_knowledge=all_knowledge,
+            mode=mode,
+            allow_intro_mutations=allow_intro_mutations,
+            selector_policy=selector_policy,
+        )
 
     # Generated passage cards are authored as a unit. Some connector sentences
     # may not contain a due word, but they are still part of the reading object.
@@ -1310,6 +1782,17 @@ def build_session(
         logger.info(f"Boosted acquiring words due: {len(boosted_acquiring_ids)}")
     if lapsed_lemma_ids:
         logger.info(f"Lapsed words due (boosted for re-exposure): {len(lapsed_lemma_ids)}")
+    recovery_policy_enabled = selector_policy == SELECTOR_POLICY_RECOVERY
+    established_lapse_evidence = (
+        _established_lapse_evidence(db, lapsed_lemma_ids, now)
+        if recovery_policy_enabled
+        else {}
+    )
+    if established_lapse_evidence:
+        logger.info(
+            "Established lapsed words eligible for recovery lane: %s",
+            len(established_lapse_evidence),
+        )
 
     # Build candidates
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1571,7 +2054,10 @@ def build_session(
         key=lambda lid: frequency_priority_sort_key(lid, due_frequency_ranks, overdue_days_map),
     )
     opening_quota = min(OLDEST_DUE_FIRST_BLOCK, limit)
-    if selector_policy == SELECTOR_POLICY_S0:
+    if selector_policy in {
+        SELECTOR_POLICY_S0,
+        SELECTOR_POLICY_RECOVERY,
+    }:
         # Historical behavior: inspect only the first N obligations. If one is
         # unserviceable or vetoed, its opening slot is silently left unfilled.
         priority_due_ids = priority_due_ids[:opening_quota]
@@ -1585,7 +2071,10 @@ def build_session(
     opening_cards_selected = 0
     for lid in priority_due_ids:
         if (
-            selector_policy in {SELECTOR_POLICY_S1, SELECTOR_POLICY_S1B}
+            selector_policy in {
+                SELECTOR_POLICY_S1,
+                SELECTOR_POLICY_S1B,
+            }
             and (
                 opening_cards_selected >= maximum_opening_cards
                 or len(selected) >= limit
@@ -1814,31 +2303,6 @@ def build_session(
             if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
                 session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
 
-        if log_events:
-            div_metrics = compute_sentence_diversity_score(
-                best.words_meta, knowledge_map, session_scaffold_counts
-            )
-            log_interaction(
-                event="sentence_selected",
-                session_id=session_id,
-                sentence_id=best.sentence_id,
-                selection_order=len(selected),
-                score=round(best.score, 3),
-                due_words_covered=len(best.due_words_covered),
-                remaining_due=len(remaining_due),
-                **div_metrics,
-            )
-
-    # Track covered
-    covered_ids: set[int] = set()
-    for c in selected:
-        covered_ids |= c.due_words_covered
-
-    logger.info(
-        f"Session build: {len(selected)}/{limit} sentences selected, "
-        f"{len(remaining_due)}/{len(due_lemma_ids)} words uncovered"
-    )
-
     # Track pre-repetition count so on-demand generation uses the right budget
     base_item_count = len(selected)
 
@@ -1894,10 +2358,102 @@ def build_session(
                 candidates.remove(extra)
                 acquiring_word_counts[acq_lid] = count + 1
 
+    # Conservative post-selection optimization. Running after mandatory
+    # acquisition repetitions lets the dominance checks protect the complete
+    # returned workload and all-word breadth, not merely the base set.
+    if recovery_policy_enabled and established_lapse_evidence:
+        recovery_candidate_ids = {
+            variant_to_canonical.get(word.lemma_id, word.lemma_id)
+            for candidate in [*selected, *candidates]
+            for word in candidate.words_meta
+            if word.lemma_id is not None
+        }
+        recovery_cold_ids = _session_words_needing_intro_state(
+            db,
+            recovery_candidate_ids,
+            knowledge_by_id,
+        )
+        recovery_targets = sorted(
+            established_lapse_evidence,
+            key=lambda lemma_id: (
+                -established_lapse_evidence[lemma_id]["pre_lapse_stability"],
+                -overdue_days_map.get(lemma_id, 0.0),
+                lemma_id,
+            ),
+        )
+        _apply_dominating_debt_swap(
+            selected,
+            candidates,
+            recovery_targets,
+            due_lemma_ids,
+            knowledge_by_id,
+            reason="established_lapse_recovery_v1",
+            evidence_by_lemma_id=established_lapse_evidence,
+            cold_lemma_ids=recovery_cold_ids,
+            canonical_by_id=variant_to_canonical,
+        )
+
+    covered_ids = _selection_due_ids(selected)
+    remaining_due = due_lemma_ids - covered_ids
+    logger.info(
+        f"Session build: {len(selected)}/{limit} sentences selected, "
+        f"{len(remaining_due)}/{len(due_lemma_ids)} words uncovered"
+    )
+
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
 
     selected_sentence_ids = {c.sentence_id for c in ordered}
+
+    # Log only the final post-swap selection. Logging inside the greedy loop
+    # produced phantom victim events and omitted the recovery sentence.
+    if log_events:
+        logged_remaining_due = set(due_lemma_ids)
+        logged_scaffold_counts: dict[int, int] = {}
+        for order, candidate in enumerate(ordered, start=1):
+            logged_remaining_due -= candidate.due_words_covered
+            div_metrics = compute_sentence_diversity_score(
+                candidate.words_meta,
+                knowledge_map,
+                logged_scaffold_counts,
+            )
+            log_interaction(
+                event="sentence_selected",
+                session_id=session_id,
+                sentence_id=candidate.sentence_id,
+                selection_order=order,
+                selection_reason=candidate.selection_reason,
+                score=round(candidate.score, 3),
+                due_words_covered=len(candidate.due_words_covered),
+                remaining_due=len(logged_remaining_due),
+                **div_metrics,
+            )
+            for word in candidate.words_meta:
+                if (
+                    word.lemma_id
+                    and not word.is_due
+                    and not word.is_function_word
+                    and not word.is_proper_name
+                ):
+                    logged_scaffold_counts[word.lemma_id] = (
+                        logged_scaffold_counts.get(word.lemma_id, 0) + 1
+                    )
+            if (
+                candidate.selection_reason
+                == "established_lapse_recovery_v1"
+                and candidate.primary_override_lemma_id is not None
+            ):
+                recovery_evidence = candidate.recovery_evidence or {}
+                log_interaction(
+                    event="established_lapse_recovery_selected",
+                    session_id=session_id,
+                    lemma_id=candidate.primary_override_lemma_id,
+                    sentence_id=candidate.sentence_id,
+                    pre_lapse_stability=recovery_evidence.get(
+                        "pre_lapse_stability"
+                    ),
+                    lapse_age_days=recovery_evidence.get("lapse_age_days"),
+                )
 
     # Note: mapping verification happens in warm_sentence_cache (background),
     # not here. Sentences already pass generation-time verification.
@@ -2119,7 +2675,17 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, mode=mode, allow_intro_mutations=allow_intro_mutations)
+    return _with_fallbacks(
+        db, session_id, due_lemma_ids, stability_map, total_due, items, limit,
+        covered_ids,
+        reintro_cards=reintro_cards,
+        knowledge_by_id=knowledge_by_id,
+        all_knowledge=all_knowledge,
+        base_item_count=base_item_count,
+        mode=mode,
+        allow_intro_mutations=allow_intro_mutations,
+        selector_policy=selector_policy,
+    )
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -2157,6 +2723,7 @@ def _build_reintro_cards(
     struggling_ids: set[int],
     limit: int = MAX_REINTRO_PER_SESSION,
     intro_kind: str | None = None,
+    trigger_background_enrichment: bool = True,
 ) -> list[dict]:
     """Build rich introduction-style cards for struggling words."""
     if not struggling_ids:
@@ -2196,7 +2763,7 @@ def _build_reintro_cards(
         l for l in lemmas[:limit]
         if not l.forms_json or not l.etymology_json or not l.memory_hooks_json
     ]
-    if needs_enrichment:
+    if needs_enrichment and trigger_background_enrichment:
         import threading
         from app.services.lemma_enrichment import enrich_lemmas_batch
         from app.services.memory_hooks import generate_memory_hooks
@@ -2334,6 +2901,7 @@ def _build_intro_cards(
     db: Session,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     eligible_ids: set[int],
+    trigger_background_enrichment: bool = True,
 ) -> list[dict]:
     """Build intro cards for new and struggling words.
 
@@ -2421,6 +2989,7 @@ def _build_intro_cards(
         db,
         new_card_ids,
         limit=min(len(new_card_ids), total_budget - rescue_reserve),
+        trigger_background_enrichment=trigger_background_enrichment,
     )
     remaining = max(0, total_budget - len(new_cards))
     rescue_cards = (
@@ -2428,6 +2997,7 @@ def _build_intro_cards(
             db,
             rescue_card_ids,
             limit=min(len(rescue_card_ids), remaining, rescue_dynamic_cap),
+            trigger_background_enrichment=trigger_background_enrichment,
         )
         if remaining > 0 and rescue_dynamic_cap > 0
         else []
@@ -2958,6 +3528,7 @@ def _with_fallbacks(
     base_item_count: int | None = None,
     mode: str = "reading",
     allow_intro_mutations: bool = True,
+    selector_policy: str = SELECTOR_POLICY_RECOVERY,
 ) -> dict:
     """Fill undersized sessions using pre-generated sentences (DB queries only).
 
@@ -3131,7 +3702,10 @@ def _with_fallbacks(
             db, intro_eligible_ids, knowledge_by_id
         )
     experiment_intro_cards = _build_intro_cards(
-        db, knowledge_by_id, intro_eligible_ids
+        db,
+        knowledge_by_id,
+        intro_eligible_ids,
+        trigger_background_enrichment=allow_intro_mutations,
     )
     if intro_state_promoted:
         db.commit()
@@ -3162,6 +3736,7 @@ def _with_fallbacks(
                 maintenance_due_ids.add(effective_id)
     acquisition_repeat_cards = reason_counts.get("acquisition_repeat", 0)
     selection_diagnostics = {
+        "selector_policy": selector_policy,
         "base_card_count": len(items) - acquisition_repeat_cards,
         "acquisition_repeat_card_count": acquisition_repeat_cards,
         "returned_card_count": len(items),
@@ -3170,6 +3745,10 @@ def _with_fallbacks(
         "acquisition_due_words": len(acquisition_due_ids),
         "maintenance_due_words": len(maintenance_due_ids),
         "distinct_all_words_presented": len(all_presented_word_ids),
+        "established_lapse_recovery_cards": reason_counts.get(
+            "established_lapse_recovery_v1",
+            0,
+        ),
         "selection_reason_counts": dict(sorted(reason_counts.items())),
     }
 
