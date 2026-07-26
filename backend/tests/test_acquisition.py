@@ -8,6 +8,7 @@ from app.services.acquisition_service import (
     ELAPSED_GRADUATION_MIN_INTERVAL,
     FAST_GRAD_INTRO_GAP,
     FAST_INTRO_RETRY_INTERVAL,
+    FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION,
     GRADUATION_MIN_ACCURACY,
     GRADUATION_MIN_CALENDAR_DAYS,
     GRADUATION_MIN_REVIEWS,
@@ -978,6 +979,24 @@ def test_root_boost_graduation_easy_rating(db_session):
     import json
     fsrs_data = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json
     assert fsrs_data["stability"] >= card_easy.stability * 0.95
+    due = datetime.fromisoformat(fsrs_data["due"])
+    # Production's 95% retention target schedules initial Easy near three days;
+    # the former local default scheduler silently produced about eight days.
+    assert timedelta(hours=47) <= due - datetime.now(timezone.utc) <= timedelta(days=4)
+    log = (
+        db_session.query(ReviewLog)
+        .filter_by(lemma_id=target_lemma.lemma_id)
+        .one()
+    )
+    initialization = log.fsrs_log_json["graduation_fsrs_initialization"]
+    assert (
+        initialization["policy_version"]
+        == FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION
+    )
+    assert initialization["scheduler_policy_version"] == 2
+    assert initialization["desired_retention"] == 0.95
+    assert initialization["applied_rating"] == 4
+    assert initialization["root_boost"] is True
 
 
 def test_no_root_boost_without_siblings(db_session):
@@ -1009,6 +1028,18 @@ def test_no_root_boost_without_siblings(db_session):
     fsrs_data = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json
     assert fsrs_data["stability"] >= card_good.stability * 0.95
     assert fsrs_data["stability"] <= card_good.stability * 1.05
+    # Good remains on the normal ten-minute learning step; the policy alignment
+    # changes only the interval calculation for Easy/root-boost graduates.
+    due = datetime.fromisoformat(fsrs_data["due"])
+    assert timedelta(minutes=9) <= due - datetime.now(timezone.utc) <= timedelta(minutes=11)
+    log = (
+        db_session.query(ReviewLog)
+        .filter_by(lemma_id=target_lemma.lemma_id)
+        .one()
+    )
+    initialization = log.fsrs_log_json["graduation_fsrs_initialization"]
+    assert initialization["applied_rating"] == 3
+    assert initialization["root_boost"] is False
 
 
 # --- Daily intro cap ---
