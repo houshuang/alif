@@ -13,8 +13,8 @@ Hard/confused answer may preserve enough cumulative accuracy to satisfy a
 graduation tier, but it does not demonstrate successful retrieval on the
 graduating review.
 
-The change is implemented and tested in the workspace. It is not deployed and
-does not modify historical learner data.
+The change was merged and deployed in PR #224 on 2026-07-26. It does not
+modify historical learner data.
 
 ## Before
 

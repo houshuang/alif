@@ -48,6 +48,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-26: Learning-system validation package deployed (PR #224)
+
+**Release.** PR #224 merged as `cb4cfc4d` and was deployed from `main` at
+2026-07-26 07:38:25 UTC. The only intentional learning-behavior change is that
+an acquisition word can no longer graduate on rating 2: Hard remains valid
+review evidence and normal FSRS recall, but a later rating ≥3 must provide the
+final acquisition-success evidence. Primary and collateral word outcomes
+remain equally valid.
+
+**Additive boundaries.** New acquisition reviews stamp graduation-policy v2,
+due state, elapsed interval, and pre/post counters. New FSRS reviews stamp
+library 6.3.1, scheduler-policy v1, desired retention 0.95, and parameter hash
+`a00444e09ca114a3ce9704158c2abb90200f9aa76e4892ef87fe7d4c79b85f56`.
+Selector sessions log all-word coverage and base/repetition workload. S0
+remains the live selector; replay-only S1/S1b remain rejected and inactive.
+
+**Validation and production verification.** Full backend:
+`1488 passed, 9 deselected`; focused learning path:
+`230 passed, 1 deselected`; dependency check and script compilation clean; all
+11 artifact manifests verified. After restart the backend was active, `/`
+returned HTTP 200, installed/logged FSRS were both 6.3.1 with the expected
+parameter hash, acquisition policy was v2, and selector default was S0.
+
+**Unchanged.** No schema migration, learner-data rewrite, historical card
+repair, desired-retention change, global FSRS retune, spacing-gate activation,
+intake change, or retry-protocol change. Rollback is PR #224's runtime diff plus
+one backend restart; telemetry keys are additive and historical data requires
+no reversal.
+
 ## 2026-07-26: FSRS calibration target corrected; version drift closed
 
 **Correction.** The WP1 matched calibration used Alif strict learning success
