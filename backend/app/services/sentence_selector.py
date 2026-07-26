@@ -90,6 +90,17 @@ MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents 
 MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
 OLDEST_DUE_FIRST_BLOCK = 5  # first cards should shrink aged debt before normal set cover
+SELECTOR_POLICY_S0 = "s0"
+SELECTOR_POLICY_S1 = "s1_filled_opening"
+SELECTOR_POLICY_S1B = "s1b_coverage_budgeted"
+SELECTOR_POLICIES = {
+    SELECTOR_POLICY_S0,
+    SELECTOR_POLICY_S1,
+    SELECTOR_POLICY_S1B,
+}
+S1B_BASE_OPENING_CARDS = 2
+S1B_MAX_OPENING_CARDS = 3
+S1B_MAX_MARGINAL_COVERAGE_LOSS = 0
 PASSAGE_MIN_SENTENCES = 3
 PASSAGE_MAX_SENTENCES = 5
 PASSAGE_MIN_DUE_WORDS = 3
@@ -810,6 +821,8 @@ def build_session(
     log_events: bool = True,
     exclude_sentence_ids: set[int] | None = None,
     allow_intro_mutations: bool = True,
+    selector_policy: str = SELECTOR_POLICY_S0,
+    at: datetime | None = None,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -818,8 +831,12 @@ def build_session(
     """
     import logging
     logger = logging.getLogger(__name__)
+    if selector_policy not in SELECTOR_POLICIES:
+        raise ValueError(f"Unknown selector policy: {selector_policy}")
     session_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
 
     # Load tashkeel settings
     tashkeel_settings = db.query(LearnerSettings).first()
@@ -920,7 +937,7 @@ def build_session(
 
     # Filter through focus cohort — only review words in the active cohort
     from app.services.cohort_service import get_focus_cohort
-    cohort = get_focus_cohort(db)
+    cohort = get_focus_cohort(db, at=now)
     due_lemma_ids &= cohort
 
     # Auto-introduce new words: reserve slots even when due queue is full
@@ -986,7 +1003,7 @@ def build_session(
                 knowledge_by_id[lid] = ulk
                 all_knowledge.append(ulk)  # ensure comprehensibility gate sees them
         # Refresh cohort to include newly acquiring words
-        cohort = get_focus_cohort(db)
+        cohort = get_focus_cohort(db, at=now)
         due_lemma_ids &= cohort
 
     due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids, due_frequency_ranks = _filter_due_ids_for_frequency_lanes(
@@ -1552,8 +1569,29 @@ def build_session(
     priority_due_ids = sorted(
         due_lemma_ids,
         key=lambda lid: frequency_priority_sort_key(lid, due_frequency_ranks, overdue_days_map),
-    )[: min(OLDEST_DUE_FIRST_BLOCK, limit)]
+    )
+    opening_quota = min(OLDEST_DUE_FIRST_BLOCK, limit)
+    if selector_policy == SELECTOR_POLICY_S0:
+        # Historical behavior: inspect only the first N obligations. If one is
+        # unserviceable or vetoed, its opening slot is silently left unfilled.
+        priority_due_ids = priority_due_ids[:opening_quota]
+    elif selector_policy == SELECTOR_POLICY_S1B:
+        opening_quota = min(S1B_BASE_OPENING_CARDS, limit)
+    maximum_opening_cards = (
+        min(S1B_MAX_OPENING_CARDS, limit)
+        if selector_policy == SELECTOR_POLICY_S1B
+        else opening_quota
+    )
+    opening_cards_selected = 0
     for lid in priority_due_ids:
+        if (
+            selector_policy in {SELECTOR_POLICY_S1, SELECTOR_POLICY_S1B}
+            and (
+                opening_cards_selected >= maximum_opening_cards
+                or len(selected) >= limit
+            )
+        ):
+            break
         if lid not in remaining_due:
             continue
         options = [c for c in candidates if lid in c.due_words_covered]
@@ -1625,9 +1663,63 @@ def build_session(
         for cand in options:
             if _is_near_duplicate_candidate(cand, selected):
                 continue
-            cand.selection_reason = "frequency_due_first"
+            priority_is_acquiring = (
+                knowledge_by_id.get(lid) is not None
+                and knowledge_by_id[lid].knowledge_state == "acquiring"
+            )
+            if selector_policy == SELECTOR_POLICY_S1B and not priority_is_acquiring:
+                candidate_acquiring_ids = {
+                    due_id
+                    for due_id in cand.due_words_covered & remaining_due
+                    if (
+                        knowledge_by_id.get(due_id) is not None
+                        and knowledge_by_id[due_id].knowledge_state == "acquiring"
+                    )
+                }
+                if candidate_acquiring_ids:
+                    continue
+            if (
+                selector_policy == SELECTOR_POLICY_S1B
+            ):
+                candidate_coverage = len(cand.due_words_covered & remaining_due)
+                best_available_coverage = max(
+                    (
+                        len(other.due_words_covered & remaining_due)
+                        for other in candidates
+                        if (
+                            priority_is_acquiring
+                            or not any(
+                                knowledge_by_id.get(due_id) is not None
+                                and knowledge_by_id[due_id].knowledge_state == "acquiring"
+                                for due_id in other.due_words_covered & remaining_due
+                            )
+                        )
+                    ),
+                    default=0,
+                )
+                coverage_loss = best_available_coverage - candidate_coverage
+                if coverage_loss > S1B_MAX_MARGINAL_COVERAGE_LOSS:
+                    continue
+                cand.score_components = dict(cand.score_components)
+                cand.score_components.update({
+                    "s1b_optional_card": opening_cards_selected >= opening_quota,
+                    "s1b_candidate_coverage": candidate_coverage,
+                    "s1b_best_available_coverage": best_available_coverage,
+                    "s1b_marginal_coverage_loss": coverage_loss,
+                    "s1b_priority_is_acquiring": priority_is_acquiring,
+                })
+            cand.selection_reason = (
+                "frequency_due_first_s1"
+                if selector_policy == SELECTOR_POLICY_S1
+                else (
+                    "frequency_due_first_s1b"
+                    if selector_policy == SELECTOR_POLICY_S1B
+                    else "frequency_due_first"
+                )
+            )
             cand.selection_order = len(selected) + 1
             selected.append(cand)
+            opening_cards_selected += 1
             remaining_due -= cand.due_words_covered
             candidates.remove(cand)
             for w in cand.words_meta:
@@ -3044,6 +3136,43 @@ def _with_fallbacks(
     if intro_state_promoted:
         db.commit()
 
+    reason_counts: dict[str, int] = {}
+    base_due_ids: set[int] = set()
+    total_due_ids: set[int] = set()
+    acquisition_due_ids: set[int] = set()
+    maintenance_due_ids: set[int] = set()
+    all_presented_word_ids: set[int] = set()
+    for item in items:
+        selection_info = item.get("selection_info") or {}
+        reason = selection_info.get("reason") or "unknown"
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        item_due_ids = set(selection_info.get("due_lemma_ids") or [])
+        total_due_ids.update(item_due_ids)
+        if reason != "acquisition_repeat":
+            base_due_ids.update(item_due_ids)
+        for word in item.get("words") or []:
+            effective_id = word.get("canonical_lemma_id") or word.get("lemma_id")
+            if effective_id:
+                all_presented_word_ids.add(effective_id)
+            if not word.get("is_due") or not effective_id:
+                continue
+            if word.get("knowledge_state") == "acquiring":
+                acquisition_due_ids.add(effective_id)
+            else:
+                maintenance_due_ids.add(effective_id)
+    acquisition_repeat_cards = reason_counts.get("acquisition_repeat", 0)
+    selection_diagnostics = {
+        "base_card_count": len(items) - acquisition_repeat_cards,
+        "acquisition_repeat_card_count": acquisition_repeat_cards,
+        "returned_card_count": len(items),
+        "base_distinct_due_words": len(base_due_ids),
+        "total_distinct_due_words": len(total_due_ids),
+        "acquisition_due_words": len(acquisition_due_ids),
+        "maintenance_due_words": len(maintenance_due_ids),
+        "distinct_all_words_presented": len(all_presented_word_ids),
+        "selection_reason_counts": dict(sorted(reason_counts.items())),
+    }
+
     return {
         "session_id": session_id,
         "items": items,
@@ -3054,6 +3183,7 @@ def _with_fallbacks(
         "experiment_intro_cards": experiment_intro_cards,
         "grammar_intro_needed": grammar_intro_needed,
         "grammar_refresher_needed": grammar_refresher_needed,
+        "selection_diagnostics": selection_diagnostics,
     }
 
 

@@ -14,13 +14,15 @@ from app.services.fsrs_service import parse_json_column
 MAX_COHORT_SIZE = 2000
 
 
-def get_focus_cohort(db: Session) -> set[int]:
+def get_focus_cohort(db: Session, at: datetime | None = None) -> set[int]:
     """Get the set of lemma_ids in the active focus cohort.
 
     Always includes all acquiring words. Fills remaining slots with
     FSRS due words sorted by lowest stability (most fragile first).
     """
-    now = datetime.now(timezone.utc)
+    now = at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
 
     all_active = (
         db.query(UserLemmaKnowledge)
