@@ -80,6 +80,14 @@ restoring both Box-1 constants to 4 restores the former repetition target.
 Validation and monitoring plan:
 `research/assisted-lapse-box1-efficiency-validation-2026-07-27.md`.
 
+**Analysis conformance follow-up.** The segmented calibration command is now
+policy-aware: scheduler recall uses stamped `fsrs_rating_applied >= 2`, rather
+than assuming every stored product rating 2 was FSRS Hard. Unstamped historical
+rows retain the old inference, and outputs segment policy version plus
+applied-rating provenance. This prevents post-v2 rating-2 lapses from being
+silently counted as scheduler successes while preserving raw rating-2
+diagnostics.
+
 ## 2026-07-26: Established-lapse recovery lane — bounded activation
 
 **Problem.** The frozen retry-v2 protocol gives a rating-1 sentence a rapid

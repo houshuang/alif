@@ -72,6 +72,7 @@ def summarize(dimension: str, group: str, items: list[dict]) -> dict:
     count = len(items)
     strict_successes = sum(item["strict_success"] for item in items)
     fsrs_recall_successes = sum(item["fsrs_recall"] for item in items)
+    raw_rating2_plus = sum(item["raw_product_rating_ge_2"] for item in items)
     strict_low, strict_high = wilson(strict_successes, count)
     fsrs_low, fsrs_high = wilson(fsrs_recall_successes, count)
     predicted = sum(item["predicted"] for item in items) / count if count else None
@@ -82,7 +83,8 @@ def summarize(dimension: str, group: str, items: list[dict]) -> dict:
         "group": group,
         "reviews": count,
         "strict_successes_rating_ge_3": strict_successes,
-        "fsrs_recall_successes_rating_ge_2": fsrs_recall_successes,
+        "fsrs_recall_successes_applied_rating_ge_2": fsrs_recall_successes,
+        "raw_product_rating_ge_2": raw_rating2_plus,
         "predicted_recall": rounded(predicted),
         "strict_observed_success": rounded(strict_observed),
         "strict_observed_wilson95_low": strict_low,
@@ -118,6 +120,20 @@ def summarize(dimension: str, group: str, items: list[dict]) -> dict:
 
 def sql_time(value):
     return value.replace(tzinfo=None).isoformat(" ")
+
+
+def resolve_applied_rating(
+    product_rating: int, metadata: dict
+) -> tuple[int, str]:
+    """Return the FSRS rating actually applied, with a robust provenance label."""
+    value = metadata.get("fsrs_rating_applied")
+    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 4:
+        return value, "stamped"
+    return product_rating, (
+        "inferred_pre_v2"
+        if "fsrs_rating_applied" not in metadata
+        else "invalid_stamp_fallback"
+    )
 
 
 def main() -> int:
@@ -215,14 +231,19 @@ def main() -> int:
             except (TypeError, ValueError):
                 excluded["retrievability_error"] += 1
                 continue
+            product_rating = int(row["rating"])
+            applied_rating, applied_rating_source = resolve_applied_rating(
+                product_rating, metadata
+            )
             lateness = (reviewed_at - due_at).total_seconds() / 86400
             item = {
                 "predicted": predicted,
-                # FSRS retrievability is calibrated against Again versus
-                # Hard/Good/Easy. Alif's north-star learning outcome is
-                # stricter: confused/Hard (2) is not successful recognition.
-                "strict_success": int(row["rating"] >= 3),
-                "fsrs_recall": int(row["rating"] >= 2),
+                # Scheduler-policy v2 stores product rating 2 but applies
+                # FSRS Again. Use the applied rating whenever it is stamped;
+                # pre-v2 unstamped rows used the raw Hard mapping.
+                "strict_success": int(product_rating >= 3),
+                "fsrs_recall": int(applied_rating >= 2),
+                "raw_product_rating_ge_2": int(product_rating >= 2),
                 "lateness_days": lateness,
             }
             if reviewed_at < DR095_START:
@@ -256,6 +277,10 @@ def main() -> int:
                      (14, "7-14d"), (math.inf, ">=14d")],
                 ),
                 "credit_type_diagnostic": row["credit_type"] or "unknown",
+                "scheduler_policy_version": str(
+                    metadata.get("fsrs_scheduler_policy_version", "unstamped")
+                ),
+                "applied_rating_source": applied_rating_source,
                 "card_state": str(card.state),
                 "origin": origin,
                 "first_after_graduation": first_after,
@@ -280,8 +305,8 @@ def main() -> int:
     ]
     overall = next(row for row in rows if row["dimension"] == "overall")
     result = {
-        "schema_version": 1,
-        "method_version": "fsrs-segmented-calibration-v1",
+        "schema_version": 2,
+        "method_version": "fsrs-segmented-calibration-v2-policy-aware",
         "script": file_identity(Path(__file__).resolve()),
         "database": before,
         "baseline_summary": baseline_identity,
@@ -299,10 +324,11 @@ def main() -> int:
         "segments": rows,
         "excluded": dict(sorted(excluded.items())),
         "limitations": [
-            "historical rows do not stamp library or parameter identity",
+            "historical rows do not stamp library, parameter, or applied-rating identity",
             "policy epochs are date proxies, not per-review scheduler versions",
             "desired retention changes due dates but not the retrievability formula",
-            "FSRS calibration target is rating>=2; strict learning success is rating>=3",
+            "scheduler recall uses stamped applied rating>=2; unstamped pre-v2 rows infer the historical raw mapping",
+            "strict unaided learning success remains raw product rating>=3",
             "only due reading/sentence FSRS reviews are calibration-eligible",
             "credit type is diagnostic; primary and collateral outcomes are equally valid",
             "observational calibration does not authorize parameter retuning",

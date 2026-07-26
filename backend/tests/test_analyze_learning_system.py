@@ -603,7 +603,74 @@ def test_segmented_fsrs_calibration_is_deterministic_and_read_only(tmp_path):
     calibration = json.loads(outputs[0]["fsrs_calibration_segments.json"])
     assert calibration["overall"]["reviews"] == 1
     assert calibration["overall"]["strict_successes_rating_ge_3"] == 1
-    assert calibration["overall"]["fsrs_recall_successes_rating_ge_2"] == 1
+    assert (
+        calibration["overall"]["fsrs_recall_successes_applied_rating_ge_2"]
+        == 1
+    )
+    assert calibration["overall"]["raw_product_rating_ge_2"] == 1
     assert calibration["limitations"][-2] == (
         "credit type is diagnostic; primary and collateral outcomes are equally valid"
     )
+
+
+def test_segmented_fsrs_calibration_uses_stamped_applied_rating(tmp_path):
+    """Policy-v2 rating 2 is an FSRS failure even though the product stores 2."""
+    snapshot = tmp_path / "snapshot.db"
+    logs = tmp_path / "logs"
+    _make_snapshot(snapshot)
+    _make_logs(logs)
+    connection = sqlite3.connect(snapshot)
+    payload = json.loads(
+        connection.execute(
+            "SELECT fsrs_log_json FROM review_log WHERE id = 2"
+        ).fetchone()[0]
+    )
+    payload.update({
+        "fsrs_scheduler_policy_version": 2,
+        "fsrs_rating_applied": 1,
+        "fsrs_policy": "assisted_lapse_v1",
+    })
+    connection.execute(
+        "UPDATE review_log SET rating = 2, fsrs_log_json = ? WHERE id = 2",
+        (json.dumps(payload),),
+    )
+    connection.commit()
+    connection.close()
+
+    baseline_dir = tmp_path / "baseline"
+    baseline = _run(snapshot, logs, baseline_dir)
+    assert baseline.returncode == 0, baseline.stderr
+    output = tmp_path / "calibration"
+    result = subprocess.run(
+        [
+            str(BACKEND_DIR / ".venv" / "bin" / "python"),
+            str(FSRS_SEGMENT_SCRIPT),
+            "--db", str(snapshot),
+            "--cutoff", "2026-07-25T17:00:00Z",
+            "--window-start", "2026-07-01T00:00:00Z",
+            "--current-baseline-summary", str(baseline_dir / "summary.json"),
+            "--output-dir", str(output),
+        ],
+        cwd=BACKEND_DIR,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    calibration = json.loads(
+        (output / "fsrs_calibration_segments.json").read_bytes()
+    )
+    assert calibration["schema_version"] == 2
+    assert calibration["overall"]["reviews"] == 1
+    assert calibration["overall"]["strict_successes_rating_ge_3"] == 0
+    assert (
+        calibration["overall"]["fsrs_recall_successes_applied_rating_ge_2"]
+        == 0
+    )
+    assert calibration["overall"]["raw_product_rating_ge_2"] == 1
+    policy_segments = {
+        row["group"]: row
+        for row in calibration["segments"]
+        if row["dimension"] == "scheduler_policy_version"
+    }
+    assert policy_segments["2"]["reviews"] == 1
