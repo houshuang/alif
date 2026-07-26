@@ -15,6 +15,7 @@ from __future__ import annotations
 import sqlite3
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from statistics import mean, median
 
 import argparse
@@ -36,7 +37,11 @@ RATING_MAP = {1: Rating.Again, 2: Rating.Hard, 3: Rating.Good, 4: Rating.Easy}
 
 
 def load_histories(db_path):
-    conn = sqlite3.connect(db_path)
+    resolved = Path(db_path).resolve()
+    conn = sqlite3.connect(
+        f"file:{resolved}?mode=ro&immutable=1",
+        uri=True,
+    )
     cur = conn.cursor()
     rows = cur.execute("""
         SELECT lemma_id, rating, reviewed_at
