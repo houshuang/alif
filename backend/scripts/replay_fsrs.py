@@ -1,5 +1,8 @@
-"""Counterfactual replay: feed actual rating sequences through both default and optimized
-FSRS schedulers and compare outcomes.
+"""Historical 2026-04-13 replay with two frozen parameter vectors.
+
+This reproduces the original comparison; ``DEFAULT_W`` means the baseline
+vector recorded by that experiment, not necessarily the defaults of the
+currently installed FSRS library. Do not use this script for current retuning.
 
 Answers:
   1. What stability would each card have ended at under each scheduler?
@@ -79,6 +82,10 @@ def main():
     ap.add_argument("--db", default="/tmp/claude/alif_fresh.db",
                     help="Path to SQLite database (default: /tmp/claude/alif_fresh.db)")
     args = ap.parse_args()
+    print(
+        "HISTORICAL REPRODUCTION ONLY: frozen April parameter vectors; "
+        "not current-library calibration."
+    )
     histories = load_histories(args.db)
     print(f"Loaded {len(histories)} card histories, "
           f"total {sum(len(h) for h in histories.values())} reviews")
