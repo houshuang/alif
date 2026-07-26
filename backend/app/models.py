@@ -274,7 +274,9 @@ class ConfusionCapture(Base):
     failed_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
     sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True, index=True)
     session_id = Column(String(50), nullable=True, index=True)
-    rating = Column(Integer, nullable=False)  # 1=Again, 2=Hard
+    # Product semantics: 1=missed, 2=recognized only after reveal, 3/4=unaided
+    # recall. FSRS policy may translate the stored rating before scheduling.
+    rating = Column(Integer, nullable=False)
     captured_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     # Exactly one of these two is populated, governed by capture_method

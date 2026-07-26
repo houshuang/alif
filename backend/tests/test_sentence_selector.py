@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
+    BOX1_MIN_EXPOSURES,
+    BOX2_MIN_EXPOSURES,
     FRESHNESS_BASELINE,
     HIGH_ACCURACY_INTRO_BACKLOG_CAP,
     INTRO_NEW_CARDS_PER_SESSION,
@@ -38,6 +40,7 @@ from app.services.sentence_selector import (
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
     _quality_multiplier_for_sentence,
+    _projected_acquisition_repeat_liability,
     _display_source,
     _scaffold_freshness,
     build_session,
@@ -1528,6 +1531,45 @@ class TestTimezoneHandling:
 
 
 class TestWithinSessionRepetition:
+    def test_box1_and_box2_targets_are_two_planned_exposures(self):
+        """Planned repetitions stop at two; rating-1 retries are a separate queue."""
+        box1 = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+        )
+        box2 = UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+        )
+        first = SentenceCandidate(
+            sentence_id=1,
+            sentence=object(),
+            words_meta=[
+                WordMeta(1, "one", "one", None, True, knowledge_state="acquiring"),
+                WordMeta(2, "two", "two", None, True, knowledge_state="acquiring"),
+            ],
+            due_words_covered={1, 2},
+        )
+        second = SentenceCandidate(
+            sentence_id=2,
+            sentence=object(),
+            words_meta=[
+                WordMeta(1, "one", "one", None, True, knowledge_state="acquiring"),
+                WordMeta(2, "two", "two", None, True, knowledge_state="acquiring"),
+            ],
+            due_words_covered={1, 2},
+        )
+
+        assert BOX1_MIN_EXPOSURES == BOX2_MIN_EXPOSURES == 2
+        assert _projected_acquisition_repeat_liability(
+            [first], {1, 2}, {1: box1, 2: box2}
+        ) == 2
+        assert _projected_acquisition_repeat_liability(
+            [first, second], {1, 2}, {1: box1, 2: box2}
+        ) == 0
+
     def test_acquisition_word_gets_extra_sentence(self, db_session):
         """Acquisition words appearing once should get a second sentence added."""
         lemma = Lemma(

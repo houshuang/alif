@@ -4,7 +4,7 @@ The canonical lemma remains the scheduling unit. This experiment only chooses
 which already-due sentence represents that lemma: treatment episodes prefer the
 same non-trivial surface form in a different sentence and make it the primary
 retrieval target. It never creates a card, changes a due date, or changes the
-Hard rating supplied by the learner.
+rating supplied by the learner.
 """
 
 from __future__ import annotations

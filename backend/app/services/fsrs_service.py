@@ -12,11 +12,20 @@ from app.models import Lemma, UserLemmaKnowledge, ReviewLog
 
 logger = logging.getLogger(__name__)
 
-# desired_retention=0.95 — calibrated from optimize_fsrs.py on 21,363 reviews.
-# Default library weights are well-fit; our only deviation is the retention target,
-# which the optimizer judged optimal at 0.95 for this user's low lapse rate (~4.6%).
+# Standard successful-retrieval policy. Rating 2 is handled separately below:
+# in this product it means retrieval failed before reveal, followed by recognition.
 scheduler = Scheduler(desired_retention=0.95)
-FSRS_SCHEDULER_POLICY_VERSION = 1
+FSRS_ASSISTED_LAPSE_ENABLED = True
+FSRS_ASSISTED_LAPSE_DESIRED_RETENTION = 0.90
+assisted_lapse_scheduler = Scheduler(
+    parameters=scheduler.parameters,
+    desired_retention=FSRS_ASSISTED_LAPSE_DESIRED_RETENTION,
+    # The normal 10-minute relearning step would duplicate the sentence-level
+    # checkpoint experiment. Rating 2 gets a short FSRS interval but no
+    # same-session retry; rating 1 retains the existing retry-all behavior.
+    relearning_steps=(),
+)
+FSRS_SCHEDULER_POLICY_VERSION = 2
 FSRS_LIBRARY_VERSION = package_version("fsrs")
 FSRS_PARAMETERS_SHA256 = hashlib.sha256(
     json.dumps(list(scheduler.parameters), separators=(",", ":")).encode("utf-8")
@@ -124,7 +133,11 @@ def submit_review(
 
     card_data = parse_json_column(knowledge.fsrs_card_json)
     card = Card() if not card_data else Card.from_dict(card_data)
-    fsrs_rating = RATING_MAP[rating_int]
+    assisted_lapse = rating_int == 2 and FSRS_ASSISTED_LAPSE_ENABLED
+    selected_scheduler = assisted_lapse_scheduler if assisted_lapse else scheduler
+    # Rating 2 is not successful unaided retrieval: update memory as a lapse,
+    # while preserving the user's original rating in ReviewLog.
+    fsrs_rating = Rating.Again if assisted_lapse else RATING_MAP[rating_int]
 
     # Snapshot pre-review state for undo support
     old_card_dict = card.to_dict() if card_data else None
@@ -133,7 +146,9 @@ def submit_review(
     old_knowledge_state = knowledge.knowledge_state
 
     now = datetime.now(timezone.utc)
-    new_card, review_log_entry = scheduler.review_card(card, fsrs_rating, now)
+    new_card, review_log_entry = selected_scheduler.review_card(
+        card, fsrs_rating, now
+    )
 
     new_state = STATE_MAP.get(new_card.state, "learning")
     card_dict = new_card.to_dict()
@@ -167,7 +182,16 @@ def submit_review(
             "pre_knowledge_state": old_knowledge_state,
             "fsrs_scheduler_policy_version": FSRS_SCHEDULER_POLICY_VERSION,
             "fsrs_library_version": FSRS_LIBRARY_VERSION,
-            "fsrs_desired_retention": scheduler.desired_retention,
+            "fsrs_policy": (
+                "assisted_lapse_v1" if assisted_lapse else "standard_v2"
+            ),
+            "fsrs_assisted_lapse": assisted_lapse,
+            "fsrs_rating_applied": int(fsrs_rating),
+            "fsrs_desired_retention": selected_scheduler.desired_retention,
+            "fsrs_relearning_steps_seconds": [
+                int(step.total_seconds())
+                for step in selected_scheduler.relearning_steps
+            ],
             "fsrs_parameters_sha256": FSRS_PARAMETERS_SHA256,
         },
     )

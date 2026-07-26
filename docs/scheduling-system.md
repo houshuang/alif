@@ -465,10 +465,11 @@ over 4+ days — a genuine learning signal.
 ### Within-Session Repetition
 
 Acquiring words get repetition within each session, with a per-box target:
-`BOX1_MIN_EXPOSURES` = 4 for box-1 (encoding) and `BOX2_MIN_EXPOSURES` = 2 for
-box-2 (consolidation). Box-2 was lowered from 4 → 2 on 2026-05-04 because a
-single correct rating in box-2 already triggers Tier 1 graduation, so the
-trailing 2 reps were on words the learner had just mastered.
+`BOX1_MIN_EXPOSURES` = 2 and `BOX2_MIN_EXPOSURES` = 2. Box-2 was lowered from
+4 → 2 on 2026-05-04; box-1 followed on 2026-07-27 after bounded production
+snapshot replay showed identical base due-word coverage with typically 3–5
+fewer cards per 10-card request. This is a target for planned repetitions, not
+a failure cap: rating-1 failures remain in the separate uncapped retry queue.
 
 Additionally, the **frontend auto-skips mature duplicate sentence cards** only
 when the primary lemma and every explicit due lemma on that card already have a
@@ -525,6 +526,16 @@ After each review, FSRS updates both values based on the rating:
 | 2 | Hard | Recalled with difficulty | Modest increase | Slight increase |
 | 3 | Good | Normal recall | Standard increase | No change |
 | 4 | Easy | Effortless recall | Large increase | Decrease |
+
+The table describes FSRS's internal ratings. Alif's UI rating 2 has a stricter
+meaning: the learner did **not** retrieve the word before revealing the answer,
+but recognized it afterward. From scheduler-policy v2 onward, a mature FSRS
+rating 2 is therefore stored unchanged as `ReviewLog.rating=2` but applied to
+FSRS as `Again` with desired retention 0.90 and `relearning_steps=()`. This
+creates a short follow-up interval without duplicating the separate same-session
+checkpoint experiment. Rating 1 keeps the standard FSRS relearning policy and
+the frontend's uncapped retry-all behavior. Acquisition continues to interpret
+rating 2 inside the box system: stay in the current box and do not graduate.
 
 ### Initial Stability Values (FSRS-6 Defaults)
 
@@ -723,7 +734,7 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 7: Acquisition Repetition              │
 │                                              │
 │ For each acquiring word in selected:         │
-│   Per-box target: box-1 → 4 reps,            │
+│   Per-box target: box-1 → 2 reps,            │
 │   box-2 → 2 reps.                            │
 │   Session can grow up to +15 extra slots.    │
 │   Multi-pass: target_count 2 → ... → max.    │
@@ -1183,7 +1194,7 @@ deterministic 50/50 episode under
 - Treatment reserves at most one normal session slot when the canonical lemma is already
   due, chooses a different non-passage sentence containing exactly the failed normalized
   surface, and makes that lemma primary.
-- It never creates an extra card, advances a due date, changes Hard, or operates in
+- It never creates an extra card, advances a due date, changes the submitted rating, or operates in
   listening/acquisition mode. Treatment pauses during leech re-acquisition.
 - Both arms record the first later primary reading result in any form (intention-to-treat
   safety endpoint) and the first exact-form primary result in a different sentence.
@@ -1782,9 +1793,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `BOX1_MIN_EXPOSURES` | 4 | Min times a box-1 (encoding) acquiring word should appear per session |
+| `BOX1_MIN_EXPOSURES` | 2 | Planned box-1 sentence exposures per session; rating-1 retries are separate and uncapped |
 | `BOX2_MIN_EXPOSURES` | 2 | Min times a box-2 (consolidation) acquiring word should appear per session — lowered from 4 → 2 on 2026-05-04 |
-| `MIN_ACQUISITION_EXPOSURES` | 4 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
+| `MIN_ACQUISITION_EXPOSURES` | 2 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions (used by `_auto_introduce_words` accuracy throttling) |
@@ -1820,6 +1831,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `OVERDUE_ESCALATION_MAX` | 6.0 | Max score multiplier for severely overdue words (linear ramp over 14 days) |
 | FSRS package | `6.3.1` exact | Scheduler defaults are model state; exact pin plus per-review library/parameter hash prevents silent compatible-release drift |
 | FSRS `desired_retention` | 0.95 | Current interval target. July segmented calibration found FSRS recall below prediction overall, especially for legacy/Relearning cards; do not change until clean rolling-origin replay |
+| Assisted-lapse `desired_retention` | 0.90 | Rating-2-only target with no relearning steps; standard scheduler parameters remain unchanged |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
@@ -2067,7 +2079,7 @@ misses count normally everywhere.
 ### 19.5 ~~Next-Session Recap~~ — REMOVED (2026-02-14)
 
 **Removed**: The recap mechanism was redundant with within-session repetition
-(MIN_ACQUISITION_EXPOSURES=4) and bypassed the sentence recency filter, causing
+(then `MIN_ACQUISITION_EXPOSURES=4`) and bypassed the sentence recency filter, causing
 the same sentences to reappear immediately across sessions. The backend endpoint
 `POST /api/review/recap` still exists but is no longer called by the frontend.
 
@@ -2077,7 +2089,8 @@ the same sentences to reappear immediately across sessions. The backend endpoint
 consolidation. "Forced day-1 review regardless of box position."
 
 **Current implementation** (2026-02-14): Two-phase acquisition:
-- Box 1→2 advances within-session (same-day encoding). Word gets 4 exposures immediately.
+- Box 1→2 advances within-session (same-day encoding). The selector plans 2
+  exposures; any rating-1 failure adds another retry independently.
 - Box 2→3 requires `acquisition_next_due` (1-day interval enforced). Forces next-day review.
 - Graduation (tier 3) requires reviews on ≥2 UTC calendar days plus `is_due`.
   Tiers 0-2 can graduate on any **successful** review, including collateral
@@ -2376,7 +2389,8 @@ Frontend                          Backend
    - 0 FSRS words (none graduated yet)
    - Auto-intro adds up to 4 from encountered pool (conservative, <10 reviews)
    - Generates on-demand sentences for each acquiring word
-   - Session: ~12 cards (3 box-1 acquiring × 4 exposures each + any auto-intros; box-2 words would be 2 exposures each)
+   - Session: ~6 planned acquisition cards (3 box-1 acquiring × 2 exposures
+     each) plus any auto-intros and any rating-1 retries
 5. After 4 hours: words move to box 2 if rated Good (next due: 1 day)
 
 ### B.2 Established Learner — Typical Day
