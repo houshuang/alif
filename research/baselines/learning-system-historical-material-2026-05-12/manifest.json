@@ -1,0 +1,38 @@
+{
+  "definitions": {
+    "calibration": "stored pre-card at actual review timestamp",
+    "metric_spec": "research/learning-metrics-spec.md",
+    "primary_collateral": "equal word-memory validity; primary-only recovery effort gate",
+    "session_completion": "final planned display followed by sentence review"
+  },
+  "inputs": {
+    "database": {
+      "bytes": 75718656,
+      "filename": "2026-05-19.db",
+      "sha256": "c8d77fe678a50197aa703ecb4a303de3a7a24dbfce146be0040514151a8ac7d6"
+    },
+    "fsrs_version": "6.3.0",
+    "git_commit": "0dff93402b2449795f60eaa3f1f0625e906256c9",
+    "interaction_logs": [],
+    "metric_spec": {
+      "bytes": 7447,
+      "filename": "learning-metrics-spec.md",
+      "sha256": "43874463b725aebc370f95fe47aa1aa56333ac51515b02289f5af1fedfa55b9f"
+    },
+    "python_version": "3.11.6",
+    "script": {
+      "bytes": 44866,
+      "filename": "analyze_learning_system.py",
+      "sha256": "e52a4de87613a11b1fdb9d6b54e0c340d2e42b53bb03614dc7cd69284db07dc3"
+    },
+    "sqlite_version": "3.42.0",
+    "strict_read_only": true
+  },
+  "schema_version": 1,
+  "window": {
+    "cutoff": "2026-05-12T14:55:50.375703Z",
+    "semantics": "half-open [start, cutoff)",
+    "session_start": "2026-02-01T00:00:00Z",
+    "start": "2026-02-01T00:00:00Z"
+  }
+}

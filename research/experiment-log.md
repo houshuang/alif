@@ -48,6 +48,177 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-26: FSRS calibration target corrected; version drift closed
+
+**Correction.** The WP1 matched calibration used Alif strict learning success
+(`rating >= 3`) against FSRS retrievability. That is a useful product outcome,
+but FSRS's binary recall target is `rating >= 2` because Hard counts as
+recalled. A deterministic segmented audit now reports both rather than
+silently conflating them.
+
+Across 8,317 due sentence-reading FSRS reviews, prediction was 89.9%. Strict
+success was 78.1% (-11.8pp); FSRS recall was 82.9% (-7.0pp). The FSRS gap was
+only -4.1pp on 7,001 post-acquisition rows but -22.5pp on 1,316
+legacy/untracked-origin rows; Relearning was -14.5pp. Within one day of due the
+gap remained -5.6pp, so lateness worsens but does not explain it.
+
+**Decision.** No global retune. Separate clean post-acquisition Review cards
+from legacy/Relearning recovery in rolling-origin replay. Lowering desired
+retention is directionally wrong while recall trails prediction.
+
+**Reproducibility fixes (workspace, not deployed).** A live read-only check
+found production on FSRS 6.3.1 while the analysis venv was on 6.3.0; both have
+the identical parameter hash. Pin production's `fsrs==6.3.1`, stamp
+library/config/parameter hash on new FSRS rows, make `optimize_fsrs.py` read
+installed defaults and the correct two-branch post-lapse formula, and label
+`replay_fsrs.py` as frozen April reproduction.
+Record: `research/fsrs-calibration-segmented-validation-2026-07-26.md`;
+artifacts:
+`research/baselines/fsrs-calibration-segmented-2026-03-27-to-07-25/`.
+
+## 2026-07-25: Acquisition evidence replay — spacing gate deferred
+
+**Replay.** A new immutable-snapshot event-decision replay segmented acquisition
+episodes at logged graduations and counter discontinuities, then tested extra
+spacing evidence only for perfect/high-accuracy graduation. It verified 10,331
+adjacent counter transitions across 12,899 events. The 12 recent
+discontinuities resolve to 11 intervening FSRS/re-entry episodes and the one
+pre-v2 rapid-retest counter transition; they are boundaries, not silently
+repaired history.
+
+**Result.** Requiring a prior success on an earlier UTC day would defer 9/23
+perfect-accuracy decisions, 0/17 high-accuracy decisions, and 9/187 total.
+Among delivered ≥3-day follow-ups, the deferred cell was 2/4 versus 13/18 for
+qualifying perfect/high events. This is directionally interesting but far too
+small and selected to change behavior, and the decision replay cannot simulate
+the extra acquisition queue/workload.
+
+**Decision and instrumentation.** No threshold change. Workspace-only additive
+telemetry now stamps `graduation_policy_version = 2`, due state, elapsed
+interval, and post-counters on new acquisition rows so a clean future state
+replay has an explicit boundary. Record:
+`research/acquisition-evidence-replay-validation-2026-07-25.md`; artifacts:
+`research/baselines/acquisition-evidence-replay-2026-07-08-to-25/`.
+
+## 2026-07-25: Graduation evidence audit — signal, not threshold change
+
+**Measurement.** A committed immutable-snapshot audit derived acquisition
+episode review/session counts and the first delivered reading/sentence outcome
+at least 1, 3, and 7 days after 187 recent graduations. Primary and collateral
+reviews count equally. The script verifies the WP0 database/cutoff identity,
+leaves the snapshot byte-identical, emits stable JSON/CSV, and handles empty
+windows.
+
+**Result.** At ≥3 days, observed recall among delivered reviews was 78.6%
+(33/42) for elapsed-interval, 72.2% (13/18) for first-correct, 80.0% (8/10)
+for high-accuracy, 58.3% (7/12) for perfect-accuracy, and 100% (5/5) for
+standard. Follow-up delivery was incomplete and reason groups are small,
+censored, and confounded. The weak perfect-accuracy cell is a reason to build
+versioned event replay, not to tighten graduation tonight.
+
+**Decision.** Keep only the separately validated rating-2 success-gate
+correctness fix. No other graduation threshold, historical state, or
+production configuration changes. Record:
+`research/acquisition-graduation-retention-validation-2026-07-25.md`;
+artifacts: `research/baselines/graduation-retention-2026-07-08-to-25/`.
+
+## 2026-07-25: Acquisition graduation success gate — rating 2 cannot graduate
+
+**Bug.** Tier 1/2/3 graduation evaluated cumulative accuracy and spacing after
+all ratings. Because rating 2 leaves the acquisition box unchanged, a due
+Box-3 word at 3/4 correct could become 3/5 = 60% and graduate on the confused
+answer. Production contains two such events among 2,106 acquisition
+graduations, including bookifier lemma 4254 at 16:48 today.
+
+**Fix (workspace, not deployed).** The tiered graduation block now requires
+`rating_int >= 3`. Rating 2 remains fully recorded and follows existing Hard
+box/due behavior, but graduation waits for a later successful retrieval.
+Primary/collateral validity is unchanged; protocol-v2 guarded retests remain
+separately blocked.
+
+**Validation.** Exact Box-3 3/4→rating-2 regression fixture; acquisition suite
+`53 passed`. No retroactive data repair: the two existing FSRS cards continue
+normally to avoid mixing state repair into active experiments. Record:
+`research/acquisition-graduation-success-gate-validation-2026-07-25.md`.
+
+## 2026-07-25: July 15 intake trajectory — admission created a first-teach queue
+
+**Measurement only; no behavior change.** A new immutable-snapshot cohort audit
+tracked the 202 `bookifier` words admitted July 15. Median admission→first
+stored review was 51.67h, p90 155.17h; median first-review session ordinal was
+12.5 and p90 27. First-reviewed fractions were 36.6% by day 1, 59.4% by day 3,
+76.7% by day 5, and 91.6% by day 7. Four words still had no review at 10.46
+days.
+
+At cutoff, 88/202 had ever graduated, 96 remained acquiring, and 24 were
+suspended. The cohort had 780 word-review rows: 166 primary and **614
+collateral** (78.7%), confirming again that a primary-only learning analysis
+would discard most valid evidence.
+
+**Interpretation.** Immediate admission is not immediate learning; it creates a
+Box-1 waiting line. This does not itself prove staged intake improves retention,
+because later admission may simply move waiting outside Box 1. Future intake
+validation must measure admission→first review, fixed-horizon exposure,
+retained graduation, recovery displacement, and completion. Record:
+`research/intake-cohort-trajectory-validation-2026-07-25.md`; artifacts:
+`research/baselines/intake-cohort-bookifier-2026-07-15/`.
+
+## 2026-07-25: Selector S1b coverage-budget replay — rejected on hidden workload
+
+**Candidate.** S1b scans past unserviceable priority obligations, admits at
+most three opening cards, and permits zero marginal due-coverage loss versus
+the best available card. Maintenance-priority opening cards cannot smuggle in
+due acquisition words. Default policy remains S0.
+
+**Result.** On the same 12 paired immutable-snapshot requests as S1, S1b gained
+7.75 base due words/request with zero base-coverage regressions. But the changed
+remaining-due set steered the later greedy phase toward more acquisition words,
+which activated existing repetition: mean returned workload rose 6.75 cards,
+and 11/12 requests grew. At the normal ten-card request, S0 returned 17 cards
+and S1b 23; at limit five, 6 versus 17.
+
+**Decision: REJECT / DO NOT SHADOW.** The breadth gain is real but confounded
+with acquisition workload and same-session repetition, against a 32.2%
+approximate completion baseline. Calculate workload-neutral S1c using projected
+repetition liability; do not alter the 4×/2× acquisition targets inside the
+selector experiment. Full record:
+`research/selector-s1b-replay-validation-2026-07-25.md`; artifacts:
+`research/baselines/selector-s1b-bounded-2026-07-25/`.
+
+**Historical-material amendment.** A migrated copy of the May 12 production
+state, replayed with its active 2026-04-16 mapping gate, strengthened the
+rejection: mean targeted due coverage was +1.25, but mean all-word breadth was
+-5.0 with 8/12 regressions (base breadth -0.92, 6/12 regressions). Collateral
+learning therefore became a hard automated replay guardrail. Artifacts:
+`research/baselines/selector-s1b-historical-material-2026-05-12/`.
+
+## 2026-07-25: Selector S1 filled-opening replay — rejected before shadow
+
+**Hypothesis.** The current frequency-priority opening block inspects only its
+first five obligations, so unserviceable/vetoed words leave the block
+underfilled. S1 preserved current ordering and scoring but continued scanning
+until five serviceable opening cards were found or the candidate set was
+exhausted.
+
+**Method.** Read-only paired replay on pinned snapshot
+`3b8ba1d566185ebe908139e24851f4f02214dbd6d6334a3638b6da5f30ef0069`
+at `2026-07-25T17:30:44.409771Z`: limits 5/10/20, four identical
+union-depletion stress rounds per limit, no intro mutations, no reviews, all
+sentence words counted equally. Default production policy remained S0.
+
+**Result.** S1 increased the serviceable opening block from 2 to 4 cards, but
+mean distinct due coverage fell by 2.42 words/request. Six of 12 pairs
+regressed and only two improved. At limit 5, three rounds lost 7, 5, and 10
+due obligations; all-word breadth fell by 13, 16, and 19. The extra reserved
+cards displaced high-coverage greedy sentences.
+
+**Decision: REJECT / DO NOT SHADOW.** “Fill five cards” is the wrong objective
+when collateral word outcomes are fully valid. Calculate S1b instead: scan past
+unserviceable priority obligations, reserve at most two cards, and permit
+further reservation only under an explicit marginal coverage-loss budget.
+Full record: `research/selector-s1-replay-validation-2026-07-25.md`; artifacts:
+`research/baselines/selector-s1-bounded-2026-07-25/`.
+
 ## 2026-07-25: Codex web-search citations leaked into memory hooks — search off + storage sanitizer (PR #221)
 
 **Trigger.** User screenshot: intro card Usage / Did You Know sections rendering raw

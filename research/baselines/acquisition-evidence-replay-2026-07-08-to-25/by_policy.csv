@@ -1,0 +1,5 @@
+policy,description,logged_graduations,would_qualify_at_logged_decision,would_defer_at_logged_decision,deferred_perfect_accuracy,deferred_high_accuracy,gated_reason_graduations,qualifying_gated_reason_graduations,qualifying_gated_delivered_3d,qualifying_gated_success_3d,qualifying_gated_recall_among_delivered_3d,qualifying_delivered_3d,qualifying_success_3d,qualifying_recall_among_delivered_3d,deferred_delivered_3d,deferred_success_3d,deferred_recall_among_delivered_3d
+logged_current,reproduce every stored graduation decision,187,187,0,0,0,40,40,22,15,0.6818,87,66,0.7586,0,0,
+prior_success_10m_other_session,perfect/high-accuracy graduation needs a prior successful acquisition review at least 10m earlier in another known session,187,180,7,7,0,40,33,19,13,0.6842,84,64,0.7619,3,2,0.6667
+prior_success_12h,perfect/high-accuracy graduation needs a prior successful acquisition review at least 12h earlier,187,178,9,9,0,40,31,18,13,0.7222,83,64,0.7711,4,2,0.5
+prior_success_prior_utc_day,perfect/high-accuracy graduation needs a prior successful acquisition review on an earlier UTC date,187,178,9,9,0,40,31,18,13,0.7222,83,64,0.7711,4,2,0.5
