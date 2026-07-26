@@ -62,12 +62,11 @@ from app.services.confusion_service import normalize_surface_form
 logger = logging.getLogger(__name__)
 
 # Acquisition repetition: how many times an acquiring word should appear in a session.
-# Box 1 = encoding (first exposure), needs 4 reps to lay down memory.
-# Box 2 = consolidation (already encoded), 2 reps is enough — a single correct
-# review here already triggers Tier 1 graduation, so 4 reps wasted 2 cards on
-# words the learner had already mastered (data 2026-05-04).
-MIN_ACQUISITION_EXPOSURES = 4  # legacy alias for box 1 / fallback
-BOX1_MIN_EXPOSURES = 4
+# Two planned sentence exposures per box preserve encoding/consolidation practice
+# without padding sessions. Rating-1 failures are requeued independently and remain
+# uncapped, so a failed word is still retried until it succeeds or the session ends.
+MIN_ACQUISITION_EXPOSURES = 2  # legacy alias for box 1 / fallback
+BOX1_MIN_EXPOSURES = 2
 BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
@@ -2307,9 +2306,8 @@ def build_session(
     base_item_count = len(selected)
 
     # 3b. Within-session repetition for acquisition words.
-    # Per-box target: box 1 (encoding) keeps 4 reps; box 2 (consolidation)
-    # gets 2. A single correct rating in box 2 already triggers Tier 1
-    # graduation, so further reps were wasted on already-mastered words.
+    # Per-box target: two planned exposures. Failed words are handled by the
+    # separate rating-1 retry queue, so this target does not cap relearning.
     acquiring_word_counts: dict[int, int] = {}
     acquiring_word_targets: dict[int, int] = {}
     for c in selected:

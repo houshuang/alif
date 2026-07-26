@@ -10,7 +10,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
-**FSRS / lapse / leech** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
+**FSRS / lapse / leech** — `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
 **Session building / selection / comprehensibility** — `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
@@ -47,6 +47,38 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-27: Assisted-lapse scheduling + Box-1 efficiency
+
+**Semantics corrected.** UI rating 2 means unaided retrieval failed before the
+answer was shown, although the learner recognized/knew the word afterward. It
+is not equivalent to FSRS Hard (successful difficult recall). Scheduler-policy
+v2 keeps `ReviewLog.rating=2` but prospectively applies FSRS `Again` with
+desired retention 0.90 and no relearning steps. That gives a short follow-up
+without entering the independent rating-1 checkpoint/wrap-up queue. Rating 1
+and its retry-everything policy are unchanged.
+
+**Efficiency change.** Planned Box-1 repetition falls from four sentence cards
+to two, matching Box 2. Rating-1 failures remain uncapped and can add further
+retries. All words on every shown sentence continue to receive equally valid
+evidence; primary/collateral remains selector-only metadata.
+
+**Evidence.** Among 862 rating-2 events with a first subsequent outcome,
+current Hard predicted 95.24% strict recall against 79.58% actual (Brier
+0.1812, log loss 1.0416). Replaying an `Again` update without relearning steps
+predicted 84.23% (Brier 0.1544, log loss 0.8616), with a representative median
+interval around two days rather than nine. Five-state selector replay preserved
+base due coverage in every pair while typically removing 3–5 cards from a
+10-card Box-1-heavy request. Observational ≥3-day outcomes showed no positive
+dose-response from four massed exposures, but were treated as confounded.
+
+**Boundaries.** No historical card rewrite, FSRS weight retune, acquisition
+graduation change, intake change, or counter change. New rows stamp the stored
+and applied ratings, selected policy/retention/steps, and policy version 2.
+`FSRS_ASSISTED_LAPSE_ENABLED=False` restores the previous prospective mapping;
+restoring both Box-1 constants to 4 restores the former repetition target.
+Validation and monitoring plan:
+`research/assisted-lapse-box1-efficiency-validation-2026-07-27.md`.
 
 ## 2026-07-26: Established-lapse recovery lane — bounded activation
 

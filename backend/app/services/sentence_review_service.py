@@ -266,7 +266,8 @@ def submit_sentence_review(
                 rating = 1
             elif canonical_member_ids & confused_set or effective_lemma_id in confused_set:
                 # Confused = knew the word but didn't recognize it in context.
-                # Rating 2 (Hard) brings next review sooner without lapsing.
+                # Rating 2 means recognition only after reveal. The stored
+                # rating stays 2; FSRS applies the assisted-lapse policy.
                 rating = 2
                 is_confused = True
             else:
