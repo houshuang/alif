@@ -1423,6 +1423,7 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 ---
 
 ## Lapse Recovery Tuning Follow-ups (2026-04-13)
+- [LIVE 2026-07-26] Established-lapse recovery lane: after the first 50 version-matched recovered-lemma outcomes, compare repeat rating-1 and spontaneous rating>=3 rates against eligible unswapped lapses. Revisit the conservative 7-day pre-stability threshold only with bounded replay plus a versioned prospective readout; do not infer a global FSRS retune from this selector experiment.
 - [DONE] `desired_retention=0.95` + `LAPSED_BOOST=3.0` + tightened overdue escalation (0.5d/6x) — see experiment log
 - [TODO] **CHECK 2026-04-20**: Re-run `replay_fsrs.py` on fresh DB, count lapses in last 7d with no follow-up. Expected drop: 85 → <40. If still >60, investigate selector diversity penalties.
 - [TODO] Periodic FSRS calibration: run `optimize_fsrs.py` monthly, compare `optimal_retention` to current setting, alert on drift >0.02. Could wire as cron step.

@@ -1,0 +1,1128 @@
+{
+  "baseline_summary": {
+    "filename": "summary.json"
+  },
+  "current_lapsed_stock": {
+    "established_due_now": 37,
+    "established_pre_stability_ge_7d": 37,
+    "lapsed_due_now": 79,
+    "lapsed_words": 90,
+    "older_due_now": 21,
+    "older_pre_stability_ge_30d": 21
+  },
+  "cutoff": "2026-07-26T07:43:00Z",
+  "database": {
+    "filename": "current.db"
+  },
+  "limitations": [
+    "observational delivery analysis, not a causal estimate",
+    "first subsequent word outcome may come from any sentence",
+    "does not reconstruct unlogged opportunities to review"
+  ],
+  "method_version": "lapse-followup-right-censored-v2",
+  "periods": {
+    "all": {
+      "cohorts": {
+        "all_lapses": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 2.35,
+            "distinct_lemmas": 1103,
+            "eligible_lapses": 2208,
+            "first_followup_rating_counts": {
+              "1": 7,
+              "2": 2,
+              "3": 76,
+              "4": 0
+            },
+            "followed_up": 85,
+            "followup_rate_pct": 3.85,
+            "median_followup_minutes": 2.11,
+            "repeat_failure_rating1_pct_of_followups": 8.24,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 89.41
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.79,
+            "distinct_lemmas": 1077,
+            "eligible_lapses": 2140,
+            "first_followup_rating_counts": {
+              "1": 150,
+              "2": 26,
+              "3": 755,
+              "4": 0
+            },
+            "followed_up": 931,
+            "followup_rate_pct": 43.5,
+            "median_followup_minutes": 457.04,
+            "repeat_failure_rating1_pct_of_followups": 16.11,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 81.1
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.47,
+            "distinct_lemmas": 1103,
+            "eligible_lapses": 2208,
+            "first_followup_rating_counts": {
+              "1": 26,
+              "2": 6,
+              "3": 211,
+              "4": 0
+            },
+            "followed_up": 243,
+            "followup_rate_pct": 11.01,
+            "median_followup_minutes": 29.69,
+            "repeat_failure_rating1_pct_of_followups": 10.7,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 86.83
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.01,
+            "distinct_lemmas": 1028,
+            "eligible_lapses": 2035,
+            "first_followup_rating_counts": {
+              "1": 418,
+              "2": 70,
+              "3": 1256,
+              "4": 0
+            },
+            "followed_up": 1744,
+            "followup_rate_pct": 85.7,
+            "median_followup_minutes": 1344.61,
+            "repeat_failure_rating1_pct_of_followups": 23.97,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 72.02
+          }
+        },
+        "established_pre_stability_ge_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 871,
+            "eligible_lapses": 1088,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 33,
+              "4": 0
+            },
+            "followed_up": 36,
+            "followup_rate_pct": 3.31,
+            "median_followup_minutes": 1.82,
+            "repeat_failure_rating1_pct_of_followups": 8.33,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 91.67
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.49,
+            "distinct_lemmas": 850,
+            "eligible_lapses": 1056,
+            "first_followup_rating_counts": {
+              "1": 74,
+              "2": 13,
+              "3": 435,
+              "4": 0
+            },
+            "followed_up": 522,
+            "followup_rate_pct": 49.43,
+            "median_followup_minutes": 434.46,
+            "repeat_failure_rating1_pct_of_followups": 14.18,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.33
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 1.45,
+            "distinct_lemmas": 871,
+            "eligible_lapses": 1088,
+            "first_followup_rating_counts": {
+              "1": 15,
+              "2": 2,
+              "3": 121,
+              "4": 0
+            },
+            "followed_up": 138,
+            "followup_rate_pct": 12.68,
+            "median_followup_minutes": 41.16,
+            "repeat_failure_rating1_pct_of_followups": 10.87,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 87.68
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.12,
+            "distinct_lemmas": 812,
+            "eligible_lapses": 1009,
+            "first_followup_rating_counts": {
+              "1": 171,
+              "2": 37,
+              "3": 690,
+              "4": 0
+            },
+            "followed_up": 898,
+            "followup_rate_pct": 89.0,
+            "median_followup_minutes": 1201.96,
+            "repeat_failure_rating1_pct_of_followups": 19.04,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 76.84
+          }
+        },
+        "fragile_pre_stability_lt_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 4.08,
+            "distinct_lemmas": 602,
+            "eligible_lapses": 1120,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 2,
+              "3": 43,
+              "4": 0
+            },
+            "followed_up": 49,
+            "followup_rate_pct": 4.38,
+            "median_followup_minutes": 2.25,
+            "repeat_failure_rating1_pct_of_followups": 8.16,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 87.76
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 3.18,
+            "distinct_lemmas": 585,
+            "eligible_lapses": 1084,
+            "first_followup_rating_counts": {
+              "1": 76,
+              "2": 13,
+              "3": 320,
+              "4": 0
+            },
+            "followed_up": 409,
+            "followup_rate_pct": 37.73,
+            "median_followup_minutes": 498.48,
+            "repeat_failure_rating1_pct_of_followups": 18.58,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 78.24
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 3.81,
+            "distinct_lemmas": 602,
+            "eligible_lapses": 1120,
+            "first_followup_rating_counts": {
+              "1": 11,
+              "2": 4,
+              "3": 90,
+              "4": 0
+            },
+            "followed_up": 105,
+            "followup_rate_pct": 9.38,
+            "median_followup_minutes": 16.95,
+            "repeat_failure_rating1_pct_of_followups": 10.48,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.71
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 3.9,
+            "distinct_lemmas": 560,
+            "eligible_lapses": 1026,
+            "first_followup_rating_counts": {
+              "1": 247,
+              "2": 33,
+              "3": 566,
+              "4": 0
+            },
+            "followed_up": 846,
+            "followup_rate_pct": 82.46,
+            "median_followup_minutes": 1649.33,
+            "repeat_failure_rating1_pct_of_followups": 29.2,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 66.9
+          }
+        },
+        "older_pre_stability_ge_30d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 414,
+            "eligible_lapses": 435,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 13,
+              "4": 0
+            },
+            "followed_up": 14,
+            "followup_rate_pct": 3.22,
+            "median_followup_minutes": 2.9,
+            "repeat_failure_rating1_pct_of_followups": 7.14,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 92.86
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 1.91,
+            "distinct_lemmas": 399,
+            "eligible_lapses": 420,
+            "first_followup_rating_counts": {
+              "1": 18,
+              "2": 4,
+              "3": 187,
+              "4": 0
+            },
+            "followed_up": 209,
+            "followup_rate_pct": 49.76,
+            "median_followup_minutes": 423.19,
+            "repeat_failure_rating1_pct_of_followups": 8.61,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 89.47
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 414,
+            "eligible_lapses": 435,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 0,
+              "3": 47,
+              "4": 0
+            },
+            "followed_up": 51,
+            "followup_rate_pct": 11.72,
+            "median_followup_minutes": 39.56,
+            "repeat_failure_rating1_pct_of_followups": 7.84,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 92.16
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 3.51,
+            "distinct_lemmas": 371,
+            "eligible_lapses": 390,
+            "first_followup_rating_counts": {
+              "1": 33,
+              "2": 12,
+              "3": 297,
+              "4": 0
+            },
+            "followed_up": 342,
+            "followup_rate_pct": 87.69,
+            "median_followup_minutes": 1133.41,
+            "repeat_failure_rating1_pct_of_followups": 9.65,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 86.84
+          }
+        }
+      },
+      "start": "2026-03-01T00:00:00Z"
+    },
+    "last_30_days": {
+      "cohorts": {
+        "all_lapses": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 3.85,
+            "distinct_lemmas": 342,
+            "eligible_lapses": 440,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 1,
+              "3": 21,
+              "4": 0
+            },
+            "followed_up": 26,
+            "followup_rate_pct": 5.91,
+            "median_followup_minutes": 4.09,
+            "repeat_failure_rating1_pct_of_followups": 15.38,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 80.77
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 4.5,
+            "distinct_lemmas": 301,
+            "eligible_lapses": 372,
+            "first_followup_rating_counts": {
+              "1": 13,
+              "2": 5,
+              "3": 93,
+              "4": 0
+            },
+            "followed_up": 111,
+            "followup_rate_pct": 29.84,
+            "median_followup_minutes": 672.53,
+            "repeat_failure_rating1_pct_of_followups": 11.71,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.78
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 4.65,
+            "distinct_lemmas": 342,
+            "eligible_lapses": 440,
+            "first_followup_rating_counts": {
+              "1": 5,
+              "2": 2,
+              "3": 36,
+              "4": 0
+            },
+            "followed_up": 43,
+            "followup_rate_pct": 9.77,
+            "median_followup_minutes": 5.21,
+            "repeat_failure_rating1_pct_of_followups": 11.63,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.72
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 6.03,
+            "distinct_lemmas": 229,
+            "eligible_lapses": 267,
+            "first_followup_rating_counts": {
+              "1": 38,
+              "2": 12,
+              "3": 149,
+              "4": 0
+            },
+            "followed_up": 199,
+            "followup_rate_pct": 74.53,
+            "median_followup_minutes": 2161.86,
+            "repeat_failure_rating1_pct_of_followups": 19.1,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 74.87
+          }
+        },
+        "established_pre_stability_ge_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 248,
+            "eligible_lapses": 251,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 0,
+              "3": 12,
+              "4": 0
+            },
+            "followed_up": 14,
+            "followup_rate_pct": 5.58,
+            "median_followup_minutes": 4.16,
+            "repeat_failure_rating1_pct_of_followups": 14.29,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.71
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.74,
+            "distinct_lemmas": 218,
+            "eligible_lapses": 219,
+            "first_followup_rating_counts": {
+              "1": 9,
+              "2": 2,
+              "3": 62,
+              "4": 0
+            },
+            "followed_up": 73,
+            "followup_rate_pct": 33.33,
+            "median_followup_minutes": 690.78,
+            "repeat_failure_rating1_pct_of_followups": 12.33,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 84.93
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 248,
+            "eligible_lapses": 251,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 21,
+              "4": 0
+            },
+            "followed_up": 24,
+            "followup_rate_pct": 9.56,
+            "median_followup_minutes": 5.63,
+            "repeat_failure_rating1_pct_of_followups": 12.5,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 87.5
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.41,
+            "distinct_lemmas": 172,
+            "eligible_lapses": 172,
+            "first_followup_rating_counts": {
+              "1": 21,
+              "2": 6,
+              "3": 109,
+              "4": 0
+            },
+            "followed_up": 136,
+            "followup_rate_pct": 79.07,
+            "median_followup_minutes": 2088.94,
+            "repeat_failure_rating1_pct_of_followups": 15.44,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 80.15
+          }
+        },
+        "fragile_pre_stability_lt_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 8.33,
+            "distinct_lemmas": 142,
+            "eligible_lapses": 189,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 1,
+              "3": 9,
+              "4": 0
+            },
+            "followed_up": 12,
+            "followup_rate_pct": 6.35,
+            "median_followup_minutes": 3.65,
+            "repeat_failure_rating1_pct_of_followups": 16.67,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 75.0
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 7.89,
+            "distinct_lemmas": 119,
+            "eligible_lapses": 153,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 3,
+              "3": 31,
+              "4": 0
+            },
+            "followed_up": 38,
+            "followup_rate_pct": 24.84,
+            "median_followup_minutes": 657.05,
+            "repeat_failure_rating1_pct_of_followups": 10.53,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 81.58
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 10.53,
+            "distinct_lemmas": 142,
+            "eligible_lapses": 189,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 2,
+              "3": 15,
+              "4": 0
+            },
+            "followed_up": 19,
+            "followup_rate_pct": 10.05,
+            "median_followup_minutes": 5.21,
+            "repeat_failure_rating1_pct_of_followups": 10.53,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 78.95
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 9.52,
+            "distinct_lemmas": 82,
+            "eligible_lapses": 95,
+            "first_followup_rating_counts": {
+              "1": 17,
+              "2": 6,
+              "3": 40,
+              "4": 0
+            },
+            "followed_up": 63,
+            "followup_rate_pct": 66.32,
+            "median_followup_minutes": 2210.28,
+            "repeat_failure_rating1_pct_of_followups": 26.98,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 63.49
+          }
+        },
+        "older_pre_stability_ge_30d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 135,
+            "eligible_lapses": 135,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 6,
+              "4": 0
+            },
+            "followed_up": 7,
+            "followup_rate_pct": 5.19,
+            "median_followup_minutes": 4.82,
+            "repeat_failure_rating1_pct_of_followups": 14.29,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.71
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 120,
+            "eligible_lapses": 120,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 38,
+              "4": 0
+            },
+            "followed_up": 41,
+            "followup_rate_pct": 34.17,
+            "median_followup_minutes": 688.39,
+            "repeat_failure_rating1_pct_of_followups": 7.32,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 92.68
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 135,
+            "eligible_lapses": 135,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 13,
+              "4": 0
+            },
+            "followed_up": 14,
+            "followup_rate_pct": 10.37,
+            "median_followup_minutes": 8.26,
+            "repeat_failure_rating1_pct_of_followups": 7.14,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 92.86
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 2.99,
+            "distinct_lemmas": 90,
+            "eligible_lapses": 90,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 2,
+              "3": 63,
+              "4": 0
+            },
+            "followed_up": 67,
+            "followup_rate_pct": 74.44,
+            "median_followup_minutes": 2016.02,
+            "repeat_failure_rating1_pct_of_followups": 2.99,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 94.03
+          }
+        }
+      },
+      "start": "2026-06-26T07:43:00Z"
+    },
+    "last_7_days": {
+      "cohorts": {
+        "all_lapses": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 149,
+            "eligible_lapses": 173,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 0,
+              "3": 20,
+              "4": 0
+            },
+            "followed_up": 24,
+            "followup_rate_pct": 13.87,
+            "median_followup_minutes": 4.21,
+            "repeat_failure_rating1_pct_of_followups": 16.67,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.33
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 93,
+            "eligible_lapses": 105,
+            "first_followup_rating_counts": {
+              "1": 6,
+              "2": 0,
+              "3": 27,
+              "4": 0
+            },
+            "followed_up": 33,
+            "followup_rate_pct": 31.43,
+            "median_followup_minutes": 822.48,
+            "repeat_failure_rating1_pct_of_followups": 18.18,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 81.82
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 149,
+            "eligible_lapses": 173,
+            "first_followup_rating_counts": {
+              "1": 5,
+              "2": 0,
+              "3": 26,
+              "4": 0
+            },
+            "followed_up": 31,
+            "followup_rate_pct": 17.92,
+            "median_followup_minutes": 4.72,
+            "repeat_failure_rating1_pct_of_followups": 16.13,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.87
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": null,
+            "distinct_lemmas": 0,
+            "eligible_lapses": 0,
+            "first_followup_rating_counts": {
+              "1": 0,
+              "2": 0,
+              "3": 0,
+              "4": 0
+            },
+            "followed_up": 0,
+            "followup_rate_pct": null,
+            "median_followup_minutes": null,
+            "repeat_failure_rating1_pct_of_followups": null,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": null
+          }
+        },
+        "established_pre_stability_ge_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 79,
+            "eligible_lapses": 79,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 0,
+              "3": 12,
+              "4": 0
+            },
+            "followed_up": 14,
+            "followup_rate_pct": 17.72,
+            "median_followup_minutes": 4.16,
+            "repeat_failure_rating1_pct_of_followups": 14.29,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.71
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 47,
+            "eligible_lapses": 47,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 15,
+              "4": 0
+            },
+            "followed_up": 18,
+            "followup_rate_pct": 38.3,
+            "median_followup_minutes": 932.66,
+            "repeat_failure_rating1_pct_of_followups": 16.67,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.33
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 79,
+            "eligible_lapses": 79,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 15,
+              "4": 0
+            },
+            "followed_up": 18,
+            "followup_rate_pct": 22.78,
+            "median_followup_minutes": 4.62,
+            "repeat_failure_rating1_pct_of_followups": 16.67,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.33
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": null,
+            "distinct_lemmas": 0,
+            "eligible_lapses": 0,
+            "first_followup_rating_counts": {
+              "1": 0,
+              "2": 0,
+              "3": 0,
+              "4": 0
+            },
+            "followed_up": 0,
+            "followup_rate_pct": null,
+            "median_followup_minutes": null,
+            "repeat_failure_rating1_pct_of_followups": null,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": null
+          }
+        },
+        "fragile_pre_stability_lt_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 80,
+            "eligible_lapses": 94,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 0,
+              "3": 8,
+              "4": 0
+            },
+            "followed_up": 10,
+            "followup_rate_pct": 10.64,
+            "median_followup_minutes": 4.27,
+            "repeat_failure_rating1_pct_of_followups": 20.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 80.0
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 51,
+            "eligible_lapses": 58,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 12,
+              "4": 0
+            },
+            "followed_up": 15,
+            "followup_rate_pct": 25.86,
+            "median_followup_minutes": 818.96,
+            "repeat_failure_rating1_pct_of_followups": 20.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 80.0
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 80,
+            "eligible_lapses": 94,
+            "first_followup_rating_counts": {
+              "1": 2,
+              "2": 0,
+              "3": 11,
+              "4": 0
+            },
+            "followed_up": 13,
+            "followup_rate_pct": 13.83,
+            "median_followup_minutes": 4.72,
+            "repeat_failure_rating1_pct_of_followups": 15.38,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 84.62
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": null,
+            "distinct_lemmas": 0,
+            "eligible_lapses": 0,
+            "first_followup_rating_counts": {
+              "1": 0,
+              "2": 0,
+              "3": 0,
+              "4": 0
+            },
+            "followed_up": 0,
+            "followup_rate_pct": null,
+            "median_followup_minutes": null,
+            "repeat_failure_rating1_pct_of_followups": null,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": null
+          }
+        },
+        "older_pre_stability_ge_30d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 45,
+            "eligible_lapses": 45,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 6,
+              "4": 0
+            },
+            "followed_up": 7,
+            "followup_rate_pct": 15.56,
+            "median_followup_minutes": 4.82,
+            "repeat_failure_rating1_pct_of_followups": 14.29,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.71
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 30,
+            "eligible_lapses": 30,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 12,
+              "4": 0
+            },
+            "followed_up": 13,
+            "followup_rate_pct": 43.33,
+            "median_followup_minutes": 871.75,
+            "repeat_failure_rating1_pct_of_followups": 7.69,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 92.31
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 45,
+            "eligible_lapses": 45,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 9,
+              "4": 0
+            },
+            "followed_up": 10,
+            "followup_rate_pct": 22.22,
+            "median_followup_minutes": 5.04,
+            "repeat_failure_rating1_pct_of_followups": 10.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 90.0
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": null,
+            "distinct_lemmas": 0,
+            "eligible_lapses": 0,
+            "first_followup_rating_counts": {
+              "1": 0,
+              "2": 0,
+              "3": 0,
+              "4": 0
+            },
+            "followed_up": 0,
+            "followup_rate_pct": null,
+            "median_followup_minutes": null,
+            "repeat_failure_rating1_pct_of_followups": null,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": null
+          }
+        }
+      },
+      "start": "2026-07-19T07:43:00Z"
+    },
+    "last_90_days": {
+      "cohorts": {
+        "all_lapses": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 1.67,
+            "distinct_lemmas": 832,
+            "eligible_lapses": 1526,
+            "first_followup_rating_counts": {
+              "1": 6,
+              "2": 1,
+              "3": 53,
+              "4": 0
+            },
+            "followed_up": 60,
+            "followup_rate_pct": 3.93,
+            "median_followup_minutes": 2.61,
+            "repeat_failure_rating1_pct_of_followups": 10.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 88.33
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 3.41,
+            "distinct_lemmas": 805,
+            "eligible_lapses": 1458,
+            "first_followup_rating_counts": {
+              "1": 106,
+              "2": 21,
+              "3": 489,
+              "4": 0
+            },
+            "followed_up": 616,
+            "followup_rate_pct": 42.25,
+            "median_followup_minutes": 452.69,
+            "repeat_failure_rating1_pct_of_followups": 17.21,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 79.38
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.99,
+            "distinct_lemmas": 832,
+            "eligible_lapses": 1526,
+            "first_followup_rating_counts": {
+              "1": 21,
+              "2": 5,
+              "3": 141,
+              "4": 0
+            },
+            "followed_up": 167,
+            "followup_rate_pct": 10.94,
+            "median_followup_minutes": 24.08,
+            "repeat_failure_rating1_pct_of_followups": 12.57,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 84.43
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.7,
+            "distinct_lemmas": 752,
+            "eligible_lapses": 1353,
+            "first_followup_rating_counts": {
+              "1": 293,
+              "2": 54,
+              "3": 801,
+              "4": 0
+            },
+            "followed_up": 1148,
+            "followup_rate_pct": 84.85,
+            "median_followup_minutes": 1353.26,
+            "repeat_failure_rating1_pct_of_followups": 25.52,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 69.77
+          }
+        },
+        "established_pre_stability_ge_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 685,
+            "eligible_lapses": 802,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 0,
+              "3": 27,
+              "4": 0
+            },
+            "followed_up": 30,
+            "followup_rate_pct": 3.74,
+            "median_followup_minutes": 2.34,
+            "repeat_failure_rating1_pct_of_followups": 10.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 90.0
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 3.29,
+            "distinct_lemmas": 663,
+            "eligible_lapses": 770,
+            "first_followup_rating_counts": {
+              "1": 56,
+              "2": 12,
+              "3": 297,
+              "4": 0
+            },
+            "followed_up": 365,
+            "followup_rate_pct": 47.4,
+            "median_followup_minutes": 407.83,
+            "repeat_failure_rating1_pct_of_followups": 15.34,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 81.37
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 1.89,
+            "distinct_lemmas": 685,
+            "eligible_lapses": 802,
+            "first_followup_rating_counts": {
+              "1": 15,
+              "2": 2,
+              "3": 89,
+              "4": 0
+            },
+            "followed_up": 106,
+            "followup_rate_pct": 13.22,
+            "median_followup_minutes": 34.26,
+            "repeat_failure_rating1_pct_of_followups": 14.15,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 83.96
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.6,
+            "distinct_lemmas": 624,
+            "eligible_lapses": 723,
+            "first_followup_rating_counts": {
+              "1": 128,
+              "2": 29,
+              "3": 473,
+              "4": 0
+            },
+            "followed_up": 630,
+            "followup_rate_pct": 87.14,
+            "median_followup_minutes": 1213.23,
+            "repeat_failure_rating1_pct_of_followups": 20.32,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 75.08
+          }
+        },
+        "fragile_pre_stability_lt_7d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 3.33,
+            "distinct_lemmas": 399,
+            "eligible_lapses": 724,
+            "first_followup_rating_counts": {
+              "1": 3,
+              "2": 1,
+              "3": 26,
+              "4": 0
+            },
+            "followed_up": 30,
+            "followup_rate_pct": 4.14,
+            "median_followup_minutes": 2.72,
+            "repeat_failure_rating1_pct_of_followups": 10.0,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 86.67
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 3.59,
+            "distinct_lemmas": 381,
+            "eligible_lapses": 688,
+            "first_followup_rating_counts": {
+              "1": 50,
+              "2": 9,
+              "3": 192,
+              "4": 0
+            },
+            "followed_up": 251,
+            "followup_rate_pct": 36.48,
+            "median_followup_minutes": 569.06,
+            "repeat_failure_rating1_pct_of_followups": 19.92,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 76.49
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 4.92,
+            "distinct_lemmas": 399,
+            "eligible_lapses": 724,
+            "first_followup_rating_counts": {
+              "1": 6,
+              "2": 3,
+              "3": 52,
+              "4": 0
+            },
+            "followed_up": 61,
+            "followup_rate_pct": 8.43,
+            "median_followup_minutes": 10.18,
+            "repeat_failure_rating1_pct_of_followups": 9.84,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 85.25
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.83,
+            "distinct_lemmas": 352,
+            "eligible_lapses": 630,
+            "first_followup_rating_counts": {
+              "1": 165,
+              "2": 25,
+              "3": 328,
+              "4": 0
+            },
+            "followed_up": 518,
+            "followup_rate_pct": 82.22,
+            "median_followup_minutes": 1666.42,
+            "repeat_failure_rating1_pct_of_followups": 31.85,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 63.32
+          }
+        },
+        "older_pre_stability_ge_30d": {
+          "10_minutes": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 345,
+            "eligible_lapses": 354,
+            "first_followup_rating_counts": {
+              "1": 1,
+              "2": 0,
+              "3": 11,
+              "4": 0
+            },
+            "followed_up": 12,
+            "followup_rate_pct": 3.39,
+            "median_followup_minutes": 3.07,
+            "repeat_failure_rating1_pct_of_followups": 8.33,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 91.67
+          },
+          "24_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 2.41,
+            "distinct_lemmas": 330,
+            "eligible_lapses": 339,
+            "first_followup_rating_counts": {
+              "1": 14,
+              "2": 4,
+              "3": 148,
+              "4": 0
+            },
+            "followed_up": 166,
+            "followup_rate_pct": 48.97,
+            "median_followup_minutes": 407.13,
+            "repeat_failure_rating1_pct_of_followups": 8.43,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 89.16
+          },
+          "2_hours": {
+            "assisted_recognition_rating2_pct_of_followups": 0.0,
+            "distinct_lemmas": 345,
+            "eligible_lapses": 354,
+            "first_followup_rating_counts": {
+              "1": 4,
+              "2": 0,
+              "3": 39,
+              "4": 0
+            },
+            "followed_up": 43,
+            "followup_rate_pct": 12.15,
+            "median_followup_minutes": 33.19,
+            "repeat_failure_rating1_pct_of_followups": 9.3,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 90.7
+          },
+          "7_days": {
+            "assisted_recognition_rating2_pct_of_followups": 4.14,
+            "distinct_lemmas": 302,
+            "eligible_lapses": 309,
+            "first_followup_rating_counts": {
+              "1": 22,
+              "2": 11,
+              "3": 233,
+              "4": 0
+            },
+            "followed_up": 266,
+            "followup_rate_pct": 86.08,
+            "median_followup_minutes": 1074.84,
+            "repeat_failure_rating1_pct_of_followups": 8.27,
+            "spontaneous_retrieval_rating3_or_4_pct_of_followups": 87.59
+          }
+        }
+      },
+      "start": "2026-04-27T07:43:00Z"
+    }
+  },
+  "population": {
+    "credit_type_counts_diagnostic_only": {
+      "collateral": 1545,
+      "primary": 663
+    },
+    "distinct_lapsed_lemmas": 1103,
+    "established_pre_stability_ge_7d": 1088,
+    "fragile_pre_stability_lt_7d": 1120,
+    "lapse_events": 2208,
+    "older_pre_stability_ge_30d": 435
+  },
+  "schema_version": 2,
+  "scope": {
+    "all_sentence_words_count_equally": true,
+    "credit_type_affects_metrics": false,
+    "first_followup_includes_acquisition_reviews": true,
+    "lapse_initiators_non_acquisition_only": true,
+    "rating2_interpretation": "not recognized before flip; recognized after reveal",
+    "right_censored": true,
+    "spontaneous_retrieval_endpoint": "rating >= 3"
+  },
+  "script": {
+    "bytes": 16798,
+    "filename": "analyze_lapse_recovery.py",
+    "sha256": "754d6ba79ada85f6053050e067170d36e0a1a857cfb7dc92497132db8a9edaeb"
+  },
+  "window_start": "2026-03-01T00:00:00Z"
+}

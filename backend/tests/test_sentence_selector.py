@@ -1,6 +1,7 @@
 """Tests for sentence-centric session assembly."""
 
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.orm import sessionmaker
@@ -19,10 +20,12 @@ from app.services.sentence_selector import (
     SELECTOR_POLICY_S0,
     SELECTOR_POLICY_S1,
     SELECTOR_POLICY_S1B,
+    SELECTOR_POLICY_RECOVERY,
     SESSION_SCAFFOLD_DECAY,
     SentenceCandidate,
     WordMeta,
     _build_intro_cards,
+    _apply_dominating_debt_swap,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
     _best_generated_passage_seed,
@@ -31,6 +34,7 @@ from app.services.sentence_selector import (
     _session_words_needing_intro_state,
     _intro_backlog_threshold_for_accuracy,
     _intro_slots_for_accuracy,
+    _candidate_has_cold_content,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
     _quality_multiplier_for_sentence,
@@ -228,11 +232,400 @@ class TestFilledOpeningPolicy:
             "acquisition_due_words": 0,
             "maintenance_due_words": 6,
             "distinct_all_words_presented": 6,
+            "established_lapse_recovery_cards": 0,
+            "selector_policy": SELECTOR_POLICY_S1B,
             "selection_reason_counts": {
                 "frequency_due_first_s1b": 1,
                 "greedy_cover": 3,
             },
         }
+
+    def test_debt_swap_rejects_cold_content_words(self):
+        known = SentenceCandidate(
+            sentence_id=1,
+            sentence=object(),
+            words_meta=[
+                WordMeta(
+                    1, "known", "known", 10, True,
+                    knowledge_state="known",
+                ),
+            ],
+            due_words_covered={1},
+        )
+        cold_collateral = SentenceCandidate(
+            sentence_id=2,
+            sentence=object(),
+            words_meta=[
+                WordMeta(
+                    1, "known", "known", 10, True,
+                    knowledge_state="known",
+                ),
+                WordMeta(
+                    2, "cold", "cold", None, False,
+                    knowledge_state="encountered",
+                ),
+            ],
+            due_words_covered={1},
+        )
+
+        assert not _candidate_has_cold_content(known)
+        assert _candidate_has_cold_content(cold_collateral)
+
+    def test_default_policy_does_not_replace_protected_opening_card(self, db_session):
+        _seed_word(
+            db_session,
+            1,
+            "frequent",
+            "frequent",
+            frequency_rank=1,
+        )
+        _seed_word(
+            db_session,
+            2,
+            "recovery",
+            "recovery",
+            state="lapsed",
+            stability=0.8,
+            frequency_rank=50000,
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "frequent",
+            "frequent",
+            1,
+            [("frequent", 1)],
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "recovery",
+            "recovery",
+            2,
+            [("recovery", 2)],
+        )
+        db_session.add(ReviewLog(
+            lemma_id=2,
+            rating=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            is_acquisition=False,
+            review_mode="reading",
+            fsrs_log_json={"pre_card": {"stability": 30.0}},
+        ))
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            log_events=False,
+            allow_intro_mutations=False,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 1
+        assert (
+            result["selection_diagnostics"]["selector_policy"]
+            == SELECTOR_POLICY_RECOVERY
+        )
+        assert result["selection_diagnostics"][
+            "established_lapse_recovery_cards"
+        ] == 0
+
+    def test_established_lapse_swap_uses_later_maintenance_slot(self):
+        selected = []
+        knowledge = {}
+        for lemma_id in range(1, 7):
+            knowledge[lemma_id] = UserLemmaKnowledge(
+                lemma_id=lemma_id,
+                knowledge_state="known",
+            )
+            selected.append(SentenceCandidate(
+                sentence_id=lemma_id,
+                sentence=SimpleNamespace(source="manual"),
+                words_meta=[
+                    WordMeta(
+                        lemma_id, f"w{lemma_id}", f"w{lemma_id}", 20, True,
+                        knowledge_state="known",
+                    ),
+                ],
+                due_words_covered={lemma_id},
+                score=float(lemma_id),
+                selection_reason=(
+                    "frequency_due_first"
+                    if lemma_id <= 5
+                    else "greedy_cover"
+                ),
+                selection_order=lemma_id,
+            ))
+        knowledge[7] = UserLemmaKnowledge(
+            lemma_id=7,
+            knowledge_state="lapsed",
+        )
+        replacement = SentenceCandidate(
+            sentence_id=7,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(
+                    7, "recovery", "recovery", 0.5, True,
+                    knowledge_state="lapsed",
+                ),
+                WordMeta(
+                    6, "w6", "w6", 20, True,
+                    knowledge_state="known",
+                ),
+            ],
+            due_words_covered={6, 7},
+            score=10.0,
+        )
+
+        swapped = _apply_dominating_debt_swap(
+            selected,
+            [replacement],
+            [7],
+            set(range(1, 8)),
+            knowledge,
+            reason="established_lapse_recovery_v1",
+            evidence_by_lemma_id={
+                7: {
+                    "pre_lapse_stability": 30.0,
+                    "lapse_age_days": 2.0,
+                },
+            },
+        )
+
+        assert swapped == 7
+        assert [candidate.sentence_id for candidate in selected[:5]] == [
+            1, 2, 3, 4, 5,
+        ]
+        assert selected[5].sentence_id == 7
+        assert selected[5].selection_reason == "established_lapse_recovery_v1"
+
+    def test_recovery_does_not_duplicate_target_on_retained_cold_card(self):
+        knowledge = {
+            lemma_id: UserLemmaKnowledge(
+                lemma_id=lemma_id,
+                knowledge_state="known",
+            )
+            for lemma_id in (1, 2, 3)
+        }
+        cold_target_card = SentenceCandidate(
+            sentence_id=1,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(1, "target", "target", 1, True,
+                         knowledge_state="lapsed"),
+                WordMeta(3, "cold", "cold", None, False,
+                         knowledge_state="encountered"),
+            ],
+            due_words_covered={1},
+            selection_reason="greedy_cover",
+        )
+        unique_due_card = SentenceCandidate(
+            sentence_id=2,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(2, "other", "other", 10, True,
+                         knowledge_state="known"),
+            ],
+            due_words_covered={2},
+            selection_reason="greedy_cover",
+        )
+        duplicate_target = SentenceCandidate(
+            sentence_id=4,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(1, "target", "target", 1, True,
+                         knowledge_state="lapsed"),
+            ],
+            due_words_covered={1},
+            score=100,
+        )
+        selected = [cold_target_card, unique_due_card]
+
+        swapped = _apply_dominating_debt_swap(
+            selected,
+            [duplicate_target],
+            [1],
+            {1, 2},
+            knowledge,
+            reason="established_lapse_recovery_v1",
+            cold_lemma_ids={3},
+        )
+
+        assert swapped is None
+        assert [candidate.sentence_id for candidate in selected] == [1, 2]
+
+    def test_recovery_breadth_uses_canonical_creditable_content(self):
+        knowledge = {
+            lemma_id: UserLemmaKnowledge(
+                lemma_id=lemma_id,
+                knowledge_state="known",
+            )
+            for lemma_id in (1, 2, 3, 4, 5)
+        }
+        victim = SentenceCandidate(
+            sentence_id=1,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(1, "due", "due", 10, True,
+                         knowledge_state="known"),
+                WordMeta(2, "known", "known", 20, False,
+                         knowledge_state="known"),
+            ],
+            due_words_covered={1},
+            selection_reason="greedy_cover",
+        )
+        replacement = SentenceCandidate(
+            sentence_id=2,
+            sentence=SimpleNamespace(source="manual"),
+            words_meta=[
+                WordMeta(3, "recovery", "recovery", 1, True,
+                         knowledge_state="lapsed"),
+                WordMeta(4, "variant", "variant", 20, False,
+                         knowledge_state="known"),
+                WordMeta(5, "function", "function", 20, False,
+                         is_function_word=True, knowledge_state="known"),
+            ],
+            due_words_covered={3},
+            score=100,
+        )
+        selected = [victim]
+
+        swapped = _apply_dominating_debt_swap(
+            selected,
+            [replacement],
+            [3],
+            {1, 3},
+            knowledge,
+            reason="established_lapse_recovery_v1",
+            canonical_by_id={4: 3},
+        )
+
+        assert swapped is None
+        assert selected[0].sentence_id == 1
+
+    def test_recovery_lane_ignores_low_pre_lapse_stability(self, db_session):
+        _seed_word(
+            db_session,
+            1,
+            "frequent",
+            "frequent",
+            frequency_rank=1,
+        )
+        _seed_word(
+            db_session,
+            2,
+            "new-lapse",
+            "new lapse",
+            state="lapsed",
+            stability=0.4,
+            frequency_rank=50000,
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "frequent",
+            "frequent",
+            1,
+            [("frequent", 1)],
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "new-lapse",
+            "new lapse",
+            2,
+            [("new-lapse", 2)],
+        )
+        db_session.add(ReviewLog(
+            lemma_id=2,
+            rating=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=2),
+            is_acquisition=False,
+            review_mode="reading",
+            fsrs_log_json={"pre_card": {"stability": 30.0}},
+        ))
+        db_session.add(ReviewLog(
+            lemma_id=2,
+            rating=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            is_acquisition=False,
+            review_mode="reading",
+            fsrs_log_json={"pre_card": {"stability": 3.0}},
+        ))
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            log_events=False,
+            allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_RECOVERY,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 1
+        assert result["selection_diagnostics"][
+            "established_lapse_recovery_cards"
+        ] == 0
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            {"pre_card": []},
+        ],
+    )
+    def test_recovery_lane_skips_malformed_latest_lapse_json(
+        self,
+        db_session,
+        payload,
+    ):
+        _seed_word(db_session, 1, "frequent", "frequent", frequency_rank=1)
+        _seed_word(
+            db_session,
+            2,
+            "recovery",
+            "recovery",
+            state="lapsed",
+            stability=0.4,
+            frequency_rank=50000,
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "frequent",
+            "frequent",
+            1,
+            [("frequent", 1)],
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "recovery",
+            "recovery",
+            2,
+            [("recovery", 2)],
+        )
+        db_session.add(ReviewLog(
+            lemma_id=2,
+            rating=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            is_acquisition=False,
+            review_mode="reading",
+            fsrs_log_json=payload,
+        ))
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            log_events=False,
+            allow_intro_mutations=False,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 1
+        assert result["selection_diagnostics"][
+            "established_lapse_recovery_cards"
+        ] == 0
 
 
 class TestExactSurfaceExperimentSelection:
