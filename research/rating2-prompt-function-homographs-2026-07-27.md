@@ -70,8 +70,7 @@ review history, counters, FSRS JSON, or intake state.
   is modified. Before production upgrade, copy the SQLite database to
   `/opt/alif-backups/`.
 - Frontend: revert the persistent active-yellow selector and prompt-ID field.
-  Older backends ignore no field because backend ships first; old clients omit
-  it safely.
+  Older backends ignore the new field; old clients omit it safely.
 - Scheduling: no rating mapping, FSRS parameter, acquisition constant, or
   primary/collateral behavior changes.
 

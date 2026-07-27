@@ -60,7 +60,8 @@ positive evidence that the prompt had remained visible.
 **UI correction.** While any yellow token exists, a stronger panel now remains
 directly above the submit actions, identifies that exact Arabic surface, and
 keeps the most recently tapped yellow token active when focus moves elsewhere.
-Word-info arrows switch among multiple existing yellows. Undo restores the panel state.
+Word-info arrows switch among multiple existing yellows. Undo restores the
+panel state.
 Submissions log `rating2_prompt_shown_sentence_word_ids`, allowing cause
 non-selection to be separated from prompt non-exposure. Causes and prompt
 telemetry remain diagnostic and do not change ratings or schedules.
