@@ -295,6 +295,9 @@ export interface IntroduceResult {
 }
 
 export interface SentenceWordMeta {
+  sentence_word_id?: number | null;
+  sentence_id?: number | null;
+  position?: number | null;
   lemma_id: number | null;
   canonical_lemma_id?: number | null;
   surface_form: string;
@@ -506,6 +509,28 @@ export interface ConfusionCaptureIn {
   candidates_shown: number[];
 }
 
+export type WordFailureCause =
+  | "retrieval_lapse"
+  | "mixed_up"
+  | "unfamiliar_form"
+  | "missing_tashkeel";
+
+export interface WordReviewEvidenceIn {
+  sentence_word_id: number;
+  rating: 1 | 2 | 3;
+  surface_form: string;
+  rendered_front_form: string;
+  default_show_tashkeel: boolean;
+  front_initial_tashkeel_visible: boolean;
+  front_ever_tashkeel_visible: boolean;
+  front_tashkeel_visible_at_answer: boolean;
+  front_toggle_count: number;
+  answer_revealed: boolean;
+  back_tashkeel_visible_at_rating: boolean | null;
+  back_toggle_count: number;
+  failure_causes: WordFailureCause[];
+}
+
 export interface SentenceReviewSubmission {
   sentence_id: number | null;
   sentence_ids?: number[];
@@ -522,6 +547,8 @@ export interface SentenceReviewSubmission {
   audio_play_count?: number;
   lookup_count?: number;
   parent_card_type?: string;
+  word_evidence_protocol_version?: number;
+  word_review_evidence?: WordReviewEvidenceIn[];
 }
 
 export interface TextbookBenchmark {

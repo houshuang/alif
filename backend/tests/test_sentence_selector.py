@@ -1314,8 +1314,14 @@ class TestWordMetadata:
         words = result["items"][0]["words"]
         assert len(words) == 2
         assert words[0]["surface_form"] == "في"
+        assert words[0]["sentence_word_id"] is not None
+        assert words[0]["sentence_id"] == 1
+        assert words[0]["position"] == 0
         assert words[0]["is_function_word"] is True
         assert words[1]["surface_form"] == "الكتاب"
+        assert words[1]["sentence_word_id"] is not None
+        assert words[1]["sentence_id"] == 1
+        assert words[1]["position"] == 1
         assert words[1]["is_due"] is True
 
     def test_session_id_generated(self, db_session):

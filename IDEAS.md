@@ -1,5 +1,34 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED 2026-07-27 — prospective instrumentation, routing deliberately inactive] Token-level form + tashkeel failure evidence
+
+Rating 2 has at least four learner mechanisms: a momentary retrieval lapse,
+confusion with another word, failure to recognize a morphological surface, and
+failure to decode an otherwise-known word without tashkeel. These mechanisms can
+overlap: a broken plural may be difficult specifically when unvocalized. The
+previous data model stored a lemma-level yellow mark and occasional confusion
+pair, but neither the exact failed token nor the actual post-toggle tashkeel
+condition. Historical exposure therefore cannot be reconstructed reliably.
+
+Word-evidence protocol v1 is prospective and measurement-only. Every schedulable
+content token on a submitted reading card now records its stable SentenceWord ID,
+exact initial render, default/initial/ever/final front tashkeel visibility, back
+visibility, toggle counts, token rating, and optional causes. Successful
+unvocalized tokens are recorded too—the denominator required to distinguish
+useful desirable difficulty from harmful fading. Duplicate occurrences of one
+canonical lemma stay distinct in evidence while still producing one canonical
+scheduling update. Optional chips are Just forgot (exclusive), Mixed it up,
+Unfamiliar form, and No tashkeel (only offered when a stored vocalized form was
+actually hidden on the front).
+
+**Boundary:** no FSRS/acquisition/counter/workload/selector change and no
+primary/collateral distinction. Malformed or stale telemetry is dropped without
+blocking the valid review. Cause-specific representation routing remains TODO
+until version-segmented analysis/replay supports it. Candidate next intervention:
+for repeated `missing_tashkeel` evidence, spend an already-due representation on
+an unvocalized cold retrieval, reveal vowels after failure, then retest later
+unvocalized—never globally retreat from authentic-text preparation.
+
 ## 🔵 [TODO 2026-07-15] Enrichment residue backoff — stop re-asking the LLM about permanently unenrichable lemmas
 After the 2026-07-15 Step E fix + heal (PR #216, experiment-log entry), 131 lemmas
 remain "unenriched" forever: ~100 non-noun/verb rows the forms generator correctly

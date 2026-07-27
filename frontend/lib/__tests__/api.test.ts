@@ -239,6 +239,47 @@ describe("submitSentenceReview", () => {
     expect(entry.payload.confusion_candidate_lemma_ids).toEqual({ 45: [50, 51] });
   });
 
+  it("preserves token-level tashkeel evidence in the offline queue", async () => {
+    mockFetch.mockReturnValue(mockJsonResponse({ results: [] }));
+
+    await submitSentenceReview({
+      sentence_id: 10,
+      primary_lemma_id: 42,
+      comprehension_signal: "partial",
+      missed_lemma_ids: [],
+      confused_lemma_ids: [42],
+      response_ms: 2000,
+      session_id: "sess-evidence",
+      review_mode: "reading",
+      word_evidence_protocol_version: 1,
+      word_review_evidence: [{
+        sentence_word_id: 501,
+        rating: 2,
+        surface_form: "كُتُب",
+        rendered_front_form: "كتب",
+        default_show_tashkeel: false,
+        front_initial_tashkeel_visible: false,
+        front_ever_tashkeel_visible: true,
+        front_tashkeel_visible_at_answer: true,
+        front_toggle_count: 1,
+        answer_revealed: true,
+        back_tashkeel_visible_at_rating: true,
+        back_toggle_count: 0,
+        failure_causes: ["unfamiliar_form", "missing_tashkeel"],
+      }],
+    });
+
+    const queue = JSON.parse(store["@alif/sync-queue"]);
+    const entry = queue.find((e: any) => e.payload.sentence_id === 10);
+    expect(entry.payload.word_evidence_protocol_version).toBe(1);
+    expect(entry.payload.word_review_evidence).toHaveLength(1);
+    expect(entry.payload.word_review_evidence[0]).toMatchObject({
+      sentence_word_id: 501,
+      rendered_front_form: "كتب",
+      failure_causes: ["unfamiliar_form", "missing_tashkeel"],
+    });
+  });
+
   it("accepts explicit client review id", async () => {
     mockFetch.mockReturnValue(mockJsonResponse({ results: [] }));
 

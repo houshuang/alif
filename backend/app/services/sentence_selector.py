@@ -229,6 +229,9 @@ class WordMeta:
     # The comprehensibility gate counts these as 'unknown' so a session full
     # of just-promoted words doesn't read as comprehensible.
     is_fresh_today: bool = False
+    sentence_word_id: int | None = None
+    sentence_id: int | None = None
+    position: int | None = None
 
 
 @dataclass
@@ -1852,6 +1855,9 @@ def build_session(
             if not gloss and sw.lemma_id and not is_name:
                 logger.warning(f"Word '{sw.surface_form}' (lemma_id={sw.lemma_id}) has no gloss in sentence {sw.sentence_id}")
             wm = WordMeta(
+                sentence_word_id=sw.id,
+                sentence_id=sw.sentence_id,
+                position=sw.position,
                 lemma_id=sw.lemma_id,  # original lemma for display/lookup (effective_id used only for scheduling)
                 surface_form=sw.surface_form,
                 gloss_en=gloss,
@@ -2542,6 +2548,9 @@ def build_session(
                 word_show_tashkeel = True
 
             word_dicts.append({
+                "sentence_word_id": w.sentence_word_id,
+                "sentence_id": w.sentence_id,
+                "position": w.position,
                 "lemma_id": w.lemma_id,
                 "canonical_lemma_id": _canonical_id_for_word(w.lemma_id, lemma_map),
                 "surface_form": w.surface_form,
@@ -3179,6 +3188,9 @@ def _find_pregenerated_sentences_for_words(
                 bare_norm = normalize_alef(strip_tatweel(bare))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
             wm = WordMeta(
+                sentence_word_id=sw.id,
+                sentence_id=sw.sentence_id,
+                position=sw.position,
                 lemma_id=sw.lemma_id,
                 surface_form=sw.surface_form,
                 gloss_en=gloss,
@@ -3264,6 +3276,9 @@ def _find_pregenerated_sentences_for_words(
             lemma = lemma_map.get(w.lemma_id) if w.lemma_id else None
             root_obj = lemma.root if lemma else None
             word_dicts.append({
+                "sentence_word_id": w.sentence_word_id,
+                "sentence_id": w.sentence_id,
+                "position": w.position,
                 "lemma_id": w.lemma_id,
                 "canonical_lemma_id": _canonical_id_for_word(w.lemma_id, lemma_map),
                 "surface_form": w.surface_form,
