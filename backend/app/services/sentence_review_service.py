@@ -4,6 +4,7 @@ Translates sentence comprehension signals into per-word FSRS reviews.
 """
 
 from datetime import datetime, timezone
+import logging
 from typing import Optional
 
 from sqlalchemy import or_
@@ -19,6 +20,7 @@ from app.models import (
     SentenceReviewLog,
     SentenceWord,
     UserLemmaKnowledge,
+    WordReviewEvidence,
 )
 from app.services.confusion_service import (
     classify_surface_morphology,
@@ -31,6 +33,16 @@ from app.services.surface_form_experiment import (
     process_surface_experiment_review,
     undo_surface_experiment_reviews,
 )
+
+logger = logging.getLogger(__name__)
+
+WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 1
+_WORD_FAILURE_CAUSES = {
+    "retrieval_lapse",
+    "mixed_up",
+    "unfamiliar_form",
+    "missing_tashkeel",
+}
 
 
 def submit_sentence_review(
@@ -47,6 +59,8 @@ def submit_sentence_review(
     review_mode: str = "reading",
     client_review_id: Optional[str] = None,
     sentence_ids: list[int] | None = None,
+    word_evidence_protocol_version: int | None = None,
+    word_review_evidence: list[dict] | None = None,
 ) -> dict:
     """Submit a review for a whole sentence, distributing ratings to words.
 
@@ -98,6 +112,7 @@ def submit_sentence_review(
     lemma_ids_in_sentence: set[int] = set()
     lemma_ids_by_sentence: dict[int, set[int]] = {}
     surface_forms_by_lemma: dict[int, list[str]] = {}
+    sentence_words: list[SentenceWord] = []
     if review_sentence_ids:
         sentence_words = (
             db.query(SentenceWord)
@@ -205,6 +220,7 @@ def submit_sentence_review(
             encountered_lemma_ids.add(lid)
 
     word_results = []
+    latest_review_log_by_effective: dict[int, ReviewLog] = {}
 
     # Track which effective_lemma_ids we've already processed (dedup after redirect)
     processed_effective_ids: set[int] = set()
@@ -354,6 +370,7 @@ def submit_sentence_review(
         if latest_log and not is_duplicate:
             latest_log.sentence_id = primary_sentence_id
             latest_log.credit_type = credit_type
+            latest_review_log_by_effective[effective_lemma_id] = latest_log
 
         # Track encounters on the canonical ULK
         knowledge = knowledge_map.get(effective_lemma_id)
@@ -517,9 +534,233 @@ def submit_sentence_review(
             candidates_shown_json=cap.get("candidates_shown") or None,
         ))
 
+    word_evidence_saved = _persist_word_review_evidence(
+        db,
+        client_review_id=client_review_id,
+        protocol_version=word_evidence_protocol_version,
+        evidence_rows=word_review_evidence or [],
+        sentence_words=sentence_words,
+        review_sentence_ids=review_sentence_ids,
+        comprehension_signal=comprehension_signal,
+        missed_set=missed_set,
+        confused_set=confused_set,
+        review_mode=review_mode,
+        variant_to_canonical=variant_to_canonical,
+        function_word_lemma_ids=function_word_lemma_ids,
+        proper_name_lemma_ids=proper_name_lemma_ids,
+        latest_review_log_by_effective=latest_review_log_by_effective,
+        now=now,
+    )
+
     db.commit()
 
-    return {"word_results": word_results}
+    return {
+        "word_results": word_results,
+        "word_evidence_saved": word_evidence_saved,
+    }
+
+
+def _persist_word_review_evidence(
+    db: Session,
+    *,
+    client_review_id: str | None,
+    protocol_version: int | None,
+    evidence_rows: list[dict],
+    sentence_words: list[SentenceWord],
+    review_sentence_ids: list[int],
+    comprehension_signal: str,
+    missed_set: set[int],
+    confused_set: set[int],
+    review_mode: str,
+    variant_to_canonical: dict[int, int],
+    function_word_lemma_ids: set[int],
+    proper_name_lemma_ids: set[int],
+    latest_review_log_by_effective: dict[int, ReviewLog],
+    now: datetime,
+) -> int:
+    """Validate and persist presentation evidence without blocking a review.
+
+    Telemetry is deliberately non-authoritative: malformed or stale rows are
+    dropped, while the existing lemma-level rating remains the sole scheduling
+    input. This protects offline review submission if a cached client and the
+    current sentence mapping ever disagree.
+    """
+
+    if not evidence_rows:
+        return 0
+    if not isinstance(evidence_rows, list):
+        logger.warning("Dropping non-list word review evidence payload")
+        return 0
+    if not client_review_id:
+        logger.warning("Dropping word review evidence without client_review_id")
+        return 0
+    if protocol_version != WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION:
+        logger.warning(
+            "Dropping word review evidence with unsupported protocol version %r",
+            protocol_version,
+        )
+        return 0
+    if review_mode != "reading":
+        logger.warning("Dropping word review evidence for review_mode=%s", review_mode)
+        return 0
+
+    by_id = {sw.id: sw for sw in sentence_words}
+    allowed_sentence_ids = set(review_sentence_ids)
+    seen_sentence_word_ids: set[int] = set()
+    saved = 0
+
+    for evidence in evidence_rows[:100]:
+        if not isinstance(evidence, dict):
+            continue
+        sentence_word_id = evidence.get("sentence_word_id")
+        if (
+            not isinstance(sentence_word_id, int)
+            or sentence_word_id in seen_sentence_word_ids
+        ):
+            continue
+        seen_sentence_word_ids.add(sentence_word_id)
+
+        sw = by_id.get(sentence_word_id)
+        if (
+            sw is None
+            or sw.sentence_id not in allowed_sentence_ids
+            or sw.lemma_id is None
+            or sw.lemma_id in function_word_lemma_ids
+            or sw.lemma_id in proper_name_lemma_ids
+        ):
+            continue
+
+        surface_form = evidence.get("surface_form")
+        rendered_front_form = evidence.get("rendered_front_form")
+        if (
+            surface_form != sw.surface_form
+            or not isinstance(rendered_front_form, str)
+            or len(rendered_front_form) > 100
+        ):
+            logger.warning(
+                "Dropping stale/invalid word evidence for sentence_word_id=%s",
+                sentence_word_id,
+            )
+            continue
+
+        rating = evidence.get("rating")
+        effective_lemma_id = variant_to_canonical.get(sw.lemma_id, sw.lemma_id)
+        marked_missed = (
+            sw.lemma_id in missed_set or effective_lemma_id in missed_set
+        )
+        marked_confused = (
+            sw.lemma_id in confused_set or effective_lemma_id in confused_set
+        )
+        if comprehension_signal == "no_idea":
+            valid_rating = rating == 1
+        elif comprehension_signal == "understood":
+            valid_rating = rating == 3
+        else:
+            valid_rating = (
+                rating == 3
+                or (rating == 1 and marked_missed)
+                # Duplicate occurrences of one lemma may have different exact
+                # token outcomes. Lemma-level missed/confused arrays can then
+                # contain the same ID, so do not let the scheduling precedence
+                # (rating 1) erase a sibling token's valid rating-2 evidence.
+                or (rating == 2 and marked_confused)
+            )
+        if not valid_rating:
+            continue
+
+        causes = list(dict.fromkeys(evidence.get("failure_causes") or []))
+        if (
+            any(cause not in _WORD_FAILURE_CAUSES for cause in causes)
+            or (causes and rating != 2)
+            or (
+                "retrieval_lapse" in causes
+                and len(causes) > 1
+            )
+        ):
+            continue
+
+        default_show = evidence.get("default_show_tashkeel")
+        if not isinstance(default_show, bool):
+            continue
+        expected_front_form = (
+            surface_form if default_show else strip_diacritics(surface_form)
+        )
+        if rendered_front_form != expected_front_form:
+            continue
+
+        initial_visible = (
+            strip_diacritics(rendered_front_form) != rendered_front_form
+        )
+        stored_has_tashkeel = strip_diacritics(surface_form) != surface_form
+        reported_initial_visible = evidence.get(
+            "front_initial_tashkeel_visible"
+        )
+        ever_visible = evidence.get("front_ever_tashkeel_visible")
+        visible_at_answer = evidence.get("front_tashkeel_visible_at_answer")
+        front_toggle_count = evidence.get("front_toggle_count")
+        answer_revealed = evidence.get("answer_revealed")
+        back_visible = evidence.get("back_tashkeel_visible_at_rating")
+        back_toggle_count = evidence.get("back_toggle_count")
+        if (
+            reported_initial_visible is not initial_visible
+            or not isinstance(ever_visible, bool)
+            or not isinstance(visible_at_answer, bool)
+            or not isinstance(front_toggle_count, int)
+            or not 0 <= front_toggle_count <= 20
+            or not isinstance(answer_revealed, bool)
+            or not isinstance(back_toggle_count, int)
+            or not 0 <= back_toggle_count <= 20
+            or (initial_visible and not ever_visible)
+            or (visible_at_answer and not ever_visible)
+            or (
+                front_toggle_count == 0
+                and (
+                    ever_visible != initial_visible
+                    or visible_at_answer != initial_visible
+                )
+            )
+            or (not answer_revealed and back_visible is not None)
+            or (answer_revealed and not isinstance(back_visible, bool))
+            or (
+                "missing_tashkeel" in causes
+                and (initial_visible or not stored_has_tashkeel)
+            )
+        ):
+            continue
+
+        latest_log = latest_review_log_by_effective.get(effective_lemma_id)
+        db.add(WordReviewEvidence(
+            client_review_id=client_review_id,
+            review_log_id=latest_log.id if latest_log else None,
+            sentence_word_id=sw.id,
+            sentence_id=sw.sentence_id,
+            position=sw.position,
+            lemma_id=sw.lemma_id,
+            canonical_lemma_id=effective_lemma_id,
+            rating=rating,
+            review_mode=review_mode,
+            protocol_version=WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION,
+            surface_form=surface_form,
+            rendered_front_form=rendered_front_form,
+            default_show_tashkeel=default_show,
+            front_initial_tashkeel_visible=initial_visible,
+            front_ever_tashkeel_visible=ever_visible,
+            front_tashkeel_visible_at_answer=visible_at_answer,
+            front_toggle_count=front_toggle_count,
+            answer_revealed=answer_revealed,
+            back_tashkeel_visible_at_rating=back_visible,
+            back_toggle_count=back_toggle_count,
+            failure_causes_json=causes or None,
+            created_at=now,
+        ))
+        saved += 1
+
+    if len(evidence_rows) > 100:
+        logger.warning(
+            "Truncated word review evidence payload from %s to 100 rows",
+            len(evidence_rows),
+        )
+    return saved
 
 
 def _record_sentence_grammar(
@@ -600,7 +841,23 @@ def undo_sentence_review(
         .all()
     )
 
-    if not review_logs:
+    sent_logs = (
+        db.query(SentenceReviewLog)
+        .filter(
+            or_(
+                SentenceReviewLog.client_review_id == client_review_id,
+                SentenceReviewLog.client_review_id.like(f"{client_review_id}:s%"),
+            )
+        )
+        .all()
+    )
+    evidence_removed = (
+        db.query(WordReviewEvidence)
+        .filter(WordReviewEvidence.client_review_id == client_review_id)
+        .delete(synchronize_session=False)
+    )
+
+    if not review_logs and not sent_logs and not evidence_removed:
         return {"undone": False, "reviews_removed": 0}
 
     deleted_review_ids_by_lemma: dict[int, set[int]] = {}
@@ -637,16 +894,6 @@ def undo_sentence_review(
         db.delete(log)
 
     # Delete the sentence-level review log
-    sent_logs = (
-        db.query(SentenceReviewLog)
-        .filter(
-            or_(
-                SentenceReviewLog.client_review_id == client_review_id,
-                SentenceReviewLog.client_review_id.like(f"{client_review_id}:s%"),
-            )
-        )
-        .all()
-    )
     for sent_log in sent_logs:
         sentence = db.query(Sentence).filter(Sentence.id == sent_log.sentence_id).first()
         if sentence:

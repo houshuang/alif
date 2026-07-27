@@ -2334,7 +2334,8 @@ Frontend                          Backend
    │  {sentence_id,                 ├── submit_sentence_review()
    │   comprehension_signal,        │   ├── per-word rating
    │   missed_lemma_ids,            │   ├── variant→canonical
-   │   confused_lemma_ids}          │   ├── acquiring→Leitner
+   │   confused_lemma_ids,          │   ├── acquiring→Leitner
+   │   word_review_evidence?}       │   ├── validate/store token evidence
    │                                │   ├── FSRS→submit_review
    │                                │   ├── leech check
    │  <───────────────────────────  │   └── grammar exposure

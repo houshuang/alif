@@ -53,6 +53,7 @@ import {
   WordLookupResult,
   ConfusionAnalysis,
   ConfusionCaptureIn,
+  WordFailureCause,
   GrammarLesson,
   WrapUpCard,
 } from "../lib/types";
@@ -66,6 +67,7 @@ import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
+import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
 import {
   CHECKPOINT_MAX_PER_SESSION,
@@ -76,6 +78,16 @@ import {
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 import { bestVocalizedDisplayForm } from "../lib/arabic-display";
+import {
+  EMPTY_TASHKEEL_INTERACTION,
+  TashkeelCardInteraction,
+  WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION,
+  buildWordReviewEvidence,
+  hasTashkeel,
+  stripDiacritics,
+  toggleFailureCause,
+  toggleTashkeelInteraction,
+} from "../lib/review/tashkeel-evidence";
 
 type ReadingCardState = "front" | "back";
 type ListeningCardState = "audio" | "arabic" | "answer";
@@ -247,10 +259,8 @@ interface CardSnapshot {
   sentenceIds?: number[];
   primaryLemmaId: number;
   wordOutcomesBefore: Map<number, WordOutcome>;
-}
-
-function stripDiacritics(s: string): string {
-  return s.replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06D6-\u06ED]/g, "");
+  failureCausesByIndex: Record<number, WordFailureCause[]>;
+  tashkeelInteraction: TashkeelCardInteraction;
 }
 
 function passageSentenceIds(item: SentenceReviewItem): number[] | undefined {
@@ -341,6 +351,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [confusionData, setConfusionData] = useState<ConfusionAnalysis | null>(null);
   const [confusionCandidateLemmaIds, setConfusionCandidateLemmaIds] = useState<Record<number, number[]>>({});
   const [confusionCaptures, setConfusionCaptures] = useState<Record<number, ConfusionCaptureIn>>({});
+  const [failureCausesByIndex, setFailureCausesByIndex] = useState<
+    Record<number, WordFailureCause[]>
+  >({});
+  const [tashkeelInteraction, setTashkeelInteraction] = useState<
+    TashkeelCardInteraction
+  >(EMPTY_TASHKEEL_INTERACTION);
   const [tappedOrder, setTappedOrder] = useState<number[]>([]);
   const [tappedCursor, setTappedCursor] = useState(-1);
   const tappedCacheRef = useRef<Map<number, TappedEntry>>(new Map());
@@ -418,6 +434,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setConfusionData(null);
     setConfusionCandidateLemmaIds({});
     setConfusionCaptures({});
+    setFailureCausesByIndex({});
+    setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
   }, [mode]);
 
   const totalCards = sentenceSession
@@ -831,6 +849,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setConfusionData(null);
     setConfusionCaptures({});
+    setFailureCausesByIndex({});
+    setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setAudioPlayCount(0);
     setLookupCount(0);
     setSubmittingReview(false);
@@ -1131,6 +1151,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         delete next[lemmaId];
         return next;
       });
+      setFailureCausesByIndex((prev) => {
+        if (!prev[index]) return prev;
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
     }
 
     // If tap clears this word, hide the info card or show previous.
@@ -1284,7 +1310,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       sentenceIds: passageSentenceIds(item),
       primaryLemmaId: item.primary_lemma_id,
       wordOutcomesBefore: new Map(wordOutcomes),
+      failureCausesByIndex: Object.fromEntries(
+        Object.entries(failureCausesByIndex).map(([index, causes]) => [
+          index,
+          [...causes],
+        ]),
+      ),
+      tashkeelInteraction: { ...tashkeelInteraction },
     };
+
+    const wordReviewEvidence = mode === "reading"
+      ? buildWordReviewEvidence({
+          words: item.words,
+          signal,
+          missedIndices,
+          confusedIndices,
+          failureCausesByIndex,
+          tashkeel: tashkeelInteraction,
+          answerRevealed: cardState === "back",
+        })
+      : [];
 
     // Track per-word outcomes
     const missedSet = new Set(missedLemmaIds);
@@ -1376,6 +1421,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
         lookup_count: lookupCount > 0 ? lookupCount : undefined,
         parent_card_type: isPassageCard(item) ? "passage" : "sentence",
+        word_evidence_protocol_version: mode === "reading"
+          ? WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION
+          : undefined,
+        word_review_evidence: wordReviewEvidence.length > 0
+          ? wordReviewEvidence
+          : undefined,
       }, clientReviewId);
     } catch (e) {
       console.warn("sentence submit failed:", e);
@@ -1451,6 +1502,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setCardState(mode === "listening" ? "answer" : "back");
     setWordOutcomes(snapshot.wordOutcomesBefore);
+    setFailureCausesByIndex(snapshot.failureCausesByIndex);
+    setTashkeelInteraction(snapshot.tashkeelInteraction);
 
     // Decrement results counter
     setResults(prev => {
@@ -1531,6 +1584,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupLemmaId(null);
     setFocusedWordMark(null);
     setLookupShowMeaning(false);
+    setFailureCausesByIndex({});
+    setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setWordOutcomes(new Map());
     setSeenLemmaIds(new Set());
     setCardReviewIds([]);
@@ -2923,6 +2978,53 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     lookupLemmaId != null && confusionCaptures[lookupLemmaId]?.capture_method === "suggested_pick"
       ? confusionCaptures[lookupLemmaId].confused_with_lemma_id ?? null
       : null;
+  const focusedWordIndex =
+    tappedCursor >= 0 && tappedCursor < tappedOrder.length
+      ? tappedOrder[tappedCursor]
+      : null;
+  const focusedWord =
+    focusedWordIndex != null ? item.words[focusedWordIndex] : null;
+  const focusedWordHasStoredTashkeel = focusedWord
+    ? hasTashkeel(focusedWord.surface_form)
+    : false;
+  const focusedWordInitiallyShowedTashkeel = focusedWord
+    ? focusedWord.show_tashkeel !== false && focusedWordHasStoredTashkeel
+    : true;
+  const ensureFocusedCause = (cause: WordFailureCause) => {
+    if (focusedWordIndex == null) return;
+    setFailureCausesByIndex((prev) => {
+      const current = prev[focusedWordIndex] ?? [];
+      if (current.includes(cause)) return prev;
+      return {
+        ...prev,
+        [focusedWordIndex]: toggleFailureCause(current, cause),
+      };
+    });
+  };
+  const handleToggleFocusedCause = (cause: WordFailureCause) => {
+    if (focusedWordIndex == null) return;
+    const currentlySelected =
+      failureCausesByIndex[focusedWordIndex]?.includes(cause) ?? false;
+    setFailureCausesByIndex((prev) => ({
+      ...prev,
+      [focusedWordIndex]: toggleFailureCause(
+        prev[focusedWordIndex] ?? [],
+        cause,
+      ),
+    }));
+    if (
+      cause === "mixed_up"
+      && currentlySelected
+      && lookupLemmaId != null
+    ) {
+      setConfusionCaptures((prev) => {
+        if (!prev[lookupLemmaId]) return prev;
+        const next = { ...prev };
+        delete next[lookupLemmaId];
+        return next;
+      });
+    }
+  };
   const handlePickConfusion = (chosenLemmaId: number) => {
     if (lookupLemmaId == null || !confusionData) return;
     const candidateIds = [
@@ -2938,6 +3040,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         candidates_shown: Array.from(new Set(candidateIds)),
       },
     }));
+    ensureFocusedCause("mixed_up");
+  };
+
+  const handleTashkeelToggle = () => {
+    const side = cardState === "back" || cardState === "answer"
+      ? "back"
+      : "front";
+    setTashkeelInteraction((current) =>
+      toggleTashkeelInteraction(current, side)
+    );
   };
 
   return (
@@ -2998,6 +3110,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             audioPlaying={audioPlaying}
             onReplay={() => playTtsAudio()}
             onReplaySlow={() => playTtsAudio(true)}
+            overridden={
+              cardState === "answer"
+                ? tashkeelInteraction.backOverride
+                : tashkeelInteraction.frontOverride
+            }
+            onToggleTashkeel={handleTashkeelToggle}
           />
         ) : (
           <SentenceReadingCard
@@ -3006,6 +3124,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             missedIndices={missedIndices}
             confusedIndices={confusedIndices}
             onWordTap={handleWordTap}
+            overridden={
+              cardState === "back"
+                ? tashkeelInteraction.backOverride
+                : tashkeelInteraction.frontOverride
+            }
+            onToggleTashkeel={handleTashkeelToggle}
           />
         )}
       </ScrollView>
@@ -3042,6 +3166,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
       {!isListening
         && focusedWordMark === "did_not_recognize"
+        && focusedWordIndex != null
+        && (
+          <AssistedRecognitionCauses
+            selected={failureCausesByIndex[focusedWordIndex] ?? []}
+            missingTashkeelApplicable={
+              focusedWordHasStoredTashkeel
+              && !focusedWordInitiallyShowedTashkeel
+            }
+            onToggle={handleToggleFocusedCause}
+          />
+      )}
+
+      {!isListening
+        && focusedWordMark === "did_not_recognize"
         && lookupLemmaId != null
         && confusionData
         && (
@@ -3049,9 +3187,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             failedLemmaId={lookupLemmaId}
             confusionData={confusionData}
             existing={confusionCaptures[lookupLemmaId]}
-            onSave={(capture) =>
-              setConfusionCaptures((prev) => ({ ...prev, [capture.failed_lemma_id]: capture }))
-            }
+            onSave={(capture) => {
+              setConfusionCaptures((prev) => ({
+                ...prev,
+                [capture.failed_lemma_id]: capture,
+              }));
+              ensureFocusedCause("mixed_up");
+            }}
             onClear={() =>
               setConfusionCaptures((prev) => {
                 if (!prev[lookupLemmaId]) return prev;
@@ -3113,25 +3255,21 @@ function SentenceReadingCard({
   missedIndices,
   confusedIndices,
   onWordTap,
+  overridden,
+  onToggleTashkeel,
 }: {
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
   confusedIndices: Set<number>;
   onWordTap: (index: number, lemmaId: number | null) => void;
+  overridden: boolean;
+  onToggleTashkeel: () => void;
 }) {
   const showAnswer = cardState === "back";
-  const itemKey = `${passageSentenceIds(item)?.join(",") ?? item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
   const breaks = passageWordBreaks(item);
   const englishLines = passageLines(item, "english_translation");
   const translitLines = passageLines(item, "transliteration");
-
-  // false = default for the current side; true = inverted
-  // (front: force show all; back: force hide all)
-  const [overridden, setOverridden] = useState(false);
-  useEffect(() => {
-    setOverridden(false);
-  }, [showAnswer, itemKey]);
   const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
@@ -3165,7 +3303,7 @@ function SentenceReadingCard({
 
       <View style={styles.cardToggles}>
         <Pressable
-          onPress={() => setOverridden((o) => !o)}
+          onPress={onToggleTashkeel}
           style={styles.toggleDot}
           hitSlop={12}
         >
@@ -3240,6 +3378,8 @@ function SentenceListeningCard({
   audioPlaying,
   onReplay,
   onReplaySlow,
+  overridden,
+  onToggleTashkeel,
 }: {
   item: SentenceReviewItem;
   cardState: ListeningCardState;
@@ -3249,19 +3389,13 @@ function SentenceListeningCard({
   audioPlaying: boolean;
   onReplay: () => void;
   onReplaySlow: () => void;
+  overridden: boolean;
+  onToggleTashkeel: () => void;
 }) {
   const showAnswer = cardState === "answer";
-  const itemKey = `${passageSentenceIds(item)?.join(",") ?? item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
   const breaks = passageWordBreaks(item);
   const englishLines = passageLines(item, "english_translation");
   const translitLines = passageLines(item, "transliteration");
-
-  // false = default for the current side; true = inverted
-  // (front: force show all; back: force hide all)
-  const [overridden, setOverridden] = useState(false);
-  useEffect(() => {
-    setOverridden(false);
-  }, [showAnswer, itemKey]);
 
   if (cardState === "audio") {
     return (
@@ -3309,7 +3443,7 @@ function SentenceListeningCard({
 
       <View style={styles.cardToggles}>
         <Pressable
-          onPress={() => setOverridden((o) => !o)}
+          onPress={onToggleTashkeel}
           style={styles.toggleDot}
           hitSlop={12}
         >

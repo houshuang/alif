@@ -201,6 +201,79 @@ class ReviewLog(Base):
     lemma = relationship("Lemma", back_populates="reviews")
 
 
+class WordReviewEvidence(Base):
+    """Immutable token/presentation evidence attached to a sentence review.
+
+    Scheduling remains canonical-lemma based.  This table preserves the exact
+    token and rendering condition so morphology/tashkeel effects can be
+    analysed without pretending they are independent SRS cards.
+    """
+
+    __tablename__ = "word_review_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "client_review_id",
+            "sentence_word_id",
+            name="uq_word_review_evidence_client_token",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_review_id = Column(String(50), nullable=False, index=True)
+    review_log_id = Column(
+        Integer,
+        ForeignKey("review_log.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    sentence_word_id = Column(
+        Integer,
+        ForeignKey("sentence_words.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sentence_id = Column(
+        Integer,
+        ForeignKey("sentences.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    position = Column(Integer, nullable=False)
+    lemma_id = Column(
+        Integer,
+        ForeignKey("lemmas.lemma_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    canonical_lemma_id = Column(
+        Integer,
+        ForeignKey("lemmas.lemma_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    rating = Column(Integer, nullable=False)
+    review_mode = Column(String(20), nullable=False, default="reading")
+    protocol_version = Column(Integer, nullable=False)
+
+    surface_form = Column(Text, nullable=False)
+    rendered_front_form = Column(Text, nullable=False)
+    default_show_tashkeel = Column(Boolean, nullable=False)
+    front_initial_tashkeel_visible = Column(Boolean, nullable=False)
+    front_ever_tashkeel_visible = Column(Boolean, nullable=False)
+    front_tashkeel_visible_at_answer = Column(Boolean, nullable=False)
+    front_toggle_count = Column(Integer, nullable=False, default=0)
+    answer_revealed = Column(Boolean, nullable=False, default=False)
+    back_tashkeel_visible_at_rating = Column(Boolean, nullable=True)
+    back_toggle_count = Column(Integer, nullable=False, default=0)
+    failure_causes_json = Column(JSON, nullable=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
 class Sentence(Base):
     __tablename__ = "sentences"
 

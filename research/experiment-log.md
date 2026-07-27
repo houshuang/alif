@@ -30,11 +30,11 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
-**Confusion capture / confusors** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+**Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
 **Stories / podcast / listening / maintenance passages** — `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
-**Display — tashkeel / fonts** — `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
+**Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
 **Infra — write-lock / LLM provider / quota** — `2026-04-17 "Write-lock refactor — release SQLite write lock across LLM calls"` · `2026-05-07 "Claude quota fallback, material lock coordination"` · `2026-05-26 "Codex gpt-5.5 vs Claude"` (A/Bs: enrichment→Codex, sentence-gen stays Sonnet) · `2026-04-14 "Fix Silent JSON Parse Failure"`.
 
@@ -47,6 +47,50 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-27: Token-level form/tashkeel evidence — prospective boundary
+
+**Problem.** Product rating 2 consistently means failed unaided retrieval followed
+by recognition after reveal, but it does not identify why. The learner reports
+four recurring mechanisms: momentary lapse, a competing word, an unfamiliar
+conjugation/inflection, and failure to recognize a known word when tashkeel has
+faded. The latter two can co-occur. Existing `was_confused`,
+`variant_stats_json`, and sparse `confusion_captures` operate at lemma/surface
+aggregate level. The backend sent an intended `show_tashkeel` flag, while the
+frontend could override it; neither the actual token rendering nor toggle was
+submitted. Historical actual visibility is therefore not recoverable.
+
+**Change.** Reading clients stamp word-evidence protocol v1 and submit one
+immutable row for every schedulable content token, including successes. Each
+row identifies the exact `SentenceWord`, original/canonical lemma, product
+rating, stored and initially rendered surface, default/initial/ever/final front
+tashkeel exposure, front/back toggle counts, answer visibility, and optional
+cause set. The UI offers Just forgot, Mixed it up, Unfamiliar form, and No
+tashkeel; Just forgot is exclusive, while specific causes may combine. No
+tashkeel appears only when the app had a vocalized form for that exact token
+but initially rendered it without diacritics. Selecting a concrete confusion
+also stamps Mixed it up.
+
+**Safety and validity.** The diagnostic payload never determines scheduling.
+The existing sentence rating remains authoritative; canonical-lemma scheduling,
+rating-2 assisted-lapse policy, acquisition boxes, counters, workload, and
+primary/collateral validity are unchanged. Duplicate occurrences of one lemma
+can have distinct token outcomes while linking to the single canonical
+ReviewLog. The backend validates token membership, surface, rating consistency,
+render logic, cause semantics, and protocol version; stale/malformed evidence is
+dropped without blocking review credit. Old clients remain valid. Offline sync
+preserves the payload, idempotency uses the existing review boundary, and undo
+deletes the evidence and restores frontend cause/toggle state.
+
+**Readout gate.** Do not compare raw vocalized versus unvocalized accuracy:
+fading is assigned to higher-stability words and would confound the estimate.
+First analysis must be protocol-v1-only and matched/stratified by lemma,
+pre-review stability, due/scaffold condition, morphology, and actual initial
+rendering; it must include successful unvocalized tokens as the denominator.
+Front reveal of vowels before answer is a particularly useful rescue signal,
+but remains observational. No cause-specific form/tashkeel routing is active;
+any intervention requires bounded replay and a separate prospective,
+reversible experiment entry.
 
 ## 2026-07-27: Assisted-lapse scheduling + Box-1 efficiency
 

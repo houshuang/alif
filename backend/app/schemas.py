@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class RootOut(BaseModel):
@@ -456,6 +456,9 @@ class ImportResultOut(BaseModel):
 
 
 class SentenceWordMeta(BaseModel):
+    sentence_word_id: int | None = None
+    sentence_id: int | None = None
+    position: int | None = None
     lemma_id: int | None
     canonical_lemma_id: int | None = None
     surface_form: str
@@ -622,6 +625,30 @@ class ConfusionCaptureIn(BaseModel):
     candidates_shown: list[int] = []
 
 
+WordFailureCause = Literal[
+    "retrieval_lapse",
+    "mixed_up",
+    "unfamiliar_form",
+    "missing_tashkeel",
+]
+
+
+class WordReviewEvidenceIn(BaseModel):
+    sentence_word_id: int
+    rating: Literal[1, 2, 3]
+    surface_form: str
+    rendered_front_form: str
+    default_show_tashkeel: bool
+    front_initial_tashkeel_visible: bool
+    front_ever_tashkeel_visible: bool
+    front_tashkeel_visible_at_answer: bool
+    front_toggle_count: int = 0
+    answer_revealed: bool = False
+    back_tashkeel_visible_at_rating: bool | None = None
+    back_toggle_count: int = 0
+    failure_causes: list[WordFailureCause] = Field(default_factory=list)
+
+
 class SentenceReviewSubmitIn(BaseModel):
     sentence_id: int | None = None
     sentence_ids: list[int] = []
@@ -638,10 +665,27 @@ class SentenceReviewSubmitIn(BaseModel):
     audio_play_count: int | None = None
     lookup_count: int | None = None
     parent_card_type: str | None = None  # passage|sentence|wrapup|... — set by frontend so analytics can split passage-internal reviews
+    word_evidence_protocol_version: int | None = None
+    word_review_evidence: list[WordReviewEvidenceIn] = Field(default_factory=list)
+
+    @field_validator("word_review_evidence", mode="before")
+    @classmethod
+    def drop_malformed_word_evidence(cls, value):
+        """Diagnostic telemetry must never invalidate the scheduling review."""
+        if not isinstance(value, list):
+            return []
+        valid: list[WordReviewEvidenceIn] = []
+        for row in value:
+            try:
+                valid.append(WordReviewEvidenceIn.model_validate(row))
+            except (TypeError, ValueError):
+                continue
+        return valid
 
 
 class SentenceReviewSubmitOut(BaseModel):
     word_results: list[dict]
+    word_evidence_saved: int = 0
 
 
 class WordJourneyItem(BaseModel):

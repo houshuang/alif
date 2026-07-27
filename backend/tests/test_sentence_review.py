@@ -6,7 +6,7 @@ import pytest
 
 from app.models import (
     Lemma, UserLemmaKnowledge, Sentence, SentenceWord,
-    ReviewLog, SentenceReviewLog,
+    ReviewLog, SentenceReviewLog, WordReviewEvidence,
 )
 from app.models import GrammarFeature, SentenceGrammarFeature
 from app.services.fsrs_service import create_new_card, submit_review
@@ -71,6 +71,42 @@ def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_ids):
         db.add(sw)
     db.flush()
     return sent
+
+
+def _evidence(
+    sentence_word,
+    *,
+    rating=3,
+    default_show_tashkeel=True,
+    rendered_front_form=None,
+    initial_visible=True,
+    ever_visible=True,
+    visible_at_answer=True,
+    answer_revealed=True,
+    back_visible=True,
+    causes=None,
+):
+    return {
+        "sentence_word_id": sentence_word.id,
+        "rating": rating,
+        "surface_form": sentence_word.surface_form,
+        "rendered_front_form": (
+            rendered_front_form
+            if rendered_front_form is not None
+            else sentence_word.surface_form
+        ),
+        "default_show_tashkeel": default_show_tashkeel,
+        "front_initial_tashkeel_visible": initial_visible,
+        "front_ever_tashkeel_visible": ever_visible,
+        "front_tashkeel_visible_at_answer": visible_at_answer,
+        "front_toggle_count": 0,
+        "answer_revealed": answer_revealed,
+        "back_tashkeel_visible_at_rating": (
+            back_visible if answer_revealed else None
+        ),
+        "back_toggle_count": 0,
+        "failure_causes": causes or [],
+    }
 
 
 class TestUnderstood:
@@ -278,6 +314,273 @@ class TestConfused:
         assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3  # understood
 
+
+class TestWordReviewEvidence:
+    def test_persists_exact_token_tashkeel_and_optional_causes(self, db_session):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_word(db_session, 2, "قلم", "pen")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب قلم",
+            "books pen",
+            target_lemma_id=1,
+            word_ids=[1, 2],
+        )
+        sentence_words = (
+            db_session.query(SentenceWord)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        sentence_words[0].surface_form = "كُتُب"
+        sentence_words[1].surface_form = "قَلَم"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="evidence-1",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[
+                _evidence(
+                    sentence_words[0],
+                    rating=2,
+                    default_show_tashkeel=False,
+                    rendered_front_form="كتب",
+                    initial_visible=False,
+                    ever_visible=False,
+                    visible_at_answer=False,
+                    causes=["unfamiliar_form", "missing_tashkeel"],
+                ),
+                _evidence(sentence_words[1]),
+            ],
+        )
+
+        assert result["word_evidence_saved"] == 2
+        rows = (
+            db_session.query(WordReviewEvidence)
+            .order_by(WordReviewEvidence.position)
+            .all()
+        )
+        assert [row.rating for row in rows] == [2, 3]
+        assert rows[0].rendered_front_form == "كتب"
+        assert rows[0].front_initial_tashkeel_visible is False
+        assert rows[0].failure_causes_json == [
+            "unfamiliar_form",
+            "missing_tashkeel",
+        ]
+        assert rows[0].review_log_id is not None
+        assert rows[1].review_log_id is not None
+
+    def test_duplicate_lemma_tokens_keep_distinct_outcomes(self, db_session):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب كتب",
+            "books books",
+            target_lemma_id=1,
+            word_ids=[1, 1],
+        )
+        sentence_words = (
+            db_session.query(SentenceWord)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        for sentence_word in sentence_words:
+            sentence_word.surface_form = "كُتُب"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="evidence-duplicate",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[
+                _evidence(
+                    sentence_words[0],
+                    rating=2,
+                    causes=["retrieval_lapse"],
+                ),
+                _evidence(sentence_words[1], rating=3),
+            ],
+        )
+
+        assert result["word_evidence_saved"] == 2
+        rows = (
+            db_session.query(WordReviewEvidence)
+            .order_by(WordReviewEvidence.position)
+            .all()
+        )
+        assert [row.rating for row in rows] == [2, 3]
+        assert rows[0].review_log_id == rows[1].review_log_id
+
+    def test_duplicate_lemma_missed_and_assisted_tokens_both_survive(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب كتب",
+            "books books",
+            target_lemma_id=1,
+            word_ids=[1, 1],
+        )
+        sentence_words = (
+            db_session.query(SentenceWord)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        for sentence_word in sentence_words:
+            sentence_word.surface_form = "كُتُب"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            confused_lemma_ids=[1],
+            client_review_id="evidence-duplicate-mixed",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[
+                _evidence(sentence_words[0], rating=1),
+                _evidence(
+                    sentence_words[1],
+                    rating=2,
+                    causes=["unfamiliar_form"],
+                ),
+            ],
+        )
+
+        assert result["word_results"][0]["rating"] == 1
+        assert result["word_evidence_saved"] == 2
+        assert [
+            row.rating
+            for row in (
+                db_session.query(WordReviewEvidence)
+                .order_by(WordReviewEvidence.position)
+                .all()
+            )
+        ] == [1, 2]
+
+    def test_invalid_evidence_does_not_block_review(self, db_session):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب",
+            "books",
+            target_lemma_id=1,
+            word_ids=[1],
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "كُتُب"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="evidence-invalid",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[
+                _evidence(
+                    sentence_word,
+                    rating=2,
+                    causes=["retrieval_lapse", "missing_tashkeel"],
+                ),
+            ],
+        )
+
+        assert result["word_results"][0]["rating"] == 2
+        assert result["word_evidence_saved"] == 0
+        assert db_session.query(WordReviewEvidence).count() == 0
+
+    def test_missing_tashkeel_requires_a_recoverable_vocalized_form(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب",
+            "books",
+            target_lemma_id=1,
+            word_ids=[1],
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="evidence-no-source-tashkeel",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[
+                _evidence(
+                    sentence_word,
+                    rating=2,
+                    default_show_tashkeel=False,
+                    rendered_front_form="word_0",
+                    initial_visible=False,
+                    ever_visible=False,
+                    visible_at_answer=False,
+                    back_visible=False,
+                    causes=["missing_tashkeel"],
+                ),
+            ],
+        )
+
+        assert result["word_results"][0]["rating"] == 2
+        assert result["word_evidence_saved"] == 0
+        assert db_session.query(WordReviewEvidence).count() == 0
+
+    def test_undo_removes_evidence(self, db_session):
+        _seed_word(db_session, 1, "كتب", "books")
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب",
+            "books",
+            target_lemma_id=1,
+            word_ids=[1],
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "كُتُب"
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="evidence-undo",
+            word_evidence_protocol_version=1,
+            word_review_evidence=[_evidence(sentence_word)],
+        )
+        assert db_session.query(WordReviewEvidence).count() == 1
+
+        result = undo_sentence_review(db_session, "evidence-undo")
+
+        assert result["undone"] is True
+        assert db_session.query(WordReviewEvidence).count() == 0
+
     def test_confused_ignored_on_no_idea(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy")
@@ -316,6 +619,37 @@ class TestConfused:
         ratings = {wr["lemma_id"]: wr["rating"] for wr in data["word_results"]}
         assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3
+
+    def test_malformed_evidence_does_not_block_api_review(
+        self,
+        client,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(
+            db_session,
+            1,
+            "الكتاب",
+            "the book",
+            target_lemma_id=1,
+            word_ids=[1],
+        )
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "understood",
+            "client_review_id": "malformed-evidence-api",
+            "word_evidence_protocol_version": 1,
+            "word_review_evidence": [
+                {"sentence_word_id": "not-an-integer"},
+            ],
+        })
+
+        assert resp.status_code == 200
+        assert resp.json()["word_evidence_saved"] == 0
+        assert len(resp.json()["word_results"]) == 1
 
     def test_confused_api_logs_candidate_lemma_ids(self, client, db_session, monkeypatch):
         _seed_word(db_session, 1, "كتاب", "book")

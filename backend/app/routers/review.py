@@ -282,6 +282,10 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         session_id=body.session_id,
         review_mode=body.review_mode,
         client_review_id=body.client_review_id,
+        word_evidence_protocol_version=body.word_evidence_protocol_version,
+        word_review_evidence=[
+            evidence.model_dump() for evidence in body.word_review_evidence
+        ],
     )
 
     log_interaction(
@@ -303,6 +307,27 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         audio_play_count=body.audio_play_count,
         lookup_count=body.lookup_count,
         parent_card_type=body.parent_card_type,
+        word_evidence_protocol_version=body.word_evidence_protocol_version,
+        word_evidence_count=len(body.word_review_evidence),
+        word_evidence_saved=result.get("word_evidence_saved", 0),
+        unvocalized_front_count=sum(
+            1
+            for evidence in body.word_review_evidence
+            if not evidence.front_initial_tashkeel_visible
+        ),
+        tashkeel_front_reveal_count=sum(
+            1
+            for evidence in body.word_review_evidence
+            if (
+                not evidence.front_initial_tashkeel_visible
+                and evidence.front_ever_tashkeel_visible
+            )
+        ),
+        failure_causes={
+            evidence.sentence_word_id: evidence.failure_causes
+            for evidence in body.word_review_evidence
+            if evidence.failure_causes
+        },
     )
 
     return result
@@ -529,6 +554,12 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
         try:
             if item.type == "sentence":
                 payload = item.payload
+                raw_word_evidence = payload.get("word_review_evidence")
+                word_review_evidence = (
+                    raw_word_evidence
+                    if isinstance(raw_word_evidence, list)
+                    else []
+                )
                 result = submit_sentence_review(
                     db,
                     sentence_id=payload.get("sentence_id"),
@@ -543,6 +574,10 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     session_id=payload.get("session_id"),
                     review_mode=payload.get("review_mode", "reading"),
                     client_review_id=item.client_review_id,
+                    word_evidence_protocol_version=payload.get(
+                        "word_evidence_protocol_version"
+                    ),
+                    word_review_evidence=word_review_evidence,
                 )
                 status = "duplicate" if result.get("duplicate") else "ok"
                 if status != "duplicate":
@@ -564,6 +599,13 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
                         parent_card_type=payload.get("parent_card_type"),
+                        word_evidence_protocol_version=payload.get(
+                            "word_evidence_protocol_version"
+                        ),
+                        word_evidence_count=len(
+                            word_review_evidence
+                        ),
+                        word_evidence_saved=result.get("word_evidence_saved", 0),
                         source="sync",
                     )
                 results.append({"client_review_id": item.client_review_id, "status": status})
