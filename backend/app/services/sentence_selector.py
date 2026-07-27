@@ -38,6 +38,7 @@ from app.services.sentence_validator import (
     FUNCTION_WORDS,
     FUNCTION_WORD_GLOSSES,
     _is_function_word,
+    is_function_word_lemma,
     build_lemma_lookup,
     normalize_alef,
     strip_diacritics,
@@ -1186,9 +1187,14 @@ def _auto_introduce_words(
     # Request extra candidates since we filter out names/sounds and low tiers
     candidates = select_next_words(db, count=slots + 10, domain=active_topic)
     # Never auto-introduce names, onomatopoeia, or function words
-    from app.services.sentence_validator import _is_function_word
     candidates = [c for c in candidates if c.get("word_category") not in ("proper_name", "onomatopoeia")]
-    candidates = [c for c in candidates if not _is_function_word(c.get("lemma_ar_bare", ""))]
+    candidates = [
+        c
+        for c in candidates
+        if not is_function_word_lemma(
+            c.get("lemma_ar_bare"), c.get("function_word_override")
+        )
+    ]
 
     # Low-tier gate: when box-1 backlog is large, do not introduce wiktionary /
     # story_import / unsourced words. Forces focus on frequency core, textbook,
@@ -1328,12 +1334,15 @@ def build_session(
         Lemma.lemma_ar_bare,
         Lemma.canonical_lemma_id,
         Lemma.word_category,
+        Lemma.function_word_override,
     ).all():
         lemma_bare_map[row.lemma_id] = row.lemma_ar_bare
         canonical_chain[row.lemma_id] = row.canonical_lemma_id
         if row.word_category == "proper_name":
             proper_name_lemma_ids.add(row.lemma_id)
-        if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare):
+        if is_function_word_lemma(
+            row.lemma_ar_bare, row.function_word_override
+        ):
             function_word_lemma_ids.add(row.lemma_id)
 
     # Variants whose canonical is already known/learning must not enter the
@@ -1847,7 +1856,13 @@ def build_session(
                                 is_fresh_today = True
 
             bare = strip_diacritics(sw.surface_form)
-            is_func = _is_function_word(bare)
+            is_func = (
+                is_function_word_lemma(
+                    lemma.lemma_ar_bare, lemma.function_word_override
+                )
+                if lemma
+                else _is_function_word(bare)
+            )
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
@@ -3182,7 +3197,13 @@ def _find_pregenerated_sentences_for_words(
                                 is_fresh_today = True
 
             bare = strip_diacritics(sw.surface_form)
-            is_func = _is_function_word(bare)
+            is_func = (
+                is_function_word_lemma(
+                    lemma.lemma_ar_bare, lemma.function_word_override
+                )
+                if lemma
+                else _is_function_word(bare)
+            )
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
@@ -3502,7 +3523,7 @@ def _drop_function_and_proper_name_lemma_ids(
     Per CLAUDE.md: function words and proper names are inert in the SRS
     pipeline — they earn no FSRS / acquisition credit and never get intro
     cards. The check is by lemma row (`word_category == "proper_name"`) and
-    by bare-form lookup against `FUNCTION_WORD_GLOSSES`.
+    by lemma-aware lookup against `FUNCTION_WORD_GLOSSES`.
     """
     if not lemma_ids:
         return []
@@ -3520,7 +3541,9 @@ def _drop_function_and_proper_name_lemma_ids(
             continue
         if lem.word_category == "proper_name":
             continue
-        if lem.lemma_ar_bare and _is_function_word(lem.lemma_ar_bare):
+        if is_function_word_lemma(
+            lem.lemma_ar_bare, lem.function_word_override
+        ):
             continue
         keep.append(lid)
     return keep

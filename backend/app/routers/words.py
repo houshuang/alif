@@ -117,7 +117,7 @@ def list_words(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    from app.services.sentence_validator import _is_function_word
+    from app.services.sentence_validator import is_function_word_lemma
 
     # Special category: proper names from stories
     if category == "names":
@@ -134,9 +134,19 @@ def list_words(
     lemmas = q.offset(offset).limit(fetch_limit).all()
 
     if category == "function":
-        lemmas = [l for l in lemmas if l.lemma_ar_bare and _is_function_word(l.lemma_ar_bare)][:limit]
+        lemmas = [
+            l for l in lemmas
+            if is_function_word_lemma(
+                l.lemma_ar_bare, l.function_word_override
+            )
+        ][:limit]
     else:
-        lemmas = [l for l in lemmas if not l.lemma_ar_bare or not _is_function_word(l.lemma_ar_bare)][:limit]
+        lemmas = [
+            l for l in lemmas
+            if not is_function_word_lemma(
+                l.lemma_ar_bare, l.function_word_override
+            )
+        ][:limit]
 
     # Batch-fetch last 8 ratings + timestamps per word
     lemma_ids = [l.lemma_id for l in lemmas]

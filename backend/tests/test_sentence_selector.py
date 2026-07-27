@@ -2302,6 +2302,41 @@ class TestIntroCardsForSessionWords:
 
         assert 2 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
 
+    def test_content_homograph_remains_schedulable(self, db_session):
+        _seed_word(
+            db_session,
+            1,
+            "ام",
+            "mother",
+            due_hours=-1,
+        )
+        mother = db_session.query(Lemma).filter_by(lemma_id=1).one()
+        mother.function_word_override = False
+        _seed_word(db_session, 2, "كتاب", "book", due_hours=24)
+        _seed_sentence(
+            db_session,
+            1,
+            "ام كتاب",
+            "a book's mother",
+            1,
+            [("ام", 1), ("كتاب", 2)],
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert result["total_due_words"] == 1
+        mother_word = next(
+            word
+            for word in result["items"][0]["words"]
+            if word["lemma_id"] == 1
+        )
+        assert mother_word["is_function_word"] is False
+
 
 class TestFillPhasePregenerated:
     """Fill phase should use pre-generated sentences (no LLM calls in session build)."""

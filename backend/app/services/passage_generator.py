@@ -37,7 +37,7 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize_display,
     validate_sentence_multi_target,
-    _is_function_word,
+    is_function_word_lemma,
 )
 from app.services.story_service import _create_story_words
 from app.services.transliteration import transliterate_arabic
@@ -318,7 +318,9 @@ def _eligible_passage_words(db: Session) -> list[dict[str, Any]]:
     for lemma, ulk in rows:
         if lemma.word_category == "proper_name":
             continue
-        if lemma.lemma_ar_bare and _is_function_word(lemma.lemma_ar_bare):
+        if is_function_word_lemma(
+            lemma.lemma_ar_bare, lemma.function_word_override
+        ):
             continue
         if ulk.knowledge_state == "acquiring" and (ulk.acquisition_box or 1) < 2:
             continue
@@ -351,7 +353,9 @@ def _due_maintenance_targets(db: Session, limit: int = 8) -> list[dict[str, Any]
     for lemma, ulk in rows:
         if lemma.word_category == "proper_name":
             continue
-        if lemma.lemma_ar_bare and _is_function_word(lemma.lemma_ar_bare):
+        if is_function_word_lemma(
+            lemma.lemma_ar_bare, lemma.function_word_override
+        ):
             continue
         due = _due_dt(ulk)
         if due and due <= now:

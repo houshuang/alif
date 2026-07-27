@@ -229,6 +229,33 @@ class TestPartial:
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
         assert ratings[1] == 3
 
+    def test_content_homograph_gets_normal_collateral_credit(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ام", "mother")
+        mother = db_session.query(Lemma).filter_by(lemma_id=2).one()
+        mother.function_word_override = False
+        _seed_sentence(
+            db_session,
+            1,
+            "ام الكتاب",
+            "the book's mother",
+            target_lemma_id=1,
+            word_ids=[2, 1],
+        )
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            session_id="content-homograph",
+        )
+
+        by_id = {row["lemma_id"]: row for row in result["word_results"]}
+        assert by_id[2]["rating"] == 3
+        assert by_id[2]["credit_type"] == "collateral"
+
     def test_missed_primary_gets_rating_1(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_sentence(db_session, 1, "الكتاب", "the book",
@@ -671,12 +698,14 @@ class TestWordReviewEvidence:
             "comprehension_signal": "partial",
             "confused_lemma_ids": [2],
             "confusion_candidate_lemma_ids": {"2": [1]},
+            "rating2_prompt_shown_sentence_word_ids": [1],
             "session_id": "api-test",
         })
 
         assert resp.status_code == 200
         assert events[-1]["event"] == "sentence_review"
         assert events[-1]["confusion_candidate_lemma_ids"] == {2: [1]}
+        assert events[-1]["rating2_prompt_shown_sentence_word_ids"] == [1]
 
 
 class TestVariantStatsMorphology:

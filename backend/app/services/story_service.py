@@ -37,6 +37,7 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize,
     _is_function_word,
+    is_function_word_lemma,
     _WORD_CHAR,
     lookup_lemma,
 )
@@ -235,7 +236,10 @@ def _create_story_words(
                 if lemma:
                     if lemma.word_category == "proper_name":
                         is_proper_name = True
-                    elif _is_function_word(lemma.lemma_ar_bare):
+                    elif is_function_word_lemma(
+                        lemma.lemma_ar_bare,
+                        lemma.function_word_override,
+                    ):
                         is_func = True
 
             is_known = False
@@ -724,23 +728,25 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
     func = 0
     func_fixed = 0
     for sw in story.words:
-        # Re-check function word status: surface form or resolved lemma bare form
-        is_func = sw.is_function_word
+        # A resolved lemma's explicit override wins over the ambiguous surface
+        # spelling. Otherwise preserve the surface + lemma fallback behavior.
+        surface_clean = strip_diacritics(sw.surface_form).strip()
+        lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
         is_proper_name = sw.name_type in ("personal", "place")
-        if not is_func:
-            surface_clean = strip_diacritics(sw.surface_form).strip()
-            if _is_function_word(surface_clean):
-                is_func = True
-            elif sw.lemma_id:
-                lemma = lemma_map.get(sw.lemma_id)
-                if lemma:
-                    if lemma.word_category == "proper_name":
-                        is_proper_name = True
-                    elif _is_function_word(lemma.lemma_ar_bare):
-                        is_func = True
-            if is_func and not sw.is_function_word:
-                sw.is_function_word = True
-                func_fixed += 1
+        if lemma and lemma.word_category == "proper_name":
+            is_proper_name = True
+        if lemma and lemma.function_word_override is not None:
+            is_func = lemma.function_word_override
+        else:
+            is_func = _is_function_word(surface_clean)
+            if not is_func and lemma:
+                is_func = is_function_word_lemma(
+                    lemma.lemma_ar_bare,
+                    lemma.function_word_override,
+                )
+        if is_func != sw.is_function_word:
+            sw.is_function_word = is_func
+            func_fixed += 1
 
         if is_func or is_proper_name:
             key = sw.lemma_id or sw.surface_form

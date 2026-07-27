@@ -10,10 +10,14 @@ const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
 ];
 
 export function AssistedRecognitionCauses({
+  surfaceForm,
+  assistedWordCount,
   selected,
   missingTashkeelApplicable,
   onToggle,
 }: {
+  surfaceForm: string;
+  assistedWordCount: number;
   selected: readonly WordFailureCause[];
   missingTashkeelApplicable: boolean;
   onToggle: (cause: WordFailureCause) => void;
@@ -27,7 +31,12 @@ export function AssistedRecognitionCauses({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.prompt}>Why did it click after reveal? Optional.</Text>
+      <View style={styles.heading}>
+        <Text style={styles.arabic}>{surfaceForm}</Text>
+        <Text style={styles.prompt}>
+          You recognized this after reveal. Why? (optional)
+        </Text>
+      </View>
       <View style={styles.chips}>
         {causes.map((cause) => {
           const active = selected.includes(cause.value);
@@ -49,25 +58,44 @@ export function AssistedRecognitionCauses({
       {selected.includes("missing_tashkeel") && (
         <Text style={styles.detail}>I knew it once the vowels appeared.</Text>
       )}
+      {assistedWordCount > 1 && (
+        <Text style={styles.detail}>
+          Use the word arrows to switch between yellow words.
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    marginTop: 8,
+    marginHorizontal: 2,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(243, 156, 18, 0.28)",
-    backgroundColor: "rgba(243, 156, 18, 0.07)",
+    borderColor: "rgba(243, 156, 18, 0.55)",
+    backgroundColor: "rgba(243, 156, 18, 0.12)",
+  },
+  heading: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    marginBottom: 9,
+  },
+  arabic: {
+    color: colors.confused,
+    fontFamily: fontFamily.arabic,
+    fontSize: 19,
+    fontWeight: "700",
   },
   prompt: {
-    color: colors.textSecondary,
+    color: colors.text,
     fontFamily: fontFamily.translitRegular,
-    fontSize: 11,
-    marginBottom: 7,
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
   },
   chips: {
     flexDirection: "row",

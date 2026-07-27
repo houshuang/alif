@@ -1,9 +1,30 @@
 import {
   EMPTY_TASHKEEL_INTERACTION,
+  assistedRecognitionIndex,
   buildWordReviewEvidence,
   toggleFailureCause,
   toggleTashkeelInteraction,
 } from "../tashkeel-evidence";
+
+describe("assistedRecognitionIndex", () => {
+  it("keeps the most recently tapped yellow word active after focus moves", () => {
+    expect(
+      assistedRecognitionIndex(new Set([1]), [1, 3], 3),
+    ).toBe(1);
+  });
+
+  it("uses a newly focused yellow word when several are marked", () => {
+    expect(
+      assistedRecognitionIndex(new Set([1, 3]), [1, 3], 3),
+    ).toBe(3);
+  });
+
+  it("falls back to a marked word after history is restored without taps", () => {
+    expect(
+      assistedRecognitionIndex(new Set([2]), [], null),
+    ).toBe(2);
+  });
+});
 import { SentenceWordMeta } from "../../types";
 
 const words: SentenceWordMeta[] = [

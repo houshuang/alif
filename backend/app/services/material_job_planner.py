@@ -18,7 +18,7 @@ from app.services.material_generator import (
 )
 from app.services.material_jobs import enqueue_material_job
 from app.services.pipeline_tiers import compute_word_tiers, tier_summary
-from app.services.sentence_validator import _is_function_word
+from app.services.sentence_validator import is_function_word_lemma
 
 
 KIND_SENTENCE_SHARD = "sentence_shard"
@@ -65,7 +65,9 @@ def _env_int(name: str, default: int) -> int:
 def _is_generation_inert_lemma(lemma: Lemma) -> bool:
     if lemma.word_category in {"proper_name", "onomatopoeia"}:
         return True
-    return _is_function_word(lemma.lemma_ar_bare or "")
+    return is_function_word_lemma(
+        lemma.lemma_ar_bare, lemma.function_word_override
+    )
 
 
 def _window_key(now: datetime) -> str:

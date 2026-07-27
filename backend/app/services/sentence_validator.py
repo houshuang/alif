@@ -499,6 +499,23 @@ def _is_function_word(bare_form: str) -> bool:
     return normalized in _FUNCTION_WORDS_NORMALIZED
 
 
+def is_function_word_lemma(
+    lemma_ar_bare: str | None,
+    function_word_override: bool | None = None,
+) -> bool:
+    """Classify a mapped lemma without collapsing lexical homographs.
+
+    ``_is_function_word`` remains the surface-form fallback for unmapped
+    tokens. Once a token is mapped to a lemma, an explicit lexical
+    ``function_word_override=False`` wins over the spelling heuristic (for
+    example أُمّ "mother" versus أم "or"). The override is orthogonal to
+    lexical categories such as ``onomatopoeia``.
+    """
+    if function_word_override is not None:
+        return function_word_override
+    return bool(lemma_ar_bare and _is_function_word(lemma_ar_bare))
+
+
 def _bare_forms_match(word_bare: str, candidate_bare: str) -> bool:
     """Check if two bare Arabic forms match, with alef normalization."""
     return normalize_alef(word_bare) == normalize_alef(candidate_bare)

@@ -43,6 +43,9 @@ class Lemma(Base):
     canonical_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
     source_story_id = Column(Integer, ForeignKey("stories.id"), nullable=True)
     word_category = Column(String(20), nullable=True)  # NULL=standard, proper_name, onomatopoeia
+    # NULL falls back to surface spelling; False explicitly preserves a
+    # lexical content homograph (e.g. أُمّ "mother" vs أم "or").
+    function_word_override = Column(Boolean, nullable=True)
     thematic_domain = Column(String(30), nullable=True)
     etymology_json = Column(JSON, nullable=True)
     memory_hooks_json = Column(JSON, nullable=True)

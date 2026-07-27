@@ -52,10 +52,17 @@ _func_word_ids_cache: set[int] | None = None
 def _get_func_word_ids(db: Session) -> set[int]:
     global _func_word_ids_cache
     if _func_word_ids_cache is None:
-        from app.services.sentence_validator import _is_function_word
+        from app.services.sentence_validator import is_function_word_lemma
         _func_word_ids_cache = {
-            row.lemma_id for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
-            if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare)
+            row.lemma_id
+            for row in db.query(
+                Lemma.lemma_id,
+                Lemma.lemma_ar_bare,
+                Lemma.function_word_override,
+            ).all()
+            if is_function_word_lemma(
+                row.lemma_ar_bare, row.function_word_override
+            )
         }
     return _func_word_ids_cache
 

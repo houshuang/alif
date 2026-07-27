@@ -67,6 +67,22 @@ export function toggleFailureCause(
   ];
 }
 
+export function assistedRecognitionIndex(
+  confusedIndices: ReadonlySet<number>,
+  tappedOrder: readonly number[],
+  focusedIndex: number | null,
+): number | null {
+  if (focusedIndex != null && confusedIndices.has(focusedIndex)) {
+    return focusedIndex;
+  }
+  for (let i = tappedOrder.length - 1; i >= 0; i -= 1) {
+    const index = tappedOrder[i];
+    if (confusedIndices.has(index)) return index;
+  }
+  const marked = Array.from(confusedIndices);
+  return marked.length > 0 ? marked[marked.length - 1] : null;
+}
+
 export function buildWordReviewEvidence({
   words,
   signal,

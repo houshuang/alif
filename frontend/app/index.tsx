@@ -82,6 +82,7 @@ import {
   EMPTY_TASHKEEL_INTERACTION,
   TashkeelCardInteraction,
   WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION,
+  assistedRecognitionIndex,
   buildWordReviewEvidence,
   hasTashkeel,
   stripDiacritics,
@@ -260,6 +261,7 @@ interface CardSnapshot {
   primaryLemmaId: number;
   wordOutcomesBefore: Map<number, WordOutcome>;
   failureCausesByIndex: Record<number, WordFailureCause[]>;
+  rating2PromptShownSentenceWordIds: Set<number>;
   tashkeelInteraction: TashkeelCardInteraction;
 }
 
@@ -354,6 +356,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [failureCausesByIndex, setFailureCausesByIndex] = useState<
     Record<number, WordFailureCause[]>
   >({});
+  const [
+    rating2PromptShownSentenceWordIds,
+    setRating2PromptShownSentenceWordIds,
+  ] = useState<Set<number>>(new Set());
   const [tashkeelInteraction, setTashkeelInteraction] = useState<
     TashkeelCardInteraction
   >(EMPTY_TASHKEEL_INTERACTION);
@@ -435,6 +441,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setConfusionCandidateLemmaIds({});
     setConfusionCaptures({});
     setFailureCausesByIndex({});
+    setRating2PromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
   }, [mode]);
 
@@ -448,6 +455,48 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const isExperimentIntroSlot = currentSlot?.type === "experiment_intro";
   const isVerseSlot = currentSlot?.type === "verse";
   const sentenceItemIndex = currentSlot?.type === "sentence" ? currentSlot.itemIndex : cardIndex;
+  const focusedReviewWordIndex =
+    tappedCursor >= 0 && tappedCursor < tappedOrder.length
+      ? tappedOrder[tappedCursor]
+      : null;
+  const activeAssistedRecognitionIndex = useMemo(
+    () =>
+      assistedRecognitionIndex(
+        confusedIndices,
+        tappedOrder,
+        focusedReviewWordIndex,
+      ),
+    [confusedIndices, focusedReviewWordIndex, tappedOrder],
+  );
+
+  useEffect(() => {
+    if (
+      mode !== "reading"
+      || cardState !== "back"
+      || activeAssistedRecognitionIndex == null
+      || (currentSlot != null && currentSlot.type !== "sentence")
+    ) {
+      return;
+    }
+    const sentenceWordId =
+      sentenceSession?.items[sentenceItemIndex]?.words[
+        activeAssistedRecognitionIndex
+      ]?.sentence_word_id;
+    if (sentenceWordId == null) return;
+    setRating2PromptShownSentenceWordIds((previous) => {
+      if (previous.has(sentenceWordId)) return previous;
+      const next = new Set(previous);
+      next.add(sentenceWordId);
+      return next;
+    });
+  }, [
+    activeAssistedRecognitionIndex,
+    cardState,
+    currentSlot,
+    mode,
+    sentenceItemIndex,
+    sentenceSession,
+  ]);
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -850,6 +899,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setConfusionData(null);
     setConfusionCaptures({});
     setFailureCausesByIndex({});
+    setRating2PromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setAudioPlayCount(0);
     setLookupCount(0);
@@ -1316,6 +1366,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           [...causes],
         ]),
       ),
+      rating2PromptShownSentenceWordIds: new Set(
+        rating2PromptShownSentenceWordIds,
+      ),
       tashkeelInteraction: { ...tashkeelInteraction },
     };
 
@@ -1421,6 +1474,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
         lookup_count: lookupCount > 0 ? lookupCount : undefined,
         parent_card_type: isPassageCard(item) ? "passage" : "sentence",
+        rating2_prompt_shown_sentence_word_ids:
+          rating2PromptShownSentenceWordIds.size > 0
+            ? Array.from(rating2PromptShownSentenceWordIds)
+            : undefined,
         word_evidence_protocol_version: mode === "reading"
           ? WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION
           : undefined,
@@ -1503,6 +1560,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardState(mode === "listening" ? "answer" : "back");
     setWordOutcomes(snapshot.wordOutcomesBefore);
     setFailureCausesByIndex(snapshot.failureCausesByIndex);
+    setRating2PromptShownSentenceWordIds(
+      snapshot.rating2PromptShownSentenceWordIds,
+    );
     setTashkeelInteraction(snapshot.tashkeelInteraction);
 
     // Decrement results counter
@@ -1585,6 +1645,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setFocusedWordMark(null);
     setLookupShowMeaning(false);
     setFailureCausesByIndex({});
+    setRating2PromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setWordOutcomes(new Map());
     setSeenLemmaIds(new Set());
@@ -2978,17 +3039,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     lookupLemmaId != null && confusionCaptures[lookupLemmaId]?.capture_method === "suggested_pick"
       ? confusionCaptures[lookupLemmaId].confused_with_lemma_id ?? null
       : null;
-  const focusedWordIndex =
-    tappedCursor >= 0 && tappedCursor < tappedOrder.length
-      ? tappedOrder[tappedCursor]
+  const focusedWordIndex = focusedReviewWordIndex;
+  const assistedWord =
+    activeAssistedRecognitionIndex != null
+      ? item.words[activeAssistedRecognitionIndex]
       : null;
-  const focusedWord =
-    focusedWordIndex != null ? item.words[focusedWordIndex] : null;
-  const focusedWordHasStoredTashkeel = focusedWord
-    ? hasTashkeel(focusedWord.surface_form)
+  const assistedWordHasStoredTashkeel = assistedWord
+    ? hasTashkeel(assistedWord.surface_form)
     : false;
-  const focusedWordInitiallyShowedTashkeel = focusedWord
-    ? focusedWord.show_tashkeel !== false && focusedWordHasStoredTashkeel
+  const assistedWordInitiallyShowedTashkeel = assistedWord
+    ? assistedWord.show_tashkeel !== false && assistedWordHasStoredTashkeel
     : true;
   const ensureFocusedCause = (cause: WordFailureCause) => {
     if (focusedWordIndex == null) return;
@@ -3001,14 +3061,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       };
     });
   };
-  const handleToggleFocusedCause = (cause: WordFailureCause) => {
-    if (focusedWordIndex == null) return;
+  const handleToggleAssistedCause = (cause: WordFailureCause) => {
+    if (activeAssistedRecognitionIndex == null) return;
     const currentlySelected =
-      failureCausesByIndex[focusedWordIndex]?.includes(cause) ?? false;
+      failureCausesByIndex[activeAssistedRecognitionIndex]?.includes(cause)
+      ?? false;
     setFailureCausesByIndex((prev) => ({
       ...prev,
-      [focusedWordIndex]: toggleFailureCause(
-        prev[focusedWordIndex] ?? [],
+      [activeAssistedRecognitionIndex]: toggleFailureCause(
+        prev[activeAssistedRecognitionIndex] ?? [],
         cause,
       ),
     }));
@@ -3166,20 +3227,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
       {!isListening
         && focusedWordMark === "did_not_recognize"
-        && focusedWordIndex != null
-        && (
-          <AssistedRecognitionCauses
-            selected={failureCausesByIndex[focusedWordIndex] ?? []}
-            missingTashkeelApplicable={
-              focusedWordHasStoredTashkeel
-              && !focusedWordInitiallyShowedTashkeel
-            }
-            onToggle={handleToggleFocusedCause}
-          />
-      )}
-
-      {!isListening
-        && focusedWordMark === "did_not_recognize"
         && lookupLemmaId != null
         && confusionData
         && (
@@ -3202,6 +3249,24 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 return next;
               })
             }
+          />
+      )}
+
+      {!isListening
+        && activeAssistedRecognitionIndex != null
+        && assistedWord != null
+        && (
+          <AssistedRecognitionCauses
+            surfaceForm={assistedWord.surface_form}
+            assistedWordCount={confusedIndices.size}
+            selected={
+              failureCausesByIndex[activeAssistedRecognitionIndex] ?? []
+            }
+            missingTashkeelApplicable={
+              assistedWordHasStoredTashkeel
+              && !assistedWordInitiallyShowedTashkeel
+            }
+            onToggle={handleToggleAssistedCause}
           />
       )}
 

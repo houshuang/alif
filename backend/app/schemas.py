@@ -665,6 +665,9 @@ class SentenceReviewSubmitIn(BaseModel):
     audio_play_count: int | None = None
     lookup_count: int | None = None
     parent_card_type: str | None = None  # passage|sentence|wrapup|... — set by frontend so analytics can split passage-internal reviews
+    rating2_prompt_shown_sentence_word_ids: list[int] = Field(
+        default_factory=list
+    )
     word_evidence_protocol_version: int | None = None
     word_review_evidence: list[WordReviewEvidenceIn] = Field(default_factory=list)
 
