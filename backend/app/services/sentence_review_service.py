@@ -28,7 +28,10 @@ from app.services.confusion_service import (
 )
 from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_review
 from app.services.grammar_service import record_grammar_exposure
-from app.services.sentence_validator import _is_function_word, strip_diacritics
+from app.services.sentence_validator import (
+    is_function_word_lemma,
+    strip_diacritics,
+)
 from app.services.surface_form_experiment import (
     process_surface_experiment_review,
     undo_surface_experiment_reviews,
@@ -149,7 +152,9 @@ def submit_sentence_review(
         )
         lemma_map = {lo.lemma_id: lo for lo in lemma_objs}
         for lo in lemma_objs:
-            if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
+            if is_function_word_lemma(
+                lo.lemma_ar_bare, lo.function_word_override
+            ):
                 function_word_lemma_ids.add(lo.lemma_id)
             if lo.word_category == "proper_name":
                 proper_name_lemma_ids.add(lo.lemma_id)

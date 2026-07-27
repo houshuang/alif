@@ -547,6 +547,7 @@ export interface SentenceReviewSubmission {
   audio_play_count?: number;
   lookup_count?: number;
   parent_card_type?: string;
+  rating2_prompt_shown_sentence_word_ids?: number[];
   word_evidence_protocol_version?: number;
   word_review_evidence?: WordReviewEvidenceIn[];
 }

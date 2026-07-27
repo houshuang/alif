@@ -12,6 +12,7 @@ from app.services.sentence_validator import (
     TokenMapping,
     ValidationResult,
     _is_function_word,
+    is_function_word_lemma,
     _strip_clitics,
     build_lemma_lookup,
     compute_bare_form,
@@ -322,6 +323,12 @@ class TestFunctionWordsCompleteness:
         """_is_function_word returns True for known function words."""
         for word in ["في", "من", "هو", "كان", "يوجد"]:
             assert _is_function_word(word), f"{word} should be a function word"
+
+    def test_lemma_category_disambiguates_content_homograph(self):
+        assert _is_function_word("ام") is True
+        assert is_function_word_lemma("ام", None) is True
+        assert is_function_word_lemma("ام", False) is False
+        assert is_function_word_lemma("كتاب", True) is True
 
     def test_glosses_still_available(self):
         """FUNCTION_WORD_GLOSSES still provides fallback glosses."""

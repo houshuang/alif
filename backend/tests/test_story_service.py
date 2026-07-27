@@ -385,6 +385,43 @@ class TestRecalculateReadiness:
         assert "unknown_count" in result
         assert isinstance(result["unknown_words"], list)
 
+    def test_content_homograph_repairs_stale_function_flag(self, db_session):
+        mother = Lemma(
+            lemma_ar="أُمّ",
+            lemma_ar_bare="ام",
+            gloss_en="mother",
+            pos="noun",
+            function_word_override=False,
+        )
+        db_session.add(mother)
+        db_session.flush()
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=mother.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=create_new_card(),
+        ))
+        story = Story(body_ar="أُمّ", source="imported", status="active")
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id,
+            position=0,
+            surface_form="أُمّ",
+            lemma_id=mother.lemma_id,
+            is_known_at_creation=True,
+            is_function_word=True,
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        recalculate_readiness(db_session, story.id)
+
+        db_session.refresh(word)
+        db_session.refresh(story)
+        assert word.is_function_word is False
+        assert story.total_words == 1
+        assert story.known_count == 1
+
 
 class TestStoryAPI:
     def test_list_stories(self, client, db_session):

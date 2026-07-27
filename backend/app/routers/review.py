@@ -39,7 +39,13 @@ from app.services.sentence_eligibility import (
     reviewable_sentence_clauses,
 )
 from app.services.lemma_vocalization import lexical_diacritic_count
-from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
+from app.services.sentence_validator import (
+    _is_function_word,
+    is_function_word_lemma,
+    FUNCTION_WORDS,
+    FUNCTION_WORD_GLOSSES,
+    strip_diacritics,
+)
 from app.services.transliteration import transliterate_arabic, transliterate_lemma
 
 logger = logging.getLogger(__name__)
@@ -307,6 +313,9 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         audio_play_count=body.audio_play_count,
         lookup_count=body.lookup_count,
         parent_card_type=body.parent_card_type,
+        rating2_prompt_shown_sentence_word_ids=(
+            body.rating2_prompt_shown_sentence_word_ids
+        ),
         word_evidence_protocol_version=body.word_evidence_protocol_version,
         word_evidence_count=len(body.word_review_evidence),
         word_evidence_saved=result.get("word_evidence_saved", 0),
@@ -419,7 +428,9 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "example_ar": lemma.example_ar,
         "example_en": lemma.example_en,
         "grammar_details": grammar_details,
-        "is_function_word": _is_function_word(lemma.lemma_ar_bare) if lemma.lemma_ar_bare else False,
+        "is_function_word": is_function_word_lemma(
+            lemma.lemma_ar_bare, lemma.function_word_override
+        ),
         "frequency_rank": lemma.frequency_rank,
         "cefr_level": lemma.cefr_level,
         "memory_hooks_json": lemma.memory_hooks_json,
@@ -599,6 +610,10 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
                         parent_card_type=payload.get("parent_card_type"),
+                        rating2_prompt_shown_sentence_word_ids=payload.get(
+                            "rating2_prompt_shown_sentence_word_ids"
+                        )
+                        or [],
                         word_evidence_protocol_version=payload.get(
                             "word_evidence_protocol_version"
                         ),
@@ -818,7 +833,9 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
     lemmas = [
         l for l in lemmas
         if l.word_category != "proper_name"
-        and not (l.lemma_ar_bare and _is_function_word(l.lemma_ar_bare))
+        and not is_function_word_lemma(
+            l.lemma_ar_bare, l.function_word_override
+        )
     ]
 
     cards = []
@@ -991,7 +1008,13 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
             lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
             root_obj = lemma.root if lemma else None
             bare = strip_diacritics(sw.surface_form)
-            is_func = _is_function_word(bare)
+            is_func = (
+                is_function_word_lemma(
+                    lemma.lemma_ar_bare, lemma.function_word_override
+                )
+                if lemma
+                else _is_function_word(bare)
+            )
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             word_dicts.append({
                 "lemma_id": sw.lemma_id,

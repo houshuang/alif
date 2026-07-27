@@ -470,8 +470,13 @@ def select_next_words(
 
     candidates = [c for c in candidates if not _is_noise_lemma(c)]
 
-    from app.services.sentence_validator import _is_function_word
-    candidates = [c for c in candidates if not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))]
+    from app.services.sentence_validator import is_function_word_lemma
+    candidates = [
+        c for c in candidates
+        if not is_function_word_lemma(
+            c.lemma_ar_bare, c.function_word_override
+        )
+    ]
 
     story_lemmas = _active_story_lemma_ids(db)
     book_pages = _book_page_numbers(db)
@@ -518,7 +523,9 @@ def select_next_words(
             candidates.extend([
                 c for c in readmitted
                 if not _is_noise_lemma(c)
-                and not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))
+                and not is_function_word_lemma(
+                    c.lemma_ar_bare, c.function_word_override
+                )
             ])
             # Treat readmitted suspended words like encountered for bonus purposes
             encountered_ids.update(c.lemma_id for c in readmitted)
@@ -722,6 +729,7 @@ def select_next_words(
             "etymology_json": lemma.etymology_json,
             "memory_hooks_json": lemma.memory_hooks_json,
             "word_category": lemma.word_category,
+            "function_word_override": lemma.function_word_override,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
             "frequency_core_rank": core_rank,

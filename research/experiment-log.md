@@ -48,6 +48,45 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-27: Rating-2 prompt conformance + lexical function homographs
+
+**Observed conformance failure.** EAS health showed one active iOS install and
+zero failed updates/crashes, while the first protocol-v1 session persisted 76
+token rows. Its only rating-2 token (`حَقَّقُوا`) had no cause or toggle. The
+cause control existed, but it was a small inline row tied to whichever word
+currently had focus, so it could disappear before submit and there was no
+positive evidence that the prompt had remained visible.
+
+**UI correction.** While any yellow token exists, a stronger panel now remains
+directly above the submit actions, identifies that exact Arabic surface, and
+keeps the most recently tapped yellow token active when focus moves elsewhere.
+Word-info arrows switch among multiple existing yellows. Undo restores the
+panel state.
+Submissions log `rating2_prompt_shown_sentence_word_ids`, allowing cause
+non-selection to be separated from prompt non-exposure. Causes and prompt
+telemetry remain diagnostic and do not change ratings or schedules.
+
+**Classifier correction.** The same session dropped collateral credit for
+`الأُمُّ` because its resolved lemma أُمّ “mother” normalized to the same bare
+string as أم “or.” Surface spelling remains the fallback for unmapped tokens,
+but mapped lemmas now use `is_function_word_lemma()` plus an orthogonal nullable
+`Lemma.function_word_override`; False explicitly preserves content meaning
+without overwriting categories such as onomatopoeia. The guarded migration
+marks eight audited, unambiguous lexical homographs: mother, separate/become
+distinct, semen, ear, time, resemble, meow, and greedy/gluttonous. Gray cases
+such as أي/غير remain unchanged. The shared helper is used by review credit,
+session due filtering/card metadata, selector/intake, frequency lanes/stats,
+word lookup/listing, story/Quran classification, and material/passage planning.
+
+**Bounded production-snapshot replay.** Applying the migration to a copied
+115-MB production database changed due debt from 867 to 871 (+4 legitimate
+previously hidden mature cards). A fixed-time 10-card selector build changed
+covered due words 27→28 and surfaced three audited homographs in the returned
+set; there was no broad intake or state rewrite. Rollback drops the nullable
+column; frontend rollback removes only prompt persistence/telemetry. Exact
+commands, audit table, risks, and validation are recorded in
+`research/rating2-prompt-function-homographs-2026-07-27.md`.
+
 ## 2026-07-27: Token-level form/tashkeel evidence — prospective boundary
 
 **Problem.** Product rating 2 consistently means failed unaided retrieval followed

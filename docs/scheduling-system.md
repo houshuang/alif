@@ -209,8 +209,10 @@ when `Story.metadata_json.curriculum_role == "primary"`; active/reader-visible i
 not itself a curriculum decision. Proper nouns are detected and marked with `name_type` instead of
 creating learning entries. Function words (~80 particles/prepositions/pronouns
 from `FUNCTION_WORD_GLOSSES`) are also excluded from story word counts and
-book page introduction — detection checks both surface form and resolved
-lemma bare form (catches cliticized forms like بِهِ → بِ).
+book page introduction. Unmapped tokens use the surface spelling heuristic;
+mapped tokens use the resolved lemma and nullable `function_word_override`.
+An explicit False prevents content homographs such as أُمّ “mother” from being
+collapsed into أم “or”; every scheduling/review consumer uses this same helper.
 
 ### 3.5 Book Import (Children's Books)
 
@@ -2297,7 +2299,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 | Mapping verification | `sentence_validator.py` | lemma_id (not canonical!) |
 | Intro card filter | `sentence_selector.py` | times_seen, experiment_group |
 | Listening readiness | `sentence_selector.py` | listening_ready set |
-| Function word exclusion | `sentence_selector.py` | lemma_ar_bare |
+| Function word exclusion | `sentence_selector.py` | lemma_ar_bare + function_word_override |
 
 **Checklist for any lifecycle/state change**:
 1. List all gates that reference the affected state field

@@ -1,5 +1,21 @@
 # Alif — Master Ideas File
 
+## 🟢 [IMPLEMENTED 2026-07-27] Persistent rating-2 prompt + lemma-aware function homographs
+
+The first protocol-v1 session proved the new client ran, but its sole rating-2
+token carried no cause. The inline prompt was tied to current word focus and
+could disappear when attention moved. It now stays immediately above the
+submit actions while any yellow word exists, names the exact surface, switches
+between multiple yellow words, survives undo, and records stable token IDs for
+prompts actually shown. Cause selection remains optional and measurement-only.
+
+The same session exposed a distinct foundational bug: أُمّ “mother” normalized
+to ام and was therefore treated as the disjunction أم “or”; its collateral
+review row was dropped. Mapped lemmas now have an orthogonal nullable
+`function_word_override`, and all learning/stats/story/Quran/material consumers
+use one lemma-aware classifier. Eight unambiguous corpus homographs are
+explicitly marked False; ambiguous/grammatical gray cases remain untouched.
+
 ## 🟡 [IMPLEMENTED 2026-07-27 — prospective instrumentation, routing deliberately inactive] Token-level form + tashkeel failure evidence
 
 Rating 2 has at least four learner mechanisms: a momentary retrieval lapse,

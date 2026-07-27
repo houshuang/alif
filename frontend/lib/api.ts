@@ -496,6 +496,8 @@ export async function submitSentenceReview(
     audio_play_count: submission.audio_play_count,
     lookup_count: submission.lookup_count,
     parent_card_type: submission.parent_card_type,
+    rating2_prompt_shown_sentence_word_ids:
+      submission.rating2_prompt_shown_sentence_word_ids,
     word_evidence_protocol_version: submission.word_evidence_protocol_version,
     word_review_evidence: submission.word_review_evidence,
   }, clientReviewId);

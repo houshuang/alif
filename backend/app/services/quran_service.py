@@ -22,6 +22,7 @@ from app.services.sentence_validator import (
     FUNCTION_WORD_GLOSSES,
     PROCLITICS,
     _is_function_word,
+    is_function_word_lemma,
     build_lemma_lookup,
     lookup_lemma,
     normalize_alef,
@@ -648,15 +649,18 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
                     is_func = False
 
             # Check if resolved lemma is actually a function word
-            if lemma_id and not is_func:
+            if lemma_id:
                 lemma = lemma_by_bare.get(bare_norm)
                 if not lemma:
                     for l in all_lemmas:
                         if l.lemma_id == lemma_id:
                             lemma = l
                             break
-                if lemma and _is_function_word(lemma.lemma_ar_bare):
-                    is_func = True
+                if lemma:
+                    is_func = is_function_word_lemma(
+                        lemma.lemma_ar_bare,
+                        lemma.function_word_override,
+                    )
 
             if not lemma_id and not is_func and bare_norm:
                 unknown_forms[bare_norm] = surface

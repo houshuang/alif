@@ -17,7 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import FrequencyCoreEntry, Lemma, UserLemmaKnowledge
-from app.services.sentence_validator import _is_function_word
+from app.services.sentence_validator import is_function_word_lemma
 
 
 MAIN_LANE_MAX_RANK = 5000
@@ -240,7 +240,9 @@ def due_lane_snapshot(db: Session, now: datetime | None = None) -> DueLaneSnapsh
 
     for k in knowledges:
         lemma = lemmas.get(k.lemma_id)
-        if lemma and lemma.lemma_ar_bare and _is_function_word(lemma.lemma_ar_bare):
+        if lemma and is_function_word_lemma(
+            lemma.lemma_ar_bare, lemma.function_word_override
+        ):
             continue
         due = False
         if k.knowledge_state == "acquiring":
