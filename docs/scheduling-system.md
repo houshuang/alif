@@ -1356,36 +1356,52 @@ pool.)
 Imported `book`/`corpus` rows are prepared separately from generated material:
 
 1. A required exact `kind` and/or sentence-ID scope is applied; when both are
-   supplied they intersect.
-2. Under the shared material-update flock, stale `2000-01-01` claims are
-   recovered only in that scope and a deterministic demand-ranked tranche is
-   claimed (default 20, hard max 50).
-3. Arabic receives letter-preserving substantial tashkīl and a faithful English
-   translation. Mapping verification uses the shared comprehensive resolver and
-   correction path.
-4. Final mappings are canonicalized for scheduling; inert/function/suspended
-   targets are excluded and exactly one token is flagged for the repaired
-   canonical target.
-5. Naturalness and translation QA must complete. Provider/parse/cardinality
-   failures release the claim for retry; completed mapping/quality rejections
-   stay inactive with a durable fail-closed reason.
-6. Prepared rows remain inactive. Activation is a second, mutually exclusive
-   invocation with enrichment set to zero (default 0, hard max 20), ranked by
-   canonical due-coverage gain. Canonical demand is reloaded immediately before
-   visibility; any sentence that now contains acquiring content or lacks FSRS
-   demand is skipped. Activation is clamped to an operator-supplied active-pool
-   ceiling, and no automatic retirement occurs.
+   supplied they intersect. A bounded, scope-specific cursor scans at most
+   `min(200, 4 × limit)` rows per pass so low-ID failures cannot starve the rest.
+2. Deterministic preflight remaps prospective text before any external call and
+   exposes ambiguity, clitic, changed-mapping, and inventory risks. Guaranteed
+   inventory failures are skipped. Corpus preparation never creates lemmas.
+3. Lifecycle timestamps are explicit and non-reviewable: Jan 1, 2000 is the
+   transient claim; Jan 2 is a durable inventory/mapping blocker; Jan 3 is a
+   durable completed naturalness/translation rejection. Ordinary rescue may
+   retry Jan 1 but not Jan 2/3. A Jan-2 retry requires exact IDs and
+   `--corpus-retry-blocked` after separately reviewed source/inventory curation.
+4. Claimed rows receive letter-preserving substantial tashkīl and faithful
+   English. Naturalness/translation QA runs early; unavailable or malformed
+   results release only the affected row, while a completed failure becomes
+   Jan 3. Full vocalized/hamza-preserving Arabic identity is preferred before
+   lossy normalization.
+5. Contextual mapping verification requires an explicit verdict for every row
+   and ambiguity. Missing, duplicate, malformed, or contradictory verdicts
+   retry only that row. Corrections resolve existing lemmas only.
+6. Final mappings and exactly one canonical content target are written only if
+   compare-and-set still owns the Jan-1 claim; a lost claim cannot overwrite
+   concurrent work. A successful preparation is current, QA-passing, and still
+   inactive.
+7. Activation is a second, mutually exclusive invocation with preparation set
+   to zero (default 0, hard max 20). It reloads canonical demand immediately
+   before visibility, skips acquiring/no-FSRS-demand rows, obeys the active-pool
+   ceiling, and never retires material.
 
-From `backend/`, the two live phases therefore use separate commands:
+From `backend/`, preparation and any later activation use separate commands:
 
 ```bash
 .venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 20 --corpus-activate-limit 0
-.venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 0 --corpus-activate-limit 10
+.venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 0 --corpus-activate-limit N
 ```
 
-The deployed cron wrapper deliberately does not opt into this step. Production
-content work must use a reviewed scoped invocation; the generic historical
-sentinel backlog is a separate maintenance decision.
+The second command is not currently actionable: the copied production snapshot
+has 1,961 active rows against the default 1,950 ceiling, so activation capacity
+is zero. The rehearsal used a disposable working copy derived from that
+immutable snapshot: rows 52182 and 52316 prepared, 52352 was terminally rejected
+for naturalness, nothing activated, and learner tables stayed unchanged. A full
+243-row *Momo* replay found 235 inventory-complete; the other eight contain nine
+standalone OCR-spaced `و` tokens and need separately confirmed source
+normalization, not vocabulary backfill.
+
+PR #232 is a code-only release. The cron wrapper does not opt into Step A2, so
+the deployment itself performs no corpus preparation, activation, or learner
+data change.
 
 ### Pipeline Cap & Due-Date Tiered Allocation
 
@@ -2027,6 +2043,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `PREGEN_SENTENCES_PER_CANDIDATE` | 3 | Step C pre-generation for not-yet-introduced words |
 | `MAX_RECENCY_EXHAUSTED` | 20 | Warm cache: max recency-exhausted words per run |
 | Corpus enrichment default / max | 20 / 50 | Scoped authentic rows prepared per invocation |
+| Corpus preflight overfetch / max | 4× / 200 | Cursor-progressive deterministic inventory scan |
 | Corpus activation default / max | 0 / 20 | Explicit demand-aware activation; no bulk activation |
 | Corpus active ceiling default | 1950 | Activation headroom clamp; override only in a reviewed run |
 | Tier 1 boundary | 12h | Due within 12h: target 3, floor 2 |

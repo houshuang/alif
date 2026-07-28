@@ -8,7 +8,8 @@ is_active = 0) may now resolve cleanly.
 
 This script clears mappings_verified_at on those sentences so the cron
 verification step (A2) re-evaluates them. No verification is performed here —
-the cron handles it asynchronously.
+the cron handles it asynchronously. Corpus claim, blocked, and completed-QA
+rejection sentinels are never reset by this legacy broad maintenance path.
 
 Strategy
 --------
@@ -38,11 +39,27 @@ from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.services.activity_log import log_activity
+from app.services.sentence_eligibility import (
+    CORPUS_BLOCKED_SENTINEL,
+    CORPUS_CLAIM_SENTINEL,
+    CORPUS_QUALITY_REJECTED_SENTINEL,
+)
 
 
 STEP4C_PROGRESS = BACKEND_ROOT / "data" / "decomposition_step4c_progress.json"
 STEP4A_LINK_PROGRESS = BACKEND_ROOT / "data" / "decomposition_link_progress.json"
 STEP4B_PROGRESS = BACKEND_ROOT / "data" / "step4b_tag_progress.json"
+CORPUS_LIFECYCLE_SENTINEL_PARAMS = {
+    "claim_date": CORPUS_CLAIM_SENTINEL.strftime("%Y-%m-%d"),
+    "blocked_date": CORPUS_BLOCKED_SENTINEL.strftime("%Y-%m-%d"),
+    "quality_rejected_date": CORPUS_QUALITY_REJECTED_SENTINEL.strftime(
+        "%Y-%m-%d"
+    ),
+}
+CORPUS_LIFECYCLE_EXCLUSION_SQL = (
+    " AND date(mappings_verified_at) NOT IN "
+    "(:claim_date, :blocked_date, :quality_rejected_date)"
+)
 
 
 def collect_touched_lemma_ids() -> set[int]:
@@ -85,8 +102,10 @@ def main() -> int:
     try:
         before = db.execute(text(
             "SELECT COUNT(*) FROM sentences "
-            "WHERE source='corpus' AND is_active=0 AND mappings_verified_at IS NOT NULL"
-        )).scalar()
+            "WHERE source='corpus' AND is_active=0 "
+            "AND mappings_verified_at IS NOT NULL"
+            + CORPUS_LIFECYCLE_EXCLUSION_SQL
+        ), CORPUS_LIFECYCLE_SENTINEL_PARAMS).scalar()
         total_corpus = db.execute(text("SELECT COUNT(*) FROM sentences WHERE source='corpus'")).scalar()
         print(f"Corpus total: {total_corpus}", flush=True)
         print(f"Inactive+verified (candidates for re-verification): {before}", flush=True)
@@ -101,9 +120,12 @@ def main() -> int:
             target_count = db.execute(text(f"""
                 SELECT COUNT(DISTINCT s.id) FROM sentences s
                 JOIN sentence_words sw ON sw.sentence_id = s.id
-                WHERE s.source='corpus' AND s.is_active=0 AND s.mappings_verified_at IS NOT NULL
+                WHERE s.source='corpus' AND s.is_active=0
+                  AND s.mappings_verified_at IS NOT NULL
+                  AND date(s.mappings_verified_at) NOT IN
+                      (:claim_date, :blocked_date, :quality_rejected_date)
                   AND sw.lemma_id IN ({ids_csv})
-            """)).scalar()
+            """), CORPUS_LIFECYCLE_SENTINEL_PARAMS).scalar()
             print(f"Inactive+verified sentences touching those lemmas: {target_count}", flush=True)
         else:
             target_count = before
@@ -117,19 +139,27 @@ def main() -> int:
             ids_csv = ",".join(str(i) for i in sorted(collect_touched_lemma_ids()))
             res = db.execute(text(f"""
                 UPDATE sentences SET mappings_verified_at = NULL
-                WHERE source='corpus' AND is_active=0 AND mappings_verified_at IS NOT NULL
+                WHERE source='corpus' AND is_active=0
+                  AND mappings_verified_at IS NOT NULL
+                  AND date(mappings_verified_at) NOT IN
+                      (:claim_date, :blocked_date, :quality_rejected_date)
                   AND id IN (
                     SELECT DISTINCT s.id FROM sentences s
                     JOIN sentence_words sw ON sw.sentence_id = s.id
-                    WHERE s.source='corpus' AND s.is_active=0 AND s.mappings_verified_at IS NOT NULL
+                    WHERE s.source='corpus' AND s.is_active=0
+                      AND s.mappings_verified_at IS NOT NULL
+                      AND date(s.mappings_verified_at) NOT IN
+                          (:claim_date, :blocked_date, :quality_rejected_date)
                       AND sw.lemma_id IN ({ids_csv})
                   )
-            """))
+            """), CORPUS_LIFECYCLE_SENTINEL_PARAMS)
         else:
             res = db.execute(text(
                 "UPDATE sentences SET mappings_verified_at = NULL "
-                "WHERE source='corpus' AND is_active=0 AND mappings_verified_at IS NOT NULL"
-            ))
+                "WHERE source='corpus' AND is_active=0 "
+                "AND mappings_verified_at IS NOT NULL"
+                + CORPUS_LIFECYCLE_EXCLUSION_SQL
+            ), CORPUS_LIFECYCLE_SENTINEL_PARAMS)
         cleared = res.rowcount or 0
         db.commit()
 

@@ -6,22 +6,29 @@ This project is developed with Claude Code and Codex.
 
 ---
 
-## 2026-07-28 — Unreleased (code and tests only)
+## 2026-07-28 — Scoped corpus preparation hardening (PR #232)
 
-- Add a locked, exactly scoped authentic-corpus preparation path with safe
-  claim recovery, substantial tashkīl and translation validation, contextual
-  mapping verification, canonical target repair, completed quality QA, and
-  explicit ActivityLog outcomes
-- Separate corpus preparation from activation; activation now defaults to
-  zero, must run in an invocation whose preparation limit is zero, is capped at
-  20, rechecks fresh canonical demand before visibility, blocks any acquiring
-  content or missing FSRS demand, respects a pool ceiling, and never
-  auto-retires material
-- Harden quality-review result binding and retry semantics; completed failed
-  authentic QA is now excluded by the central reviewability gate
-- Record the July 28 production learning audit and the copied-snapshot /
-  production-backfill confirmation boundary; deployment is pending and no
-  production data was changed
+- Harden scoped corpus preparation with a cursor-progressive deterministic
+  preflight, early authentic QA, explicit per-row mapping verdicts, exact-row
+  retries, compare-and-set writes, full Arabic identity checks, and no corpus
+  lemma creation
+- Separate the transient `2000-01-01` claim from durable `2000-01-02`
+  inventory/mapping blocks and `2000-01-03` linguistic-QA rejections; durable
+  blockers reopen only through an explicit exact-ID retry after curation
+- Rehearse on a disposable working copy derived from the immutable production
+  snapshot: two exact rows prepared cleanly, one received a terminal
+  naturalness rejection, no row activated, and learner tables were unchanged
+- Replay all 243 *Momo* rows: 235 are inventory-complete; the remaining eight
+  contain nine standalone OCR-spaced `و` tokens and require separately
+  confirmed source normalization, not vocabulary backfill
+- Prospectively repair stale target bookkeeping atomically when mappings
+  change; preserve historical review observations and keep any exact repair of
+  the 18 affected reviewable production rows separately confirmation-gated
+- Keep corpus cron disabled. The code-only deployment performs no corpus or
+  learner-data mutation, and the snapshot's 1,961 active rows leave zero
+  activation capacity under the 1,950 ceiling
+- Record the July 28 production learning audit and its confirmation boundaries;
+  no production corpus or learner data was changed
 
 ## 2026-07-27
 

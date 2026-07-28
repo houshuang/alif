@@ -330,6 +330,11 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     "توجد": "يوجد", "وجد": "يوجد",
     # كان passive
     "يكن": "كان",
+    # Canonical function aliases whose surface lemmas are stored as variants
+    # and therefore excluded from the comprehensive lookup.
+    "لقد": "قد",
+    "لديه": "لدى", "لديها": "لدى", "لديهم": "لدى", "لديهما": "لدى",
+    "لديك": "لدى", "لدي": "لدى", "لدينا": "لدى",
     # عند + attached pronouns. These are function words, so mapping uses the
     # direct-only path; without explicit forms they remain NULL and fail the
     # review-time unmapped-word gate.
@@ -354,18 +359,27 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     "اليك": "إلى", "إليك": "إلى", "الينا": "إلى", "إلينا": "إلى",
     "معه": "مع", "معها": "مع", "معهم": "مع", "معهما": "مع",
     "معك": "مع", "معي": "مع", "معنا": "مع",
-    # أَنْ / إِنْ compounds. Alef normalization makes these collide with آن
-    # "time/now"; exact-form overrides below keep particles out of content
-    # lemma mappings.
-    "أن": "أَنْ", "ان": "أَنْ", "أنه": "أَنْ", "انه": "أَنْ",
-    "أنها": "أَنْ", "انها": "أَنْ", "أنك": "أَنْ", "انك": "أَنْ",
-    "بأن": "أَنْ", "بان": "أَنْ", "بأنه": "أَنْ", "بانه": "أَنْ",
-    "بأنها": "أَنْ", "بانها": "أَنْ", "لأن": "أَنْ", "لان": "أَنْ",
-    "لأنه": "أَنْ", "لانه": "أَنْ", "لأنها": "أَنْ", "لانها": "أَنْ",
-    "وأن": "أَنْ", "وان": "أَنْ", "وأنه": "أَنْ", "وانه": "أَنْ",
-    "وأنها": "أَنْ", "وانها": "أَنْ",
-    "إن": "إِنْ", "إنه": "إِنْ", "إنها": "إِنْ",
-    "وإن": "إِنْ", "وإنه": "إِنْ", "وإنها": "إِنْ",
+    # أَنَّ / إِنَّ + attached pronouns.  The suffix makes the shadda-bearing
+    # identity unambiguous even when text is otherwise undiacritized.  Bare
+    # أن/إن (and prefixed بأن/وإن) are intentionally absent: without
+    # sukūn/shadda they can name distinct lexemes and direct lookup must not
+    # guess between أَنْ/أَنَّ or إِنْ/إِنَّ.
+    "أنه": "أَنَّ", "انه": "أَنَّ",
+    "أنها": "أَنَّ", "انها": "أَنَّ", "أنك": "أَنَّ", "انك": "أَنَّ",
+    "بأنه": "أَنَّ", "بانه": "أَنَّ",
+    "بأنها": "أَنَّ", "بانها": "أَنَّ",
+    "لأنه": "أَنَّ", "لانه": "أَنَّ",
+    "لأنها": "أَنَّ", "لانها": "أَنَّ",
+    "وأنه": "أَنَّ", "وانه": "أَنَّ",
+    "وأنها": "أَنَّ", "وانها": "أَنَّ",
+    "إنه": "إِنَّ", "إنها": "إِنَّ",
+    "وإنه": "إِنَّ", "وإنها": "إِنَّ",
+    # Fully vocalized prefix forms are safe exact aliases. Their undiacritized
+    # counterparts remain deliberately ambiguous.
+    "بِأَنْ": "أَنْ", "بِأَنَّ": "أَنَّ",
+    "لِأَنْ": "أَنْ", "لِأَنَّ": "أَنَّ",
+    "وَأَنْ": "أَنْ", "وَأَنَّ": "أَنَّ",
+    "وَإِنْ": "إِنْ", "وَإِنَّ": "إِنَّ",
     "الآن": "آن", "الان": "آن",
 }
 
@@ -375,13 +389,22 @@ FUNCTION_WORD_FORM_OVERRIDES: set[str] = {
     for form in FUNCTION_WORD_FORMS
     if form in {
         "عليه", "عليها", "عليهم", "عليهما", "عليك", "عليكم", "علينا",
-        "أن", "ان", "أنه", "انه", "أنها", "انها", "أنك", "انك",
-        "بأن", "بان", "بأنه", "بانه", "بأنها", "بانها",
-        "لأن", "لان", "لأنه", "لانه", "لأنها", "لانها",
-        "وأن", "وان", "وأنه", "وانه", "وأنها", "وانها",
-        "إن", "إنه", "إنها", "وإن", "وإنه", "وإنها",
+        "أنه", "انه", "أنها", "انها", "أنك", "انك",
+        "بأنه", "بانه", "بأنها", "بانها",
+        "لأنه", "لانه", "لأنها", "لانها",
+        "وأنه", "وانه", "وأنها", "وانها",
+        "إنه", "إنها", "وإنه", "وإنها",
         "الآن", "الان",
     }
+}
+
+# A missing row for one of these fully vocalized grammatical identities must
+# never degrade to a different stripped-bare lexeme.
+GRAMMATICAL_EXACT_IDENTITY_FORMS = {
+    "أَنْ",
+    "أَنَّ",
+    "إِنْ",
+    "إِنَّ",
 }
 
 
@@ -648,6 +671,7 @@ def map_tokens_to_lemmas(
 
     result: list[TokenMapping] = []
     for i, token in enumerate(tokens):
+        exact_surface = _exact_correction_form(token)
         bare = strip_diacritics(token)
         bare_clean = strip_punctuation(strip_tatweel(bare))
         if not bare_clean:
@@ -675,8 +699,29 @@ def map_tokens_to_lemmas(
         if is_function:
             # Direct-only lookup for function words — no clitic stripping.
             # This prevents false analysis like كانت → ك+انت → أنت.
-            lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup, original_bare=bare_clean)
-            result.append(TokenMapping(i, token, lemma_id, False, is_function))
+            alternatives: list[int] = []
+            lemma_id = lookup_lemma_direct(
+                bare_norm,
+                lemma_lookup,
+                original_bare=bare_clean,
+                original_exact=exact_surface,
+                out_alternatives=alternatives,
+            )
+            alts = list(
+                dict.fromkeys(
+                    candidate
+                    for candidate in alternatives
+                    if candidate != lemma_id
+                )
+            )
+            result.append(TokenMapping(
+                i,
+                token,
+                lemma_id,
+                False,
+                is_function,
+                alternative_lemma_ids=alts or None,
+            ))
         else:
             alternatives: list[int] = []
             clitic_flag: list[bool] = [False]
@@ -700,6 +745,8 @@ def lookup_lemma_direct(
     bare_norm: str,
     lemma_lookup: dict[str, int],
     original_bare: str | None = None,
+    original_exact: str | None = None,
+    out_alternatives: list[int] | None = None,
 ) -> int | None:
     """Find a lemma_id using direct match and al-prefix only — no clitic stripping.
 
@@ -707,6 +754,15 @@ def lookup_lemma_direct(
     provided, delegates to ``_resolve_collision`` (hamza match then CAMeL) to
     pick the right lemma — same logic used by ``lookup_lemma`` for regular words.
     """
+
+    if (
+        original_exact
+        and hasattr(lemma_lookup, "exact_identity_overrides")
+    ):
+        exact_identity = _exact_correction_form(original_exact)
+        override = lemma_lookup.exact_identity_overrides.get(exact_identity)
+        if override is not None:
+            return override
 
     if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
         exact = _exact_lookup_bare(original_bare)
@@ -716,48 +772,95 @@ def lookup_lemma_direct(
         if override is not None:
             return override
 
-    def _check_collision(key: str) -> int | None:
-        """If *key* has a collision entry and we can resolve it, return the winner."""
+    # An identity-sensitive grammatical token that names neither an exact
+    # stored lemma nor an exact registered compound must not fall through to a
+    # stripped-bare collision.
+    if (
+        original_exact
+        and hasattr(lemma_lookup, "required_exact_identities")
+        and _exact_correction_form(original_exact)
+        in lemma_lookup.required_exact_identities
+    ):
+        return None
+
+    def _check_collision(key: str) -> tuple[bool, int | None]:
+        """Return whether a collision exists and its safe direct resolution."""
         if (original_bare
                 and hasattr(lemma_lookup, "collisions")
                 and key in lemma_lookup.collisions):
             resolved = _resolve_collision(
-                original_bare, lemma_lookup.collisions[key]
+                original_bare,
+                lemma_lookup.collisions[key],
+                use_camel=False,
             )
-            if resolved is not None:
-                return resolved
-        return None
+            return True, resolved
+        return False, None
 
     if bare_norm in lemma_lookup:
-        resolved = _check_collision(bare_norm)
-        if resolved is not None:
-            return resolved
+        collided, resolved = _check_collision(bare_norm)
+        if collided:
+            winner = resolved if resolved is not None else lemma_lookup[bare_norm]
+            if out_alternatives is not None:
+                for lemma_id, _ in lemma_lookup.collisions[bare_norm]:
+                    if lemma_id != winner:
+                        out_alternatives.append(lemma_id)
+            return winner
         return lemma_lookup[bare_norm]
     if bare_norm.startswith("ال") and len(bare_norm) > 2:
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
-            resolved = _check_collision(without_al)
-            if resolved is not None:
-                return resolved
+            collided, resolved = _check_collision(without_al)
+            if collided:
+                winner = (
+                    resolved
+                    if resolved is not None
+                    else lemma_lookup[without_al]
+                )
+                if out_alternatives is not None:
+                    for lemma_id, _ in lemma_lookup.collisions[without_al]:
+                        if lemma_id != winner:
+                            out_alternatives.append(lemma_id)
+                return winner
             return lemma_lookup[without_al]
     elif len(bare_norm) >= 3:
         with_al = "ال" + bare_norm
         if with_al in lemma_lookup:
-            resolved = _check_collision(with_al)
-            if resolved is not None:
-                return resolved
+            collided, resolved = _check_collision(with_al)
+            if collided:
+                winner = (
+                    resolved
+                    if resolved is not None
+                    else lemma_lookup[with_al]
+                )
+                if out_alternatives is not None:
+                    for lemma_id, _ in lemma_lookup.collisions[with_al]:
+                        if lemma_id != winner:
+                            out_alternatives.append(lemma_id)
+                return winner
             return lemma_lookup[with_al]
     return None
 
 
 def _resolve_collision(
-    original_bare: str, candidates: list[tuple[int, str]]
+    original_bare: str,
+    candidates: list[tuple[int, str]],
+    *,
+    use_camel: bool = True,
 ) -> int | None:
     """Resolve a lemma collision using hamza-sensitive match, then CAMeL."""
     # Exact hamza-sensitive match (e.g., آب matches آب but not أب)
-    for lid, cand_bare in candidates:
-        if cand_bare == original_bare:
-            return lid
+    exact_ids = [
+        lid for lid, cand_bare in candidates if cand_bare == original_bare
+    ]
+    if len(exact_ids) == 1:
+        return exact_ids[0]
+    if len(exact_ids) > 1:
+        # Direct function-word lookup carries the remaining candidates as
+        # explicit alternatives for contextual verification. Prefer a
+        # hamza-preserving candidate over an unrelated normalized first row.
+        return exact_ids[0] if not use_camel else None
+    if not use_camel:
+        return None
 
     # Try CAMeL analysis
     try:
@@ -968,7 +1071,12 @@ def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | No
     bare_clean = strip_punctuation(strip_tatweel(bare))
     bare_norm = normalize_alef(bare_clean)
     if _is_function_word(bare_clean):
-        return lookup_lemma_direct(bare_norm, lemma_lookup, original_bare=bare_clean)
+        return lookup_lemma_direct(
+            bare_norm,
+            lemma_lookup,
+            original_bare=bare_clean,
+            original_exact=_exact_correction_form(surface_form),
+        )
     return lookup_lemma(bare_norm, lemma_lookup, original_bare=bare_clean)
 
 
@@ -988,6 +1096,14 @@ class LemmaLookupDict(dict):
         # Exact surface bare form → lemma_id for high-confidence function-word
         # compounds that must override same-bare content lemmas.
         self.function_form_overrides: dict[str, int] = {}
+        # Fully vocalized, hamza-preserving citation form → lemma_id.  This is
+        # consulted only by the direct function-word path, where stripping
+        # tashkeel would conflate lexemes such as إِنْ / إِنَّ.
+        self.exact_identity_overrides: dict[str, int] = {}
+        self._ambiguous_exact_identities: set[str] = set()
+        self.required_exact_identities: set[str] = set(
+            GRAMMATICAL_EXACT_IDENTITY_FORMS
+        )
 
     def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
@@ -1002,6 +1118,17 @@ class LemmaLookupDict(dict):
         else:
             self[key] = lemma_id
             self._first_bare[key] = bare
+
+    def set_exact_identity(self, key: str, lemma_id: int) -> None:
+        """Register a unique fully vocalized identity, removing duplicates."""
+        if not key or key in self._ambiguous_exact_identities:
+            return
+        existing = self.exact_identity_overrides.get(key)
+        if existing is None:
+            self.exact_identity_overrides[key] = lemma_id
+        elif existing != lemma_id:
+            self.exact_identity_overrides.pop(key, None)
+            self._ambiguous_exact_identities.add(key)
 
 
 def _exact_lookup_bare(value: str | None) -> str:
@@ -1151,10 +1278,15 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         exact_bare = _lemma_exact_bare(lem)
         if exact_bare:
             exact_bare_to_ids.setdefault(exact_bare, []).append(lem.lemma_id)
+        exact_identity = _exact_correction_form(
+            getattr(lem, "lemma_ar", None)
+        )
+        if exact_identity and ARABIC_DIACRITICS.search(exact_identity):
+            lookup.set_exact_identity(exact_identity, lem.lemma_id)
 
     # Pass 1: Register all lemma bare forms (highest priority)
     for lem in lemmas:
-        bare_norm = normalize_alef(lem.lemma_ar_bare)
+        bare_norm = normalize_arabic(lem.lemma_ar_bare)
         exact_bare = _lemma_exact_bare(lem)
         lookup.set_if_new(bare_norm, lem.lemma_id, exact_bare or lem.lemma_ar_bare)
         bare_to_id.setdefault(bare_norm, lem.lemma_id)
@@ -1181,7 +1313,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     # claims its key before the ya_variant of a ى-final lemma (موسيقى "music")
     # can fill it.
     for lem in lemmas:
-        bare_norm = normalize_alef(lem.lemma_ar_bare)
+        bare_norm = normalize_arabic(lem.lemma_ar_bare)
         if len(bare_norm) >= 2 and bare_norm.endswith("ى"):
             ya_variant = bare_norm[:-1] + "ي"
             lookup.set_if_new(ya_variant, lem.lemma_id, lem.lemma_ar_bare)
@@ -1210,7 +1342,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         if forms and isinstance(forms, dict) and forms.get("present"):
             present_val = forms["present"]
             if isinstance(present_val, str):
-                past_bare = normalize_alef(lem.lemma_ar_bare)
+                past_bare = normalize_arabic(lem.lemma_ar_bare)
                 present_bare = normalize_alef(strip_diacritics(present_val))
                 past_1s_val = forms.get("past_1s")
                 past_1s_bare = normalize_alef(strip_diacritics(past_1s_val)) if past_1s_val and isinstance(past_1s_val, str) else None
@@ -1221,7 +1353,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         # Noun/adjective inflections: sound plurals + dual
         pos = getattr(lem, "pos", None)
         if pos in ("noun", "adjective", None):
-            bare = normalize_alef(lem.lemma_ar_bare)
+            bare = normalize_arabic(lem.lemma_ar_bare)
             inflections = _generate_noun_inflections(bare)
             for infl_form in inflections:
                 lookup.set_if_new(infl_form, lem.lemma_id, f"infl:{infl_form}")
@@ -1236,9 +1368,16 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         form_norm = normalize_alef(form_exact)
         override = form_norm in FUNCTION_WORD_FORM_OVERRIDES
 
+        base_identity = _exact_correction_form(base)
+        base_id = lookup.exact_identity_overrides.get(base_identity)
         base_exact = _exact_lookup_bare(base)
         base_ids = exact_bare_to_ids.get(base_exact) or []
-        base_id = base_ids[0] if base_ids else None
+        if (
+            base_id is None
+            and not ARABIC_DIACRITICS.search(base_identity)
+            and len(base_ids) == 1
+        ):
+            base_id = base_ids[0]
         if base_id is None:
             base_norm = normalize_alef(base_exact)
             base_id = bare_to_id.get(base_norm)
@@ -1249,6 +1388,11 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             if override:
                 lookup.function_form_overrides[form_exact] = base_id
                 lookup.function_form_overrides.setdefault(form_norm, base_id)
+        if ARABIC_DIACRITICS.search(form):
+            form_identity = _exact_correction_form(form)
+            lookup.required_exact_identities.add(form_identity)
+            if base_id is not None:
+                lookup.set_exact_identity(form_identity, base_id)
 
     if lookup.collisions:
         _validator_logger.info(
@@ -1344,9 +1488,11 @@ def verify_and_correct_mappings_llm(
         else:
             continue
         tag = " [via clitic stripping]" if m.via_clitic else ""
+        lemma_ar = getattr(lemma, "lemma_ar", None) or "?"
         word_lines.append(
             f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
-            f"exact_bare={exact_bare}; pos={pos}; gloss={gloss}{tag}"
+            f"lemma_ar={lemma_ar}; exact_bare={exact_bare}; "
+            f"pos={pos}; gloss={gloss}{tag}"
         )
 
     if not word_lines:
@@ -1455,8 +1601,10 @@ def batch_verify_sentences(
             if not lemma or not hasattr(lemma, "gloss_en"):
                 continue
             tag = " [via clitic stripping]" if m.via_clitic else ""
+            lemma_ar = getattr(lemma, "lemma_ar", None) or "?"
             word_lines.append(
                 f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
+                f"lemma_ar={lemma_ar}; "
                 f"exact_bare={_lemma_exact_bare(lemma) or '?'}; "
                 f"pos={getattr(lemma, 'pos', None) or '?'}; "
                 f"gloss={lemma.gloss_en or '?'}{tag}"
@@ -1473,7 +1621,9 @@ def batch_verify_sentences(
                     opt_lem = lemma_map.get(opt_id)
                     if opt_lem:
                         options.append(
-                            f"#{opt_id} {_lemma_exact_bare(opt_lem) or '?'} "
+                            f"#{opt_id} "
+                            f"{getattr(opt_lem, 'lemma_ar', None) or '?'}; "
+                            f"exact_bare={_lemma_exact_bare(opt_lem) or '?'} "
                             f"({getattr(opt_lem, 'gloss_en', '?')}, "
                             f"{getattr(opt_lem, 'pos', '?')})"
                         )
@@ -1527,7 +1677,9 @@ Return JSON:
 {{"sentences": [
   {{"index": <int>, "disambiguation": [{{"position": <int>, "lemma_id": <int>}}], "issues": [{{"position": <int>, "correct_lemma_ar": "<bare>", "correct_gloss": "<English>", "correct_pos": "<pos>", "explanation": "<brief>"}}]}}
 ]}}
-Only include sentences that have disambiguation choices or issues. Omit sentences where everything is correct."""
+Include exactly one row for every input index, including clean sentences.
+For a clean sentence, return that index with empty disambiguation and issues
+arrays. Never omit, merge, or duplicate an input index."""
 
     system = (
         "You are an Arabic morphology expert. Check word-lemma mappings "
@@ -1542,6 +1694,8 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         "properties": {
             "sentences": {
                 "type": "array",
+                "minItems": len(sentences),
+                "maxItems": len(sentences),
                 "items": {
                     "type": "object",
                     "properties": {
@@ -1600,10 +1754,9 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         _validator_logger.error("Batch verification failed on ALL models")
         return None
 
-    # Parse results into per-sentence dicts. Clean sentences are deliberately
-    # omitted by the prompt, so a valid empty list means "all clean." Any
-    # malformed row is different: accepting it as an omission would turn a
-    # broken verifier response into a false clean verdict.
+    # Parse results into per-sentence dicts. Every input requires an explicit
+    # verdict, including clean rows. Treating omissions as clean makes provider
+    # truncation or an empty response a batch-wide false-negative.
     if not isinstance(result, dict) or "sentences" not in result:
         _validator_logger.warning(
             "Batch verification returned a malformed top-level response"
@@ -1758,6 +1911,13 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
 
         result_by_idx[index] = row
 
+    expected_indices = set(range(len(sentences)))
+    if set(result_by_idx) != expected_indices:
+        _validator_logger.warning(
+            "Batch verification omitted one or more sentence verdicts"
+        )
+        return None
+
     # An ambiguous input cannot be silently omitted as "clean": the prompt
     # requires exactly one verdict for every listed ambiguous position.  A
     # valid vocabulary choice belongs in disambiguation; if none of the listed
@@ -1790,7 +1950,7 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
 
     output = []
     for idx in range(len(sentences)):
-        r = result_by_idx.get(idx, {})
+        r = result_by_idx[idx]
         output.append({
             "disambiguation": r.get("disambiguation", []),
             "issues": r.get("issues", []),
@@ -1918,7 +2078,7 @@ def _gloss_tokens(gloss: str | None) -> set[str]:
     out: set[str] = set()
     for token in raw:
         token = token.strip("'")
-        if not token or token in _EN_GLOSS_STOPWORDS or len(token) < 3:
+        if not token or token in _EN_GLOSS_STOPWORDS or len(token) < 2:
             continue
         # Cheap stemming is enough for glosses: bring/bringing, rule/ruling.
         variants = {token}
@@ -1957,7 +2117,13 @@ def _candidate_matches_correction(
     return bool(proposed_tokens & candidate_tokens)
 
 
-_GRAMMATICAL_CORRECTION_POS = {"particle"}
+_GRAMMATICAL_CORRECTION_POS = {
+    "adv",
+    "conj",
+    "particle",
+    "prep",
+    "pron",
+}
 
 
 def _exact_correction_form(value: str | None) -> str:
@@ -2091,30 +2257,31 @@ def correct_mapping(
                 Lemma.lemma_ar_bare == "ال" + correct_bare
             ).all()
 
-    # Fallback: normalized lookup handles alef/hamza mismatches between
-    # LLM output and stored bare forms (e.g. DB has أمر, query has امر)
-    if not candidates:
-        if lemma_lookup is None:
-            lemma_lookup = build_comprehensive_lemma_lookup(db)
+    # Always augment direct DB matches with the normalized collision set.
+    # Some production ``lemma_ar_bare`` rows retain shadda (انّ) while the
+    # verifier proposal normalizes to ان; stopping after the direct ان rows
+    # would omit the exact stored إِنَّ / أَنَّ candidates.
+    if lemma_lookup is None:
+        lemma_lookup = build_comprehensive_lemma_lookup(db)
 
-        search_forms = [correct_bare]
-        stripped = strip_tanwin_alif(correct_bare)
-        if stripped != correct_bare:
-            search_forms.append(stripped)
+    search_forms = [correct_bare]
+    stripped = strip_tanwin_alif(correct_bare)
+    if stripped != correct_bare:
+        search_forms.append(stripped)
 
-        candidate_ids: set[int] = set()
-        for form in search_forms:
-            lid = lemma_lookup.get(form)
-            if lid is not None:
-                candidate_ids.add(lid)
-                if form in lemma_lookup.collisions:
-                    for alt_lid, _ in lemma_lookup.collisions[form]:
-                        candidate_ids.add(alt_lid)
+    candidate_ids: set[int] = {candidate.lemma_id for candidate in candidates}
+    for form in search_forms:
+        lid = lemma_lookup.get(form)
+        if lid is not None:
+            candidate_ids.add(lid)
+            if form in lemma_lookup.collisions:
+                for alt_lid, _ in lemma_lookup.collisions[form]:
+                    candidate_ids.add(alt_lid)
 
-        if candidate_ids:
-            candidates = db.query(Lemma).filter(
-                Lemma.lemma_id.in_(candidate_ids)
-            ).all()
+    if candidate_ids:
+        candidates = db.query(Lemma).filter(
+            Lemma.lemma_id.in_(candidate_ids)
+        ).all()
 
     if not candidates:
         return None

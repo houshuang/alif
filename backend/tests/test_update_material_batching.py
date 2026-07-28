@@ -61,6 +61,50 @@ def test_generate_corpus_enrichment_batch_returns_empty_on_provider_failure(mock
     assert out == {}
 
 
+def test_corpus_rejected_summary_includes_mapping_blockers():
+    result = SimpleNamespace(
+        mapping_blocked_ids=[10, 11],
+        mapping_rejected_ids=[11, 12],
+        quality_rejected_ids=[13],
+        target_rejected_ids=[10, 14],
+    )
+
+    assert update_material._corpus_rejected_count(result) == 5
+    assert update_material._corpus_rejected_count(None) == 0
+
+
+def test_broad_corpus_dry_run_excludes_unrecoverable_claim_sentinels(
+    db_session,
+):
+    args = SimpleNamespace(
+        corpus_kind="momo_book",
+        corpus_sentence_id=None,
+        corpus_limit=1,
+        corpus_activate_limit=0,
+        corpus_active_ceiling=1950,
+        corpus_retry_blocked=False,
+        dry_run=True,
+    )
+    empty_plan = SimpleNamespace(detail=lambda: {})
+
+    with (
+        patch(
+            "scripts.update_material.plan_corpus_enrichment_report",
+            return_value=empty_plan,
+        ) as enrichment_plan,
+        patch(
+            "scripts.update_material.plan_corpus_activation",
+            return_value=empty_plan,
+        ),
+    ):
+        result = update_material._run_scoped_corpus_step(db_session, args)
+
+    assert result is None
+    assert (
+        enrichment_plan.call_args.kwargs["include_legacy_claims"] is False
+    )
+
+
 def _seed_due_lemma(db_session, lemma_id: int) -> None:
     db_session.add(Lemma(
         lemma_id=lemma_id,
@@ -206,6 +250,54 @@ def test_corpus_cli_validation_rejects_combined_phases():
             args,
             corpus_requested=True,
         )
+
+
+def test_corpus_cli_blocked_retry_requires_exact_ids_and_preparation():
+    parser = argparse.ArgumentParser(add_help=False)
+    args = SimpleNamespace(
+        corpus_kind="momo_book",
+        corpus_sentence_id=None,
+        corpus_limit=1,
+        corpus_activate_limit=0,
+        corpus_active_ceiling=1950,
+        corpus_retry_blocked=True,
+    )
+    with pytest.raises(SystemExit):
+        update_material._validate_corpus_cli_args(
+            parser,
+            args,
+            corpus_requested=True,
+        )
+
+    args.corpus_sentence_id = [12]
+    args.corpus_limit = 0
+    with pytest.raises(SystemExit):
+        update_material._validate_corpus_cli_args(
+            parser,
+            args,
+            corpus_requested=True,
+        )
+
+
+def test_corpus_cli_blocked_retry_accepts_exact_preparation_only():
+    parser = argparse.ArgumentParser(add_help=False)
+    args = SimpleNamespace(
+        corpus_kind="momo_book",
+        corpus_sentence_id=[12, 12],
+        corpus_limit=1,
+        corpus_activate_limit=0,
+        corpus_active_ceiling=1950,
+        corpus_retry_blocked=True,
+    )
+
+    update_material._validate_corpus_cli_args(
+        parser,
+        args,
+        corpus_requested=True,
+    )
+
+    assert args.corpus_sentence_id == [12]
+    assert update_material._corpus_run_kwargs(args)["retry_blocked"] is True
 
 
 def test_cron_pregeneration_is_opt_in(monkeypatch):

@@ -1,33 +1,37 @@
 # Alif — Master Ideas File
 
-## 🟢 [IMPLEMENTED 2026-07-28 — code/test complete; rehearsal and deployment pending] Scoped authentic-corpus enrichment
+## 🟢 [IMPLEMENTED 2026-07-28 — copied-snapshot rehearsal complete; corpus cron disabled] Scoped authentic-corpus enrichment
 
 The July 28 production audit found 243 hand-vetted *Momo* rows still inactive
 because corpus enrichment was opt-in, while the old Step A2 was unsafe to turn
 on globally: unscoped ordering, unrecovered claim sentinels, erased target
 flags, no separate translation QA, and automatic activation into a full pool.
 
-The replacement requires an exact kind and/or ID scope, takes the shared
-material-update flock, recovers legacy claims only inside that scope, and
-prepares a deterministic default-20/max-50 tranche through substantial
-letter-preserving tashkīl, translation, mapping verification, canonical
-exactly-one target repair, and completed authentic quality QA. Preparation
-always leaves rows inactive. Activation is a separate default-zero/max-20
-canonical due-coverage set-cover invocation with enrichment explicitly set to
-zero. It rechecks fresh demand immediately before visibility, blocks any
-sentence containing acquiring content or no FSRS demand, respects an explicit
-pool ceiling, and never retires other material.
-Provider/parse/cardinality failures release claims for retry; completed
-rejections persist fail-closed reasons. The central reviewability gate is the
-backstop for completed authentic QA failures.
+The replacement requires an exact kind and/or ID scope and runs under the
+shared flock. A bounded scope-specific cursor preflights prospective inventory
+and mapping risk before external calls; early Arabic/translation QA, explicit
+per-row verifier verdicts, exact retries, and compare-and-set final writes keep
+the path fail-closed. Full vocalized/hamza-preserving Arabic identity is checked
+before lossy normalization, and preparation never creates lemmas. Jan 1 is a
+transient claim, Jan 2 a durable inventory/mapping block, and Jan 3 a durable
+linguistic-QA rejection; Jan-2 rows reopen only by explicit ID after curation.
 
-**Still open:** copied-production-snapshot preparation of 10–20 *Momo* rows
-with activation zero, human review of every Arabic/English/mapping/target
-result, then a separately confirmed deployment and bounded production
-preparation tranche. Activation remains a later decision: the July 28 pool
-count is already above the default activation ceiling, so current capacity is
-zero. The 1,707 generic historical sentinel rows remain a distinct
-corpus-curation decision and must not be bulk-reset as part of *Momo* work.
+Preparation leaves successful rows inactive. Activation is a separate
+default-zero/max-20 invocation with `--corpus-limit 0`; it reloads canonical
+demand, blocks acquiring/no-demand rows, respects the pool ceiling, and never
+retires material. The rehearsal used a disposable working copy derived from
+the immutable snapshot and added three reviewed temporary lemmas only there:
+rows 52182 and 52316 prepared cleanly, row 52352 received a terminal
+naturalness rejection, no row activated, and learner tables were unchanged. A
+full *Momo* preflight found 235/243 rows inventory-complete. The other eight
+contain nine standalone OCR-spaced `و` tokens and need separately confirmed
+source normalization—not vocabulary backfill.
+
+**Still open:** separately confirm any small production preparation tranche;
+the code deployment does not authorize one. Activation capacity is zero at
+1,961 active rows versus the 1,950 ceiling. The 1,707 generic historical
+sentinel rows remain a distinct curation decision; no historical learner-state
+backfill is warranted.
 
 ## 🟢 [IMPLEMENTED 2026-07-27] Persistent rating-2 prompt + lemma-aware function homographs
 

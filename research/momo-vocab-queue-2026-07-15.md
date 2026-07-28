@@ -86,10 +86,22 @@ scope, shared flock, in-scope sentinel recovery, deterministic bounded claims,
 substantial tashkīl/translation/mapping QA, canonical target repair, durable
 authentic-quality gating, and separate default-zero demand-aware activation
 with an acquiring-content block and pool ceiling. Preparation and activation
-must run in separate invocations. No copied-snapshot rehearsal, production
-deployment, enrichment, or activation has been performed; at the July 28 pool
-count, default-ceiling activation capacity is zero. See
+must run in separate invocations. At that July 28 checkpoint, copied-snapshot
+rehearsal and deployment were still pending; activation capacity was already
+zero at the observed pool count. See
 `analysis-2026-07-28-learning-update.md`.
+
+**2026-07-28 PR #232 validation — rehearsal complete, production corpus untouched.**
+A disposable working copy derived from the immutable snapshot received three
+reviewed temporary lemmas. Rows 52182 and 52316 prepared cleanly; 52352 received
+a terminal naturalness rejection. Nothing activated and learner tables were
+unchanged. A full deterministic replay classifies 235/243 rows as
+inventory-complete. The remaining eight rows contain nine standalone OCR-spaced
+`و` tokens; they need separately confirmed source normalization and exact-ID
+blocked-row retry, not vocabulary backfill. Jan 1 is now a transient claim,
+Jan 2 a durable inventory/mapping block, and Jan 3 a durable linguistic-QA
+rejection. The PR #232 code release leaves corpus cron disabled and performs no
+production corpus or learner-data mutation.
 
 ## Bug evidence: /add fuzzy-lookup collisions (17 cases, 2 days)
 

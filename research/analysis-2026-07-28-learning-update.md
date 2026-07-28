@@ -1,11 +1,13 @@
 # Learning-system update — 2026-07-28
 
+*Updated 2026-07-28 with PR #232 hardening and immutable-snapshot rehearsal.*
+
 ## Executive verdict
 
 The vacation created a backlog shock, not a loss of the learner's underlying
 ability. Recovery is materially working:
 
-- strict main-lane FSRS debt is down from **912 on July 10 to 708**;
+- strict main-lane FSRS debt is down from **912 on July 10 to 707**;
 - actionable Box 1 is down from **136 to 85**;
 - the latest session-start debt is **844**, versus **1,111** at the start of
   July 10, despite 236 deliberate Bookifier/Kalīla additions in between;
@@ -15,8 +17,8 @@ ability. Recovery is materially working:
 Recovery is not finished. Due Box 2 has risen from **17 to 39**, and all 91
 Box-1 rows are due. The system is correctly keeping automatic intake closed.
 The largest remaining avoidable retention cost is **lateness**, not weak FSRS
-weights: due FSRS recall is 90.4% within one day of due, but only 67.3% at
-7–14 days late and 62.4% at 14+ days late.
+weights. Thirty-day primary non-acquisition recall is **80.3%**: the under-7-day
+bands remain healthy, while retrieval weakens sharply after seven days.
 
 For this single highly motivated learner, the fastest safe path is therefore:
 
@@ -25,9 +27,9 @@ For this single highly motivated learner, the fastest safe path is therefore:
    large catch-up days;
 3. start reading the physical *Momo* now, with support, rather than waiting for
    an unreliable OCR-derived 95% number;
-4. harden the corpus-enrichment path, then activate a reviewed subset of the
-   already-imported authentic *Momo* sentences so Alif practice begins
-   transferring to the actual target text;
+4. deploy the hardened corpus-preparation path, then prepare a reviewed subset
+   of the already-imported authentic *Momo* sentences; activation is a later
+   decision because the current pool has no headroom;
 5. leave FSRS weights and graduation thresholds alone until the July 27
    policy changes have mature follow-up.
 
@@ -81,7 +83,7 @@ must be corrected before the next formal baseline.
 | Jul 14 | 113 | 15 | 874 |
 | Jul 20, after the 202-word add | 217 | 52 | 869 |
 | Jul 25 | 127 | 39 | 805 |
-| **Jul 28** | **85** | **39** | **708** |
+| **Jul 28** | **85** | **39** | **707** |
 
 The July 28 runtime gate state was:
 
@@ -160,6 +162,11 @@ recall, which uses the actual applied FSRS rating, was 79.0%. Recent stamped
 rows are better (81.9% unaided, n=249) than inferred pre-v2 history (74.7%,
 n=1,380), but the new cell is small and composition-changing.
 
+Across all primary non-acquisition retrievals in the 30-day view, recall is
+80.3%. The sub-seven-day bands are compatible with useful retention; the
+weakness is concentrated after seven days. That supports a steadier floor of
+roughly 40–60 reading cards on most days, not a new vocabulary batch.
+
 This does **not** support a global FSRS retune. Mature cards remain much later
 than fragile cards, the old backlog dominates failures, and the scheduler
 policy itself changed on July 27.
@@ -182,7 +189,8 @@ as a pure *Momo* cohort.
 - 202 admitted in one day;
 - 201/202 reviewed by the cutoff;
 - 106 ever graduated;
-- current states: 81 known, 18 learning, 69 acquiring, 1 lapsed, 33 suspended;
+- current outcome: **100 learned/retaining** (81 known, 18 learning, 1 lapsed),
+  69 acquiring, and 33 suspended;
 - acquisition accuracy 63.5% over 706 rows;
 - median admission-to-first-review **53.0 hours**, p90 **157.4 hours**;
 - success-conditioned median graduation 6.47 days;
@@ -195,8 +203,8 @@ more than one learner can promptly retrieve.
 ### July 21 Kalīla cohort
 
 - 34 admitted while recovery was still active;
-- current states: 11 known, 5 learning, 9 acquiring, 9 suspended;
-- 16 ever graduated;
+- current outcome: **16 learned** (11 known, 5 learning), 9 acquiring, and
+  9 suspended;
 - acquisition accuracy 54.7% over 139 rows;
 - median first review 8.61 hours, p90 26.45 hours;
 - one word remains never reviewed.
@@ -305,8 +313,8 @@ The July 10 randomized morphology pilot is not merely immature; it is stalled:
 
 Later reviews of assigned lemmas were collateral, while the safety endpoint
 requires a later primary retrieval. At this delivery rate, waiting will not
-reach the planned sample. The pilot needs an inventory/delivery decision:
-generate reviewed alternate-form inventory or stop the pilot as infeasible.
+reach the planned sample. The pilot needs a delivery-path audit before any
+decision to generate more inventory or continue the experiment.
 
 ### Token-level form/tashkīl evidence
 
@@ -383,6 +391,46 @@ acquiring word and are correctly blocked, leaving 70 potential FSRS-demand
 rows spanning 68 distinct due lemmas before final verification. Their value is authentic
 target-text transfer, not repair of an urgent sentence drought.
 
+### PR #232 hardening and copied-snapshot rehearsal
+
+The hardened implementation uses three explicit non-reviewable dispositions: Jan 1,
+2000 is a transient claim; Jan 2 is a durable inventory/mapping blocker; Jan 3
+is a durable completed naturalness/translation rejection. A bounded,
+scope-specific cursor preflights prospective mapping and inventory risk before
+LLM calls. Preparation runs Arabic/translation QA early, requires explicit
+verifier verdicts for every row and ambiguity, retries exact rows, and
+compare-and-sets the final target/mapping write. Full vocalized/hamza-preserving
+Arabic identity is considered before lossy normalization. The corpus path never
+creates lemmas.
+
+The only live rehearsal used a disposable working copy derived from the pinned
+immutable production snapshot. Three temporary reviewed lemmas were added only
+to that copy to model already approved inventory. Exact rows 52182 and 52316
+prepared cleanly; row 52352 received a terminal naturalness rejection. No row
+activated, all learner-state tables remained unchanged, and production data was
+never opened for writing.
+
+A deterministic replay over all 243 *Momo* rows found **235 inventory-complete**.
+The remaining eight rows contain nine standalone OCR-spaced `و` tokens. They
+need separately confirmed source-text normalization and exact-ID Jan-2 retry,
+not vocabulary backfill. Preparation and activation remain mutually exclusive.
+With 1,961 active rows against the 1,950 ceiling, activation capacity is zero.
+
+### Stored target drift is a separate content-repair boundary
+
+The immutable snapshot also contains 22 active sentences whose stored canonical
+target is absent from every mapped word; 18 are currently reviewable:
+3471, 43996, 45126, 45565, 48093, 48095, 48892, 50975, 50979, 51204,
+51529, 51928, 54046, 54119, 54425, 54499, 54513, and 54549.
+Six have been shown. Only sentence 50979 has stale-target primary credit:
+three historical `ReviewLog` rows name target lemma 561 while the visible
+`قدمه` token maps to lemma 3081.
+
+Those observations are valid historical learner evidence and must not be
+rewritten. PR #232 prospectively repairs target bookkeeping atomically whenever
+mapping correction changes the target. Any exact content repair for these 18
+production rows remains a separately reviewed and confirmed data operation.
+
 ### Other outstanding records
 
 - The current deployed revision is PR #231; this update records that deployment
@@ -406,28 +454,24 @@ target-text transfer, not repair of an urgent sentence drought.
 
 ### Phase B — harden, prepare, then activate authentic *Momo* material cautiously
 
-1. **Implemented and tested, not deployed:** locked scoped runner
-   (`--only-corpus-enrichment`) with exact kind/ID intersection, bounded limits,
-   deterministic demand ordering, and dry-run output.
-2. **Implemented and tested, not deployed:** in-scope sentinel recovery,
-   canonical target repair, and exactly one appropriate target flag from final
-   verified mappings.
-3. **Implemented and tested, not deployed:** preparation/activation split,
-   translation/naturalness QA, retryable provider failures, explicit
-   ActivityLog reasons, default-zero activation, a hard 20-row activation cap,
-   acquiring-content blocking, and active-pool ceiling.
-4. On a copied snapshot, prepare 10–20 rows with activation explicitly set to
-   zero. Human-review every Arabic sentence, translation, mapping, target, and
-   rejection/retry reason.
-5. If clean, back up production and run one 10–20-row *Momo*-only
-   **preparation** tranche, still with activation zero. Assert no NULL/sentinel
-   claims, current verification, a present/flagged target, and no unintended
-   visibility or learner-state change.
-6. Plan activation separately with enrichment set to zero. At the July 28
+1. **PR #232 code-only release:** exact scope, cursor-progressive
+   preflight, early QA, explicit verifier verdicts, exact retry semantics,
+   compare-and-set writes, full Arabic identity, and no corpus lemma creation.
+2. **Copied immutable-snapshot rehearsal complete:** three reviewed temporary
+   lemmas in the copy; 52182/52316 prepared, 52352 terminally rejected, zero
+   activation, unchanged learner tables, and no production write.
+3. **Full replay complete:** 235/243 inventory-complete. Separately confirm
+   source normalization for the eight rows with nine OCR-spaced standalone `و`
+   tokens; this is not a vocabulary backfill.
+4. Back up production and separately confirm one small *Momo*-only
+   **preparation** tranche with activation zero; code deployment alone does not
+   authorize or run it.
+   Inspect every Arabic sentence, translation, mapping, target, and disposition.
+5. Plan activation separately with preparation set to zero. At the July 28
    snapshot the active pool is 1,961 against the default 1,950 corpus ceiling,
    so capacity is currently **zero**; do not activate until an independently
    reviewed headroom/retirement decision creates capacity.
-7. Continue only in inspected small tranches. Do not globally enable Step A2,
+6. Continue only in inspected small tranches. Do not globally enable Step A2,
    and keep the 1,707-row generic sentinel debt as a separate decision.
 
 ### Phase C — learner protocol for the next 10–14 days
@@ -454,7 +498,9 @@ target-text transfer, not repair of an urgent sentence drought.
 | Rapid-retry counters | **No backfill** |
 | More *Momo* vocabulary | **No** |
 | Kalīla/classical vocabulary | **No new batch during recovery** |
-| 243 authentic *Momo* sentences | **Yes, potentially—but prepare only reviewed 10–20-row tranches first; activation is a later, separately confirmed decision and currently has zero pool capacity** |
+| 243 authentic *Momo* sentences | **235 are preparation-ready after deployment; eight need separately confirmed source normalization for nine OCR-spaced `و` tokens. Prepare only reviewed small tranches; activation is separate and currently has zero capacity** |
+| 18 reviewable stale-target sentences | **No history rewrite. Prospectively fixed in code; any exact production content repair is separately confirmed** |
+| Historical learner state for corpus/target fixes | **No backfill; preserve all observations** |
 | *Momo* OCR | **Clean nine contaminated pages + printed p26, but physical reading need not wait** |
 | Rijāl learner state/import | **No; fix contextual mappings/names before any future rehearsal** |
 
@@ -465,6 +511,7 @@ extraordinary backlog while preserving high short-gap recall. The best speed
 gain is not a more aggressive scheduler. It is to stop manufacturing lateness,
 stage target-text intake to human capacity, and move the learner into the
 actual book now. The proposed technical work is primarily measurement repair
-plus corpus-pipeline hardening followed first by careful preparation of material
-that was already selected and hand-vetted. Activation must wait for a separate
-pool-headroom decision.
+plus deployment of the now-rehearsed corpus hardening, followed by a separately
+confirmed small preparation tranche of already hand-vetted material. Activation
+must wait for a separate pool-headroom decision, and no historical learner-state
+rewrite is warranted.

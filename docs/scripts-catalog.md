@@ -19,24 +19,31 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
   - **Step A2 is scoped, two-phase, and opt-in.** Use
     `--only-corpus-enrichment --kind momo_book --corpus-limit 20` for an
     isolated run; `--corpus-sentence-id` is repeatable and intersects with
-    `--kind`. `--dry-run` prints deterministic enrichment and activation plans.
-    Live preparation defaults to 20 rows (hard max 50), safely recovers only
-    in-scope legacy claims, enforces substantial tashkīl, translation, mapping,
-    exactly-one canonical target, and authentic quality QA, then leaves rows
-    inactive. Preparation and activation limits cannot both be nonzero; run
-    activation separately with `--corpus-limit 0 --corpus-activate-limit N`.
-    Activation defaults to 0, has a hard 20-row limit, freshly rechecks and
-    skips rows containing acquiring content or no FSRS demand, and clamps to
-    `--corpus-active-ceiling` (default 1950) without retiring anything. A busy
-    isolated run exits 75. The deployed wrapper still does not opt in; never
-    bulk-reset or globally process the generic sentinel backlog.
-    From `backend/`, the exact two-command live protocol for a 20-row
-    preparation followed by a separately approved 10-row activation is:
+    `--kind`. `--dry-run` prints the cursor-progressive deterministic preflight:
+    prospective mapping/inventory risks, exact skips, and the activation plan.
+    Live preparation defaults to 20 rows (hard max 50), performs early
+    naturalness/translation QA, demands explicit per-row/ambiguity verifier
+    verdicts, retries exact rows, writes with compare-and-set, creates no
+    lemmas, repairs exactly one canonical target, and leaves successes inactive.
+    Jan 1 is a transient claim, Jan 2 a durable inventory/mapping block, and
+    Jan 3 a durable linguistic-QA rejection. Reopening Jan 2 requires explicit
+    IDs plus `--corpus-retry-blocked` after reviewed curation; ordinary runs do
+    not touch Jan 2/3.
+
+    Preparation and activation limits cannot both be nonzero. From `backend/`,
+    the exact protocol is:
 
     ```bash
     .venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 20 --corpus-activate-limit 0
-    .venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 0 --corpus-activate-limit 10
+    .venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 0 --corpus-activate-limit N
     ```
+
+    Activation defaults to 0, is capped at 20, rechecks fresh canonical demand,
+    skips acquiring/no-FSRS-demand rows, and clamps to
+    `--corpus-active-ceiling` (default 1950) without retiring anything. Current
+    copied-snapshot capacity is zero (1,961 active). A busy isolated run exits
+    75. The production wrapper omits corpus enrichment; deploying this code
+    does not enable it. Never bulk-reset durable sentinel debt.
 - `generate_story_claude.py` — Local story generation via `claude -p` with vocabulary compliance validation and retry loop, free with Max plan.
 - `generate_repetition_podcasts.py` — Repetition-focused podcast episodes targeting acquiring words. Queries least-seen acquiring words, generates 15-sentence stories where each target word appears 3-4x in different contexts, then stitches breakdown-format audio (English → Arabic slow → Arabic normal, recap every 4 sentences, full story replays). Uses `generate_completion()` with Claude CLI → GPT-5.2 → Claude Haiku API fallback. Options: `--count N` episodes (default 4), `--batch-size N` target words per episode (default 6), `--dry-run` for text-only generation.
 - `generate_sentences_claude.py` — Validator-in-the-loop sentence generation via `claude -p` with Read/Bash tools — Claude reads vocab, generates, runs validator, self-corrects in one session; 10 words/batch, diversity-aware prompt prioritizing acquiring words as supporting vocabulary.
@@ -188,7 +195,7 @@ These scripts are designed to run periodically against the generation pipeline b
 - `deep_word_diagnostic.py` — Outlier and grey-zone hunter: state integrity violations, stuck acquirers, FSRS anomalies, accuracy paradoxes, review pattern outliers, leech escape traps, rating oscillation, variant split scheduling. Function-word-aware, uses sentence_words for coverage checks. `--json path` for machine output.
 - `analyze_intro_experiment.py` — A/B experiment analysis: intro card vs sentence-first acquisition. Compares reviews-to-graduation, first-review accuracy, time-to-graduation by experiment group. `--db path/to/alif.db`.
 - `analyze_passage_efficacy.py` (2026-05-13) — Reads `card_shown` and `sentence_review` events from the interaction logs, computes per-card-type response_ms-per-Arabic-word and comprehension rate. Prefers `parent_card_type` on review events (added 2026-05-13) and falls back to a `card_shown → sentence_id` join for older events. Use to track whether the maintenance-passage experiment is paying for its 4× ms/word vs single sentences. Read-only, prints to stdout.
-- `reverify_active_sentences.py` (2026-05-13) — One-shot sweep through every active reviewable sentence with the current verifier. Flags + repairs bad mappings via the shared `apply_corrections` path; falls back to frequency-core-gated lemma creation; NULL's the lemma_id on positions that can't be salvaged (reviewability gate then hides the sentence, `update_material.py` step 0b can auto-heal proper-name cases). `--dry-run` to preview, `--limit N` for spot checks, `--sentence-id ID` for surgical runs, `--batch-size 15` default. Writes per-sentence triage rows to `data/logs/mapping_reverify_failures_<date>.jsonl`. Free via Claude/Codex CLI; ~1.4–2.5s/sentence (~19 min for 833, ~75 min for ~1700). **Caveat — does not reach stale-gated sentences:** the default no-arg sweep selects via `_all_active_reviewable_sentence_ids` (the reviewability gate), so it only re-checks sentences that *already pass*. Sentences hidden because their `mappings_verified_at` predates `MAPPING_VERIFICATION_MIN_AT` are invisible to it. After a cutoff bump (or when reviewable « active and sessions are short), reverify the stale backlog explicitly: select `is_active AND not_has_unmapped_words() AND mappings_verified_at < MIN_AT AND != 2000-01-01` and pass those IDs to `reverify_all_active_sentences(sentence_ids=...)` (passing/correctable ones get re-stamped and un-gated). Done 2026-05-29: 833 stale → 711 un-gated, coverage 55%→78% (see experiment-log).
+- `reverify_active_sentences.py` (2026-05-13) — One-shot sweep through every active reviewable sentence with the current verifier. Flags + repairs bad mappings via the shared `apply_corrections` path; falls back to frequency-core-gated lemma creation; NULL's the lemma_id on positions that can't be salvaged (reviewability gate then hides the sentence, `update_material.py` step 0b can auto-heal proper-name cases). `--dry-run` is strictly observational; `--limit N` previews a bounded default cohort, `--sentence-id ID` requests surgical rows, and `--batch-size 15` is the default. Exact IDs are still filtered to active, fully mapped, authentic-QA-safe rows outside durable Jan-2/Jan-3 corpus dispositions, and read→LLM→write uses a full-state compare-and-set. Writes per-sentence triage rows to `data/logs/mapping_reverify_failures_<date>.jsonl`. Free via Claude/Codex CLI; ~1.4–2.5s/sentence (~19 min for 833, ~75 min for ~1700). **Caveat — the no-arg sweep does not reach stale-gated sentences:** it selects via `_all_active_reviewable_sentence_ids`, so rows hidden only because their stamp predates `MAPPING_VERIFICATION_MIN_AT` require an explicit ID list. Select active structurally complete rows with `mapping_verification_retryable_before(MIN_AT)`; that includes NULL, ordinary stale, and transient Jan-1 claims while excluding durable Jan-2/Jan-3 dispositions and completed authentic-QA failures. Done 2026-05-29: 833 stale → 711 un-gated, coverage 55%→78% (see experiment-log).
 - `optimize_fsrs.py` — Run the FSRS-6 optimizer on `review_log` to produce personalized weights. Reports weight comparison vs. library defaults, predicted post-lapse stability, and optimal `desired_retention`. `--db path/to/alif.db` (defaults to `/tmp/claude/alif_fresh.db`). Read-only; prints to stdout.
 - `replay_fsrs.py` — **Historical 2026-04-13 reproduction only.** Feeds actual rating sequences through the two parameter vectors frozen in that experiment and reports stability/recovery/interval differences. Its legacy `DEFAULT_W` label does not mean the currently installed library default; do not use it for current retuning. Read-only; stdout only.
 - `root_showcase_candidates.py` (2026-05-27) — Rank roots as candidates for root-showcase sentence generation. Score = `(known+acquiring lemmas under root) × √Root.productivity_score`, with a `--min-palette N` floor (default 3) so 1-lemma roots can't win. For each root: enumerates the full lemma palette (canonical only, gated only) with knowledge state + wazn family, and flags which canonical wazn families (verb forms I–X, agent, patient, masdars, place/time, instrument) are absent. Read-only; emits `research/root-showcase-candidates-<date>.{json,html}`. The "missing families" column is a diagnostic only — `Lemma.wazn` is NULL on ~50% of gated lemmas, so the count overstates real gaps. The Phase 3 LLM gap-fill consumes the JSON's full palette directly rather than trusting wazn.

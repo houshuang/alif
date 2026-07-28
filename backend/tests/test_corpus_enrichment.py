@@ -2,10 +2,19 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
 
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import (
+    ActivityLog,
+    Lemma,
+    Sentence,
+    SentenceWord,
+    UserLemmaKnowledge,
+)
 from app.services.corpus_enrichment import (
+    CORPUS_BLOCKED_SENTINEL,
     CORPUS_CLAIM_SENTINEL,
+    CORPUS_QUALITY_REJECTED_SENTINEL,
     CorpusScope,
     activate_prepared_corpus_sentences,
     enrich_corpus_sentences,
@@ -13,6 +22,7 @@ from app.services.corpus_enrichment import (
     has_arabic_diacritics,
     plan_corpus_activation,
     plan_corpus_enrichment,
+    plan_corpus_enrichment_report,
     recover_scoped_legacy_claims,
 )
 from app.services.llm import SentenceReviewResult
@@ -148,6 +158,43 @@ def test_scope_is_required_before_candidate_query(db_session):
         )
 
 
+def test_legacy_requeue_filter_excludes_every_corpus_lifecycle_sentinel(
+    db_session,
+):
+    from scripts.reenrich_corpus_post_step4c import (
+        CORPUS_LIFECYCLE_EXCLUSION_SQL,
+        CORPUS_LIFECYCLE_SENTINEL_PARAMS,
+    )
+
+    rows = [
+        Sentence(
+            arabic_text=f"sentence-{index}",
+            source="corpus",
+            is_active=False,
+            mappings_verified_at=stamp,
+        )
+        for index, stamp in enumerate([
+            CORPUS_CLAIM_SENTINEL,
+            CORPUS_BLOCKED_SENTINEL,
+            CORPUS_QUALITY_REJECTED_SENTINEL,
+            NOW,
+        ])
+    ]
+    db_session.add_all(rows)
+    db_session.flush()
+
+    eligible_ids = set(db_session.execute(
+        text(
+            "SELECT id FROM sentences WHERE source='corpus' "
+            "AND is_active=0 AND mappings_verified_at IS NOT NULL"
+            + CORPUS_LIFECYCLE_EXCLUSION_SQL
+        ),
+        CORPUS_LIFECYCLE_SENTINEL_PARAMS,
+    ).scalars())
+
+    assert eligible_ids == {rows[-1].id}
+
+
 def test_service_requires_separate_preparation_and_activation_invocations(
     db_session,
 ):
@@ -161,6 +208,23 @@ def test_service_requires_separate_preparation_and_activation_invocations(
             now=NOW,
             write_activity=False,
         )
+
+
+def test_service_rejects_invalid_ceiling_before_preparation(db_session):
+    with patch(
+        "app.services.corpus_enrichment.plan_corpus_enrichment_report"
+    ) as preflight:
+        with pytest.raises(ValueError, match="ceiling"):
+            enrich_corpus_sentences(
+                db_session,
+                kind="momo_book",
+                limit=1,
+                activate_limit=0,
+                active_ceiling=-1,
+                now=NOW,
+                write_activity=False,
+            )
+    preflight.assert_not_called()
 
 
 def test_activation_only_does_not_recover_preparation_claims(db_session):
@@ -236,10 +300,14 @@ def test_plan_intersects_kind_and_ids_and_orders_by_demand(db_session):
     _knowledge(db_session, 1, state="known", due=NOW - timedelta(days=2))
     _knowledge(db_session, 2, state="known", due=NOW + timedelta(days=2))
     _knowledge(db_session, 3, state="acquiring", due=NOW - timedelta(hours=1))
-    _sentence(db_session, 30, lemma_ids=[2])
-    _sentence(db_session, 10, lemma_ids=[1])
-    _sentence(db_session, 20, lemma_ids=[3])
-    _sentence(db_session, 40, kind="other_book", lemma_ids=[1])
+    future = _sentence(db_session, 30, lemma_ids=[2])
+    urgent = _sentence(db_session, 10, lemma_ids=[1])
+    acquiring = _sentence(db_session, 20, lemma_ids=[3])
+    other = _sentence(db_session, 40, kind="other_book", lemma_ids=[1])
+    future.arabic_text = "بَيْتٌ"
+    urgent.arabic_text = "كِتَابٌ"
+    acquiring.arabic_text = "قَلَمٌ"
+    other.arabic_text = "كِتَابٌ"
     db_session.commit()
 
     plan = plan_corpus_enrichment(
@@ -253,34 +321,188 @@ def test_plan_intersects_kind_and_ids_and_orders_by_demand(db_session):
     assert [candidate.sentence_id for candidate in plan] == [10, 30, 20]
 
 
-def test_legacy_claim_recovery_is_confined_to_exact_scope(db_session):
+def test_legacy_claim_recovery_requires_exact_ids_and_is_limit_bounded(
+    db_session,
+):
     _lemma(db_session, 1, "كتاب", "book")
     _knowledge(db_session, 1, state="known", due=NOW)
-    momo = _sentence(
+    first = _sentence(
         db_session,
         1,
         lemma_ids=[1],
         verification=CORPUS_CLAIM_SENTINEL,
     )
-    generic = _sentence(
+    second = _sentence(
         db_session,
         2,
+        lemma_ids=[1],
+        verification=CORPUS_CLAIM_SENTINEL,
+    )
+    generic = _sentence(
+        db_session,
+        3,
         kind="other_book",
         lemma_ids=[1],
         verification=CORPUS_CLAIM_SENTINEL,
     )
     db_session.commit()
 
+    with pytest.raises(ValueError, match="explicit sentence IDs"):
+        recover_scoped_legacy_claims(
+            db_session,
+            CorpusScope.build(kind="momo_book"),
+            limit=1,
+        )
+
     recovered = recover_scoped_legacy_claims(
         db_session,
-        CorpusScope.build(kind="momo_book"),
+        CorpusScope.build(
+            kind="momo_book",
+            sentence_ids=[first.id, second.id, generic.id],
+        ),
+        limit=1,
     )
-    db_session.refresh(momo)
+    db_session.refresh(first)
+    db_session.refresh(second)
     db_session.refresh(generic)
 
     assert recovered == [1]
-    assert momo.mappings_verified_at is None
+    assert first.mappings_verified_at is None
+    assert second.mappings_verified_at == CORPUS_CLAIM_SENTINEL
     assert generic.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+
+
+def test_broad_enrichment_scope_never_recovers_a_claim_sentinel(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    current_claim = _sentence(
+        db_session,
+        4,
+        lemma_ids=[1],
+        verification=CORPUS_CLAIM_SENTINEL,
+    )
+    db_session.commit()
+
+    result = enrich_corpus_sentences(
+        db_session,
+        kind="momo_book",
+        limit=1,
+        activate_limit=0,
+        active_ceiling=1950,
+        now=NOW,
+        write_activity=False,
+    )
+
+    db_session.refresh(current_claim)
+    assert result.recovered_legacy_claim_ids == []
+    assert result.selected_ids == []
+    assert current_claim.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+
+
+def test_exact_legacy_claim_dry_run_matches_bounded_live_selection(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _lemma(db_session, 2, "بيت", "house")
+    _knowledge(db_session, 1, state="known", due=NOW + timedelta(days=2))
+    _knowledge(db_session, 2, state="known", due=NOW - timedelta(days=2))
+    future = _sentence(
+        db_session,
+        301,
+        lemma_ids=[1],
+        verification=CORPUS_CLAIM_SENTINEL,
+    )
+    urgent = _sentence(
+        db_session,
+        302,
+        lemma_ids=[2],
+        verification=CORPUS_CLAIM_SENTINEL,
+    )
+    future.arabic_text = "كِتَابٌ"
+    urgent.arabic_text = "بَيْتٌ"
+    db_session.commit()
+    activity_before = db_session.query(ActivityLog).count()
+
+    def prospective_mapper(*, tokens, **_kwargs):
+        if "بَيْتٌ" in tokens:
+            return _mappings(2)
+        return _mappings(1)
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=prospective_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+    ):
+        dry_plan = plan_corpus_enrichment_report(
+            db_session,
+            sentence_ids=[future.id, urgent.id],
+            limit=1,
+            include_legacy_claims=True,
+            now=NOW,
+        )
+
+    db_session.refresh(future)
+    db_session.refresh(urgent)
+    assert [candidate.sentence_id for candidate in dry_plan.candidates] == [
+        urgent.id
+    ]
+    assert future.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+    assert urgent.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+    assert db_session.query(ActivityLog).count() == activity_before
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=prospective_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[{"disambiguation": [], "issues": []}],
+        ),
+    ):
+        live = enrich_corpus_sentences(
+            db_session,
+            sentence_ids=[future.id, urgent.id],
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(future)
+    db_session.refresh(urgent)
+    assert live.preflight["candidates"][0]["sentence_id"] == urgent.id
+    assert live.recovered_legacy_claim_ids == [urgent.id]
+    assert live.selected_ids == [urgent.id]
+    assert live.prepared_ids == [urgent.id]
+    assert future.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+    assert _as_utc(urgent.mappings_verified_at) == NOW
 
 
 def test_success_repairs_canonical_target_once_and_stays_inactive(db_session):
@@ -300,7 +522,7 @@ def test_success_repairs_canonical_target_once_and_stays_inactive(db_session):
     mappings = _mappings(3, 2, 2)
     mappings[0].is_function_word = True
 
-    def verify_clean(batch, lemma_map):
+    def verify_clean(batch, lemma_map, **_kwargs):
         assert not db_session.new
         assert not db_session.dirty
         assert not db_session.deleted
@@ -413,10 +635,147 @@ def test_completed_quality_rejection_is_terminal_and_inactive(db_session):
 
     db_session.refresh(sentence)
     assert result.quality_rejected_ids == [sentence.id]
-    assert _as_utc(sentence.mappings_verified_at) == NOW
+    assert (
+        _as_utc(sentence.mappings_verified_at)
+        == CORPUS_QUALITY_REJECTED_SENTINEL.replace(tzinfo=timezone.utc)
+    )
     assert _as_utc(sentence.quality_reviewed_at) == NOW
     assert sentence.quality_natural is False
     assert sentence.is_active is False
+
+
+def test_quality_rejection_does_not_overwrite_a_lost_claim(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(db_session, 103, lemma_ids=[1])
+    db_session.commit()
+    concurrent_stamp = NOW - timedelta(minutes=5)
+
+    def mutate_before_rejection(_inputs):
+        db_session.query(Sentence).filter(
+            Sentence.id == sentence.id
+        ).update(
+            {Sentence.mappings_verified_at: concurrent_stamp},
+            synchronize_session=False,
+        )
+        db_session.commit()
+        return [
+            SentenceReviewResult(
+                natural=False,
+                translation_correct=True,
+                reason="fragment",
+            )
+        ]
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=_mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            side_effect=mutate_before_rejection,
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(sentence)
+    assert result.quality_rejected_ids == []
+    assert _as_utc(sentence.mappings_verified_at) == concurrent_stamp
+    assert sentence.quality_reviewed_at is None
+    assert result.diagnostics[-1]["reason"] == "claim_lost_quality_rejection"
+
+
+def test_quality_pass_does_not_overwrite_or_deactivate_a_lost_claim(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(db_session, 104, lemma_ids=[1])
+    db_session.commit()
+    concurrent_stamp = NOW - timedelta(minutes=4)
+    concurrent_reviewed_at = NOW - timedelta(days=1)
+
+    def mutate_before_pass(_inputs):
+        db_session.query(Sentence).filter(
+            Sentence.id == sentence.id
+        ).update(
+            {
+                Sentence.mappings_verified_at: concurrent_stamp,
+                Sentence.quality_reviewed_at: concurrent_reviewed_at,
+                Sentence.quality_natural: False,
+                Sentence.quality_translation_correct: False,
+                Sentence.quality_reason: "other mutator",
+                Sentence.is_active: True,
+            },
+            synchronize_session=False,
+        )
+        db_session.commit()
+        return [
+            SentenceReviewResult(
+                natural=True,
+                translation_correct=True,
+                reason="pipeline pass",
+            )
+        ]
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=_mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            side_effect=mutate_before_pass,
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+        ) as verifier,
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(sentence)
+    assert result.prepared_ids == []
+    assert _as_utc(sentence.mappings_verified_at) == concurrent_stamp
+    assert _as_utc(sentence.quality_reviewed_at) == concurrent_reviewed_at
+    assert sentence.quality_natural is False
+    assert sentence.quality_translation_correct is False
+    assert sentence.quality_reason == "other mutator"
+    assert sentence.is_active is True
+    assert result.diagnostics[-1]["reason"] == "claim_lost_quality_pass"
+    verifier.assert_not_called()
 
 
 def test_incomplete_quality_review_releases_claim_for_retry(db_session):
@@ -490,6 +849,7 @@ def test_undiacritized_enrichment_output_releases_claim(db_session):
         ),
         patch(
             "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=_mappings(1),
         ) as mapper,
     ):
         result = enrich_corpus_sentences(
@@ -506,7 +866,170 @@ def test_undiacritized_enrichment_output_releases_claim(db_session):
     assert result.retry_ids == [sentence.id]
     assert sentence.mappings_verified_at is None
     assert sentence.arabic_text == "كتب الولد"
-    mapper.assert_not_called()
+    # The local planning preflight runs once, but invalid enrichment output
+    # stops the post-enrichment map/verifier pipeline.
+    assert mapper.call_count == 1
+
+
+def test_phase1_and_retry_do_not_overwrite_lost_claims(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    enriched_row = _sentence(db_session, 106, lemma_ids=[1])
+    retry_row = _sentence(db_session, 107, lemma_ids=[1])
+    for sentence in (enriched_row, retry_row):
+        sentence.arabic_text = "كتب الولد"
+        sentence.english_translation = None
+    db_session.commit()
+    concurrent_stamp = NOW - timedelta(minutes=3)
+
+    def mutate_during_enrichment(_batch):
+        for sentence, suffix in (
+            (enriched_row, "one"),
+            (retry_row, "two"),
+        ):
+            db_session.query(Sentence).filter(
+                Sentence.id == sentence.id
+            ).update(
+                {
+                    Sentence.arabic_text: f"نَصٌّ خَارِجِيٌّ {suffix}",
+                    Sentence.english_translation: f"external {suffix}",
+                    Sentence.transliteration: f"external-{suffix}",
+                    Sentence.mappings_verified_at: concurrent_stamp,
+                    Sentence.is_active: True,
+                },
+                synchronize_session=False,
+            )
+        db_session.commit()
+        # The second row deliberately has no provider result, exercising the
+        # retry-release CAS as well as the first row's scalar-write CAS.
+        return {
+            enriched_row.id: {
+                "diacritized": "كَتَبَ الْوَلَدُ",
+                "translation": "The boy wrote.",
+            }
+        }
+
+    with (
+        patch(
+            "app.services.corpus_enrichment.generate_corpus_enrichment_batch",
+            side_effect=mutate_during_enrichment,
+        ),
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=_mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+        ) as quality,
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=2,
+            activate_limit=0,
+            active_ceiling=1950,
+            enrichment_batch_size=2,
+            now=NOW,
+            write_activity=False,
+        )
+
+    assert result.retry_ids == []
+    assert result.translated_ids == []
+    diagnostic_by_id = {
+        row["sentence_id"]: row["reason"] for row in result.diagnostics
+    }
+    assert diagnostic_by_id == {
+        enriched_row.id: "claim_lost_phase1_enrichment",
+        retry_row.id: (
+            "claim_lost_retry_enrichment_unavailable_or_invalid"
+        ),
+    }
+    for sentence, suffix in (
+        (enriched_row, "one"),
+        (retry_row, "two"),
+    ):
+        db_session.refresh(sentence)
+        assert sentence.arabic_text == f"نَصٌّ خَارِجِيٌّ {suffix}"
+        assert sentence.english_translation == f"external {suffix}"
+        assert sentence.transliteration == f"external-{suffix}"
+        assert _as_utc(sentence.mappings_verified_at) == concurrent_stamp
+        assert sentence.is_active is True
+    quality.assert_not_called()
+
+
+def test_final_mapping_write_does_not_overwrite_a_lost_claim(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(db_session, 104, lemma_ids=[1])
+    db_session.commit()
+
+    def mutate_during_verification(_batch, _lemma_map, **_kwargs):
+        db_session.query(Sentence).filter(
+            Sentence.id == sentence.id
+        ).update(
+            {Sentence.mappings_verified_at: CORPUS_BLOCKED_SENTINEL},
+            synchronize_session=False,
+        )
+        db_session.commit()
+        return [{"disambiguation": [], "issues": []}]
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=_mappings(1),
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            side_effect=mutate_during_verification,
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(sentence)
+    words = (
+        db_session.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sentence.id)
+        .order_by(SentenceWord.position)
+        .all()
+    )
+    assert result.prepared_ids == []
+    assert sentence.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert [word.surface_form for word in words] == ["word-0"]
+    assert result.diagnostics[-1]["reason"] == "claim_lost_final_mapping_write"
 
 
 def test_terminal_target_rejection_persists_fail_closed_verdict(db_session):
@@ -522,6 +1045,10 @@ def test_terminal_target_rejection_persists_fail_closed_verdict(db_session):
     sentence = _sentence(db_session, 104, lemma_ids=[1])
     db_session.commit()
 
+    def correct_to_function(_issues, mappings, *_args, **_kwargs):
+        mappings[0].lemma_id = 2
+        return []
+
     with (
         patch(
             "app.services.sentence_validator.build_comprehensive_lemma_lookup",
@@ -533,11 +1060,25 @@ def test_terminal_target_rejection_persists_fail_closed_verdict(db_session):
         ),
         patch(
             "app.services.sentence_validator.map_tokens_to_lemmas",
-            return_value=_mappings(2),
+            return_value=_mappings(1),
+        ),
+        patch(
+            "app.services.sentence_validator.apply_corrections",
+            side_effect=correct_to_function,
         ),
         patch(
             "app.services.sentence_validator.batch_verify_sentences",
             return_value=[{"disambiguation": [], "issues": []}],
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
         ),
     ):
         result = enrich_corpus_sentences(
@@ -552,11 +1093,13 @@ def test_terminal_target_rejection_persists_fail_closed_verdict(db_session):
 
     db_session.refresh(sentence)
     assert result.target_rejected_ids == [sentence.id]
-    assert result.mapping_rejected_ids == [sentence.id]
-    assert _as_utc(sentence.mappings_verified_at) == NOW
+    assert result.mapping_blocked_ids == [sentence.id]
+    assert _as_utc(sentence.mappings_verified_at) == (
+        CORPUS_BLOCKED_SENTINEL.replace(tzinfo=timezone.utc)
+    )
     assert _as_utc(sentence.quality_reviewed_at) == NOW
-    assert sentence.quality_natural is False
-    assert sentence.quality_translation_correct is False
+    assert sentence.quality_natural is True
+    assert sentence.quality_translation_correct is True
     assert sentence.is_active is False
 
 
@@ -603,12 +1146,508 @@ def test_short_verifier_result_releases_whole_batch(db_session):
     assert second.mappings_verified_at is None
 
 
-def test_unexpected_exception_releases_recovered_and_new_claim(db_session):
+def test_preflight_skips_known_unmapped_without_writes_or_external_calls(
+    db_session,
+):
     _lemma(db_session, 1, "كتاب", "book")
     _knowledge(db_session, 1, state="known", due=NOW)
-    sentence = _sentence(
+    sentence = _sentence(db_session, 112, lemma_ids=[1])
+    db_session.commit()
+    unmapped = TokenMapping(
+        position=0,
+        surface_form="مَفْقُودٌ",
+        lemma_id=None,
+        is_target=False,
+        is_function_word=False,
+    )
+
+    with (
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            return_value=[unmapped],
+        ),
+        patch(
+            "app.services.corpus_enrichment.generate_corpus_enrichment_batch",
+        ) as enrich,
+        patch(
+            "app.services.llm.review_sentences_quality",
+        ) as quality,
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+        ) as verify,
+        patch(
+            "app.services.corpus_enrichment.log_activity",
+        ) as activity,
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=True,
+        )
+
+    db_session.refresh(sentence)
+    assert result.selected_ids == []
+    assert result.preflight_skipped_ids == [sentence.id]
+    assert result.mapping_blocked_ids == []
+    assert result.preflight["skipped_unmapped_ids"] == [sentence.id]
+    assert sentence.mappings_verified_at is None
+    assert sentence.quality_reviewed_at is None
+    assert sentence.quality_natural is None
+    assert sentence.quality_translation_correct is None
+    assert sentence.quality_reason is None
+    assert result.diagnostics == []
+    enrich.assert_not_called()
+    quality.assert_not_called()
+    verify.assert_not_called()
+    logged = activity.call_args.kwargs["detail"]
+    assert logged["preflight_skipped_ids"] == [sentence.id]
+
+
+def test_mapping_correction_block_preserves_early_qa_and_position_diagnostic(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(db_session, 113, lemma_ids=[1])
+    db_session.commit()
+    call_order: list[str] = []
+
+    def quality_pass(_inputs):
+        call_order.append("quality")
+        assert not db_session.new
+        assert not db_session.dirty
+        assert not db_session.deleted
+        return [
+            SentenceReviewResult(
+                natural=True,
+                translation_correct=True,
+                reason="good Arabic and translation",
+            )
+        ]
+
+    def verify_missing(_batch, _lemma_map, **_kwargs):
+        call_order.append("verify")
+        assert not db_session.new
+        assert not db_session.dirty
+        assert not db_session.deleted
+        return [
+            {
+                "disambiguation": [],
+                "issues": [
+                    {
+                        "position": 0,
+                        "correct_lemma_ar": "مفقود",
+                        "correct_gloss": "missing",
+                        "correct_pos": "adjective",
+                        "explanation": "wrong sense",
+                    }
+                ],
+            }
+        ]
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=lambda **_kwargs: _mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            side_effect=quality_pass,
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            side_effect=verify_missing,
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(sentence)
+    assert call_order == ["quality", "verify"]
+    assert result.mapping_blocked_ids == [sentence.id]
+    assert sentence.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert _as_utc(sentence.quality_reviewed_at) == NOW
+    assert sentence.quality_natural is True
+    assert sentence.quality_translation_correct is True
+    assert result.diagnostics[0]["positions"][0] == {
+        "position": 0,
+        "surface_form": "surface-0",
+        "current_lemma_id": 1,
+        "proposed_lemma": "مفقود",
+        "proposed_gloss": "missing",
+        "proposed_pos": "adjective",
+    }
+
+
+def test_contradictory_verifier_row_retries_without_blocking_clean_peer(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    first = _sentence(db_session, 114, lemma_ids=[1])
+    second = _sentence(db_session, 115, lemma_ids=[1])
+    db_session.commit()
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=lambda **_kwargs: _mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                ),
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                ),
+            ],
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[
+                {
+                    "disambiguation": [],
+                    "issues": [],
+                    "invalid_reason": "contradictory_verdict",
+                    "invalid_positions": [0],
+                },
+                {"disambiguation": [], "issues": []},
+            ],
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=2,
+            activate_limit=0,
+            active_ceiling=1950,
+            verification_batch_size=2,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(first)
+    db_session.refresh(second)
+    assert result.retry_ids == [first.id]
+    assert result.prepared_ids == [second.id]
+    assert result.mapping_blocked_ids == []
+    assert first.mappings_verified_at is None
+    assert first.quality_natural is True
+    assert _as_utc(second.mappings_verified_at) == NOW
+    assert result.diagnostics[0]["reason"] == (
+        "mapping_verifier_contradictory_verdict"
+    )
+
+
+def test_prospective_preflight_skips_unmapped_and_uses_remapped_demand(
+    db_session,
+):
+    _lemma(db_session, 1, "قديم", "old")
+    _lemma(db_session, 2, "جديد", "new")
+    _lemma(db_session, 3, "خامد", "inert")
+    _knowledge(db_session, 1, state="known", due=NOW - timedelta(days=5))
+    _knowledge(db_session, 2, state="known", due=NOW - timedelta(days=1))
+    blocked = _sentence(db_session, 116, lemma_ids=[1])
+    remapped = _sentence(db_session, 117, lemma_ids=[3])
+    blocked.arabic_text = "مَفْقُودٌ"
+    remapped.arabic_text = "جَدِيدٌ"
+    db_session.commit()
+
+    def prospective_mapper(*, tokens, **_kwargs):
+        if "مَفْقُودٌ" in tokens:
+            return [
+                TokenMapping(0, "مَفْقُودٌ", None, False, False)
+            ]
+        return [TokenMapping(0, "جَدِيدٌ", 2, False, False)]
+
+    with (
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=prospective_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+    ):
+        report = plan_corpus_enrichment_report(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            now=NOW,
+        )
+
+    assert report.skipped_unmapped_ids == [blocked.id]
+    assert [candidate.sentence_id for candidate in report.candidates] == [
+        remapped.id
+    ]
+    assert report.candidates[0].demand.content_lemma_ids == frozenset({2})
+    detail = report.detail()
+    assert detail["risk_metrics"]["guaranteed_incomplete_rows"] == 1
+    assert detail["risk_metrics"]["stored_mapping_changed_rows"] == 2
+
+
+def test_preflight_overfetch_never_mutates_more_than_selected_limit(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    skipped = [
+        _sentence(db_session, sentence_id, lemma_ids=[1])
+        for sentence_id in (121, 122, 123)
+    ]
+    selected = _sentence(db_session, 124, lemma_ids=[1])
+    for sentence in skipped:
+        sentence.arabic_text = "مَفْقُودٌ"
+    selected.arabic_text = "كِتَابٌ"
+    db_session.commit()
+
+    def prospective_mapper(*, tokens, **_kwargs):
+        if "مَفْقُودٌ" in tokens:
+            return [TokenMapping(0, "مَفْقُودٌ", None, False, False)]
+        return _mappings(1)
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=prospective_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[{"disambiguation": [], "issues": []}],
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    for sentence in skipped:
+        db_session.refresh(sentence)
+        assert sentence.mappings_verified_at is None
+        assert sentence.quality_reviewed_at is None
+    db_session.refresh(selected)
+    assert result.preflight_skipped_ids == [121, 122, 123]
+    assert result.selected_ids == [selected.id]
+    assert result.prepared_ids == [selected.id]
+    assert _as_utc(selected.mappings_verified_at) == NOW
+
+
+def test_preflight_cursor_reaches_valid_row_beyond_blocked_window(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    blocked = [
+        _sentence(db_session, sentence_id, lemma_ids=[1])
+        for sentence_id in (201, 202, 203, 204)
+    ]
+    valid = _sentence(db_session, 205, lemma_ids=[1])
+    for sentence in blocked:
+        sentence.arabic_text = "مَفْقُودٌ"
+    valid.arabic_text = "كِتَابٌ"
+    db_session.commit()
+
+    def prospective_mapper(*, tokens, **_kwargs):
+        if "مَفْقُودٌ" in tokens:
+            return [TokenMapping(0, "مَفْقُودٌ", None, False, False)]
+        return _mappings(1)
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=prospective_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.corpus_enrichment.generate_corpus_enrichment_batch",
+        ) as enrich,
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
+        ) as quality,
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[{"disambiguation": [], "issues": []}],
+        ) as verify,
+    ):
+        first = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=True,
+        )
+        assert first.selected_ids == []
+        assert first.preflight["rows_preflighted"] == 4
+        assert first.preflight["cursor_end_id"] == 204
+        quality.assert_not_called()
+        verify.assert_not_called()
+
+        second = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=True,
+        )
+
+    db_session.refresh(valid)
+    assert second.preflight["cursor_start_after_id"] == 204
+    assert second.preflight["rows_preflighted"] == 4
+    assert second.preflight["cursor_wrapped"] is True
+    assert second.selected_ids == [valid.id]
+    assert second.prepared_ids == [valid.id]
+    assert _as_utc(valid.mappings_verified_at) == NOW
+    enrich.assert_not_called()
+    quality.assert_called_once()
+    verify.assert_called_once()
+
+
+def test_unresolved_proper_name_skips_without_creating_lemma(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(db_session, 118, lemma_ids=[1])
+    sentence.arabic_text = "بِيتَر"
+    db_session.commit()
+    lemma_count = db_session.query(Lemma).count()
+
+    def proper_mapper(*, proper_names, **_kwargs):
+        return [
+            TokenMapping(
+                0,
+                "بِيتَر",
+                None,
+                False,
+                False,
+                is_proper_name=bool(proper_names),
+            )
+        ]
+
+    with (
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=proper_mapper,
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value={"بيتر"},
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+        ) as quality,
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(sentence)
+    assert result.preflight_skipped_ids == [sentence.id]
+    assert result.mapping_blocked_ids == []
+    assert sentence.mappings_verified_at is None
+    assert db_session.query(Lemma).count() == lemma_count
+    quality.assert_not_called()
+
+
+def test_exact_blocked_retry_recovers_only_named_row_and_reprepares(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    retried = _sentence(
+        db_session,
+        119,
+        lemma_ids=[1],
+        verification=CORPUS_BLOCKED_SENTINEL,
+        quality=(True, True),
+    )
+    untouched = _sentence(
         db_session,
         120,
+        lemma_ids=[1],
+        verification=CORPUS_BLOCKED_SENTINEL,
+        quality=(True, True),
+    )
+    legacy_claim = _sentence(
+        db_session,
+        121,
         lemma_ids=[1],
         verification=CORPUS_CLAIM_SENTINEL,
     )
@@ -625,13 +1664,279 @@ def test_unexpected_exception_releases_recovered_and_new_claim(db_session):
         ),
         patch(
             "app.services.sentence_validator.map_tokens_to_lemmas",
-            side_effect=RuntimeError("boom"),
+            side_effect=lambda **_kwargs: _mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="still good",
+                )
+            ],
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[{"disambiguation": [], "issues": []}],
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            sentence_ids=[retried.id, legacy_claim.id],
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            retry_blocked=True,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(retried)
+    db_session.refresh(untouched)
+    db_session.refresh(legacy_claim)
+    assert result.recovered_blocked_ids == [retried.id]
+    assert result.prepared_ids == [retried.id]
+    assert _as_utc(retried.mappings_verified_at) == NOW
+    assert untouched.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert legacy_claim.mappings_verified_at == CORPUS_CLAIM_SENTINEL
+
+
+def test_blocked_retry_plan_excludes_named_ordinary_rows(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    ordinary = _sentence(
+        db_session,
+        121,
+        lemma_ids=[1],
+        verification=None,
+    )
+    blocked = _sentence(
+        db_session,
+        122,
+        lemma_ids=[1],
+        verification=CORPUS_BLOCKED_SENTINEL,
+        quality=(True, True),
+    )
+    db_session.commit()
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=lambda **_kwargs: _mappings(1),
+        ),
+    ):
+        report = plan_corpus_enrichment_report(
+            db_session,
+            sentence_ids=[ordinary.id, blocked.id],
+            limit=1,
+            include_legacy_claims=False,
+            include_blocked=True,
+            only_blocked=True,
+            now=NOW,
+        )
+
+    assert report.rows_available == 1
+    assert [candidate.sentence_id for candidate in report.candidates] == [
+        blocked.id
+    ]
+
+
+def test_exact_blocked_retry_restores_blocker_after_transient_failure(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    blocked = _sentence(
+        db_session,
+        121,
+        lemma_ids=[1],
+        verification=CORPUS_BLOCKED_SENTINEL,
+        quality=(True, True),
+    )
+    db_session.commit()
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=lambda **_kwargs: _mappings(1),
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[],
+        ),
+    ):
+        result = enrich_corpus_sentences(
+            db_session,
+            sentence_ids=[blocked.id],
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            retry_blocked=True,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(blocked)
+    assert result.recovered_blocked_ids == [blocked.id]
+    assert result.retry_ids == [blocked.id]
+    assert blocked.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert blocked.is_active is False
+
+
+def test_exact_blocked_retry_restores_blocker_after_unexpected_failure(
+    db_session,
+):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    blocked = _sentence(
+        db_session,
+        122,
+        lemma_ids=[1],
+        verification=CORPUS_BLOCKED_SENTINEL,
+        quality=(True, True),
+    )
+    db_session.commit()
+    mapping_calls = 0
+
+    def fail_after_preflight(**_kwargs):
+        nonlocal mapping_calls
+        mapping_calls += 1
+        if mapping_calls == 1:
+            return _mappings(1)
+        raise RuntimeError("retry mapping failed")
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=fail_after_preflight,
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="still good",
+                )
+            ],
+        ),
+        pytest.raises(RuntimeError, match="retry mapping failed"),
+    ):
+        enrich_corpus_sentences(
+            db_session,
+            sentence_ids=[blocked.id],
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            retry_blocked=True,
+            now=NOW,
+            write_activity=False,
+        )
+
+    db_session.refresh(blocked)
+    assert mapping_calls == 2
+    assert blocked.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert blocked.is_active is False
+
+
+def test_blocked_retry_service_requires_exact_preparation_scope(db_session):
+    with pytest.raises(ValueError, match="explicit sentence IDs"):
+        enrich_corpus_sentences(
+            db_session,
+            kind="momo_book",
+            limit=1,
+            activate_limit=0,
+            active_ceiling=1950,
+            retry_blocked=True,
+            now=NOW,
+            write_activity=False,
+        )
+
+    with pytest.raises(ValueError, match="nonzero preparation"):
+        enrich_corpus_sentences(
+            db_session,
+            sentence_ids=[1],
+            limit=0,
+            activate_limit=0,
+            active_ceiling=1950,
+            retry_blocked=True,
+            now=NOW,
+            write_activity=False,
+        )
+
+
+def test_unexpected_exception_releases_recovered_and_new_claim(db_session):
+    _lemma(db_session, 1, "كتاب", "book")
+    _knowledge(db_session, 1, state="known", due=NOW)
+    sentence = _sentence(
+        db_session,
+        120,
+        lemma_ids=[1],
+        verification=CORPUS_CLAIM_SENTINEL,
+    )
+    db_session.commit()
+    mapping_calls = 0
+
+    def fail_after_preflight(**_kwargs):
+        nonlocal mapping_calls
+        mapping_calls += 1
+        if mapping_calls == 1:
+            return _mappings(1)
+        raise RuntimeError("boom")
+
+    with (
+        patch(
+            "app.services.sentence_validator.build_comprehensive_lemma_lookup",
+            return_value={},
+        ),
+        patch(
+            "app.services.sentence_validator.detect_proper_names",
+            return_value=set(),
+        ),
+        patch(
+            "app.services.sentence_validator.map_tokens_to_lemmas",
+            side_effect=fail_after_preflight,
+        ),
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="good",
+                )
+            ],
         ),
         pytest.raises(RuntimeError, match="boom"),
     ):
         enrich_corpus_sentences(
             db_session,
-            kind="momo_book",
+            sentence_ids=[sentence.id],
             limit=1,
             activate_limit=0,
             active_ceiling=1950,
@@ -640,6 +1945,7 @@ def test_unexpected_exception_releases_recovered_and_new_claim(db_session):
         )
 
     db_session.refresh(sentence)
+    assert mapping_calls == 2
     assert sentence.mappings_verified_at is None
     assert sentence.is_active is False
 

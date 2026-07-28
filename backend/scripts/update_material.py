@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -52,7 +52,7 @@ from app.services.corpus_enrichment import (
     generate_corpus_enrichment_batch,
     has_arabic_diacritics,
     plan_corpus_activation,
-    plan_corpus_enrichment,
+    plan_corpus_enrichment_report,
 )
 from app.services.word_selector import select_next_words
 from app.services.material_generator import (
@@ -72,6 +72,10 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     strip_diacritics,
 )
+from app.services.sentence_eligibility import (
+    CORPUS_CLAIM_SENTINEL,
+    CORPUS_DURABLE_DISPOSITION_SENTINELS,
+)
 from app.services.tts import (
     DEFAULT_VOICE_ID,
     TTSError,
@@ -87,6 +91,10 @@ DEFAULT_STEP_A_SENTENCE_BUDGET = 40  # bounded per cron; 2000 is a cap, not a fi
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 MAX_DUE_DENSE_SALVAGE_PER_RUN = 25
+CORPUS_NON_ACTIVATABLE_SENTINELS = (
+    CORPUS_CLAIM_SENTINEL,
+    *CORPUS_DURABLE_DISPOSITION_SENTINELS,
+)
 CORPUS_ENRICH_BATCH_SIZE = max(
     1, int(os.environ.get("ALIF_CORPUS_ENRICH_BATCH_SIZE", "10"))
 )
@@ -276,6 +284,9 @@ def salvage_due_dense_inactive_sentences(
         .filter(
             Sentence.is_active == False,  # noqa: E712
             Sentence.mappings_verified_at.isnot(None),
+            Sentence.mappings_verified_at.notin_(
+                CORPUS_NON_ACTIVATABLE_SENTINELS
+            ),
             SentenceWord.lemma_id.in_(target_lemma_ids),
         )
         .distinct()
@@ -351,6 +362,9 @@ def _validate_corpus_cli_args(
     """Fail closed before any maintenance when corpus work is unscoped."""
     args.corpus_kind = (args.corpus_kind or "").strip() or None
     args.corpus_sentence_id = sorted(set(args.corpus_sentence_id or []))
+    args.corpus_retry_blocked = bool(
+        getattr(args, "corpus_retry_blocked", False)
+    )
     if not corpus_requested:
         return
     if args.corpus_kind is None and not args.corpus_sentence_id:
@@ -375,6 +389,16 @@ def _validate_corpus_cli_args(
             "set --corpus-activate-limit 0 while enriching, or "
             "--corpus-limit 0 while activating"
         )
+    if args.corpus_retry_blocked and (
+        not args.corpus_sentence_id
+        or args.corpus_limit <= 0
+        or args.corpus_activate_limit != 0
+    ):
+        parser.error(
+            "--corpus-retry-blocked requires one or more explicit "
+            "--corpus-sentence-id values, nonzero --corpus-limit, and "
+            "--corpus-activate-limit 0"
+        )
     if args.corpus_active_ceiling < 0:
         parser.error("--corpus-active-ceiling must be non-negative")
 
@@ -386,7 +410,19 @@ def _corpus_run_kwargs(args: argparse.Namespace) -> dict:
         "limit": args.corpus_limit,
         "activate_limit": args.corpus_activate_limit,
         "active_ceiling": args.corpus_active_ceiling,
+        "retry_blocked": args.corpus_retry_blocked,
     }
+
+
+def _corpus_rejected_count(result: CorpusEnrichmentResult | None) -> int:
+    if result is None:
+        return 0
+    return len(
+        set(result.mapping_blocked_ids)
+        | set(result.mapping_rejected_ids)
+        | set(result.quality_rejected_ids)
+        | set(result.target_rejected_ids)
+    )
 
 
 def _run_scoped_corpus_step(
@@ -396,11 +432,17 @@ def _run_scoped_corpus_step(
     """Print a read-only plan or execute the scoped enrichment service."""
     kwargs = _corpus_run_kwargs(args)
     if args.dry_run:
-        enrichment_plan = plan_corpus_enrichment(
+        enrichment_plan = plan_corpus_enrichment_report(
             db,
             kind=kwargs["kind"],
             sentence_ids=kwargs["sentence_ids"],
             limit=kwargs["limit"],
+            include_legacy_claims=(
+                bool(kwargs["sentence_ids"])
+                and not kwargs["retry_blocked"]
+            ),
+            include_blocked=kwargs["retry_blocked"],
+            only_blocked=kwargs["retry_blocked"],
         )
         activation_plan = plan_corpus_activation(
             db,
@@ -417,9 +459,7 @@ def _run_scoped_corpus_step(
                         "kind": kwargs["kind"],
                         "sentence_ids": kwargs["sentence_ids"],
                     },
-                    "enrichment_plan": [
-                        candidate.detail() for candidate in enrichment_plan
-                    ],
+                    "enrichment_plan": enrichment_plan.detail(),
                     "activation_plan": activation_plan.detail(),
                 },
                 ensure_ascii=False,
@@ -1251,6 +1291,12 @@ def step_reactivate_book_sentences(db: Session) -> int:
                 Sentence.story_id == book.id,
                 Sentence.is_active == False,  # noqa: E712
                 Sentence.page_number.in_(ready_pages),
+                or_(
+                    Sentence.mappings_verified_at.is_(None),
+                    Sentence.mappings_verified_at.notin_(
+                        CORPUS_NON_ACTIVATABLE_SENTINELS
+                    ),
+                ),
             )
             .all()
         )
@@ -1391,6 +1437,15 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--corpus-retry-blocked",
+        action="store_true",
+        help=(
+            "Retry only explicitly listed durable corpus blockers after "
+            "reviewed inventory curation; requires --corpus-sentence-id, "
+            "nonzero preparation, and zero activation"
+        ),
+    )
+    parser.add_argument(
         "--run-pregeneration",
         action="store_true",
         help="Run speculative upcoming-word sentence pre-generation (off by default for cron)",
@@ -1415,7 +1470,8 @@ async def main() -> int:
         f"corpus_requested={corpus_requested}, corpus_kind={args.corpus_kind}, "
         f"corpus_ids={args.corpus_sentence_id}, corpus_limit={args.corpus_limit}, "
         f"corpus_activate_limit={args.corpus_activate_limit}, "
-        f"corpus_active_ceiling={args.corpus_active_ceiling}"
+        f"corpus_active_ceiling={args.corpus_active_ceiling}, "
+        f"corpus_retry_blocked={args.corpus_retry_blocked}"
     )
     start = time.time()
 
@@ -1443,11 +1499,7 @@ async def main() -> int:
             if corpus_result is None:
                 print(f"\nCorpus dry run completed in {elapsed:.1f}s")
             else:
-                rejected = len(
-                    set(corpus_result.mapping_rejected_ids)
-                    | set(corpus_result.quality_rejected_ids)
-                    | set(corpus_result.target_rejected_ids)
-                )
+                rejected = _corpus_rejected_count(corpus_result)
                 print(f"\nCorpus run completed in {elapsed:.1f}s")
                 print(f"  Prepared:  {corpus_result.prepared}")
                 print(f"  Activated: {corpus_result.activated}")
@@ -1891,15 +1943,7 @@ async def main() -> int:
         corpus_prepared_a2 = corpus_a2.prepared if corpus_a2 else 0
         corpus_activated_a2 = corpus_a2.activated if corpus_a2 else 0
         corpus_retry_a2 = len(corpus_a2.retry_ids) if corpus_a2 else 0
-        corpus_rejected_a2 = (
-            len(
-                set(corpus_a2.mapping_rejected_ids)
-                | set(corpus_a2.quality_rejected_ids)
-                | set(corpus_a2.target_rejected_ids)
-            )
-            if corpus_a2
-            else 0
-        )
+        corpus_rejected_a2 = _corpus_rejected_count(corpus_a2)
         corpus_touched_a2 = (
             len(
                 set(corpus_a2.selected_ids)

@@ -26,7 +26,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Quran** — `2026-04-03 "Quran Lemma Promotion — Encountered → Acquiring"` · `2026-05-15 "Quran + OCR lemma canonicalization rewrite"` · `2026-06-02 "dagger-alef (U+0670) collapse"` · `2026-06-03 "Quran-frequency track — the islamic source finally populated"`.
 
-**Imports — OCR / textbook / corpus** — `2026-02-14 "Book Import — OCR Pipeline for Children's Books"` · `2026-04-12 "Hindawi Corpus Import + Enrichment Pipeline"` · `2026-05-18 "Treat textbook imports as high-priority new words"` · `2026-05-20 "Letter-free OCR tokens rejected at import"` · `2026-04-16 "Book Sentence Lifecycle — Reactivation + Retirement"`.
+**Imports — OCR / textbook / corpus** — `2026-07-28 "PR #232 corpus preparation hardening"` · `2026-02-14 "Book Import — OCR Pipeline for Children's Books"` · `2026-04-12 "Hindawi Corpus Import + Enrichment Pipeline"` · `2026-05-18 "Treat textbook imports as high-priority new words"` · `2026-05-20 "Letter-free OCR tokens rejected at import"` · `2026-04-16 "Book Sentence Lifecycle — Reactivation + Retirement"`.
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
@@ -47,6 +47,52 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-07-28: PR #232 corpus preparation hardening + immutable-snapshot rehearsal
+
+**Boundary.** PR #232 is a code/docs-only deployment. The corpus cron flag
+remains disabled, and deployment performs no production corpus or learner-data
+mutation. Preparation and activation are now mutually exclusive commands; the
+July 28 snapshot has 1,961 active rows against the 1,950 ceiling, so activation
+capacity is zero.
+
+**Fail-closed design.** Exact kind/ID scopes use a bounded ActivityLog-backed
+cursor and deterministic prospective preflight, so low-ID inventory failures
+cannot starve later rows. Jan 1, 2000 is a transient claim, Jan 2 a durable
+inventory/mapping block, and Jan 3 a durable completed linguistic-QA rejection.
+Arabic/translation QA runs early; full vocalized/hamza-preserving Arabic
+identity precedes lossy normalization; the mapper requires explicit verdicts
+for every row and ambiguity; retries are exact-row; final mapping/target writes
+are compare-and-set. Corpus preparation creates no lemmas. Jan-2 rows reopen
+only by explicit ID after separately reviewed source/inventory curation.
+
+**Copied immutable-snapshot rehearsal.** A disposable working copy derived from
+the pinned immutable snapshot received three reviewed temporary lemmas. Exact
+rows 52182 and 52316 prepared cleanly; row 52352
+received a terminal naturalness rejection. No sentence activated and all
+learner-state tables remained unchanged. The full 243-row *Momo* replay found
+235 inventory-complete. The remaining eight rows contain nine standalone
+OCR-spaced `و` tokens and need separately confirmed source normalization, not
+vocabulary backfill.
+
+**Stored-target audit.** The same immutable snapshot has 22 active sentences
+whose canonical stored target is absent from every mapped word; 18 are
+reviewable: 3471, 43996, 45126, 45565, 48093, 48095, 48892, 50975, 50979,
+51204, 51529, 51928, 54046, 54119, 54425, 54499, 54513, and 54549. Six were
+shown. Only 50979 has stale-target primary credit: three historical
+`ReviewLog` rows name target 561 while visible `قدمه` maps to 3081. Preserve
+those observations; do not rewrite review history. PR #232 prospectively
+repairs target bookkeeping atomically when mappings change. Exact repair of the
+18 rows remains a separate confirmed production-data boundary.
+
+**Learning readout.** Recovery remains active: actionable Box 1 is 85, due Box
+2 is 39, and strict main FSRS is 707. Thirty-day primary non-acquisition recall
+is 80.3%, healthy below seven-day gaps and weak beyond seven days. The July
+*Momo*/Bookifier cohort is 100 learned/retaining, 69 acquiring, 33 suspended;
+Kalīla is 16/9/9. The exact-surface pilot remains at five assignments and zero
+outcomes and needs a delivery audit. Favor a steady 40–60 reading cards on most
+days and no new vocabulary batch. No historical learner-state backfill is
+warranted.
 
 ## 2026-07-28: Learning update — recovery works; lateness and explicit intake now bind
 

@@ -48,6 +48,18 @@ MAPPING_VERIFICATION_HARDENED_AT = datetime(2026, 5, 17, 18, 59)
 # newest verifier hardening.
 MAPPING_VERIFICATION_MIN_AT = MAPPING_VERIFICATION_HARDENED_AT
 
+# Corpus enrichment uses the existing verification timestamp as a compact
+# lifecycle field.  The claim sentinel is transient and may be retried; the
+# other two values are durable dispositions that only the explicit,
+# exact-ID corpus retry path may reopen.
+CORPUS_CLAIM_SENTINEL = datetime(2000, 1, 1)
+CORPUS_BLOCKED_SENTINEL = datetime(2000, 1, 2)
+CORPUS_QUALITY_REJECTED_SENTINEL = datetime(2000, 1, 3)
+CORPUS_DURABLE_DISPOSITION_SENTINELS = (
+    CORPUS_BLOCKED_SENTINEL,
+    CORPUS_QUALITY_REJECTED_SENTINEL,
+)
+
 
 def has_current_mapping_verification():
     """SQL clause: sentence passed the current generation-time mapping gate.
@@ -60,7 +72,25 @@ def has_current_mapping_verification():
     return and_(
         Sentence.mappings_verified_at.isnot(None),
         Sentence.mappings_verified_at >= MAPPING_VERIFICATION_MIN_AT,
-        Sentence.mappings_verified_at != datetime(2000, 1, 1),
+        Sentence.mappings_verified_at != CORPUS_CLAIM_SENTINEL,
+    )
+
+
+def mapping_verification_retryable_before(cutoff: datetime):
+    """SQL clause for stale verification states ordinary repair may reopen.
+
+    ``NULL`` and the transient corpus claim are retryable.  Durable corpus
+    blockers and completed linguistic-QA rejections are deliberately excluded,
+    even though their sentinel timestamps predate every verifier cutoff.
+    """
+    return or_(
+        Sentence.mappings_verified_at.is_(None),
+        and_(
+            Sentence.mappings_verified_at < cutoff,
+            Sentence.mappings_verified_at.notin_(
+                CORPUS_DURABLE_DISPOSITION_SENTINELS
+            ),
+        ),
     )
 
 
