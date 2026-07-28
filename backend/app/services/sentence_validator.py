@@ -598,8 +598,8 @@ def detect_proper_names(
 def map_tokens_to_lemmas(
     tokens: list[str],
     lemma_lookup: dict[str, int],
-    target_lemma_id: int,
-    target_bare: str,
+    target_lemma_id: int | None,
+    target_bare: str | None,
     proper_names: set[str] | None = None,
 ) -> list[TokenMapping]:
     """Map tokenized sentence words to lemma IDs.
@@ -623,12 +623,28 @@ def map_tokens_to_lemmas(
     if proper_names:
         proper_names_norm = {normalize_alef(strip_diacritics(n)) for n in proper_names}
 
-    target_normalized = normalize_alef(target_bare)
-    target_forms = {target_normalized}
-    if not target_normalized.startswith("ال"):
-        target_forms.add("ال" + target_normalized)
-    if target_normalized.startswith("ال") and len(target_normalized) > 2:
-        target_forms.add(target_normalized[2:])
+    # A number of whole-corpus callers intentionally have no target and pass
+    # ``0, ""``.  Expanding an empty target used to create the synthetic form
+    # ``ال``; clitic stripping could then classify a real token such as إِلٰه
+    # as target lemma #0.  A target is valid only when both halves of the
+    # identity are usable.  Otherwise target matching is completely disabled
+    # and the token follows the ordinary lookup path.
+    target_enabled = (
+        isinstance(target_lemma_id, int)
+        and not isinstance(target_lemma_id, bool)
+        and target_lemma_id > 0
+        and isinstance(target_bare, str)
+        and bool(target_bare.strip())
+    )
+    target_forms: set[str] = set()
+    if target_enabled:
+        target_normalized = normalize_alef(target_bare.strip())
+        if target_normalized:
+            target_forms.add(target_normalized)
+            if not target_normalized.startswith("ال"):
+                target_forms.add("ال" + target_normalized)
+            if target_normalized.startswith("ال") and len(target_normalized) > 2:
+                target_forms.add(target_normalized[2:])
 
     result: list[TokenMapping] = []
     for i, token in enumerate(tokens):
@@ -639,8 +655,8 @@ def map_tokens_to_lemmas(
         bare_norm = normalize_alef(bare_clean)
 
         # Check target
-        is_target = bare_norm in target_forms
-        if not is_target:
+        is_target = bool(target_forms) and bare_norm in target_forms
+        if target_forms and not is_target:
             for stem in _strip_clitics(bare_norm):
                 if normalize_alef(stem) in target_forms:
                     is_target = True
@@ -1323,11 +1339,15 @@ def verify_and_correct_mappings_llm(
         lemma = lemma_map.get(m.lemma_id)
         if lemma and hasattr(lemma, "gloss_en"):
             gloss = lemma.gloss_en or "?"
-            lar = lemma.lemma_ar or "?"
+            exact_bare = _lemma_exact_bare(lemma) or "?"
+            pos = getattr(lemma, "pos", None) or "?"
         else:
             continue
         tag = " [via clitic stripping]" if m.via_clitic else ""
-        word_lines.append(f"  {m.position}: {m.surface_form} → {lar} ({gloss}){tag}")
+        word_lines.append(
+            f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
+            f"exact_bare={exact_bare}; pos={pos}; gloss={gloss}{tag}"
+        )
 
     if not word_lines:
         return []
@@ -1347,6 +1367,11 @@ Flag as WRONG (and provide correction):
 - A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a word where the letter is part of the root (e.g. وَصْف "description" stripped to صف "row/class")
 - An active participle / verbal noun mapped to the root verb when it should be its own lemma (e.g. حُضُور "attendance" mapped to حاضر "present")
 - A noun/verb homograph mapped to the wrong part of speech (e.g. ذَهَب "gold" mapped to ذَهَبَ "to go")
+
+Distinguish a WRONG MAPPING from INCOMPLETE GLOSS METADATA:
+- A mapping is wrong only when the lemma identity or part of speech does not fit the word in context.
+- If the exact lemma and part of speech fit but the stored English gloss is merely narrow or incomplete, do NOT invent a replacement lemma and do NOT return a correction. Gloss metadata is curated separately.
+- Never return the current lemma as a "correction" just to improve its gloss.
 
 Do NOT flag (these are CORRECT):
 - A conjugated verb mapped to its dictionary form, when the MEANING matches the sentence (e.g. يَكْتُبُ "he writes" mapped to كَتَبَ "to write")
@@ -1399,6 +1424,8 @@ Return issues array: empty if all correct, or one entry per wrong mapping."""
 def batch_verify_sentences(
     sentences: list[dict],
     lemma_map: dict[int, object],
+    *,
+    return_invalid_rows: bool = False,
 ) -> list[dict] | None:
     """Verify mappings for multiple sentences in a single CLI call.
 
@@ -1408,6 +1435,10 @@ def batch_verify_sentences(
 
     Returns a list parallel to ``sentences``, each element being:
         {"disambiguation": [...], "issues": [...]}
+    With ``return_invalid_rows=True``, a self-contradictory sentence verdict is
+    represented as empty verdict arrays plus ``invalid_reason`` and
+    ``invalid_positions`` so batch-oriented corpus callers can retry only that
+    row.  The default remains fail-closed for backward compatibility.
     Returns None if the LLM call fails entirely.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
@@ -1425,8 +1456,10 @@ def batch_verify_sentences(
                 continue
             tag = " [via clitic stripping]" if m.via_clitic else ""
             word_lines.append(
-                f"  {m.position}: {m.surface_form} → {lemma.lemma_ar or '?'} "
-                f"({lemma.gloss_en or '?'}){tag}"
+                f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
+                f"exact_bare={_lemma_exact_bare(lemma) or '?'}; "
+                f"pos={getattr(lemma, 'pos', None) or '?'}; "
+                f"gloss={lemma.gloss_en or '?'}{tag}"
             )
 
         # Add disambiguation options for ambiguous words
@@ -1440,7 +1473,7 @@ def batch_verify_sentences(
                     opt_lem = lemma_map.get(opt_id)
                     if opt_lem:
                         options.append(
-                            f"#{opt_id} {getattr(opt_lem, 'lemma_ar_bare', '?')} "
+                            f"#{opt_id} {_lemma_exact_bare(opt_lem) or '?'} "
                             f"({getattr(opt_lem, 'gloss_en', '?')}, "
                             f"{getattr(opt_lem, 'pos', '?')})"
                         )
@@ -1465,12 +1498,23 @@ def batch_verify_sentences(
 For each sentence:
 1. If ambiguous words are listed, pick the correct lemma based on context.
 2. Check that each mapping's gloss matches the word's meaning in the sentence.
+3. For every ambiguous position, choose exactly one lemma OR report that
+   position as a wrong mapping. Never put the same position in both
+   disambiguation and issues.
 
 Flag as WRONG:
 - Gloss doesn't match the word's meaning in context
 - Homograph collisions (same consonants, different meanings)
 - Clitic prefix wrongly stripped from a root letter
 - Wrong part of speech
+
+Distinguish a WRONG MAPPING from INCOMPLETE GLOSS METADATA:
+- A mapping is wrong only when the lemma identity or part of speech does not
+  fit the word in context.
+- If the exact lemma and POS fit but its stored gloss is merely narrow or
+  incomplete, do not invent a correction and do not return that position in
+  issues. Gloss metadata is curated separately.
+- Never return the current lemma as a correction merely to improve its gloss.
 
 Do NOT flag:
 - Conjugated verbs mapped to dictionary form (when meaning matches)
@@ -1680,17 +1724,65 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
             )
             return None
 
+        issue_positions = [issue["position"] for issue in issues]
+        if len(issue_positions) != len(set(issue_positions)):
+            _validator_logger.warning(
+                "Batch verification returned duplicate issue positions"
+            )
+            return None
+        contradictory_positions = set(disambiguation_positions) & set(
+            issue_positions
+        )
+        if contradictory_positions:
+            # A choice says the selected vocabulary lemma is valid; an issue at
+            # the same position says it is not.  Never let the correction path
+            # silently reinterpret this self-contradictory verdict.
+            _validator_logger.warning(
+                "Batch verification returned contradictory verdicts at "
+                f"positions {sorted(contradictory_positions)}"
+            )
+            if not return_invalid_rows:
+                # Preserve the established fail-closed contract for existing
+                # callers. Corpus batching can explicitly request the marker
+                # below and retry just this row without another provider call
+                # for otherwise valid rows.
+                return None
+            result_by_idx[index] = {
+                "index": index,
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": "contradictory_verdict",
+                "invalid_positions": sorted(contradictory_positions),
+            }
+            continue
+
         result_by_idx[index] = row
 
     # An ambiguous input cannot be silently omitted as "clean": the prompt
-    # requires an explicit choice for every listed ambiguous position.
+    # requires exactly one verdict for every listed ambiguous position.  A
+    # valid vocabulary choice belongs in disambiguation; if none of the listed
+    # senses fits, the position belongs in issues instead.
     for index, ambiguities in expected_ambiguities_by_idx.items():
         if not ambiguities:
             continue
         row = result_by_idx.get(index)
-        if row is None or {
+        if row is None:
+            _validator_logger.warning(
+                "Batch verification omitted an ambiguity verdict"
+            )
+            return None
+        if row.get("invalid_reason"):
+            continue
+        disambiguated_positions = {
             choice["position"] for choice in row["disambiguation"]
-        } != set(ambiguities):
+        }
+        issue_positions = {
+            issue["position"] for issue in row["issues"]
+        }
+        if (
+            disambiguated_positions
+            | (issue_positions & set(ambiguities))
+        ) != set(ambiguities):
             _validator_logger.warning(
                 "Batch verification omitted an ambiguity verdict"
             )
@@ -1702,6 +1794,14 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         output.append({
             "disambiguation": r.get("disambiguation", []),
             "issues": r.get("issues", []),
+            **(
+                {
+                    "invalid_reason": r["invalid_reason"],
+                    "invalid_positions": r["invalid_positions"],
+                }
+                if r.get("invalid_reason")
+                else {}
+            ),
         })
     return output
 
@@ -1857,6 +1957,96 @@ def _candidate_matches_correction(
     return bool(proposed_tokens & candidate_tokens)
 
 
+_GRAMMATICAL_CORRECTION_POS = {"particle"}
+
+
+def _exact_correction_form(value: str | None) -> str:
+    """Return a canonical citation form without collapsing hamza or tashkeel.
+
+    ``normalize_arabic`` is intentionally unsuitable here: أَنْ, إِنْ, and
+    إِنَّ all normalize to ان even though they are distinct grammatical
+    lexemes.  NFC makes equivalent combining-mark order compare consistently,
+    while boundary cleanup and tatweel removal tolerate ordinary LLM
+    formatting noise without erasing lexical distinctions.
+    """
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFC", str(value).strip())
+    text = _WORD_BOUNDARY_PUNCT.sub("", text)
+    text = strip_tatweel(normalize_quranic_to_msa(text))
+    return unicodedata.normalize("NFC", text.strip())
+
+
+def _identity_safe_correction_candidates(
+    candidates: list,
+    correct_ar: str,
+    correct_pos: str,
+) -> list:
+    """Prefer exact Arabic identity and fail closed for grammatical particles.
+
+    Content lemmas retain the historical normalized fallback (for example an
+    unhamzated ``امر`` can recover stored ``أَمَرَ``).  Grammatical lexemes are
+    different: normalizing hamza or removing tashkeel can change the lemma
+    itself.  For those candidates, a vocalized proposal must match the stored
+    vocalization exactly; an unvocalized proposal may match only one
+    hamza-preserving citation form.  Ambiguity or normalized-only agreement is
+    rejected instead of guessed.
+    """
+    if not candidates:
+        return []
+
+    proposed_pos = _normalize_correction_pos(correct_pos)
+    grammatical = proposed_pos in _GRAMMATICAL_CORRECTION_POS
+    if not grammatical and not proposed_pos:
+        grammatical = any(
+            _normalize_correction_pos(getattr(candidate, "pos", None))
+            in _GRAMMATICAL_CORRECTION_POS
+            for candidate in candidates
+        )
+
+    # Content words retain the established sense/POS selection and normalized
+    # fallback.  This preserves useful hamza restoration for ordinary nouns
+    # and verbs without changing homograph correction behavior.
+    if not grammatical:
+        return candidates
+
+    proposed_exact = _exact_correction_form(correct_ar)
+    exact_matches = [
+        candidate
+        for candidate in candidates
+        if _exact_correction_form(getattr(candidate, "lemma_ar", None))
+        == proposed_exact
+    ]
+    if exact_matches:
+        return exact_matches
+
+    # If the verifier supplied tashkeel, absence of an exact match is decisive:
+    # accepting an undiacritized fallback would conflate إِنَّ with إِنْ.
+    if ARABIC_DIACRITICS.search(proposed_exact):
+        return []
+
+    proposed_bare = _exact_lookup_bare(proposed_exact)
+    bare_matches = [
+        candidate
+        for candidate in candidates
+        if _lemma_exact_bare(candidate) == proposed_bare
+    ]
+    if not bare_matches:
+        # Do not restore/normalize hamza for grammatical particles.
+        return []
+
+    # An unvocalized particle is safe only if it names a single stored
+    # vocalization.  إن cannot choose between إِنْ and إِنَّ.
+    identities = {
+        _exact_correction_form(getattr(candidate, "lemma_ar", None))
+        for candidate in bare_matches
+    }
+    identities.discard("")
+    if len(identities) != 1:
+        return []
+    return bare_matches
+
+
 def correct_mapping(
     db,
     correct_ar: str,
@@ -1926,6 +2116,12 @@ def correct_mapping(
                 Lemma.lemma_id.in_(candidate_ids)
             ).all()
 
+    if not candidates:
+        return None
+
+    candidates = _identity_safe_correction_candidates(
+        candidates, correct_ar, correct_pos
+    )
     if not candidates:
         return None
 
