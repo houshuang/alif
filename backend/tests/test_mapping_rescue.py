@@ -6,6 +6,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from app.models import (
     FrequencyCoreEntry,
@@ -14,7 +15,12 @@ from app.models import (
     SentenceWord,
 )
 from app.services import mapping_rescue
-from app.services.sentence_eligibility import MAPPING_VERIFICATION_HARDENED_AT
+from app.services.sentence_eligibility import (
+    CORPUS_BLOCKED_SENTINEL,
+    CORPUS_CLAIM_SENTINEL,
+    CORPUS_QUALITY_REJECTED_SENTINEL,
+    MAPPING_VERIFICATION_HARDENED_AT,
+)
 
 
 STALE = datetime(2026, 3, 1)  # before the active mapping verification cutoff
@@ -26,6 +32,7 @@ def _lemma(db, ar, gloss="x", bare=None, pos=None) -> Lemma:
         lemma_ar_bare=bare or ar,
         gloss_en=gloss,
         pos=pos,
+        gates_completed_at=datetime(2026, 2, 1),
     )
     db.add(lem)
     db.flush()
@@ -217,9 +224,11 @@ def test_fixable_issue_via_existing_lemma(db_session, patched_verifier):
     sw = db_session.query(SentenceWord).filter_by(sentence_id=sent.id).first()
     assert sw.lemma_id == right.lemma_id
     refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.target_lemma_id == right.lemma_id
     assert refreshed.mappings_verified_at > STALE
     assert stats.sentences_rescued == 1
     assert stats.sentences_corrected == 1
+    assert stats.targets_repaired == 1
 
 
 def test_proposal_with_fce_existing_lemma_reused(db_session, patched_verifier):
@@ -278,10 +287,24 @@ def test_proposal_creates_lemma_when_fce_unlinked(db_session, patched_verifier):
         ]} for _ in inputs]
     patched_verifier(proposal)
 
-    # Stub run_quality_gates so we don't actually run enrichment / LLM
+    # Stub run_quality_gates so we don't actually run enrichment / LLM, while
+    # preserving its load-bearing persisted gate stamp.
+    def stamp_quality_gates(db, lemma_ids, **_kwargs):
+        db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).update(
+            {Lemma.gates_completed_at: datetime(2026, 2, 2)},
+            synchronize_session=False,
+        )
+        db.commit()
+        return {
+            "finalize": {},
+            "variants": 0,
+            "enriched": False,
+            "stamped": len(lemma_ids),
+        }
+
     with patch(
         "app.services.lemma_quality.run_quality_gates",
-        return_value={"finalize": {}, "variants": 0, "enriched": False, "stamped": 0},
+        side_effect=stamp_quality_gates,
     ):
         stats = mapping_rescue.rescue_sentences_for_lemmas([wrong.lemma_id])
 
@@ -292,6 +315,7 @@ def test_proposal_creates_lemma_when_fce_unlinked(db_session, patched_verifier):
         .filter(Lemma.lemma_ar_bare == "جديد")
         .one()
     )
+    assert new_lem.gates_completed_at is not None
     refreshed_fce = db_session.query(FrequencyCoreEntry).get(fce.id)
     assert refreshed_fce.lemma_id == new_lem.lemma_id
 
@@ -301,6 +325,119 @@ def test_proposal_creates_lemma_when_fce_unlinked(db_session, patched_verifier):
 
     refreshed = db_session.query(Sentence).get(sent.id)
     assert refreshed.mappings_verified_at > STALE
+    assert stats.proposals_created_lemma == 1
+
+
+def test_failed_quality_gate_never_exposes_or_duplicates_proposal(
+    db_session,
+    patched_verifier,
+):
+    """A committed FCE claim remains ungated and unusable until Step G2 heals it."""
+    wrong = _lemma(db_session, "كِتاب", "book")
+    fce = _fce(
+        db_session,
+        "جديد",
+        lemma_id=None,
+        gloss="new",
+        pos="adj",
+        rank=400,
+    )
+    sent = _stale_sentence(
+        db_session, [wrong.lemma_id], target_id=wrong.lemma_id
+    )
+    db_session.commit()
+
+    def proposal(inputs, _lemma_map):
+        return [{
+            "disambiguation": [],
+            "issues": [{
+                "position": 0,
+                "correct_lemma_ar": "جَدِيد",
+                "correct_gloss": "new",
+                "correct_pos": "adj",
+                "explanation": "should be جديد",
+            }],
+        } for _ in inputs]
+
+    def fail_after_claim_commit(db, _lemma_ids, **_kwargs):
+        db.commit()
+        raise RuntimeError("quality pipeline interrupted")
+
+    patched_verifier(proposal)
+    with patch(
+        "app.services.lemma_quality.run_quality_gates",
+        side_effect=fail_after_claim_commit,
+    ):
+        first = mapping_rescue.rescue_sentences_for_lemmas([wrong.lemma_id])
+
+    db_session.expire_all()
+    claimed_fce = db_session.query(FrequencyCoreEntry).get(fce.id)
+    assert claimed_fce.lemma_id is not None
+    claimed_lemma = db_session.query(Lemma).get(claimed_fce.lemma_id)
+    assert claimed_lemma.gates_completed_at is None
+    word = (
+        db_session.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sent.id)
+        .one()
+    )
+    assert word.lemma_id == wrong.lemma_id
+    assert db_session.query(Sentence).get(sent.id).mappings_verified_at == STALE
+    assert first.proposals_created_lemma == 0
+    assert first.sentences_unfixable == 1
+    lemma_count = db_session.query(Lemma).count()
+
+    # A later rescue sees the ungated link as an in-progress/stranded claim:
+    # it neither reuses it nor creates a duplicate.
+    with patch(
+        "app.services.lemma_quality.run_quality_gates"
+    ) as quality_mock:
+        second = mapping_rescue.rescue_sentences_for_lemmas([wrong.lemma_id])
+
+    db_session.expire_all()
+    assert db_session.query(Lemma).count() == lemma_count
+    assert db_session.query(FrequencyCoreEntry).get(
+        fce.id
+    ).lemma_id == claimed_lemma.lemma_id
+    assert second.sentences_rescued == 0
+    quality_mock.assert_not_called()
+
+
+def test_frequency_core_claim_cas_rejects_stale_second_writer(db_session):
+    """Two SQLite readers cannot both convert the same NULL FCE link."""
+    fce = _fce(db_session, "مقترح", lemma_id=None, rank=401)
+    fce_id = fce.id
+    db_session.commit()
+
+    Session = sessionmaker(bind=db_session.bind)
+    first = Session()
+    second = Session()
+    try:
+        stale_first = first.get(FrequencyCoreEntry, fce_id)
+        stale_second = second.get(FrequencyCoreEntry, fce_id)
+        assert stale_first.lemma_id is None
+        assert stale_second.lemma_id is None
+
+        winner = _lemma(first, "مُقْتَرَحٌ أَوَّل", "first proposal")
+        assert mapping_rescue._claim_frequency_core_entry(
+            first, stale_first.id, winner.lemma_id
+        )
+        winner_id = winner.lemma_id
+        first.commit()
+
+        loser = _lemma(second, "مُقْتَرَحٌ ثَانٍ", "second proposal")
+        loser_id = loser.lemma_id
+        assert not mapping_rescue._claim_frequency_core_entry(
+            second, stale_second.id, loser_id
+        )
+        second.rollback()
+
+        db_session.expire_all()
+        assert db_session.get(FrequencyCoreEntry, fce_id).lemma_id == winner_id
+        assert db_session.get(Lemma, winner_id) is not None
+        assert db_session.get(Lemma, loser_id) is None
+    finally:
+        first.close()
+        second.close()
 
 
 def test_coverage_threshold_marks_lemma_covered(db_session, patched_verifier):
@@ -352,6 +489,95 @@ def test_no_stale_sentences_is_noop(db_session, patched_verifier):
     assert stats.sentences_attempted == 0
 
 
+def test_clean_lazy_rescue_cannot_stamp_absent_primary_target(
+    db_session,
+    patched_verifier,
+):
+    """A clean mapping verdict is insufficient when the stored target is absent."""
+    mapped = _lemma(db_session, "قَدَم", "foot")
+    absent = _lemma(db_session, "قَدِمَ", "to arrive")
+    sent = _stale_sentence(
+        db_session, [mapped.lemma_id], target_id=absent.lemma_id
+    )
+    db_session.commit()
+    patched_verifier(_no_issues)
+
+    stats = mapping_rescue.rescue_sentences_for_lemmas([mapped.lemma_id])
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.mappings_verified_at == STALE
+    assert refreshed.target_lemma_id == absent.lemma_id
+    assert stats.sentences_rescued == 0
+    assert stats.sentences_unfixable == 1
+    assert stats.sentences_target_invalid == 1
+
+
+def test_clean_reverify_hides_absent_primary_target(
+    db_session,
+    patched_verifier,
+):
+    """The active sweep clears trust instead of blessing stale target drift."""
+    mapped = _lemma(db_session, "قَدَم", "foot")
+    absent = _lemma(db_session, "قَدِمَ", "to arrive")
+    sent = _stale_sentence(
+        db_session, [mapped.lemma_id], target_id=absent.lemma_id
+    )
+    db_session.commit()
+    patched_verifier(_no_issues)
+
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[sent.id],
+    )
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.mappings_verified_at is None
+    assert refreshed.target_lemma_id == absent.lemma_id
+    assert stats.sentences_passed == 0
+    assert stats.sentences_unfixable == 1
+    assert stats.sentences_target_invalid == 1
+
+
+def test_lazy_rescue_never_reopens_durable_corpus_dispositions(
+    db_session,
+    patched_verifier,
+):
+    """Old sentinels are not all equivalent: only the transient claim retries."""
+    lem = _lemma(db_session, "كِتاب", "book")
+    blocked = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    blocked.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+    rejected = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    rejected.mappings_verified_at = CORPUS_QUALITY_REJECTED_SENTINEL
+    claim = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    claim.mappings_verified_at = CORPUS_CLAIM_SENTINEL
+    db_session.commit()
+    patched_verifier(_no_issues)
+
+    stats = mapping_rescue.rescue_sentences_for_lemmas([lem.lemma_id])
+
+    db_session.expire_all()
+    assert stats.sentences_attempted == 1
+    assert (
+        db_session.query(Sentence).get(blocked.id).mappings_verified_at
+        == CORPUS_BLOCKED_SENTINEL
+    )
+    assert (
+        db_session.query(Sentence).get(rejected.id).mappings_verified_at
+        == CORPUS_QUALITY_REJECTED_SENTINEL
+    )
+    assert (
+        db_session.query(Sentence).get(claim.id).mappings_verified_at
+        > MAPPING_VERIFICATION_HARDENED_AT
+    )
+
+
 def test_reverify_sentences_before_only_checks_explicit_pre_cutoff_stamps(
     db_session,
     patched_verifier,
@@ -386,3 +612,366 @@ def test_reverify_sentences_before_only_checks_explicit_pre_cutoff_stamps(
     assert seen_batches == [["جملة اختبار"]]
     assert refreshed_legacy.mappings_verified_at >= MAPPING_VERIFICATION_HARDENED_AT
     assert refreshed_fresh.mappings_verified_at == datetime(2026, 5, 18, 8, 0)
+
+
+def test_reverify_overcall_counts_flagged_pass_not_correction(
+    db_session,
+    patched_verifier,
+):
+    """A compatible same-lemma verifier overcall is not a database correction."""
+    current = _lemma(
+        db_session, "جَلَبَ", "to bring", bare="جلب", pos="verb"
+    )
+    sent = _stale_sentence(
+        db_session, [current.lemma_id], target_id=current.lemma_id
+    )
+    db_session.commit()
+
+    def compatible_overcall(inputs, _lemma_map):
+        return [{
+            "disambiguation": [],
+            "issues": [{
+                "position": 0,
+                "correct_lemma_ar": "جَلَبَ",
+                "correct_gloss": "to bring",
+                "correct_pos": "verb",
+                "explanation": "same lemma",
+            }],
+        } for _ in inputs]
+
+    patched_verifier(compatible_overcall)
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[sent.id],
+    )
+
+    assert stats.sentences_flagged == 1
+    assert stats.sentences_passed == 1
+    assert stats.sentences_corrected == 0
+
+
+def test_explicit_reverify_excludes_durable_corpus_dispositions(
+    db_session,
+    patched_verifier,
+):
+    """A broad caller-provided ID list cannot bypass corpus retry curation."""
+    lem = _lemma(db_session, "كِتاب", "book")
+    blocked = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    blocked.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+    rejected = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    rejected.mappings_verified_at = CORPUS_QUALITY_REJECTED_SENTINEL
+    claim = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    claim.mappings_verified_at = CORPUS_CLAIM_SENTINEL
+    db_session.commit()
+    patched_verifier(_no_issues)
+
+    stats = mapping_rescue.reverify_sentences_before(
+        [blocked.id, rejected.id, claim.id],
+        cutoff=MAPPING_VERIFICATION_HARDENED_AT,
+        batch_size=5,
+    )
+
+    db_session.expire_all()
+    assert stats.sentences_attempted == 1
+    assert (
+        db_session.query(Sentence).get(blocked.id).mappings_verified_at
+        == CORPUS_BLOCKED_SENTINEL
+    )
+    assert (
+        db_session.query(Sentence).get(rejected.id).mappings_verified_at
+        == CORPUS_QUALITY_REJECTED_SENTINEL
+    )
+    assert (
+        db_session.query(Sentence).get(claim.id).mappings_verified_at
+        >= MAPPING_VERIFICATION_HARDENED_AT
+    )
+
+
+def test_reverify_explicit_ids_excludes_inactive_durable_rows(
+    db_session,
+    patched_verifier,
+):
+    """An exact caller list cannot revive inactive Jan-2/Jan-3 corpus rows."""
+    lem = _lemma(db_session, "كِتاب", "book")
+    blocked = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    blocked.is_active = False
+    blocked.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+    rejected = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    rejected.is_active = False
+    rejected.mappings_verified_at = CORPUS_QUALITY_REJECTED_SENTINEL
+    db_session.commit()
+    calls = {"count": 0}
+
+    def verifier(inputs, lemma_map):
+        calls["count"] += 1
+        return _no_issues(inputs, lemma_map)
+
+    patched_verifier(verifier)
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[blocked.id, rejected.id],
+    )
+
+    db_session.expire_all()
+    assert calls["count"] == 0
+    assert stats.sentences_attempted == 0
+    assert db_session.query(Sentence).get(
+        blocked.id
+    ).mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert db_session.query(Sentence).get(
+        rejected.id
+    ).mappings_verified_at == CORPUS_QUALITY_REJECTED_SENTINEL
+
+
+def test_reverify_cas_preserves_concurrent_durable_disposition(
+    db_session,
+    patched_verifier,
+):
+    """A lifecycle change during the LLM call wins over a stale clean result."""
+    lem = _lemma(db_session, "كِتاب", "book")
+    sent = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    db_session.commit()
+
+    def concurrent_block(inputs, lemma_map):
+        other = mapping_rescue.SessionLocal()
+        try:
+            row = other.query(Sentence).get(sent.id)
+            row.is_active = False
+            row.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+            other.commit()
+        finally:
+            other.close()
+        return _no_issues(inputs, lemma_map)
+
+    patched_verifier(concurrent_block)
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[sent.id],
+    )
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.is_active is False
+    assert refreshed.mappings_verified_at == CORPUS_BLOCKED_SENTINEL
+    assert stats.sentences_passed == 0
+    assert stats.sentences_skipped_changed == 1
+
+
+def test_concurrent_disposition_also_blocks_proposal_prepass(
+    db_session,
+    patched_verifier,
+):
+    """A lost snapshot cannot create an otherwise FCE-approved lemma."""
+    wrong = _lemma(db_session, "كِتاب", "book")
+    fce = _fce(
+        db_session,
+        "جديد",
+        lemma_id=None,
+        gloss="new",
+        pos="adj",
+        rank=400,
+    )
+    sent = _stale_sentence(
+        db_session, [wrong.lemma_id], target_id=wrong.lemma_id
+    )
+    db_session.commit()
+    lemma_count_before = db_session.query(Lemma).count()
+
+    def concurrent_block_with_proposal(inputs, _lemma_map):
+        other = mapping_rescue.SessionLocal()
+        try:
+            row = other.query(Sentence).get(sent.id)
+            row.is_active = False
+            row.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+            other.commit()
+        finally:
+            other.close()
+        return [{
+            "disambiguation": [],
+            "issues": [{
+                "position": 0,
+                "correct_lemma_ar": "جَدِيد",
+                "correct_gloss": "new",
+                "correct_pos": "adj",
+                "explanation": "should be جديد",
+            }],
+        } for _ in inputs]
+
+    patched_verifier(concurrent_block_with_proposal)
+    with patch(
+        "app.services.lemma_quality.run_quality_gates"
+    ) as quality_mock:
+        stats = mapping_rescue.reverify_all_active_sentences(
+            sentence_ids=[sent.id],
+        )
+
+    db_session.expire_all()
+    assert stats.sentences_skipped_changed == 1
+    assert db_session.query(Lemma).count() == lemma_count_before
+    assert db_session.query(FrequencyCoreEntry).get(fce.id).lemma_id is None
+    quality_mock.assert_not_called()
+
+
+def test_lazy_rescue_cas_preserves_concurrent_durable_disposition(
+    db_session,
+    patched_verifier,
+):
+    """Lazy rescue also refuses to write through a changed corpus claim."""
+    lem = _lemma(db_session, "كِتاب", "book")
+    sent = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    db_session.commit()
+
+    def concurrent_reject(inputs, lemma_map):
+        other = mapping_rescue.SessionLocal()
+        try:
+            row = other.query(Sentence).get(sent.id)
+            row.is_active = False
+            row.mappings_verified_at = CORPUS_QUALITY_REJECTED_SENTINEL
+            other.commit()
+        finally:
+            other.close()
+        return _no_issues(inputs, lemma_map)
+
+    patched_verifier(concurrent_reject)
+    stats = mapping_rescue.rescue_sentences_for_lemmas([lem.lemma_id])
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.is_active is False
+    assert refreshed.mappings_verified_at == CORPUS_QUALITY_REJECTED_SENTINEL
+    assert stats.sentences_rescued == 0
+    assert stats.sentences_skipped_changed == 1
+
+
+def test_reverify_dry_run_has_no_proposal_or_logging_side_effects(
+    db_session,
+    patched_verifier,
+):
+    """Dry-run may call the verifier but cannot write through proposal helpers."""
+    wrong = _lemma(db_session, "كِتاب", "book")
+    fce = _fce(
+        db_session,
+        "جديد",
+        lemma_id=None,
+        gloss="new",
+        pos="adj",
+        rank=400,
+    )
+    sent = _stale_sentence(
+        db_session, [wrong.lemma_id], target_id=wrong.lemma_id
+    )
+    db_session.commit()
+
+    def proposal(inputs, _lemma_map):
+        return [{
+            "disambiguation": [],
+            "issues": [{
+                "position": 0,
+                "correct_lemma_ar": "جَدِيد",
+                "correct_gloss": "new",
+                "correct_pos": "adj",
+                "explanation": "should be جديد",
+            }],
+        } for _ in inputs]
+
+    patched_verifier(proposal)
+    lemma_count_before = db_session.query(Lemma).count()
+    with (
+        patch.object(mapping_rescue, "_log_proposal_suggestion") as log_mock,
+        patch(
+            "app.services.lemma_quality.run_quality_gates"
+        ) as quality_mock,
+    ):
+        stats = mapping_rescue.reverify_all_active_sentences(
+            sentence_ids=[sent.id],
+            dry_run=True,
+        )
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    word = (
+        db_session.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sent.id)
+        .one()
+    )
+    assert stats.sentences_flagged == 1
+    assert stats.sentences_corrected == 0
+    assert db_session.query(Lemma).count() == lemma_count_before
+    assert db_session.query(FrequencyCoreEntry).get(fce.id).lemma_id is None
+    assert refreshed.mappings_verified_at == STALE
+    assert word.lemma_id == wrong.lemma_id
+    log_mock.assert_not_called()
+    quality_mock.assert_not_called()
+
+
+def test_secondary_multi_target_correction_keeps_primary_target(
+    db_session,
+    patched_verifier,
+):
+    """Correcting another target word must not retarget the primary sentence."""
+    primary = _lemma(db_session, "بَيت", "house", bare="بيت", pos="noun")
+    wrong_secondary = _lemma(
+        db_session, "عَلِيّ", "Ali", bare="علي", pos="noun"
+    )
+    right_secondary = _lemma(
+        db_session, "عَلَى", "on", bare="على", pos="preposition"
+    )
+    sent = _stale_sentence(
+        db_session,
+        [primary.lemma_id, wrong_secondary.lemma_id],
+        target_id=primary.lemma_id,
+    )
+    secondary_word = (
+        db_session.query(SentenceWord)
+        .filter(
+            SentenceWord.sentence_id == sent.id,
+            SentenceWord.position == 1,
+        )
+        .one()
+    )
+    secondary_word.is_target_word = True
+    db_session.commit()
+
+    def correction(inputs, _lemma_map):
+        return [{
+            "disambiguation": [],
+            "issues": [{
+                "position": 1,
+                "correct_lemma_ar": "عَلَى",
+                "correct_gloss": "on",
+                "correct_pos": "preposition",
+                "explanation": "wrong homograph",
+            }],
+        } for _ in inputs]
+
+    patched_verifier(correction)
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[sent.id],
+    )
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    refreshed_secondary = (
+        db_session.query(SentenceWord)
+        .filter(
+            SentenceWord.sentence_id == sent.id,
+            SentenceWord.position == 1,
+        )
+        .one()
+    )
+    assert refreshed.target_lemma_id == primary.lemma_id
+    assert refreshed_secondary.lemma_id == right_secondary.lemma_id
+    assert stats.sentences_flagged == 1
+    assert stats.sentences_corrected == 1
+    assert stats.targets_repaired == 0

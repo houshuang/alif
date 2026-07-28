@@ -1,8 +1,23 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
-from scripts.update_material import salvage_due_dense_inactive_sentences
+from app.models import (
+    Lemma,
+    Sentence,
+    SentenceWord,
+    Story,
+    StoryWord,
+    UserLemmaKnowledge,
+)
+from app.services.sentence_eligibility import (
+    CORPUS_BLOCKED_SENTINEL,
+    CORPUS_CLAIM_SENTINEL,
+    CORPUS_QUALITY_REJECTED_SENTINEL,
+)
+from scripts.update_material import (
+    salvage_due_dense_inactive_sentences,
+    step_reactivate_book_sentences,
+)
 
 
 def _lemma(db, lemma_id, arabic):
@@ -118,6 +133,113 @@ def test_single_coverage_salvaged_for_deficit_word(monkeypatch, db_session):
     assert count == 1
     db_session.refresh(sent)
     assert sent.is_active is True
+
+
+def test_due_dense_salvage_never_reactivates_durable_corpus_dispositions(
+    monkeypatch,
+    db_session,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    blocked = _sentence(db_session, 1, [target_a, target_b])
+    rejected = _sentence(db_session, 2, [target_a, target_b])
+    claimed = _sentence(db_session, 3, [target_a, target_b])
+    blocked.mappings_verified_at = CORPUS_BLOCKED_SENTINEL
+    rejected.mappings_verified_at = CORPUS_QUALITY_REJECTED_SENTINEL
+    claimed.mappings_verified_at = CORPUS_CLAIM_SENTINEL
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        lambda _sentences: (_ for _ in ()).throw(
+            AssertionError("durable dispositions must not reach quality review")
+        ),
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    assert count == 0
+    db_session.refresh(blocked)
+    db_session.refresh(rejected)
+    db_session.refresh(claimed)
+    assert blocked.is_active is False
+    assert rejected.is_active is False
+    assert claimed.is_active is False
+
+
+def test_book_page_reactivation_skips_durable_corpus_dispositions(db_session):
+    known = _lemma(db_session, 1, "كتاب")
+    _active(db_session, known)
+    story = Story(
+        title_ar="كتاب",
+        title_en="Book",
+        body_ar="كتاب",
+        source="book_ocr",
+        status="active",
+    )
+    db_session.add(story)
+    db_session.flush()
+    db_session.add(
+        StoryWord(
+            story_id=story.id,
+            position=0,
+            surface_form="كتاب",
+            lemma_id=known.lemma_id,
+            is_function_word=False,
+            page_number=1,
+        )
+    )
+    ordinary = Sentence(
+        arabic_text="كتاب",
+        source="book",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=None,
+    )
+    blocked = Sentence(
+        arabic_text="كتاب محظور",
+        source="corpus",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=CORPUS_BLOCKED_SENTINEL,
+    )
+    rejected = Sentence(
+        arabic_text="كتاب مرفوض",
+        source="corpus",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=CORPUS_QUALITY_REJECTED_SENTINEL,
+    )
+    claimed = Sentence(
+        arabic_text="كتاب قيد المعالجة",
+        source="corpus",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=CORPUS_CLAIM_SENTINEL,
+    )
+    db_session.add_all([ordinary, blocked, rejected, claimed])
+    db_session.commit()
+
+    assert step_reactivate_book_sentences(db_session) == 1
+
+    for sentence in (ordinary, blocked, rejected, claimed):
+        db_session.refresh(sentence)
+    assert ordinary.is_active is True
+    assert blocked.is_active is False
+    assert rejected.is_active is False
+    assert claimed.is_active is False
 
 
 def test_reviewable_coverage_counts_includes_collateral(db_session):

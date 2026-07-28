@@ -2,9 +2,71 @@
 
 All notable changes to Alif — Arabic Reading & Listening Trainer.
 
-This project has been developed entirely with [Claude Code](https://claude.com/claude-code) since its initial commit.
+This project is developed with Claude Code and Codex.
 
 ---
+
+## 2026-07-28 — Scoped corpus preparation hardening (PR #232)
+
+- Harden scoped corpus preparation with a cursor-progressive deterministic
+  preflight, early authentic QA, explicit per-row mapping verdicts, exact-row
+  retries, compare-and-set writes, full Arabic identity checks, and no corpus
+  lemma creation
+- Separate the transient `2000-01-01` claim from durable `2000-01-02`
+  inventory/mapping blocks and `2000-01-03` linguistic-QA rejections; durable
+  blockers reopen only through an explicit exact-ID retry after curation
+- Rehearse on a disposable working copy derived from the immutable production
+  snapshot: two exact rows prepared cleanly, one received a terminal
+  naturalness rejection, no row activated, and learner tables were unchanged
+- Replay all 243 *Momo* rows: 235 are inventory-complete; the remaining eight
+  contain nine standalone OCR-spaced `و` tokens and require separately
+  confirmed source normalization, not vocabulary backfill
+- Prospectively repair stale target bookkeeping atomically when mappings
+  change; preserve historical review observations and keep any exact repair of
+  the 18 affected reviewable production rows separately confirmation-gated
+- Keep corpus cron disabled. The code-only deployment performs no corpus or
+  learner-data mutation, and the snapshot's 1,961 active rows leave zero
+  activation capacity under the 1,950 ceiling
+- Record the July 28 production learning audit and its confirmation boundaries;
+  no production corpus or learner data was changed
+
+## 2026-07-27
+
+- Deploy through PR #231 (`0f374904`): policy-aware FSRS calibration, assisted
+  rating-2 lapses, Box-1 exposure reduction, graduation-policy alignment,
+  exact-token form/tashkīl evidence, persistent optional yellow-cause capture,
+  and lemma-aware function-word homographs
+
+## 2026-07-26
+
+- Validate and deploy the learning-system foundation, including FSRS 6.3.1
+  pinning/config telemetry, acquisition graduation success gating, and
+  workload-neutral established-lapse recovery (PRs #224–226)
+
+## 2026-07-25
+
+- Add protocol-v2 rapid re-tests for rating-1 failures with counter-neutral
+  acquisition safety and no quiz-driven graduation (PRs #220/#223)
+- Strip stored LLM web citations and disable Codex web search for learner-facing
+  enrichment; add review-debt urgency stats (PRs #221/#222)
+
+## 2026-07-21
+
+- Add gloss/POS sense-gating for same-skeleton citation-form homographs (PR #219)
+
+## 2026-07-20
+
+- Add one-per-day reintroduction cooldown, reserve rescue intro slots, and show
+  recovery burndown (PR #217)
+- Re-enable recognition-direction mnemonics behind an independently calibrated
+  storage judge (PR #218)
+
+## 2026-07-15
+
+- Add citation-strict `/api/discover/add` lookup and remediate collision damage;
+  import 243 hand-vetted inactive *Momo* corpus sentences (PRs #211–216)
+- Make lemma enrichment backlog honest, bounded, and durable; repair corrupt
+  citation bare forms and add recovery/*Momo* statistics
 
 ## 2026-07-10
 

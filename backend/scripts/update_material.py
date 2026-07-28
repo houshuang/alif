@@ -15,6 +15,8 @@ Usage:
     python scripts/update_material.py --dry-run        # preview only
     python scripts/update_material.py --skip-audio     # skip TTS generation
     python scripts/update_material.py --limit 20       # max 20 audio generations
+    python scripts/update_material.py --only-corpus-enrichment \
+        --kind momo_book --corpus-limit 20
 """
 
 import argparse
@@ -34,13 +36,24 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
-from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
+from app.services import corpus_enrichment as corpus_enrichment_service
+from app.services.corpus_enrichment import (
+    DEFAULT_ENRICH_LIMIT,
+    MAX_ACTIVATE_LIMIT,
+    MAX_ENRICH_LIMIT,
+    CorpusEnrichmentResult,
+    enrich_corpus_sentences,
+    generate_corpus_enrichment_batch,
+    has_arabic_diacritics,
+    plan_corpus_activation,
+    plan_corpus_enrichment_report,
+)
 from app.services.word_selector import select_next_words
 from app.services.material_generator import (
     acquiring_material_gaps,
@@ -59,6 +72,10 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     strip_diacritics,
 )
+from app.services.sentence_eligibility import (
+    CORPUS_CLAIM_SENTINEL,
+    CORPUS_DURABLE_DISPOSITION_SENTINELS,
+)
 from app.services.tts import (
     DEFAULT_VOICE_ID,
     TTSError,
@@ -74,6 +91,25 @@ DEFAULT_STEP_A_SENTENCE_BUDGET = 40  # bounded per cron; 2000 is a cap, not a fi
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 MAX_DUE_DENSE_SALVAGE_PER_RUN = 25
+CORPUS_NON_ACTIVATABLE_SENTINELS = (
+    CORPUS_CLAIM_SENTINEL,
+    *CORPUS_DURABLE_DISPOSITION_SENTINELS,
+)
+CORPUS_ENRICH_BATCH_SIZE = max(
+    1, int(os.environ.get("ALIF_CORPUS_ENRICH_BATCH_SIZE", "10"))
+)
+CORPUS_VERIFY_BATCH_SIZE = max(
+    1, int(os.environ.get("ALIF_CORPUS_VERIFY_BATCH_SIZE", "10"))
+)
+LOCK_PATH = Path(
+    os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock")
+)
+
+# Backward-compatible aliases for focused batching tests and any one-off imports
+# that used the old script-local helpers.
+_has_diacritics = has_arabic_diacritics
+_generate_corpus_enrichment_batch = generate_corpus_enrichment_batch
+_CORPUS_ENRICH_SCHEMA = corpus_enrichment_service._CORPUS_ENRICH_SCHEMA
 
 
 def _env_int(name: str, default: int) -> int:
@@ -248,6 +284,9 @@ def salvage_due_dense_inactive_sentences(
         .filter(
             Sentence.is_active == False,  # noqa: E712
             Sentence.mappings_verified_at.isnot(None),
+            Sentence.mappings_verified_at.notin_(
+                CORPUS_NON_ACTIVATABLE_SENTINELS
+            ),
             SentenceWord.lemma_id.in_(target_lemma_ids),
         )
         .distinct()
@@ -311,370 +350,132 @@ def salvage_due_dense_inactive_sentences(
     return reactivated
 
 
-# ── Step A2: Enrich unverified corpus sentences ──────────────────────
-#
-# Corpus sentences are imported with raw text (possibly undiacritized),
-# no translation, and rule-based lemma mappings that may be wrong.
-# This step enriches them one at a time via Claude CLI:
-#   1. Diacritize (add tashkeel if missing)
-#   2. Translate to English
-#   3. Verify/correct word-lemma mappings using the existing pipeline
-#
-# Only processes sentences containing words the learner is actively studying.
-
-MAX_ENRICH_PER_RUN = 50
-CORPUS_ENRICH_BATCH_SIZE = max(1, int(os.environ.get("ALIF_CORPUS_ENRICH_BATCH_SIZE", "10")))
-CORPUS_VERIFY_BATCH_SIZE = max(1, int(os.environ.get("ALIF_CORPUS_VERIFY_BATCH_SIZE", "10")))
-LOCK_PATH = Path(os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock"))
-
-_CORPUS_ENRICH_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "sentences": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "integer"},
-                    "diacritized": {"type": "string"},
-                    "translation": {"type": "string"},
-                },
-                "required": ["id", "diacritized", "translation"],
-            },
-        },
-    },
-    "required": ["sentences"],
-}
+# ── Step A2: Scoped corpus enrichment and activation ─────────────────
 
 
-def _has_diacritics(arabic_text: str | None) -> bool:
-    return any(
-        0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
-        for c in (arabic_text or "")
+def _validate_corpus_cli_args(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    *,
+    corpus_requested: bool,
+) -> None:
+    """Fail closed before any maintenance when corpus work is unscoped."""
+    args.corpus_kind = (args.corpus_kind or "").strip() or None
+    args.corpus_sentence_id = sorted(set(args.corpus_sentence_id or []))
+    args.corpus_retry_blocked = bool(
+        getattr(args, "corpus_retry_blocked", False)
     )
-
-
-def _generate_corpus_enrichment_batch(sentences: list[Sentence]) -> dict[int, dict[str, str]]:
-    """Diacritize and translate corpus sentences in one structured LLM call."""
-    from app.services.llm import generate_completion, AllProvidersFailed
-
-    if not sentences:
-        return {}
-
-    lines = [f"- id={sent.id}: {sent.arabic_text}" for sent in sentences]
-    prompt = (
-        "For each Arabic sentence below:\n"
-        "1. Add full tashkeel (diacritics/vowelization) to the Arabic text. "
-        "Keep the exact same words; only add harakat.\n"
-        "2. Translate it to natural English.\n\n"
-        + "\n".join(lines)
-        + "\n\nReturn JSON exactly as "
-        '{"sentences": [{"id": 1, "diacritized": "...", "translation": "..."}]}.'
-    )
-
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt="Add diacritics and translate Arabic sentences. Return JSON only.",
-            json_schema=_CORPUS_ENRICH_SCHEMA,
-            temperature=0.0,
-            model_override="claude_haiku",
-            task_type="corpus_enrichment",
+    if not corpus_requested:
+        return
+    if args.corpus_kind is None and not args.corpus_sentence_id:
+        parser.error(
+            "corpus enrichment requires --kind/--corpus-kind and/or "
+            "--corpus-sentence-id"
         )
-    except AllProvidersFailed:
-        return {}
+    if any(sentence_id <= 0 for sentence_id in args.corpus_sentence_id):
+        parser.error("--corpus-sentence-id values must be positive")
+    if not 0 <= args.corpus_limit <= MAX_ENRICH_LIMIT:
+        parser.error(
+            f"--corpus-limit must be between 0 and {MAX_ENRICH_LIMIT}"
+        )
+    if not 0 <= args.corpus_activate_limit <= MAX_ACTIVATE_LIMIT:
+        parser.error(
+            "--corpus-activate-limit must be between 0 and "
+            f"{MAX_ACTIVATE_LIMIT}"
+        )
+    if args.corpus_limit > 0 and args.corpus_activate_limit > 0:
+        parser.error(
+            "corpus preparation and activation require separate invocations; "
+            "set --corpus-activate-limit 0 while enriching, or "
+            "--corpus-limit 0 while activating"
+        )
+    if args.corpus_retry_blocked and (
+        not args.corpus_sentence_id
+        or args.corpus_limit <= 0
+        or args.corpus_activate_limit != 0
+    ):
+        parser.error(
+            "--corpus-retry-blocked requires one or more explicit "
+            "--corpus-sentence-id values, nonzero --corpus-limit, and "
+            "--corpus-activate-limit 0"
+        )
+    if args.corpus_active_ceiling < 0:
+        parser.error("--corpus-active-ceiling must be non-negative")
 
-    if not isinstance(result, dict):
-        return {}
-    items = result.get("sentences", [])
-    if not isinstance(items, list):
-        return {}
 
-    requested_ids = {sent.id for sent in sentences}
-    out: dict[int, dict[str, str]] = {}
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        sid = item.get("id")
-        if not isinstance(sid, int) or sid not in requested_ids:
-            continue
-        diacritized = (item.get("diacritized") or "").strip()
-        translation = (item.get("translation") or "").strip()
-        if diacritized or translation:
-            out[sid] = {"diacritized": diacritized, "translation": translation}
-    return out
-
-
-def enrich_corpus_sentences(db: Session) -> int:
-    """Enrich unverified corpus sentences: diacritize, translate, verify mappings.
-
-    Concurrency: uses a simple row-level guard — sets mappings_verified_at to
-    a sentinel before processing, so overlapping cron runs skip it.
-    """
-    from app.services.sentence_validator import (
-        apply_corrections,
-        batch_verify_sentences,
-        build_comprehensive_lemma_lookup,
-        detect_proper_names,
-        map_tokens_to_lemmas,
-        normalize_alef,
-        strip_punctuation,
-        strip_tatweel,
-        tokenize_display,
-    )
-    from app.services.transliteration import transliterate_arabic
-
-    # Find lemma_ids for acquiring + FSRS words
-    active_ids = {
-        r[0] for r in db.query(UserLemmaKnowledge.lemma_id).filter(
-            UserLemmaKnowledge.knowledge_state.in_(
-                ["acquiring", "known", "learning", "lapsed"]
-            )
-        ).all()
+def _corpus_run_kwargs(args: argparse.Namespace) -> dict:
+    return {
+        "kind": args.corpus_kind,
+        "sentence_ids": args.corpus_sentence_id,
+        "limit": args.corpus_limit,
+        "activate_limit": args.corpus_activate_limit,
+        "active_ceiling": args.corpus_active_ceiling,
+        "retry_blocked": args.corpus_retry_blocked,
     }
-    if not active_ids:
-        print("  No active words")
-        return 0
 
-    # Find unverified corpus sentences containing active words.
-    # These are inactive until enriched — step activates them after verification.
-    unverified = (
-        db.query(Sentence)
-        .filter(
-            Sentence.mappings_verified_at.is_(None),
-            Sentence.source.in_(["corpus", "book"]),
-        )
-        .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
-        .filter(SentenceWord.lemma_id.in_(active_ids))
-        .distinct()
-        .limit(MAX_ENRICH_PER_RUN)
-        .all()
+
+def _corpus_rejected_count(result: CorpusEnrichmentResult | None) -> int:
+    if result is None:
+        return 0
+    return len(
+        set(result.mapping_blocked_ids)
+        | set(result.mapping_rejected_ids)
+        | set(result.quality_rejected_ids)
+        | set(result.target_rejected_ids)
     )
 
-    if not unverified:
-        print("  No unverified corpus sentences for active words")
-        return 0
 
-    print(f"  Found {len(unverified)} unverified corpus sentences to enrich")
-
-    # Build lemma lookup and map for verification
-    lemma_lookup = build_comprehensive_lemma_lookup(db)
-    all_lemma_ids = set()
-    for sent in unverified:
-        for sw in sent.words:
-            if sw.lemma_id:
-                all_lemma_ids.add(sw.lemma_id)
-    lemma_map = {
-        l.lemma_id: l
-        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all()
-    } if all_lemma_ids else {}
-
-    # Build proper names set from unmapped words across all candidate sentences
-    unmapped_freq: dict[str, int] = {}
-    for sent in unverified:
-        for sw in sent.words:
-            if sw.lemma_id is None:
-                bare = normalize_alef(strip_diacritics(strip_punctuation(
-                    strip_tatweel(sw.surface_form)
-                )))
-                if bare and len(bare) > 1:
-                    unmapped_freq[bare] = unmapped_freq.get(bare, 0) + 1
-    proper_names = detect_proper_names(unmapped_freq, lemma_lookup, min_frequency=2)
-    if proper_names:
-        print(f"  Detected {len(proper_names)} proper names: {sorted(proper_names)[:10]}...")
-
-    # Concurrency guard: claim sentences by setting a sentinel timestamp
-    sentinel = datetime(2000, 1, 1)
-    claimed_ids = [s.id for s in unverified]
-    db.query(Sentence).filter(Sentence.id.in_(claimed_ids)).update(
-        {Sentence.mappings_verified_at: sentinel}, synchronize_session="fetch"
-    )
-    db.commit()
-
-    enriched = 0
-    now = datetime.now(timezone.utc)
-
-    # Step 1: Diacritize + translate via batched LLM calls.
-    ready_for_mapping: list[Sentence] = []
-    need_enrichment = [
-        sent for sent in unverified
-        if not _has_diacritics(sent.arabic_text) or not sent.english_translation
-    ]
-    need_enrichment_ids = {sent.id for sent in need_enrichment}
-    ready_for_mapping.extend(sent for sent in unverified if sent.id not in need_enrichment_ids)
-
-    for i in range(0, len(need_enrichment), CORPUS_ENRICH_BATCH_SIZE):
-        batch = need_enrichment[i:i + CORPUS_ENRICH_BATCH_SIZE]
-        try:
-            enrich_map = _generate_corpus_enrichment_batch(batch)
-        except Exception as e:
-            print(f"  Sentences {[s.id for s in batch]}: diacritize/translate batch failed: {e}")
-            enrich_map = {}
-
-        for sent in batch:
-            enriched_item = enrich_map.get(sent.id)
-            needs_diacritics = not _has_diacritics(sent.arabic_text)
-            needs_translation = not sent.english_translation
-            if not enriched_item:
-                print(f"  Sentence {sent.id}: diacritize/translate missing from batch result")
-                sent.mappings_verified_at = None  # release claim for retry
-                continue
-
-            diacritized = enriched_item.get("diacritized", "")
-            translation = enriched_item.get("translation", "")
-            if needs_diacritics and not diacritized:
-                print(f"  Sentence {sent.id}: diacritics missing from batch result")
-                sent.mappings_verified_at = None
-                continue
-            if needs_translation and not translation:
-                print(f"  Sentence {sent.id}: translation missing from batch result")
-                sent.mappings_verified_at = None
-                continue
-
-            if diacritized:
-                sent.arabic_text = diacritized
-                sent.transliteration = transliterate_arabic(diacritized) or ""
-            if translation:
-                sent.english_translation = translation
-            ready_for_mapping.append(sent)
-
-        # Release the write lock before mapping verification LLM calls.
-        db.commit()
-
-    # Step 2: Re-map tokens with diacritized text + proper names.
-    verification_candidates: list[dict] = []
-    mapping_ids: set[int] = set()
-    for sent in ready_for_mapping:
-        tokens = tokenize_display(sent.arabic_text)
-        mappings = map_tokens_to_lemmas(
-            tokens=tokens,
-            lemma_lookup=lemma_lookup,
-            target_lemma_id=0,
-            target_bare="",
-            proper_names=proper_names,
+def _run_scoped_corpus_step(
+    db: Session,
+    args: argparse.Namespace,
+) -> CorpusEnrichmentResult | None:
+    """Print a read-only plan or execute the scoped enrichment service."""
+    kwargs = _corpus_run_kwargs(args)
+    if args.dry_run:
+        enrichment_plan = plan_corpus_enrichment_report(
+            db,
+            kind=kwargs["kind"],
+            sentence_ids=kwargs["sentence_ids"],
+            limit=kwargs["limit"],
+            include_legacy_claims=(
+                bool(kwargs["sentence_ids"])
+                and not kwargs["retry_blocked"]
+            ),
+            include_blocked=kwargs["retry_blocked"],
+            only_blocked=kwargs["retry_blocked"],
         )
-
-        for m in mappings:
-            if m.lemma_id:
-                mapping_ids.add(m.lemma_id)
-            for alt_id in m.alternative_lemma_ids or []:
-                mapping_ids.add(alt_id)
-
-        verification_candidates.append({
-            "sentence": sent,
-            "arabic": sent.arabic_text,
-            "english": sent.english_translation or "",
-            "mappings": mappings,
-            "has_ambiguous": any(m.alternative_lemma_ids for m in mappings),
-        })
-
-    # Refresh lemma_map for any new lemma_ids.
-    new_ids = {lid for lid in mapping_ids if lid and lid not in lemma_map}
-    if new_ids:
-        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(new_ids)).all():
-            lemma_map[l.lemma_id] = l
-
-    # Step 3: Verify mappings via LLM in batches.
-    verification_results: dict[int, dict] = {}
-    for i in range(0, len(verification_candidates), CORPUS_VERIFY_BATCH_SIZE):
-        batch = verification_candidates[i:i + CORPUS_VERIFY_BATCH_SIZE]
-        batch_results = batch_verify_sentences(batch, lemma_map)
-        if batch_results is None:
-            print(f"  Sentences {[c['sentence'].id for c in batch]}: verification unavailable, releasing for retry")
-            for cand in batch:
-                cand["sentence"].mappings_verified_at = None
-            db.commit()
-            continue
-        for cand, verify_result in zip(batch, batch_results):
-            verification_results[cand["sentence"].id] = verify_result
-
-    for cand in verification_candidates:
-        sent = cand["sentence"]
-        verify_result = verification_results.get(sent.id)
-        if verify_result is None:
-            continue
-
-        mappings = cand["mappings"]
-
-        pos_to_mapping = {m.position: m for m in mappings}
-        for choice in verify_result.get("disambiguation", []):
-            pos = choice.get("position")
-            new_lid = choice.get("lemma_id")
-            m = pos_to_mapping.get(pos)
-            if m and new_lid and new_lid != m.lemma_id:
-                valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
-                if new_lid in valid_ids:
-                    m.lemma_id = new_lid
-
-        corrections = verify_result.get("issues", [])
-
-        # Apply corrections
-        if corrections:
-            failed = apply_corrections(
-                corrections, mappings, db, arabic_text=sent.arabic_text,
+        activation_plan = plan_corpus_activation(
+            db,
+            kind=kwargs["kind"],
+            sentence_ids=kwargs["sentence_ids"],
+            activate_limit=kwargs["activate_limit"],
+            active_ceiling=kwargs["active_ceiling"],
+        )
+        print(
+            json.dumps(
+                {
+                    "mode": "dry_run",
+                    "scope": {
+                        "kind": kwargs["kind"],
+                        "sentence_ids": kwargs["sentence_ids"],
+                    },
+                    "enrichment_plan": enrichment_plan.detail(),
+                    "activation_plan": activation_plan.detail(),
+                },
+                ensure_ascii=False,
+                indent=2,
             )
-            if failed:
-                sent.is_active = False
-                sent.mappings_verified_at = now  # don't retry
-                print(f"  Sentence {sent.id}: correction failed, deactivated")
-                db.commit()
-                continue
+        )
+        return None
 
-        # Check for unmapped content words — reject if any remain
-        from app.services.sentence_validator import strip_punctuation, strip_tatweel
-        has_unmapped = False
-        for m in mappings:
-            if m.is_function_word or getattr(m, 'is_proper_name', False):
-                continue
-            lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
-            bare = strip_diacritics(strip_punctuation(strip_tatweel(m.surface_form)))
-            if not bare or len(bare) <= 1:
-                continue
-            if lid is None:
-                has_unmapped = True
-                print(f"  Sentence {sent.id}: unmapped word '{m.surface_form}' — deactivating")
-                break
-
-        if has_unmapped:
-            sent.is_active = False
-            sent.mappings_verified_at = now  # don't retry
-            db.commit()
-            continue
-
-        # Update SentenceWord records with re-mapped tokens
-        # Delete old and recreate (simpler than diffing)
-        db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).delete()
-        for m in mappings:
-            lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
-            if lid is None and getattr(m, "is_proper_name", False):
-                lid = get_or_create_proper_name_lemma(
-                    db, m.surface_form, source="corpus"
-                )
-            db.add(SentenceWord(
-                sentence_id=sent.id,
-                position=m.position,
-                surface_form=m.surface_form,
-                lemma_id=lid,
-                is_target_word=False,
-            ))
-
-        # Final guard: don't activate if still undiacritized
-        still_bare = not _has_diacritics(sent.arabic_text)
-        if still_bare:
-            print(f"  Sentence {sent.id}: still undiacritized after enrichment, skipping activation")
-            sent.mappings_verified_at = None  # release for retry
-            db.commit()
-            continue
-
-        sent.mappings_verified_at = now
-        sent.is_active = True  # activate after successful enrichment
-        db.commit()
-        enriched += 1
-        if enriched % 10 == 0:
-            print(f"  ...enriched {enriched}/{len(unverified)}")
-
-    print(f"  Enriched {enriched}/{len(unverified)} corpus sentences")
-    return enriched
+    result = enrich_corpus_sentences(
+        db,
+        **kwargs,
+        enrichment_batch_size=CORPUS_ENRICH_BATCH_SIZE,
+        verification_batch_size=CORPUS_VERIFY_BATCH_SIZE,
+    )
+    print(json.dumps(result.detail(), ensure_ascii=False, indent=2))
+    return result
 
 
 # ── Step 0: Enforce sentence cap by retiring excess ──────────────────
@@ -1490,6 +1291,12 @@ def step_reactivate_book_sentences(db: Session) -> int:
                 Sentence.story_id == book.id,
                 Sentence.is_active == False,  # noqa: E712
                 Sentence.page_number.in_(ready_pages),
+                or_(
+                    Sentence.mappings_verified_at.is_(None),
+                    Sentence.mappings_verified_at.notin_(
+                        CORPUS_NON_ACTIVATABLE_SENTINELS
+                    ),
+                ),
             )
             .all()
         )
@@ -1547,7 +1354,7 @@ def step_backfill_samer(db: Session, dry_run: bool) -> int:
     return updated
 
 
-async def main():
+async def main() -> int:
     parser = argparse.ArgumentParser(description="Unified material update workflow")
     parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
     parser.add_argument("--skip-audio", action="store_true", help="Skip TTS audio generation")
@@ -1577,7 +1384,66 @@ async def main():
     parser.add_argument(
         "--run-corpus-enrichment",
         action="store_true",
-        help="Run corpus sentence enrichment in this invocation (off by default for cron)",
+        help=(
+            "Run scoped corpus sentence enrichment during the full workflow "
+            "(requires --kind and/or --corpus-sentence-id)"
+        ),
+    )
+    parser.add_argument(
+        "--only-corpus-enrichment",
+        action="store_true",
+        help="Run only scoped corpus enrichment/activation and no other maintenance",
+    )
+    parser.add_argument(
+        "--kind",
+        "--corpus-kind",
+        dest="corpus_kind",
+        default=None,
+        help="Restrict corpus work to this exact Sentence.kind",
+    )
+    parser.add_argument(
+        "--corpus-sentence-id",
+        type=int,
+        action="append",
+        default=None,
+        help="Restrict corpus work to an explicit sentence ID (repeatable)",
+    )
+    parser.add_argument(
+        "--corpus-limit",
+        type=int,
+        default=DEFAULT_ENRICH_LIMIT,
+        help=(
+            "Maximum corpus rows to enrich "
+            f"(default: {DEFAULT_ENRICH_LIMIT}, max: {MAX_ENRICH_LIMIT})"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-activate-limit",
+        type=int,
+        default=0,
+        help=(
+            "Maximum prepared corpus rows to activate in an activation-only "
+            "invocation (--corpus-limit 0) "
+            f"(default: 0, max: {MAX_ACTIVATE_LIMIT})"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-active-ceiling",
+        type=int,
+        default=TARGET_PIPELINE_SENTENCES - CAP_HEADROOM,
+        help=(
+            "Refuse corpus activation at or above this active-sentence count "
+            f"(default: {TARGET_PIPELINE_SENTENCES - CAP_HEADROOM})"
+        ),
+    )
+    parser.add_argument(
+        "--corpus-retry-blocked",
+        action="store_true",
+        help=(
+            "Retry only explicitly listed durable corpus blockers after "
+            "reviewed inventory curation; requires --corpus-sentence-id, "
+            "nonzero preparation, and zero activation"
+        ),
     )
     parser.add_argument(
         "--run-pregeneration",
@@ -1587,30 +1453,64 @@ async def main():
     parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
+    corpus_requested = args.only_corpus_enrichment or _run_corpus_enrichment(
+        args.run_corpus_enrichment
+    )
+    _validate_corpus_cli_args(
+        parser,
+        args,
+        corpus_requested=corpus_requested,
+    )
 
     print(f"update_material.py — {'DRY RUN' if args.dry_run else 'LIVE RUN'}")
     print(
         f"  skip_audio={args.skip_audio}, limit={args.limit}, candidates={args.candidates}, "
         f"max_step_a_sentences={args.max_step_a_sentences}, "
-        f"pregeneration={_run_pregeneration(args.run_pregeneration)}"
+        f"pregeneration={_run_pregeneration(args.run_pregeneration)}, "
+        f"corpus_requested={corpus_requested}, corpus_kind={args.corpus_kind}, "
+        f"corpus_ids={args.corpus_sentence_id}, corpus_limit={args.corpus_limit}, "
+        f"corpus_activate_limit={args.corpus_activate_limit}, "
+        f"corpus_active_ceiling={args.corpus_active_ceiling}, "
+        f"corpus_retry_blocked={args.corpus_retry_blocked}"
     )
     start = time.time()
 
     lock_handle = None
     if not args.dry_run:
         LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-        lock_handle = LOCK_PATH.open("w")
+        lock_handle = LOCK_PATH.open("a+")
         try:
             fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             print(f"  Another update_material.py run is active ({LOCK_PATH}); skipping.")
             lock_handle.close()
-            return
+            return 75 if args.only_corpus_enrichment else 0
+        lock_handle.seek(0)
+        lock_handle.truncate(0)
         lock_handle.write(f"{os.getpid()} {datetime.now(timezone.utc).isoformat()}\n")
         lock_handle.flush()
 
     db = SessionLocal()
     try:
+        if args.only_corpus_enrichment:
+            print("\n═══ Scoped corpus enrichment only ═══")
+            corpus_result = _run_scoped_corpus_step(db, args)
+            elapsed = time.time() - start
+            if corpus_result is None:
+                print(f"\nCorpus dry run completed in {elapsed:.1f}s")
+            else:
+                rejected = _corpus_rejected_count(corpus_result)
+                print(f"\nCorpus run completed in {elapsed:.1f}s")
+                print(f"  Prepared:  {corpus_result.prepared}")
+                print(f"  Activated: {corpus_result.activated}")
+                print(f"  Retry:     {len(corpus_result.retry_ids)}")
+                print(f"  Rejected:  {rejected}")
+                print(
+                    "  Claims recovered: "
+                    f"{len(corpus_result.recovered_legacy_claim_ids)}"
+                )
+            return 0
+
         from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup, tier_summary
         word_tiers = compute_word_tiers(db)
         tier_lk = build_tier_lookup(word_tiers)
@@ -1656,18 +1556,16 @@ async def main():
             tier_lookup=tier_lk,
         )
 
-        # ── Step A2: Enrich corpus sentences (diacritize + translate + verify) ──
-        trans_a2 = 0
-        print("\n═══ Step A2: Enrich corpus sentences for due/acquiring words ═══")
-        if not _run_corpus_enrichment(args.run_corpus_enrichment):
+        # ── Step A2: Scoped corpus enrichment + bounded activation ───────
+        corpus_a2: CorpusEnrichmentResult | None = None
+        print("\n═══ Step A2: Scoped corpus enrichment and activation ═══")
+        if not corpus_requested:
             print(
-                "  Skipped (expensive; use --run-corpus-enrichment or "
-                "ALIF_RUN_CRON_CORPUS_ENRICHMENT=1)"
+                "  Skipped (use --run-corpus-enrichment with --kind and/or "
+                "--corpus-sentence-id)"
             )
-        elif not args.dry_run:
-            trans_a2 = enrich_corpus_sentences(db)
         else:
-            print("  Skipped (dry run)")
+            corpus_a2 = _run_scoped_corpus_step(db, args)
 
         if not args.skip_audio:
             audio_b = await step_generate_audio(db, args.dry_run, args.limit)
@@ -2042,11 +1940,27 @@ async def main():
             print("  Skipped (dry run)")
 
         elapsed = time.time() - start
+        corpus_prepared_a2 = corpus_a2.prepared if corpus_a2 else 0
+        corpus_activated_a2 = corpus_a2.activated if corpus_a2 else 0
+        corpus_retry_a2 = len(corpus_a2.retry_ids) if corpus_a2 else 0
+        corpus_rejected_a2 = _corpus_rejected_count(corpus_a2)
+        corpus_touched_a2 = (
+            len(
+                set(corpus_a2.selected_ids)
+                | set(corpus_a2.recovered_legacy_claim_ids)
+                | set(corpus_a2.activated_ids)
+            )
+            if corpus_a2
+            else 0
+        )
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
         print(f"  Step 0 retired:   {retired_0}")
         print(f"  Step A sentences: {sent_a}")
-        print(f"  Step A2 translate: {trans_a2}")
+        print(f"  Step A2 prepared: {corpus_prepared_a2}")
+        print(f"  Step A2 activated: {corpus_activated_a2}")
+        print(f"  Step A2 retry:    {corpus_retry_a2}")
+        print(f"  Step A2 rejected: {corpus_rejected_a2}")
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
         print(f"  Step D SAMER:     {samer_d}")
@@ -2059,14 +1973,42 @@ async def main():
         print(f"  Step H stories:   {stories_h}")
         print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + trans_a2 + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + book_reactivated + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
+        material_change_count = (
+            retired_0
+            + sent_a
+            + corpus_touched_a2
+            + audio_b
+            + sent_c
+            + enrich_e
+            + leech_f
+            + book_ulk_g
+            + book_reactivated
+            + ungated_g2
+            + diff_g3
+            + stories_h
+            + podcasts_i
+        )
+        if not args.dry_run and material_change_count > 0:
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {book_reactivated} book reactivated, {ungated_g2} ungated, {diff_g3} diff fix, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
+                summary=(
+                    f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, "
+                    f"corpus {corpus_prepared_a2} prepared/"
+                    f"{corpus_activated_a2} activated, {audio_b} audio, "
+                    f"enriched {enrich_e}, reintro {leech_f} leeches, "
+                    f"{book_ulk_g} book ULK, {book_reactivated} book reactivated, "
+                    f"{ungated_g2} ungated, {diff_g3} diff fix, "
+                    f"{stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s"
+                ),
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
+                    "step_a2_corpus": corpus_a2.detail() if corpus_a2 else None,
+                    "step_a2_prepared": corpus_prepared_a2,
+                    "step_a2_activated": corpus_activated_a2,
+                    "step_a2_retry": corpus_retry_a2,
+                    "step_a2_rejected": corpus_rejected_a2,
                     "step_b_audio": audio_b,
                     "step_c_sentences": sent_c,
                     "step_d_samer": samer_d,
@@ -2081,6 +2023,7 @@ async def main():
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
+        return 0
     finally:
         db.close()
         if lock_handle is not None:
@@ -2089,4 +2032,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(asyncio.run(main()))

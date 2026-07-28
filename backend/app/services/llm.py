@@ -1477,6 +1477,10 @@ class SentenceReviewResult(BaseModel):
     natural: bool
     translation_correct: bool
     reason: str
+    # False means the reviewer did not return a trustworthy verdict (provider
+    # failure, malformed output, missing/duplicate ID).  Callers that can retry
+    # should distinguish this from a completed content rejection.
+    review_completed: bool = True
 
 
 def review_sentences_quality(
@@ -1489,7 +1493,9 @@ def review_sentences_quality(
 
     Returns:
         List of SentenceReviewResult, one per input sentence.
-        On LLM failure, returns all-fail results (fail closed).
+        Provider/parse/cardinality failures return ``review_completed=False``
+        for the affected input. Generation callers still fail closed; durable
+        maintenance callers can leave the row untouched and retry later.
     """
     if not sentences:
         return []
@@ -1561,21 +1567,74 @@ Sentences:
             task_type="quality_review",
         )
     except (AllProvidersFailed, LLMError):
-        return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review unavailable") for _ in sentences]
+        return [
+            SentenceReviewResult(
+                natural=False,
+                translation_correct=False,
+                reason="quality review unavailable",
+                review_completed=False,
+            )
+            for _ in sentences
+        ]
 
     items = result.get("reviews", []) if isinstance(result, dict) else []
     if not isinstance(items, list):
-        return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review parse error") for _ in sentences]
+        return [
+            SentenceReviewResult(
+                natural=False,
+                translation_correct=False,
+                reason="quality review parse error",
+                review_completed=False,
+            )
+            for _ in sentences
+        ]
+
+    # Match by the explicit 1-based ID rather than trusting array order.  A
+    # malformed or duplicate row fails only that sentence closed; it must not
+    # shift another sentence's verdict onto the wrong Arabic/English pair.
+    by_id: dict[int, dict] = {}
+    duplicate_ids: set[int] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id")
+        if not isinstance(item_id, int) or isinstance(item_id, bool):
+            continue
+        if item_id in by_id:
+            duplicate_ids.add(item_id)
+            continue
+        by_id[item_id] = item
 
     reviews: list[SentenceReviewResult] = []
-    for i in range(len(sentences)):
-        if i < len(items) and isinstance(items[i], dict):
-            item = items[i]
+    for item_id in range(1, len(sentences) + 1):
+        item = by_id.get(item_id)
+        if item is not None and item_id not in duplicate_ids:
+            natural = item.get("natural")
+            translation_correct = item.get("translation_correct")
+            if not isinstance(natural, bool) or not isinstance(
+                translation_correct, bool
+            ):
+                reviews.append(
+                    SentenceReviewResult(
+                        natural=False,
+                        translation_correct=False,
+                        reason="quality review invalid verdict",
+                        review_completed=False,
+                    )
+                )
+                continue
             reviews.append(SentenceReviewResult(
-                natural=bool(item.get("natural", True)),
-                translation_correct=bool(item.get("translation_correct", True)),
+                natural=natural,
+                translation_correct=translation_correct,
                 reason=str(item.get("reason", "")),
             ))
         else:
-            reviews.append(SentenceReviewResult(natural=False, translation_correct=False, reason="quality review incomplete"))
+            reviews.append(
+                SentenceReviewResult(
+                    natural=False,
+                    translation_correct=False,
+                    reason="quality review incomplete",
+                    review_completed=False,
+                )
+            )
     return reviews

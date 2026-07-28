@@ -8,8 +8,8 @@ Usage:
 
 Walks the entire active-reviewable corpus (the reviewability gate cohort),
 batch-verifies every sentence via the current verifier + vocabulary, applies
-confident corrections, deactivates anything that can't be repaired even by
-the frequency-gated proposal path. Deactivated sentences are appended to
+confident corrections, and NULLs the bad positions on anything that cannot be
+repaired even by the frequency-gated proposal path. Hidden sentences are appended to
 ``data/logs/mapping_reverify_failures_<date>.jsonl`` for offline triage.
 
 Run as a maintenance sweep when you want confidence that every visible
@@ -35,7 +35,7 @@ from app.services.mapping_rescue import reverify_all_active_sentences
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
-                        help="Run the verifier but don't deactivate or re-stamp anything.")
+                        help="Run the verifier without any database or log writes.")
     parser.add_argument("--batch-size", type=int, default=15,
                         help="Sentences per LLM call (default 15).")
     parser.add_argument("--limit", type=int, default=None,

@@ -157,3 +157,43 @@ def test_reviewable_clause_excludes_stale_mapping_stamp(db_session):
         .all()
     )
     assert {s.id for s in rows} == {current.id}
+
+
+def test_completed_authentic_quality_failure_is_not_reviewable(db_session):
+    lemma = _lemma(db_session, "كتاب")
+    legacy = _sentence_with_words(
+        db_session,
+        sentence_id=900_040,
+        words=[("كتاب", lemma.lemma_id)],
+    )
+    legacy.source = "corpus"
+
+    rejected = _sentence_with_words(
+        db_session,
+        sentence_id=900_041,
+        words=[("كتاب", lemma.lemma_id)],
+    )
+    rejected.source = "corpus"
+    rejected.quality_reviewed_at = datetime.now(timezone.utc)
+    rejected.quality_natural = False
+    rejected.quality_translation_correct = True
+
+    accepted = _sentence_with_words(
+        db_session,
+        sentence_id=900_042,
+        words=[("كتاب", lemma.lemma_id)],
+    )
+    accepted.source = "book"
+    accepted.quality_reviewed_at = datetime.now(timezone.utc)
+    accepted.quality_natural = True
+    accepted.quality_translation_correct = True
+    db_session.commit()
+
+    rows = (
+        db_session.query(Sentence)
+        .filter(Sentence.id.in_([legacy.id, rejected.id, accepted.id]))
+        .filter(reviewable_sentence_clauses())
+        .all()
+    )
+
+    assert {sentence.id for sentence in rows} == {legacy.id, accepted.id}

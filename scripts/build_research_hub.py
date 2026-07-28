@@ -93,6 +93,7 @@ STATUS_OVERRIDES = {
     "algorithm-implications": "deployed",
     "learning-analysis-2026-02-20": "deployed",
     "analysis-2026-07-09-return-recovery-next-phase": "deployed",
+    "analysis-2026-07-28-learning-update": "active",
     "established-lapse-recovery-validation-2026-07-26": "deployed",
     "analysis-2026-02-09": "archived",
     "analysis-2026-02-10": "archived",

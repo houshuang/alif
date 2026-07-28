@@ -4,6 +4,9 @@ Uses hardcoded Arabic sentences with known word sets to verify
 word classification and validation logic.
 """
 
+from types import SimpleNamespace
+from unittest.mock import patch
+
 import pytest
 
 from app.services.sentence_validator import (
@@ -12,6 +15,7 @@ from app.services.sentence_validator import (
     TokenMapping,
     ValidationResult,
     _is_function_word,
+    batch_verify_sentences,
     is_function_word_lemma,
     _strip_clitics,
     build_lemma_lookup,
@@ -28,6 +32,319 @@ from app.services.sentence_validator import (
     validate_sentence,
     validate_sentence_multi_target,
 )
+
+
+def _batch_verification_inputs(count: int = 2) -> list[dict]:
+    return [
+        {
+            "arabic": f"جُمْلَةٌ {index}",
+            "english": f"Sentence {index}",
+            "mappings": [
+                TokenMapping(
+                    position=0,
+                    surface_form="جُمْلَةٌ",
+                    lemma_id=1,
+                    is_target=False,
+                    is_function_word=False,
+                )
+            ],
+            "has_ambiguous": False,
+        }
+        for index in range(count)
+    ]
+
+
+class TestBatchVerificationResponseContract:
+    @patch("app.services.llm.generate_completion")
+    def test_empty_sentence_list_fails_closed(self, mock_completion):
+        mock_completion.return_value = {"sentences": []}
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_explicit_empty_verdicts_mean_all_clean(self, mock_completion):
+        mock_completion.return_value = {
+            "sentences": [
+                {"index": 0, "disambiguation": [], "issues": []},
+                {"index": 1, "disambiguation": [], "issues": []},
+            ]
+        }
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) == [
+            {"disambiguation": [], "issues": []},
+            {"disambiguation": [], "issues": []},
+        ]
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            [],
+            {},
+            {"sentences": None},
+            {"sentences": ["not an object"]},
+            {"sentences": [{"index": 0, "disambiguation": []}]},
+            {
+                "sentences": [
+                    {"index": "0", "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": True, "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": 2, "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": 0, "disambiguation": {}, "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {
+                        "index": 0,
+                        "disambiguation": [{"position": 0}],
+                        "issues": [],
+                    }
+                ]
+            },
+            {
+                "sentences": [
+                    {
+                        "index": 0,
+                        "disambiguation": [],
+                        "issues": [{"position": 0}],
+                    }
+                ]
+            },
+        ],
+    )
+    @patch("app.services.llm.generate_completion")
+    def test_malformed_response_fails_closed(
+        self,
+        mock_completion,
+        response,
+    ):
+        mock_completion.return_value = response
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_duplicate_index_fails_closed(self, mock_completion):
+        row = {"index": 0, "disambiguation": [], "issues": []}
+        mock_completion.return_value = {"sentences": [row, dict(row)]}
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
+
+    @pytest.mark.parametrize(
+        "disambiguation",
+        [
+            [],
+            [{"position": 9, "lemma_id": 1}],
+            [{"position": 0, "lemma_id": 99}],
+            [
+                {"position": 0, "lemma_id": 2},
+                {"position": 0, "lemma_id": 2},
+            ],
+        ],
+    )
+    @patch("app.services.llm.generate_completion")
+    def test_ambiguous_input_requires_one_valid_explicit_choice(
+        self,
+        mock_completion,
+        disambiguation,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": disambiguation,
+                    "issues": [],
+                }
+            ]
+        }
+
+        assert batch_verify_sentences(inputs, {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_ambiguous_input_accepts_valid_explicit_choice(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        choice = {"position": 0, "lemma_id": 2}
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": [choice],
+                    "issues": [],
+                }
+            ]
+        }
+
+        assert batch_verify_sentences(inputs, {}) == [
+            {"disambiguation": [choice], "issues": []}
+        ]
+
+    @patch("app.services.llm.generate_completion")
+    def test_ambiguous_position_can_be_reported_as_issue_instead_of_choice(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        issue = {
+            "position": 0,
+            "correct_lemma_ar": "جُمْلَة",
+            "correct_gloss": "sentence",
+            "correct_pos": "noun",
+            "explanation": "neither listed sense fits",
+        }
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": [],
+                    "issues": [issue],
+                }
+            ]
+        }
+
+        assert batch_verify_sentences(inputs, {}) == [
+            {"disambiguation": [], "issues": [issue]}
+        ]
+
+    @patch("app.services.llm.generate_completion")
+    def test_same_position_cannot_be_choice_and_issue(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": [{"position": 0, "lemma_id": 2}],
+                    "issues": [
+                        {
+                            "position": 0,
+                            "correct_lemma_ar": "جُمْلَة",
+                            "correct_gloss": "sentence",
+                            "correct_pos": "noun",
+                            "explanation": "contradictory verdict",
+                        }
+                    ],
+                }
+            ]
+        }
+
+        # The existing None contract makes corpus callers retry/skip the batch.
+        assert batch_verify_sentences(inputs, {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_opt_in_marks_only_contradictory_row_for_retry(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(2)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        issue = {
+            "position": 0,
+            "correct_lemma_ar": "جُمْلَة",
+            "correct_gloss": "sentence",
+            "correct_pos": "noun",
+            "explanation": "contradictory verdict",
+        }
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": [{"position": 0, "lemma_id": 2}],
+                    "issues": [issue],
+                },
+                {"index": 1, "disambiguation": [], "issues": []},
+            ]
+        }
+
+        result = batch_verify_sentences(
+            inputs,
+            {},
+            return_invalid_rows=True,
+        )
+
+        assert result == [
+            {
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": "contradictory_verdict",
+                "invalid_positions": [0],
+            },
+            {"disambiguation": [], "issues": []},
+        ]
+        # Diagnostics are derived from the same batch response, not re-queried.
+        mock_completion.assert_called_once()
+
+    @patch("app.services.llm.generate_completion")
+    def test_prompt_exposes_exact_mapping_identity_and_metadata_distinction(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["mappings"][0].lemma_id = 17
+        lemma = SimpleNamespace(
+            lemma_id=17,
+            lemma_ar="إِنَّ",
+            lemma_ar_bare="ان",
+            gloss_en="indeed",
+            pos="particle",
+        )
+        mock_completion.return_value = {
+            "sentences": [
+                {"index": 0, "disambiguation": [], "issues": []}
+            ]
+        }
+
+        batch_verify_sentences(inputs, {17: lemma})
+
+        prompt = mock_completion.call_args.kwargs["prompt"]
+        assert "lemma_id=#17" in prompt
+        assert "lemma_ar=إِنَّ" in prompt
+        assert "exact_bare=إن" in prompt
+        assert "pos=particle" in prompt
+        assert "gloss=indeed" in prompt
+        assert "INCOMPLETE GLOSS METADATA" in prompt
+        assert "Never put the same position in both" in prompt
+
+    @patch("app.services.llm.generate_completion")
+    def test_omitted_clean_index_fails_closed(self, mock_completion):
+        issue = {
+            "position": 0,
+            "correct_lemma_ar": "كتاب",
+            "correct_gloss": "book",
+            "correct_pos": "noun",
+            "explanation": "wrong sense",
+        }
+        mock_completion.return_value = {
+            "sentences": [
+                {"index": 1, "disambiguation": [], "issues": [issue]}
+            ]
+        }
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
 
 
 class TestStripDiacritics:
@@ -653,6 +970,44 @@ class TestMapTokensToLemmas:
         assert mappings[0].lemma_id is None
         assert mappings[1].is_target is True
 
+    def test_vocalized_grammatical_homographs_keep_exact_identity(self):
+        """Tashkeel distinguishes the four common أن/إن lexemes."""
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["أَنْ", "إِنْ", "أَنَّ", "إِنَّ", "أن", "إن"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings[:4]] == [
+            2185,
+            2186,
+            2187,
+            2188,
+        ]
+        # Without sukūn/shadda, both pairs remain ambiguous. Keep them
+        # inventory-complete for post-diacritization verification, but expose
+        # every competing identity instead of silently calling one clean.
+        assert mappings[4].lemma_id == 2185
+        assert set(mappings[4].alternative_lemma_ids or []) == {
+            2186,
+            2187,
+            2188,
+        }
+        assert mappings[5].lemma_id == 2186
+        assert set(mappings[5].alternative_lemma_ids or []) == {
+            2185,
+            2187,
+            2188,
+        }
+
     def test_word_maps_when_in_lookup(self):
         """هو is in lookup, so it gets a lemma_id. Also detected as function word."""
         lemmas = [
@@ -679,6 +1034,57 @@ class TestMapTokensToLemmas:
         mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=1, target_bare="ولد")
         # والكتاب should resolve to lemma 2 via clitic stripping
         assert mappings[0].lemma_id == 2
+
+    def test_empty_target_does_not_claim_ilah_as_lemma_zero(self):
+        """Empty target expansion must not synthesize ال and catch إله."""
+        lookup = build_lemma_lookup(
+            [_FakeLemma(88, "اله", pos="noun", lemma_ar="إِلٰه")]
+        )
+
+        mappings = map_tokens_to_lemmas(
+            tokenize_display("إِلٰه"),
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert mappings[0].is_target is False
+        assert mappings[0].lemma_id == 88
+
+    @pytest.mark.parametrize("invalid_target_id", [0, None, False])
+    def test_invalid_target_id_disables_clitic_target_matching(
+        self,
+        invalid_target_id,
+    ):
+        """A matching bare cannot become target unless its lemma ID is real."""
+        lookup = build_lemma_lookup(
+            [_FakeLemma(77, "بال", pos="noun", lemma_ar="بَال")]
+        )
+
+        mappings = map_tokens_to_lemmas(
+            tokenize_display("بِبَالِكَ"),
+            lookup,
+            target_lemma_id=invalid_target_id,
+            target_bare="بال",
+        )
+
+        assert mappings[0].is_target is False
+        assert mappings[0].lemma_id == 77
+
+    def test_empty_target_bare_disables_matching_with_valid_id(self):
+        lookup = build_lemma_lookup(
+            [_FakeLemma(88, "اله", pos="noun", lemma_ar="إِلٰه")]
+        )
+
+        mappings = map_tokens_to_lemmas(
+            tokenize_display("إِلٰه"),
+            lookup,
+            target_lemma_id=999,
+            target_bare="",
+        )
+
+        assert mappings[0].is_target is False
+        assert mappings[0].lemma_id == 88
 
     def test_possessive_suffix_maps_to_lemma(self):
         lemmas = [_FakeLemma(10, "مدرسة")]
@@ -771,6 +1177,26 @@ class TestMapTokensToLemmas:
         assert mappings[0].is_function_word is True
         assert mappings[0].lemma_id == 1
 
+    def test_canonical_function_aliases_survive_variant_filtering(self):
+        """لقد and لدى+pronoun map without their variant rows in the lookup."""
+        lemmas = [
+            _FakeLemma(2054, "قد", pos="particle", lemma_ar="قَدْ"),
+            _FakeLemma(2456, "لدى", pos="noun", lemma_ar="لَدَى"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        mappings = map_tokens_to_lemmas(
+            ["لَقَدْ", "لَدَيْهَا", "لَدَيْهِمَا"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [
+            2054,
+            2456,
+            2456,
+        ]
+
     def test_an_particle_collision_does_not_map_to_time(self):
         lemmas = [
             _FakeLemma(943, "ان", lemma_ar="آنٌ"),
@@ -787,13 +1213,14 @@ class TestMapTokensToLemmas:
             _FakeLemma(943, "ان", lemma_ar="آنٌ"),
             _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
             _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
         ]
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize_display("إِنَّ الجَوَّ صَعْبٌ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
-        assert mappings[0].lemma_id == 2186
+        assert mappings[0].lemma_id == 2188
 
-    def test_unhamzated_an_prefers_that_particle(self):
+    def test_unhamzated_an_preserves_particle_ambiguity(self):
         lemmas = [
             _FakeLemma(943, "ان", lemma_ar="آنٌ"),
             _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
@@ -802,17 +1229,25 @@ class TestMapTokensToLemmas:
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize_display("ان الطَّرِيقَ طَوِيلٌ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
-        assert mappings[0].lemma_id == 2185
+        assert {
+            mappings[0].lemma_id,
+            *(mappings[0].alternative_lemma_ids or []),
+        } == {
+            943,
+            2185,
+            2186,
+        }
 
     def test_bi_anna_overrides_bana_content_verb(self):
         lemmas = [
             _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
             _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
         ]
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize_display("بِأَنَّ الطَّرِيقَ طَوِيلٌ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
-        assert mappings[0].lemma_id == 2185
+        assert mappings[0].lemma_id == 2187
 
     def test_alayhi_maps_to_preposition_not_ali(self):
         lemmas = [
@@ -1283,6 +1718,176 @@ class TestCorrectMapping:
         # but DB has أمر — exact match fails, fallback should find it
         result = correct_mapping(db_session, "أَمَرَ", "to order", "verb")
         assert result == lem.lemma_id
+
+    def test_unhamzated_content_lemma_keeps_normalized_fallback(self, db_session):
+        """Identity hardening must not remove useful content-word restoration."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem = Lemma(
+            lemma_ar="أَمَرَ",
+            lemma_ar_bare="أمر",
+            gloss_en="to order",
+            pos="verb",
+        )
+        db_session.add(lem)
+        db_session.flush()
+
+        assert correct_mapping(db_session, "امر", "to order", "verb") == lem.lemma_id
+
+    def test_inna_cannot_cross_resolve_to_an_or_conditional_in(self, db_session):
+        """إِنَّ is not أَنْ or إِنْ, even though all normalize to ان."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        an = Lemma(
+            lemma_ar="أَنْ",
+            lemma_ar_bare="ان",
+            gloss_en="that, indeed",
+            pos="particle",
+        )
+        conditional_in = Lemma(
+            lemma_ar="إِنْ",
+            lemma_ar_bare="ان",
+            gloss_en="if, indeed",
+            pos="particle",
+        )
+        db_session.add_all([an, conditional_in])
+        db_session.flush()
+
+        assert correct_mapping(
+            db_session,
+            "إِنَّ",
+            "indeed",
+            "particle",
+        ) is None
+
+    def test_exact_particle_identity_resolves_each_stored_lemma(self, db_session):
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        an = Lemma(
+            lemma_ar="أَنْ",
+            lemma_ar_bare="ان",
+            gloss_en="that",
+            pos="particle",
+        )
+        conditional_in = Lemma(
+            lemma_ar="إِنْ",
+            lemma_ar_bare="ان",
+            gloss_en="if",
+            pos="particle",
+        )
+        db_session.add_all([an, conditional_in])
+        db_session.flush()
+
+        assert correct_mapping(
+            db_session, "أَنْ", "that", "particle"
+        ) == an.lemma_id
+        assert correct_mapping(
+            db_session, "إِنْ", "if", "particle"
+        ) == conditional_in.lemma_id
+
+    def test_production_shape_shadda_particles_resolve_with_conjunction_pos(
+        self,
+        db_session,
+    ):
+        """Stored bare shadda and common verifier POS labels preserve identity."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        an = Lemma(
+            lemma_ar="أَنْ",
+            lemma_ar_bare="ان",
+            gloss_en="that; to",
+            pos="particle",
+        )
+        conditional_in = Lemma(
+            lemma_ar="إِنْ",
+            lemma_ar_bare="ان",
+            gloss_en="if",
+            pos="particle",
+        )
+        anna = Lemma(
+            lemma_ar="أَنَّ",
+            lemma_ar_bare="انّ",
+            gloss_en="that",
+            pos="particle",
+        )
+        inna = Lemma(
+            lemma_ar="إِنَّ",
+            lemma_ar_bare="انّ",
+            gloss_en="indeed; that",
+            pos="particle",
+        )
+        db_session.add_all([an, conditional_in, anna, inna])
+        db_session.flush()
+
+        assert correct_mapping(
+            db_session,
+            "أَنَّ",
+            "that",
+            "conjunction",
+            current_lemma_id=conditional_in.lemma_id,
+        ) == anna.lemma_id
+        assert correct_mapping(
+            db_session,
+            "إِنَّ",
+            "indeed",
+            "conjunction",
+            current_lemma_id=conditional_in.lemma_id,
+        ) == inna.lemma_id
+
+    def test_short_content_gloss_can_select_verb_homograph(self, db_session):
+        """Meaningful two-letter glosses such as 'do' are not discarded."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        noun = Lemma(
+            lemma_ar="فِعْل",
+            lemma_ar_bare="فعل",
+            gloss_en="verb; action",
+            pos="noun",
+        )
+        verb = Lemma(
+            lemma_ar="فَعَلَ",
+            lemma_ar_bare="فعل",
+            gloss_en="to do",
+            pos="verb",
+        )
+        db_session.add_all([noun, verb])
+        db_session.flush()
+
+        assert correct_mapping(
+            db_session,
+            "فعل",
+            "to do, make",
+            "verb",
+            current_lemma_id=noun.lemma_id,
+        ) == verb.lemma_id
+
+    def test_unvocalized_ambiguous_particle_fails_closed(self, db_session):
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        conditional_in = Lemma(
+            lemma_ar="إِنْ",
+            lemma_ar_bare="ان",
+            gloss_en="if, indeed",
+            pos="particle",
+        )
+        emphatic_inna = Lemma(
+            lemma_ar="إِنَّ",
+            lemma_ar_bare="ان",
+            gloss_en="indeed",
+            pos="particle",
+        )
+        db_session.add_all([conditional_in, emphatic_inna])
+        db_session.flush()
+
+        assert correct_mapping(
+            db_session, "إن", "indeed", "particle"
+        ) is None
 
     def test_alef_madda_mismatch(self, db_session):
         """DB stores آخر (alef madda) but normalized lookup finds it."""
