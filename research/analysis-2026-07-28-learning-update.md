@@ -433,8 +433,12 @@ production rows remains a separately reviewed and confirmed data operation.
 
 ### Other outstanding records
 
-- The current deployed revision is PR #231; this update records that deployment
-  boundary in the changelog and research index.
+- PR #232 is deployed as `094ee1c1`. The backend was active and `/api/stats`
+  returned HTTP 200 after restart; the corpus-enrichment cron flag remained
+  absent. Immediate before/after counts were identical: 4,261 lemmas, 3,304
+  ULKs, 65,236 `ReviewLog` rows, 12,857 sentence reviews, 1,974 active
+  sentences, and all 243 *Momo* rows still inactive, untranslated, and
+  unverified.
 - Three reviewable `ستين→سِتّ` mappings and one inactive `تفوق→فَاقَ` residue
   remain from the July 15 collision repair. They are small and not a learning
   bottleneck.
