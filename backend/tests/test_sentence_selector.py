@@ -1065,6 +1065,66 @@ class TestGreedySetCover:
         assert len(result["items"]) == 1
         assert result["items"][0]["sentence_id"] == 2
 
+    def test_skips_authentic_sentence_that_failed_completed_quality_review(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+        reviewed_at = datetime.now(timezone.utc)
+
+        rejected = _seed_sentence(
+            db_session,
+            1,
+            "كتاب ولد",
+            "book boy",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("كتاب", 1), ("ولد", 2)],
+            source="corpus",
+            quality_reviewed_at=reviewed_at,
+            quality_natural=False,
+            quality_translation_correct=True,
+        )
+        accepted = _seed_sentence(
+            db_session,
+            2,
+            "قرأ الولد الكتاب",
+            "The boy read the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("قرأ", 2), ("الكتاب", 1)],
+            source="book",
+            quality_reviewed_at=reviewed_at,
+            quality_natural=True,
+            quality_translation_correct=True,
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert _quality_multiplier_for_sentence(rejected) == 0.0
+        assert _quality_multiplier_for_sentence(accepted) == 1.0
+        assert len(result["items"]) == 1
+        assert result["items"][0]["sentence_id"] == accepted.id
+
+    def test_completed_authentic_quality_review_requires_both_verdicts(
+        self,
+        db_session,
+    ):
+        malformed = _seed_sentence(
+            db_session,
+            3,
+            "الكتاب جديد",
+            "The book is new",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("الكتاب", 1)],
+            source="corpus",
+            quality_reviewed_at=datetime.now(timezone.utc),
+            quality_natural=None,
+            quality_translation_correct=True,
+        )
+
+        assert _quality_multiplier_for_sentence(malformed) == 0.0
+
     def test_unreviewed_llm_sentence_is_penalized_not_blocked(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         sent = _seed_sentence(

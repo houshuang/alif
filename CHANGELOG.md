@@ -2,9 +2,64 @@
 
 All notable changes to Alif — Arabic Reading & Listening Trainer.
 
-This project has been developed entirely with [Claude Code](https://claude.com/claude-code) since its initial commit.
+This project is developed with Claude Code and Codex.
 
 ---
+
+## 2026-07-28 — Unreleased (code and tests only)
+
+- Add a locked, exactly scoped authentic-corpus preparation path with safe
+  claim recovery, substantial tashkīl and translation validation, contextual
+  mapping verification, canonical target repair, completed quality QA, and
+  explicit ActivityLog outcomes
+- Separate corpus preparation from activation; activation now defaults to
+  zero, must run in an invocation whose preparation limit is zero, is capped at
+  20, rechecks fresh canonical demand before visibility, blocks any acquiring
+  content or missing FSRS demand, respects a pool ceiling, and never
+  auto-retires material
+- Harden quality-review result binding and retry semantics; completed failed
+  authentic QA is now excluded by the central reviewability gate
+- Record the July 28 production learning audit and the copied-snapshot /
+  production-backfill confirmation boundary; deployment is pending and no
+  production data was changed
+
+## 2026-07-27
+
+- Deploy through PR #231 (`0f374904`): policy-aware FSRS calibration, assisted
+  rating-2 lapses, Box-1 exposure reduction, graduation-policy alignment,
+  exact-token form/tashkīl evidence, persistent optional yellow-cause capture,
+  and lemma-aware function-word homographs
+
+## 2026-07-26
+
+- Validate and deploy the learning-system foundation, including FSRS 6.3.1
+  pinning/config telemetry, acquisition graduation success gating, and
+  workload-neutral established-lapse recovery (PRs #224–226)
+
+## 2026-07-25
+
+- Add protocol-v2 rapid re-tests for rating-1 failures with counter-neutral
+  acquisition safety and no quiz-driven graduation (PRs #220/#223)
+- Strip stored LLM web citations and disable Codex web search for learner-facing
+  enrichment; add review-debt urgency stats (PRs #221/#222)
+
+## 2026-07-21
+
+- Add gloss/POS sense-gating for same-skeleton citation-form homographs (PR #219)
+
+## 2026-07-20
+
+- Add one-per-day reintroduction cooldown, reserve rescue intro slots, and show
+  recovery burndown (PR #217)
+- Re-enable recognition-direction mnemonics behind an independently calibrated
+  storage judge (PR #218)
+
+## 2026-07-15
+
+- Add citation-strict `/api/discover/add` lookup and remediate collision damage;
+  import 243 hand-vetted inactive *Momo* corpus sentences (PRs #211–216)
+- Make lemma enrichment backlog honest, bounded, and durable; repair corrupt
+  citation bare forms and add recovery/*Momo* statistics
 
 ## 2026-07-10
 

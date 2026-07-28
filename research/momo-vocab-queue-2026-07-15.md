@@ -66,6 +66,31 @@ inactive until cron enrichment; acquiring-gate PR #211 deployed first):
   missing terminals (inherent to per-page OCR extraction), 280 to the OOV tail.
   The importer is idempotent — re-run after vocabulary growth to harvest more.
 
+**2026-07-28 follow-up — activation never ran.** All 243 rows remain inactive,
+untranslated, unverified, and un-quality-reviewed. This is not a slow queue:
+`update_material.py` keeps Step A2 off unless `--run-corpus-enrichment` or
+`ALIF_RUN_CRON_CORPUS_ENRICHMENT=1` is supplied, while production's
+`/opt/alif-update-material.sh` enables only pregeneration + lemma enrichment.
+The every-three-hour cron log contains 578 explicit Step-A2 skips. All 243
+sentences now touch active vocabulary and are eligible, but do **not** simply
+enable the then-deployed PR #231 step: it is unscoped/unordered, 1,707 older
+corpus rows are stranded under its unrecovered claim sentinel, remapping erases
+target flags, and the active pool is already above its retirement target. Add
+a Momo-only 10–20-row runner with sentinel recovery, target repair, translation
+QA, and demand-aware activation; use a copied-snapshot sample and human review
+before any bounded production backfill.
+
+**2026-07-28 implementation status — code only.** The scoped runner and its
+pipeline hardening are now implemented on an isolated branch: exact kind/ID
+scope, shared flock, in-scope sentinel recovery, deterministic bounded claims,
+substantial tashkīl/translation/mapping QA, canonical target repair, durable
+authentic-quality gating, and separate default-zero demand-aware activation
+with an acquiring-content block and pool ceiling. Preparation and activation
+must run in separate invocations. No copied-snapshot rehearsal, production
+deployment, enrichment, or activation has been performed; at the July 28 pool
+count, default-ceiling activation capacity is zero. See
+`analysis-2026-07-28-learning-update.md`.
+
 ## Bug evidence: /add fuzzy-lookup collisions (17 cases, 2 days)
 
 `POST /api/discover/add` resolves `lemma_ar_bare` through a lookup that strips

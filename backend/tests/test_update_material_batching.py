@@ -1,6 +1,9 @@
+import argparse
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
 
 import scripts.update_material as update_material
 from app.models import Lemma, UserLemmaKnowledge
@@ -10,6 +13,7 @@ from app.services.pipeline_tiers import WordTier
 
 def test_has_diacritics_detects_harakat():
     assert update_material._has_diacritics("كَتَبَ")
+    assert not update_material._has_diacritics("كَتب")
     assert not update_material._has_diacritics("كتب")
     assert not update_material._has_diacritics(None)
 
@@ -146,6 +150,62 @@ def test_cron_corpus_enrichment_is_opt_in(monkeypatch):
 
     monkeypatch.setenv("ALIF_RUN_CRON_CORPUS_ENRICHMENT", "0")
     assert update_material._run_corpus_enrichment(True) is True
+
+
+def test_corpus_cli_validation_requires_exact_scope():
+    parser = argparse.ArgumentParser(add_help=False)
+    args = SimpleNamespace(
+        corpus_kind=None,
+        corpus_sentence_id=None,
+        corpus_limit=20,
+        corpus_activate_limit=0,
+        corpus_active_ceiling=1950,
+    )
+
+    with pytest.raises(SystemExit):
+        update_material._validate_corpus_cli_args(
+            parser,
+            args,
+            corpus_requested=True,
+        )
+
+
+def test_corpus_cli_validation_normalizes_intersected_scope():
+    parser = argparse.ArgumentParser(add_help=False)
+    args = SimpleNamespace(
+        corpus_kind="  momo_book ",
+        corpus_sentence_id=[12, 10, 12],
+        corpus_limit=0,
+        corpus_activate_limit=5,
+        corpus_active_ceiling=1950,
+    )
+
+    update_material._validate_corpus_cli_args(
+        parser,
+        args,
+        corpus_requested=True,
+    )
+
+    assert args.corpus_kind == "momo_book"
+    assert args.corpus_sentence_id == [10, 12]
+
+
+def test_corpus_cli_validation_rejects_combined_phases():
+    parser = argparse.ArgumentParser(add_help=False)
+    args = SimpleNamespace(
+        corpus_kind="momo_book",
+        corpus_sentence_id=None,
+        corpus_limit=20,
+        corpus_activate_limit=5,
+        corpus_active_ceiling=1950,
+    )
+
+    with pytest.raises(SystemExit):
+        update_material._validate_corpus_cli_args(
+            parser,
+            args,
+            corpus_requested=True,
+        )
 
 
 def test_cron_pregeneration_is_opt_in(monkeypatch):

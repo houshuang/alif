@@ -48,6 +48,89 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-28: Learning update — recovery works; lateness and explicit intake now bind
+
+**Read-only production finding.** A pinned 121,786,368-byte online SQLite
+backup at `2026-07-28T12:20Z`
+(`sha256=4ed913f4134fbdc06560e4a5acdae38f56200283eb20d4e8e7a3c863fc121345`,
+integrity `ok`) plus checksummed July 10–28 interaction logs shows that the
+vacation caused a backlog shock, not a retention collapse. Production was
+verified at exact revision `0f374904` (PR #231). Since the July 10 PR #208
+probe, strict main FSRS due fell 912→708 and actionable Box 1 136→85. Due Box 2
+rose 17→39 after deliberate intake, so recovery remains correctly active with
+an intro budget of zero.
+
+**Learning interpretation.** There were 1,074 reading cards and 217
+graduations over 19/19 active UTC days. Post-injection word accuracy recovered
+to about 87% in July 22–28. The dominant retention tax is lateness: due-FSRS
+unaided recall is 90.4% within one day of due, 67.3% at 7–14 days late, and
+62.4% at 14+ days late. This rejects a global FSRS retune while the old backlog
+and July 27 policy boundary dominate. July 25+27 supplied 69.6% of the last
+week's review volume; the lowest-risk speed lever is a steadier 40–60-card
+daily floor, not more intake.
+
+**Intake finding.** Explicit `/add-batch` still bypasses recovery capacity. The
+202-word July 15 Bookifier cohort needed a median 53.0h to first review (p90
+157.4h); by the cutoff 106 had ever graduated, 69 remained acquiring, and 33
+were suspended. The 34-word July 21 Kalīla cohort is harder: 54.7% acquisition
+accuracy and 9/34 suspended after one week. No additional target-text batch is
+recommended until Box 1/2 clear.
+
+**Experiment status.** Rapid-retry safety boundaries hold (141 quiz rows,
+126 immediate successes, zero quiz graduations), but retention is censored.
+The exact-surface pilot is stalled at five assignments, 42
+`no_different_reviewable_sentence` exclusions, and zero outcomes. Token-level
+form/tashkīl evidence is only 625 tokens/107 reviews and cannot yet justify
+routing. Rating 2's prospective assisted-lapse policy remains the right
+semantic correction; no historical card rewrite is warranted.
+
+**Reading and pipeline finding.** Context-sensitive estimates put Rijāl Abū
+Qays near 85% readable now/89% with in-progress vocabulary and *Momo* near
+89–90%/92–93%; naive generic lookup overstates both because of ambiguous CAMeL
+fallbacks. Read the bilingual Abū Qays once, then begin the physical *Momo*;
+measure real chapter lookup/yellow burden instead of waiting for nominal 95%.
+All 243 hand-vetted `momo_book` sentences are still inactive because production
+cron never enables opt-in Step A2 corpus enrichment (578 recorded skips),
+contradicting the July 15 “1–3 weeks” expectation. This is a candidate bounded
+content backfill, but the then-deployed PR #231 A2 is unsafe to enable globally: it is
+unscoped/unordered, has 1,707 stranded claim-sentinel rows, erases corpus target
+flags during remap, lacks separate translation QA, and would churn an already
+full active pool. Harden and scope a Momo-only 10–20-row runner before
+copied-snapshot rehearsal or production preparation; activation is a later,
+separately capacity-gated decision.
+
+**Measurement drift.** The frozen analyzer and `book_coverage.py` do not yet
+honor PR #231's `function_word_override`, producing a one-card FSRS-debt
+difference at this cutoff; the *Momo* cohort funnel also includes every
+`source=bookifier` project rather than token-map-linked rows. Fix measurement
+before the next formal readout. Full methods, caveats, confirmation-gated plan,
+and explicit backfill decisions:
+`research/analysis-2026-07-28-learning-update.md`.
+
+**Approved implementation — code only, production untouched.** Step A2 now
+delegates to `corpus_enrichment.py` and refuses corpus work without an exact
+kind and/or ID scope. The isolated runner takes the shared flock, recovers
+legacy sentinels only in scope, claims a deterministic default-20/max-50
+tranche, requires letter-preserving substantial tashkīl, faithful translation,
+current contextual mapping verification, exactly one canonical content target,
+and completed naturalness/translation QA. Provider/parse/cardinality failures
+release claims for retry; completed rejections stay inactive and fail-closed.
+Preparation never activates, and the service/CLI reject any invocation whose
+preparation and activation limits are both nonzero. A separate explicit
+default-zero/max-20 activation pass (with preparation set to zero) greedily
+fills canonical due-coverage gaps, reloads demand immediately before visibility,
+blocks any sentence that now contains acquiring content or lacks FSRS demand,
+respects an active-pool ceiling, and never retires existing material.
+Quality-review parsing now binds verdicts by explicit ID and
+distinguishes unavailable review from a real rejection; the central
+reviewability gate also blocks completed authentic QA failures. Independent
+review caught and fixed a partial-activation rollback hazard, weak one-mark
+diacritic acceptance, malformed mapping-verifier and NULL-QA acceptance,
+dry-run/live phase ambiguity, stale activation-state reuse,
+variant/canonical coverage accounting, and terminal-rejection leakage. No copied-snapshot rehearsal,
+production backfill, activation, deployment, or learner-state change has yet
+occurred; those remain the next confirmation boundary.
+
 ## 2026-07-27: Rating-2 prompt conformance + lexical function homographs
 
 **Observed conformance failure.** EAS health showed one active iOS install and
@@ -865,8 +948,10 @@ extraction from the full-book OCR (no page-break splices), fragment regex pre-fi
 strict all-tokens-mapped rule (OCR noise self-excludes), ≥1 bookifier-lemma requirement,
 dedup. 1,646 candidates → 87 machine-accepted → **59 hand-vetted** (Claude read all 87;
 dropped mid-clause fragments, OCR garble, one المرأة/المرآة ambiguity, one احتال-vs-احتل
-mapping trap). Imported `source='corpus'`, `kind='momo_book'`, `is_active=False`,
-unverified/untranslated — invisible until the update_material cron diacritizes/translates/
+mapping trap). A same-day relaxed second pass added 184 more hand-vetted rows
+(265 candidates), for **243 total**; see `momo-vocab-queue-2026-07-15.md`.
+Imported `source='corpus'`, `kind='momo_book'`, `is_active=False`,
+unverified/untranslated — invisible until Step A2 diacritizes/translates/
 verifies (same lifecycle as Hindawi). Expected effect: authentic Momo sentences enter the
 maintenance diet as their target words graduate, i.e. staged authentic-material entry
 (recommended by the 2026-05-10 projection analysis) with the staging enforced by gates.

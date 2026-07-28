@@ -4,6 +4,8 @@ Uses hardcoded Arabic sentences with known word sets to verify
 word classification and validation logic.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from app.services.sentence_validator import (
@@ -12,6 +14,7 @@ from app.services.sentence_validator import (
     TokenMapping,
     ValidationResult,
     _is_function_word,
+    batch_verify_sentences,
     is_function_word_lemma,
     _strip_clitics,
     build_lemma_lookup,
@@ -28,6 +31,182 @@ from app.services.sentence_validator import (
     validate_sentence,
     validate_sentence_multi_target,
 )
+
+
+def _batch_verification_inputs(count: int = 2) -> list[dict]:
+    return [
+        {
+            "arabic": f"جُمْلَةٌ {index}",
+            "english": f"Sentence {index}",
+            "mappings": [
+                TokenMapping(
+                    position=0,
+                    surface_form="جُمْلَةٌ",
+                    lemma_id=1,
+                    is_target=False,
+                    is_function_word=False,
+                )
+            ],
+            "has_ambiguous": False,
+        }
+        for index in range(count)
+    ]
+
+
+class TestBatchVerificationResponseContract:
+    @patch("app.services.llm.generate_completion")
+    def test_valid_empty_sentence_list_means_all_clean(self, mock_completion):
+        mock_completion.return_value = {"sentences": []}
+
+        result = batch_verify_sentences(_batch_verification_inputs(), {})
+
+        assert result == [
+            {"disambiguation": [], "issues": []},
+            {"disambiguation": [], "issues": []},
+        ]
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            [],
+            {},
+            {"sentences": None},
+            {"sentences": ["not an object"]},
+            {"sentences": [{"index": 0, "disambiguation": []}]},
+            {
+                "sentences": [
+                    {"index": "0", "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": True, "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": 2, "disambiguation": [], "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {"index": 0, "disambiguation": {}, "issues": []}
+                ]
+            },
+            {
+                "sentences": [
+                    {
+                        "index": 0,
+                        "disambiguation": [{"position": 0}],
+                        "issues": [],
+                    }
+                ]
+            },
+            {
+                "sentences": [
+                    {
+                        "index": 0,
+                        "disambiguation": [],
+                        "issues": [{"position": 0}],
+                    }
+                ]
+            },
+        ],
+    )
+    @patch("app.services.llm.generate_completion")
+    def test_malformed_response_fails_closed(
+        self,
+        mock_completion,
+        response,
+    ):
+        mock_completion.return_value = response
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_duplicate_index_fails_closed(self, mock_completion):
+        row = {"index": 0, "disambiguation": [], "issues": []}
+        mock_completion.return_value = {"sentences": [row, dict(row)]}
+
+        assert batch_verify_sentences(_batch_verification_inputs(), {}) is None
+
+    @pytest.mark.parametrize(
+        "disambiguation",
+        [
+            [],
+            [{"position": 9, "lemma_id": 1}],
+            [{"position": 0, "lemma_id": 99}],
+            [
+                {"position": 0, "lemma_id": 2},
+                {"position": 0, "lemma_id": 2},
+            ],
+        ],
+    )
+    @patch("app.services.llm.generate_completion")
+    def test_ambiguous_input_requires_one_valid_explicit_choice(
+        self,
+        mock_completion,
+        disambiguation,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": disambiguation,
+                    "issues": [],
+                }
+            ]
+        }
+
+        assert batch_verify_sentences(inputs, {}) is None
+
+    @patch("app.services.llm.generate_completion")
+    def test_ambiguous_input_accepts_valid_explicit_choice(
+        self,
+        mock_completion,
+    ):
+        inputs = _batch_verification_inputs(1)
+        inputs[0]["has_ambiguous"] = True
+        inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+        choice = {"position": 0, "lemma_id": 2}
+        mock_completion.return_value = {
+            "sentences": [
+                {
+                    "index": 0,
+                    "disambiguation": [choice],
+                    "issues": [],
+                }
+            ]
+        }
+
+        assert batch_verify_sentences(inputs, {}) == [
+            {"disambiguation": [choice], "issues": []}
+        ]
+
+    @patch("app.services.llm.generate_completion")
+    def test_omitted_clean_index_remains_supported(self, mock_completion):
+        issue = {
+            "position": 0,
+            "correct_lemma_ar": "كتاب",
+            "correct_gloss": "book",
+            "correct_pos": "noun",
+            "explanation": "wrong sense",
+        }
+        mock_completion.return_value = {
+            "sentences": [
+                {"index": 1, "disambiguation": [], "issues": [issue]}
+            ]
+        }
+
+        result = batch_verify_sentences(_batch_verification_inputs(), {})
+
+        assert result == [
+            {"disambiguation": [], "issues": []},
+            {"disambiguation": [], "issues": [issue]},
+        ]
 
 
 class TestStripDiacritics:

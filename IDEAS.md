@@ -1,5 +1,34 @@
 # Alif — Master Ideas File
 
+## 🟢 [IMPLEMENTED 2026-07-28 — code/test complete; rehearsal and deployment pending] Scoped authentic-corpus enrichment
+
+The July 28 production audit found 243 hand-vetted *Momo* rows still inactive
+because corpus enrichment was opt-in, while the old Step A2 was unsafe to turn
+on globally: unscoped ordering, unrecovered claim sentinels, erased target
+flags, no separate translation QA, and automatic activation into a full pool.
+
+The replacement requires an exact kind and/or ID scope, takes the shared
+material-update flock, recovers legacy claims only inside that scope, and
+prepares a deterministic default-20/max-50 tranche through substantial
+letter-preserving tashkīl, translation, mapping verification, canonical
+exactly-one target repair, and completed authentic quality QA. Preparation
+always leaves rows inactive. Activation is a separate default-zero/max-20
+canonical due-coverage set-cover invocation with enrichment explicitly set to
+zero. It rechecks fresh demand immediately before visibility, blocks any
+sentence containing acquiring content or no FSRS demand, respects an explicit
+pool ceiling, and never retires other material.
+Provider/parse/cardinality failures release claims for retry; completed
+rejections persist fail-closed reasons. The central reviewability gate is the
+backstop for completed authentic QA failures.
+
+**Still open:** copied-production-snapshot preparation of 10–20 *Momo* rows
+with activation zero, human review of every Arabic/English/mapping/target
+result, then a separately confirmed deployment and bounded production
+preparation tranche. Activation remains a later decision: the July 28 pool
+count is already above the default activation ceiling, so current capacity is
+zero. The 1,707 generic historical sentinel rows remain a distinct
+corpus-curation decision and must not be bulk-reset as part of *Momo* work.
+
 ## 🟢 [IMPLEMENTED 2026-07-27] Persistent rating-2 prompt + lemma-aware function homographs
 
 The first protocol-v1 session proved the new client ran, but its sole rating-2

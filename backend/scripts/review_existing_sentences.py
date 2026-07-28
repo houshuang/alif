@@ -1,6 +1,7 @@
-"""Review all active sentences for quality using Gemini Flash.
+"""Review all active sentences through the shared Haiku-tier quality gate.
 
-Retires sentences flagged as unnatural or incorrectly translated.
+Retires sentences flagged as unnatural or incorrectly translated. Provider or
+parse failures leave rows untouched for a later retry.
 Run: python3 scripts/review_existing_sentences.py [--dry-run] [--batch-size 10]
 """
 import argparse
@@ -45,6 +46,7 @@ def main():
 
         retired_ids = []
         failed_ids = []
+        retry_ids = []
         reviewed = 0
 
         for i in range(0, len(sentences), args.batch_size):
@@ -57,6 +59,10 @@ def main():
             reviews = review_sentences_quality(to_review)
 
             for s, r in zip(batch, reviews):
+                if not getattr(r, "review_completed", True):
+                    retry_ids.append(s.id)
+                    print(f"  RETRY id={s.id}: {r.reason}")
+                    continue
                 reviewed += 1
                 if not r.natural or not r.translation_correct:
                     failed_ids.append(s.id)
@@ -89,7 +95,10 @@ def main():
                 detail={"retired_ids": retired_ids, "total_reviewed": reviewed},
             )
 
-        print(f"\nDone. Reviewed: {reviewed}, Failed: {len(failed_ids)}, Retired: {len(retired_ids)}")
+        print(
+            f"\nDone. Reviewed: {reviewed}, Failed: {len(failed_ids)}, "
+            f"Retired: {len(retired_ids)}, Retry: {len(retry_ids)}"
+        )
         if args.dry_run and failed_ids:
             print("(dry run — no changes made)")
 

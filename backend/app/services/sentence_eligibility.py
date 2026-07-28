@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import and_, exists
+from sqlalchemy import and_, exists, or_
 
 from app.models import Sentence, SentenceWord
 
@@ -64,12 +64,37 @@ def has_current_mapping_verification():
     )
 
 
+def has_no_completed_authentic_quality_failure():
+    """SQL clause: completed book/corpus QA must not have failed.
+
+    Legacy authentic rows have no persisted quality review and remain eligible;
+    this is a forward gate, not a global historical corpus shutdown.  Once an
+    authentic row has been reviewed, however, either a naturalness or
+    translation failure keeps it invisible even if another maintenance path
+    accidentally flips ``is_active`` back on.
+
+    LLM/root-showcase rows keep their existing source-specific semantics.  In
+    particular, root showcases deliberately tolerate some naturalness flags
+    when the translation is correct.
+    """
+    return or_(
+        Sentence.source.notin_(("book", "corpus")),
+        Sentence.source.is_(None),
+        Sentence.quality_reviewed_at.is_(None),
+        and_(
+            Sentence.quality_natural.is_(True),
+            Sentence.quality_translation_correct.is_(True),
+        ),
+    )
+
+
 def reviewable_sentence_clauses():
     """Combined clause for review-facing selection."""
     return and_(
         Sentence.is_active == True,  # noqa: E712
         not_has_unmapped_words(),
         has_current_mapping_verification(),
+        has_no_completed_authentic_quality_failure(),
     )
 
 

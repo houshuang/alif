@@ -1556,13 +1556,145 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         _validator_logger.error("Batch verification failed on ALL models")
         return None
 
-    # Parse results into per-sentence dicts
-    raw_sentences = result.get("sentences", [])
-    # Build index lookup
-    result_by_idx = {}
-    for r in raw_sentences:
-        if isinstance(r, dict) and "index" in r:
-            result_by_idx[r["index"]] = r
+    # Parse results into per-sentence dicts. Clean sentences are deliberately
+    # omitted by the prompt, so a valid empty list means "all clean." Any
+    # malformed row is different: accepting it as an omission would turn a
+    # broken verifier response into a false clean verdict.
+    if not isinstance(result, dict) or "sentences" not in result:
+        _validator_logger.warning(
+            "Batch verification returned a malformed top-level response"
+        )
+        return None
+    raw_sentences = result["sentences"]
+    if not isinstance(raw_sentences, list):
+        _validator_logger.warning(
+            "Batch verification 'sentences' field is not a list"
+        )
+        return None
+
+    expected_positions_by_idx: dict[int, set[int]] = {}
+    expected_ambiguities_by_idx: dict[int, dict[int, set[int]]] = {}
+    for index, sentence in enumerate(sentences):
+        positions: set[int] = set()
+        ambiguities: dict[int, set[int]] = {}
+        for mapping in sentence.get("mappings", []):
+            position = getattr(mapping, "position", None)
+            if not isinstance(position, int) or isinstance(position, bool):
+                continue
+            positions.add(position)
+            alternatives = getattr(mapping, "alternative_lemma_ids", None) or []
+            if alternatives:
+                allowed_ids = {
+                    lemma_id
+                    for lemma_id in [
+                        getattr(mapping, "lemma_id", None),
+                        *alternatives,
+                    ]
+                    if isinstance(lemma_id, int)
+                    and not isinstance(lemma_id, bool)
+                }
+                if allowed_ids:
+                    ambiguities[position] = allowed_ids
+        expected_positions_by_idx[index] = positions
+        expected_ambiguities_by_idx[index] = ambiguities
+
+    result_by_idx: dict[int, dict] = {}
+    required_issue_keys = {
+        "position",
+        "correct_lemma_ar",
+        "correct_gloss",
+        "correct_pos",
+        "explanation",
+    }
+    for row in raw_sentences:
+        if not isinstance(row, dict):
+            _validator_logger.warning(
+                "Batch verification returned a non-object sentence row"
+            )
+            return None
+        if not {"index", "disambiguation", "issues"} <= row.keys():
+            _validator_logger.warning(
+                "Batch verification sentence row is missing required keys"
+            )
+            return None
+
+        index = row["index"]
+        if (
+            not isinstance(index, int)
+            or isinstance(index, bool)
+            or index < 0
+            or index >= len(sentences)
+            or index in result_by_idx
+        ):
+            _validator_logger.warning(
+                "Batch verification returned an invalid or duplicate index"
+            )
+            return None
+
+        disambiguation = row["disambiguation"]
+        issues = row["issues"]
+        if not isinstance(disambiguation, list) or not isinstance(issues, list):
+            _validator_logger.warning(
+                "Batch verification row has non-list verdict fields"
+            )
+            return None
+        if any(
+            not isinstance(choice, dict)
+            or not {"position", "lemma_id"} <= choice.keys()
+            or not isinstance(choice["position"], int)
+            or isinstance(choice["position"], bool)
+            or not isinstance(choice["lemma_id"], int)
+            or isinstance(choice["lemma_id"], bool)
+            or choice["position"]
+            not in expected_ambiguities_by_idx[index]
+            or choice["lemma_id"]
+            not in expected_ambiguities_by_idx[index][choice["position"]]
+            for choice in disambiguation
+        ):
+            _validator_logger.warning(
+                "Batch verification returned malformed disambiguation"
+            )
+            return None
+        disambiguation_positions = [
+            choice["position"] for choice in disambiguation
+        ]
+        if len(disambiguation_positions) != len(set(disambiguation_positions)):
+            _validator_logger.warning(
+                "Batch verification returned duplicate disambiguation positions"
+            )
+            return None
+        if any(
+            not isinstance(issue, dict)
+            or not required_issue_keys <= issue.keys()
+            or not isinstance(issue["position"], int)
+            or isinstance(issue["position"], bool)
+            or issue["position"] not in expected_positions_by_idx[index]
+            or any(
+                not isinstance(issue[key], str)
+                for key in required_issue_keys - {"position"}
+            )
+            for issue in issues
+        ):
+            _validator_logger.warning(
+                "Batch verification returned malformed issues"
+            )
+            return None
+
+        result_by_idx[index] = row
+
+    # An ambiguous input cannot be silently omitted as "clean": the prompt
+    # requires an explicit choice for every listed ambiguous position.
+    for index, ambiguities in expected_ambiguities_by_idx.items():
+        if not ambiguities:
+            continue
+        row = result_by_idx.get(index)
+        if row is None or {
+            choice["position"] for choice in row["disambiguation"]
+        } != set(ambiguities):
+            _validator_logger.warning(
+                "Batch verification omitted an ambiguity verdict"
+            )
+            return None
 
     output = []
     for idx in range(len(sentences)):

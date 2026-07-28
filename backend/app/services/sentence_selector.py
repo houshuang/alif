@@ -149,11 +149,25 @@ def _quality_multiplier_for_sentence(sent: Sentence) -> float:
     Short sentences are not penalized here. The quality distinction is about
     semantic plausibility and translation correctness, not word count.
     """
-    if getattr(sent, "source", None) != "llm":
-        return 1.0
-
+    source = getattr(sent, "source", None)
     natural = getattr(sent, "quality_natural", None)
     translation_correct = getattr(sent, "quality_translation_correct", None)
+
+    # Authentic rows historically had no persisted QA, so NULL remains
+    # neutral. Once book/corpus QA has completed, though, a failed verdict is a
+    # hard block just like a failed generated sentence. This mirrors the
+    # central reviewability defense in sentence_eligibility.
+    if source in ("book", "corpus"):
+        if getattr(sent, "quality_reviewed_at", None) is not None:
+            return (
+                1.0
+                if natural is True and translation_correct is True
+                else 0.0
+            )
+        return 1.0
+    if source != "llm":
+        return 1.0
+
     if natural is False or translation_correct is False:
         return 0.0
     if natural is True and translation_correct is True:

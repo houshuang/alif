@@ -18,6 +18,7 @@ from app.services.llm import (
     generate_completion,
     generate_sentence,
     generate_sentences_batch,
+    review_sentences_quality,
     rerank_sentences_by_naturalness,
 )
 
@@ -243,6 +244,88 @@ def test_generate_sentence_omits_example_block_when_null(mock_completion):
 
     prompt = mock_completion.call_args.kwargs.get("prompt") or mock_completion.call_args.args[0]
     assert "Example of correct usage" not in prompt
+
+
+@patch("app.services.llm.generate_completion")
+def test_quality_reviews_are_matched_by_explicit_id(mock_completion):
+    mock_completion.return_value = {
+        "reviews": [
+            {
+                "id": 2,
+                "natural": False,
+                "translation_correct": True,
+                "reason": "second",
+            },
+            {
+                "id": 1,
+                "natural": True,
+                "translation_correct": True,
+                "reason": "first",
+            },
+        ]
+    }
+
+    reviews = review_sentences_quality([
+        {"arabic": "الأَوَّلُ", "english": "first"},
+        {"arabic": "الثَّانِي", "english": "second"},
+    ])
+
+    assert [review.reason for review in reviews] == ["first", "second"]
+    assert reviews[0].natural is True
+    assert reviews[1].natural is False
+    assert all(review.review_completed for review in reviews)
+
+
+@patch("app.services.llm.generate_completion")
+def test_quality_review_missing_or_invalid_verdict_is_retryable(mock_completion):
+    mock_completion.return_value = {
+        "reviews": [
+            {
+                "id": 1,
+                "natural": "yes",
+                "translation_correct": True,
+                "reason": "invalid boolean",
+            },
+        ]
+    }
+
+    reviews = review_sentences_quality([
+        {"arabic": "الأَوَّلُ", "english": "first"},
+        {"arabic": "الثَّانِي", "english": "second"},
+    ])
+
+    assert reviews[0].review_completed is False
+    assert reviews[0].natural is False
+    assert reviews[1].review_completed is False
+    assert reviews[1].reason == "quality review incomplete"
+
+
+@patch("app.services.llm.generate_completion")
+def test_quality_review_duplicate_id_is_retryable(mock_completion):
+    mock_completion.return_value = {
+        "reviews": [
+            {
+                "id": 1,
+                "natural": True,
+                "translation_correct": True,
+                "reason": "first copy",
+            },
+            {
+                "id": 1,
+                "natural": False,
+                "translation_correct": False,
+                "reason": "second copy",
+            },
+        ]
+    }
+
+    review = review_sentences_quality([
+        {"arabic": "جُمْلَةٌ", "english": "A sentence."},
+    ])[0]
+
+    assert review.review_completed is False
+    assert review.natural is False
+    assert review.translation_correct is False
 
 
 @patch("app.services.llm.generate_completion")
