@@ -88,6 +88,7 @@ class RescueStats:
     proposals_created_lemma: int = 0
     proposals_logged_only: int = 0
     sentences_skipped_changed: int = 0
+    sentences_target_invalid: int = 0
     targets_repaired: int = 0
     lemmas_now_covered: set[int] = field(default_factory=set)
 
@@ -129,6 +130,36 @@ def _sentence_state_signature(
                 bool(word.is_target_word),
             )
             for word in word_rows
+        )),
+    )
+
+
+def _target_is_represented(
+    db: Session,
+    sentence: Sentence,
+    words: Iterable[SentenceWord],
+) -> bool:
+    """Whether the canonical stored primary is present in the final mappings."""
+    if sentence.target_lemma_id is None:
+        return False
+    target_id = resolve_canonical_lemma_id(db, sentence.target_lemma_id)
+    return any(
+        word.lemma_id is not None
+        and resolve_canonical_lemma_id(db, word.lemma_id) == target_id
+        for word in words
+    )
+
+
+def _mapping_state(
+    sentence: Sentence,
+    words: Iterable[SentenceWord],
+) -> tuple:
+    """Minimal state used to distinguish real corrections from verifier overcalls."""
+    return (
+        sentence.target_lemma_id,
+        tuple(sorted(
+            (word.id, word.lemma_id, bool(word.is_target_word))
+            for word in words
         )),
     )
 
@@ -281,7 +312,10 @@ def _to_token_mappings(words: Iterable[SentenceWord]) -> list[TokenMapping]:
 
 
 def _frequency_core_lookup(
-    db: Session, proposed_ar: str
+    db: Session,
+    proposed_ar: str,
+    *,
+    for_update: bool = False,
 ) -> FrequencyCoreEntry | None:
     """Find a FrequencyCoreEntry whose lemma_key matches the proposed bare form.
 
@@ -303,12 +337,40 @@ def _frequency_core_lookup(
     if bare.startswith("ال"):
         keys.add(bare[2:])
 
-    return (
+    query = (
         db.query(FrequencyCoreEntry)
         .filter(FrequencyCoreEntry.lemma_key.in_(list(keys)))
         .order_by(FrequencyCoreEntry.core_rank.asc())
-        .first()
     )
+    if for_update:
+        query = query.populate_existing().with_for_update()
+    return query.first()
+
+
+def _claim_frequency_core_entry(
+    db: Session,
+    fce_id: int,
+    lemma_id: int,
+) -> bool:
+    """Atomically link an unclaimed FCE row to a proposed lemma.
+
+    ``SELECT ... FOR UPDATE`` serializes this on PostgreSQL but is ignored by
+    SQLite. The conditional UPDATE is therefore the portable ownership gate:
+    a worker that read a stale ``lemma_id IS NULL`` snapshot cannot overwrite
+    the winner's link.
+    """
+    claimed = (
+        db.query(FrequencyCoreEntry)
+        .filter(
+            FrequencyCoreEntry.id == fce_id,
+            FrequencyCoreEntry.lemma_id.is_(None),
+        )
+        .update(
+            {FrequencyCoreEntry.lemma_id: lemma_id},
+            synchronize_session=False,
+        )
+    )
+    return claimed == 1
 
 
 def _log_proposal_suggestion(
@@ -374,7 +436,11 @@ def _try_frequency_gated_proposal(
        pipeline commits internally.
     3. No FCE match → log the proposal for offline review, return None.
     """
-    fce = _frequency_core_lookup(db, proposed_ar)
+    # PostgreSQL serializes creators on this lock. SQLite ignores FOR UPDATE,
+    # so the conditional link below remains the load-bearing ownership gate.
+    fce = _frequency_core_lookup(
+        db, proposed_ar, for_update=allow_create
+    )
     if fce is None:
         _log_proposal_suggestion(
             proposed_ar, proposed_gloss, proposed_pos,
@@ -384,6 +450,20 @@ def _try_frequency_gated_proposal(
         return None
 
     if fce.lemma_id is not None:
+        linked_lemma = db.get(Lemma, fce.lemma_id)
+        if (
+            linked_lemma is None
+            or linked_lemma.gates_completed_at is None
+        ):
+            # Another worker may have committed the FCE link at the first
+            # internal quality-gate commit. Treat it as an in-progress claim;
+            # Step G2 will resume any genuinely stranded ungated lemma.
+            _log_proposal_suggestion(
+                proposed_ar, proposed_gloss, proposed_pos,
+                sentence_id, surface_form, fce_matched=True,
+            )
+            stats.proposals_logged_only += 1
+            return None
         _log_proposal_suggestion(
             proposed_ar, proposed_gloss, proposed_pos,
             sentence_id, surface_form, fce_matched=True,
@@ -411,7 +491,30 @@ def _try_frequency_gated_proposal(
     db.add(new_lemma)
     db.flush()
     new_id = new_lemma.lemma_id
-    fce.lemma_id = new_id
+    if not _claim_frequency_core_entry(db, fce.id, new_id):
+        # Another worker won after this session read lemma_id=NULL. Roll back
+        # the just-flushed orphan candidate before inspecting the winner.
+        db.rollback()
+        winning_fce = _frequency_core_lookup(db, proposed_ar)
+        winning_lemma = (
+            db.get(Lemma, winning_fce.lemma_id)
+            if winning_fce is not None
+            and winning_fce.lemma_id is not None
+            else None
+        )
+        _log_proposal_suggestion(
+            proposed_ar, proposed_gloss, proposed_pos,
+            sentence_id, surface_form, fce_matched=True,
+        )
+        if (
+            winning_fce is not None
+            and winning_lemma is not None
+            and winning_lemma.gates_completed_at is not None
+        ):
+            stats.proposals_reused_existing += 1
+            return winning_fce.lemma_id
+        stats.proposals_logged_only += 1
+        return None
 
     from app.services.lemma_quality import run_quality_gates
     try:
@@ -420,6 +523,30 @@ def _try_frequency_gated_proposal(
         logger.exception(
             "run_quality_gates failed for rescue-created lemma %d", new_id
         )
+        db.rollback()
+        _log_proposal_suggestion(
+            proposed_ar, proposed_gloss, proposed_pos,
+            sentence_id, surface_form, fce_matched=True,
+        )
+        stats.proposals_logged_only += 1
+        return None
+
+    db.expire_all()
+    persisted_lemma = db.get(Lemma, new_id)
+    if (
+        persisted_lemma is None
+        or persisted_lemma.gates_completed_at is None
+    ):
+        logger.error(
+            "Quality gates returned without stamping rescue-created lemma %d",
+            new_id,
+        )
+        _log_proposal_suggestion(
+            proposed_ar, proposed_gloss, proposed_pos,
+            sentence_id, surface_form, fce_matched=True,
+        )
+        stats.proposals_logged_only += 1
+        return None
 
     _log_proposal_suggestion(
         proposed_ar, proposed_gloss, proposed_pos,
@@ -452,7 +579,9 @@ def _prepare_unlinked_frequency_proposals(
     snapshot_by_id = {snapshot.sentence_id: snapshot for snapshot in snapshots}
     db = SessionLocal()
     try:
-        lemma_lookup = build_comprehensive_lemma_lookup(db)
+        lemma_lookup = build_comprehensive_lemma_lookup(
+            db, require_gated=True
+        )
         for sentence_id, issues in issues_by_sentence_id.items():
             snapshot = snapshot_by_id.get(sentence_id)
             if (
@@ -485,6 +614,7 @@ def _prepare_unlinked_frequency_proposals(
                     proposed_pos,
                     current_lemma_id=None,
                     lemma_lookup=lemma_lookup,
+                    require_gated=True,
                 ) is not None:
                     continue
                 fce = _frequency_core_lookup(db, proposed_ar)
@@ -503,7 +633,9 @@ def _prepare_unlinked_frequency_proposals(
                 )
                 # The creation path may normalize the stored form and commits
                 # internally; rebuild before evaluating a later proposal.
-                lemma_lookup = build_comprehensive_lemma_lookup(db)
+                lemma_lookup = build_comprehensive_lemma_lookup(
+                    db, require_gated=True
+                )
         db.commit()
     except Exception:
         logger.exception("mapping rescue proposal pre-pass failed")
@@ -567,6 +699,7 @@ def _apply_with_proposal_fallback(
     failed = apply_corrections(
         issues, word_rows, db, lemma_lookup=lemma_lookup,
         arabic_text=arabic_text,
+        require_gated_lemmas=True,
     )
 
     issue_by_pos = {i["position"]: i for i in issues if "position" in i}
@@ -590,6 +723,7 @@ def _apply_with_proposal_fallback(
         resolved = correct_mapping(
             db, proposed_ar, proposed_gloss, proposed_pos,
             current_lemma_id=None, lemma_lookup=lemma_lookup,
+            require_gated=True,
         )
         if resolved is not None:
             # Proposed lemma exists in DB. `apply_corrections` already would
@@ -707,6 +841,7 @@ class ReverifyStats:
     llm_failures: int = 0
     sentences_flagged: int = 0
     sentences_skipped_changed: int = 0
+    sentences_target_invalid: int = 0
     targets_repaired: int = 0
 
     def to_dict(self) -> dict:
@@ -925,15 +1060,16 @@ def reverify_all_active_sentences(
             snapshot.sentence_id: list(result.get("issues") or [])
             for snapshot, result in zip(snapshots, results)
         }
+        stats.sentences_flagged += sum(
+            1 for issues in issues_by_sentence_id.values() if issues
+        )
 
         # A dry-run is strictly observational. In particular it must not call
         # proposal/logging helpers or the lemma quality pipeline, all of which
         # can write or commit.
         if dry_run:
             for issues in issues_by_sentence_id.values():
-                if issues:
-                    stats.sentences_flagged += 1
-                else:
+                if not issues:
                     stats.sentences_passed += 1
             continue
 
@@ -958,12 +1094,21 @@ def reverify_all_active_sentences(
                 sentence, word_rows = acquired
 
                 if not issues:
+                    if not _target_is_represented(db, sentence, word_rows):
+                        sentence.mappings_verified_at = None
+                        db.commit()
+                        stats.sentences_unfixable += 1
+                        stats.sentences_target_invalid += 1
+                        continue
                     sentence.mappings_verified_at = datetime.now(timezone.utc)
                     db.commit()
                     stats.sentences_passed += 1
                     continue
 
-                lemma_lookup = build_comprehensive_lemma_lookup(db)
+                before_mapping_state = _mapping_state(sentence, word_rows)
+                lemma_lookup = build_comprehensive_lemma_lookup(
+                    db, require_gated=True
+                )
                 still_failed = _apply_with_proposal_fallback(
                     db,
                     issues,
@@ -975,10 +1120,25 @@ def reverify_all_active_sentences(
                     sentence=sentence,
                     allow_lemma_creation=False,
                 )
+                mapping_changed = (
+                    _mapping_state(sentence, word_rows)
+                    != before_mapping_state
+                )
                 if not still_failed:
+                    if not _target_is_represented(db, sentence, word_rows):
+                        sentence.mappings_verified_at = None
+                        db.commit()
+                        stats.sentences_unfixable += 1
+                        stats.sentences_target_invalid += 1
+                        stats.targets_repaired += sentence_stats.targets_repaired
+                        _fold_proposal_stats(stats, sentence_stats)
+                        continue
                     sentence.mappings_verified_at = datetime.now(timezone.utc)
                     db.commit()
-                    stats.sentences_corrected += 1
+                    if mapping_changed:
+                        stats.sentences_corrected += 1
+                    else:
+                        stats.sentences_passed += 1
                     stats.targets_repaired += sentence_stats.targets_repaired
                     _fold_proposal_stats(stats, sentence_stats)
                     continue
@@ -1275,12 +1435,20 @@ def rescue_sentences_for_lemmas(
             sentence, word_rows = acquired
 
             if not issues:
+                if not _target_is_represented(db, sentence, word_rows):
+                    db.rollback()
+                    stats.sentences_unfixable += 1
+                    stats.sentences_target_invalid += 1
+                    continue
                 sentence.mappings_verified_at = datetime.now(timezone.utc)
                 db.commit()
                 stats.sentences_rescued += 1
                 continue
 
-            lemma_lookup = build_comprehensive_lemma_lookup(db)
+            before_mapping_state = _mapping_state(sentence, word_rows)
+            lemma_lookup = build_comprehensive_lemma_lookup(
+                db, require_gated=True
+            )
             still_failed = _apply_with_proposal_fallback(
                 db,
                 issues,
@@ -1292,6 +1460,10 @@ def rescue_sentences_for_lemmas(
                 sentence=sentence,
                 allow_lemma_creation=False,
             )
+            mapping_changed = (
+                _mapping_state(sentence, word_rows)
+                != before_mapping_state
+            )
             if still_failed:
                 # Persist any independent valid corrections but leave the
                 # verification stamp stale so the row remains unreviewable.
@@ -1301,10 +1473,21 @@ def rescue_sentences_for_lemmas(
                 _fold_proposal_stats(stats, sentence_stats)
                 continue
 
+            if not _target_is_represented(db, sentence, word_rows):
+                # Preserve any valid independent corrections, but never make a
+                # sentence reviewable under a primary it no longer contains.
+                db.commit()
+                stats.sentences_unfixable += 1
+                stats.sentences_target_invalid += 1
+                stats.targets_repaired += sentence_stats.targets_repaired
+                _fold_proposal_stats(stats, sentence_stats)
+                continue
+
             sentence.mappings_verified_at = datetime.now(timezone.utc)
             db.commit()
             stats.sentences_rescued += 1
-            stats.sentences_corrected += 1
+            if mapping_changed:
+                stats.sentences_corrected += 1
             stats.targets_repaired += sentence_stats.targets_repaired
             _fold_proposal_stats(stats, sentence_stats)
         except Exception:

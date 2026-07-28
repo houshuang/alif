@@ -65,6 +65,9 @@ identity precedes lossy normalization; the mapper requires explicit verdicts
 for every row and ambiguity; retries are exact-row; final mapping/target writes
 are compare-and-set. Corpus preparation creates no lemmas. Jan-2 rows reopen
 only by explicit ID after separately reviewed source/inventory curation.
+Rolling mapping rescue also compare-and-set claims its sole frequency-core
+lemma-creation exception, refuses ungated claims, and requires the canonical
+stored primary target to be represented before any fresh verification stamp.
 
 **Copied immutable-snapshot rehearsal.** A disposable working copy derived from
 the pinned immutable snapshot received three reviewed temporary lemmas. Exact

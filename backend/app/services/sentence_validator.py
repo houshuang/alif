@@ -1405,17 +1405,26 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     return lookup
 
 
-def build_comprehensive_lemma_lookup(db) -> dict[str, int]:
+def build_comprehensive_lemma_lookup(
+    db,
+    *,
+    require_gated: bool = False,
+) -> dict[str, int]:
     """Build lookup from ALL lemmas for sentence_word mapping.
 
     Unlike build_lemma_lookup() called with filtered lemmas, this includes
     every non-variant lemma in the database — function words, encountered
-    words, etc. Used when creating SentenceWord records so every token
-    can be mapped to a lemma_id.
+    words, etc. Used when creating SentenceWord records so every token can be
+    mapped to a lemma_id. Mapping-maintenance callers may set
+    ``require_gated=True`` so an independently committed, still-in-progress
+    lemma-quality claim cannot be used before ``run_quality_gates`` finishes.
     """
     from app.models import Lemma
 
-    all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
+    query = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None))
+    if require_gated:
+        query = query.filter(Lemma.gates_completed_at.isnot(None))
+    all_lemmas = query.all()
     return build_lemma_lookup(all_lemmas)
 
 
@@ -2220,6 +2229,7 @@ def correct_mapping(
     correct_pos: str,
     current_lemma_id: int | None = None,
     lemma_lookup: "LemmaLookupDict | None" = None,
+    require_gated: bool = False,
 ) -> int | None:
     """Find the correct lemma in DB and return its lemma_id.
 
@@ -2242,18 +2252,22 @@ def correct_mapping(
     correct_bare = normalize_arabic(correct_ar)
 
     # Fast path: exact match on lemma_ar_bare
-    candidates = (
-        db.query(Lemma)
-        .filter(Lemma.lemma_ar_bare == correct_bare)
-        .all()
-    )
+    def _candidate_query():
+        query = db.query(Lemma)
+        if require_gated:
+            query = query.filter(Lemma.gates_completed_at.isnot(None))
+        return query
+
+    candidates = _candidate_query().filter(
+        Lemma.lemma_ar_bare == correct_bare
+    ).all()
     if not candidates:
         if correct_bare.startswith("ال"):
-            candidates = db.query(Lemma).filter(
+            candidates = _candidate_query().filter(
                 Lemma.lemma_ar_bare == correct_bare[2:]
             ).all()
         else:
-            candidates = db.query(Lemma).filter(
+            candidates = _candidate_query().filter(
                 Lemma.lemma_ar_bare == "ال" + correct_bare
             ).all()
 
@@ -2262,7 +2276,9 @@ def correct_mapping(
     # verifier proposal normalizes to ان; stopping after the direct ان rows
     # would omit the exact stored إِنَّ / أَنَّ candidates.
     if lemma_lookup is None:
-        lemma_lookup = build_comprehensive_lemma_lookup(db)
+        lemma_lookup = build_comprehensive_lemma_lookup(
+            db, require_gated=require_gated
+        )
 
     search_forms = [correct_bare]
     stripped = strip_tanwin_alif(correct_bare)
@@ -2279,7 +2295,7 @@ def correct_mapping(
                     candidate_ids.add(alt_lid)
 
     if candidate_ids:
-        candidates = db.query(Lemma).filter(
+        candidates = _candidate_query().filter(
             Lemma.lemma_id.in_(candidate_ids)
         ).all()
 
@@ -2316,6 +2332,7 @@ def apply_corrections(
     db,
     lemma_lookup=None,
     arabic_text: str = "",
+    require_gated_lemmas: bool = False,
 ) -> list[int]:
     """Apply LLM-suggested corrections to word-lemma mappings.
 
@@ -2356,6 +2373,9 @@ def apply_corrections(
         db: SQLAlchemy session for correct_mapping lookups.
         lemma_lookup: optional pre-built lemma lookup dict.
         arabic_text: sentence text for logging.
+        require_gated_lemmas: exclude lemmas whose centralized quality gates
+            have not completed. Mapping rescue enables this because its
+            frequency-core proposal claim may be visible before gating ends.
 
     Returns:
         List of positions where correction failed (empty = all OK).
@@ -2382,6 +2402,7 @@ def apply_corrections(
             str(corr.get("correct_pos", "") or ""),
             current_lemma_id=m.lemma_id,
             lemma_lookup=lemma_lookup,
+            require_gated=require_gated_lemmas,
         )
 
         if new_lid and new_lid != m.lemma_id:
