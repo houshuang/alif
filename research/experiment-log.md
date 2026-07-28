@@ -50,11 +50,14 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ## 2026-07-28: PR #232 corpus preparation hardening + immutable-snapshot rehearsal
 
-**Boundary.** PR #232 is a code/docs-only deployment. The corpus cron flag
-remains disabled, and deployment performs no production corpus or learner-data
-mutation. Preparation and activation are now mutually exclusive commands; the
-July 28 snapshot has 1,961 active rows against the 1,950 ceiling, so activation
-capacity is zero.
+**Boundary.** PR #232 was deployed as `094ee1c1` on 2026-07-28 at 22:44 UTC.
+The backend was active and `/api/stats` returned HTTP 200 after restart. The
+corpus-enrichment cron flag remained absent, and immediate before/after corpus
+and learner-history counts were identical. All 243 *Momo* rows remained
+inactive, untranslated, and unverified. Preparation and activation are now
+mutually exclusive commands; the immutable July 28 snapshot had 1,961 active
+rows against the 1,950 ceiling, and live deployment verification had 1,974, so
+activation capacity is zero.
 
 **Fail-closed design.** Exact kind/ID scopes use a bounded ActivityLog-backed
 cursor and deterministic prospective preflight, so low-ID inventory failures

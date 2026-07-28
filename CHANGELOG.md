@@ -27,6 +27,9 @@ This project is developed with Claude Code and Codex.
 - Keep corpus cron disabled. The code-only deployment performs no corpus or
   learner-data mutation, and the snapshot's 1,961 active rows leave zero
   activation capacity under the 1,950 ceiling
+- Deploy PR #232 as `094ee1c1` on 2026-07-28 at 22:44 UTC. The backend returned
+  HTTP 200 after restart, the corpus-enrichment flag remained absent, and the
+  immediate before/after corpus and learner-history counts were identical
 - Record the July 28 production learning audit and its confirmation boundaries;
   no production corpus or learner data was changed
 
