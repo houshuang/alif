@@ -252,6 +252,124 @@ def test_batch_generation_stores_quality_approved_sentence(db_session, monkeypat
     assert stored.quality_reason == "ok"
 
 
+def test_single_word_generation_discards_only_invalid_verifier_row(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "1")
+    _seed_batch_quality_word(db_session)
+    generated = [
+        SimpleNamespace(
+            arabic="الكِتَابُ جَدِيدٌ.",
+            english="The book is new.",
+            transliteration="al-kitabu jadidun.",
+        ),
+        SimpleNamespace(
+            arabic="الكِتَابُ جَدِيدٌ.",
+            english="The book is new.",
+            transliteration="al-kitabu jadidun.",
+        ),
+    ]
+
+    with (
+        patch(
+            "app.services.llm.generate_sentences_batch",
+            return_value=generated,
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[
+                {
+                    "disambiguation": [],
+                    "issues": [],
+                    "invalid_reason": "unsolicited_disambiguation",
+                    "invalid_positions": [0],
+                },
+                {"disambiguation": [], "issues": []},
+            ],
+        ) as batch_verify,
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="ok",
+                ),
+            ],
+        ),
+    ):
+        stored = material_generator.generate_material_for_word(1, needed=2)
+
+    assert stored == 1
+    assert db_session.query(Sentence).count() == 1
+    assert batch_verify.call_args.kwargs == {"return_invalid_rows": True}
+
+
+def test_multi_word_generation_discards_only_invalid_verifier_row(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "0")
+    _seed_batch_quality_word(db_session)
+    generated = [
+        SimpleNamespace(
+            target_index=0,
+            arabic="الكِتَابُ جَدِيدٌ.",
+            english="The book is new.",
+            transliteration="al-kitabu jadidun.",
+        ),
+        SimpleNamespace(
+            target_index=1,
+            arabic="الكِتَابُ جَدِيدٌ.",
+            english="The book is new.",
+            transliteration="al-kitabu jadidun.",
+        ),
+    ]
+
+    with (
+        patch(
+            "app.services.material_generator._generate_via_self_correct",
+            return_value=generated,
+        ),
+        patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=[
+                {
+                    "disambiguation": [],
+                    "issues": [],
+                    "invalid_reason": "malformed_issues",
+                    "invalid_positions": [0],
+                },
+                {"disambiguation": [], "issues": []},
+            ],
+        ) as batch_verify,
+        patch(
+            "app.services.llm.review_sentences_quality",
+            return_value=[
+                SentenceReviewResult(
+                    natural=True,
+                    translation_correct=True,
+                    reason="ok",
+                ),
+            ],
+        ),
+    ):
+        result = material_generator.batch_generate_material(
+            [1, 2],
+            count_per_word=1,
+        )
+
+    assert result == {
+        "generated": 1,
+        "words_covered": 1,
+        "words_failed": [1],
+    }
+    stored = db_session.query(Sentence).one()
+    assert stored.target_lemma_id == 2
+    assert batch_verify.call_args.kwargs == {"return_invalid_rows": True}
+
+
 def test_multi_target_validation_uses_one_batch_verifier(db_session):
     db_session.add_all([
         Lemma(
@@ -306,6 +424,66 @@ def test_multi_target_validation_uses_one_batch_verifier(db_session):
 
     assert len(validated) == 2
     batch_verify.assert_called_once()
+    assert batch_verify.call_args.kwargs == {"return_invalid_rows": True}
     verify_candidates = batch_verify.call_args.args[0]
     assert len(verify_candidates) == 2
     assert sum(m.is_target for m in validated[0][1]) >= 2
+
+
+def test_multi_target_batch_discards_only_invalid_verifier_row(db_session):
+    db_session.add_all([
+        Lemma(
+            lemma_id=1,
+            lemma_ar="كِتَابٌ",
+            lemma_ar_bare="كتاب",
+            gloss_en="book",
+            pos="noun",
+        ),
+        Lemma(
+            lemma_id=2,
+            lemma_ar="جَدِيدٌ",
+            lemma_ar_bare="جديد",
+            gloss_en="new",
+            pos="adjective",
+        ),
+    ])
+    db_session.commit()
+
+    from app.services.sentence_validator import build_comprehensive_lemma_lookup
+
+    lookup = build_comprehensive_lemma_lookup(db_session)
+    first = SimpleNamespace(
+        arabic="كِتَابٌ جَدِيدٌ",
+        english="A new book.",
+        primary_target_lemma_id=1,
+    )
+    second = SimpleNamespace(
+        arabic="كِتَابٌ جَدِيدٌ",
+        english="A new book.",
+        primary_target_lemma_id=2,
+    )
+    candidates = [
+        (first, {"كتاب": 1, "جديد": 2}),
+        (second, {"كتاب": 1, "جديد": 2}),
+    ]
+
+    with patch(
+        "app.services.sentence_validator.batch_verify_sentences",
+        return_value=[
+            {
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": "malformed_issues",
+                "invalid_positions": [0],
+            },
+            {"disambiguation": [], "issues": []},
+        ],
+    ) as batch_verify:
+        validated = material_generator.validate_multi_target_sentences_batch(
+            db_session,
+            candidates,
+            lookup,
+        )
+
+    assert [result for result, _ in validated] == [second]
+    assert batch_verify.call_args.kwargs == {"return_invalid_rows": True}

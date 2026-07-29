@@ -24,6 +24,7 @@ from app.services.sentence_validator import (
     map_tokens_to_lemmas,
     normalize_alef,
     normalize_arabic,
+    refresh_target_mapping_flags,
     resolve_existing_lemma,
     sanitize_arabic_word,
     strip_diacritics,
@@ -297,6 +298,75 @@ class TestBatchVerificationResponseContract:
         ]
         # Diagnostics are derived from the same batch response, not re-queried.
         mock_completion.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("kind", "invalid_reason", "invalid_positions"),
+        [
+            ("unsolicited", "unsolicited_disambiguation", [0]),
+            ("invalid_choice", "invalid_disambiguation_choice", [0]),
+            ("duplicate_choice", "duplicate_disambiguation_positions", [0]),
+            ("malformed_issue", "malformed_issues", [0]),
+            ("omitted_ambiguity", "omitted_ambiguity_verdict", [0]),
+        ],
+    )
+    @patch("app.services.llm.generate_completion")
+    def test_opt_in_isolates_row_attributable_semantic_errors(
+        self,
+        mock_completion,
+        kind,
+        invalid_reason,
+        invalid_positions,
+    ):
+        inputs = _batch_verification_inputs(2)
+        bad_row = {"index": 0, "disambiguation": [], "issues": []}
+        if kind == "unsolicited":
+            bad_row["disambiguation"] = [{"position": 0, "lemma_id": 1}]
+        else:
+            inputs[0]["has_ambiguous"] = True
+            inputs[0]["mappings"][0].alternative_lemma_ids = [2]
+            if kind == "invalid_choice":
+                bad_row["disambiguation"] = [
+                    {"position": 0, "lemma_id": 999}
+                ]
+            elif kind == "duplicate_choice":
+                bad_row["disambiguation"] = [
+                    {"position": 0, "lemma_id": 1},
+                    {"position": 0, "lemma_id": 2},
+                ]
+            elif kind == "malformed_issue":
+                bad_row["issues"] = [{"position": 0}]
+
+        mock_completion.return_value = {
+            "sentences": [
+                bad_row,
+                {"index": 1, "disambiguation": [], "issues": []},
+            ]
+        }
+
+        assert batch_verify_sentences(
+            inputs,
+            {},
+            return_invalid_rows=True,
+        ) == [
+            {
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": invalid_reason,
+                "invalid_positions": invalid_positions,
+            },
+            {"disambiguation": [], "issues": []},
+        ]
+
+    @patch("app.services.llm.generate_completion")
+    def test_opt_in_keeps_duplicate_index_batch_fatal(self, mock_completion):
+        row = {"index": 0, "disambiguation": [], "issues": []}
+        mock_completion.return_value = {"sentences": [row, dict(row)]}
+
+        assert batch_verify_sentences(
+            _batch_verification_inputs(),
+            {},
+            return_invalid_rows=True,
+        ) is None
 
     @patch("app.services.llm.generate_completion")
     def test_prompt_exposes_exact_mapping_identity_and_metadata_distinction(
@@ -992,21 +1062,13 @@ class TestMapTokensToLemmas:
             2187,
             2188,
         ]
-        # Without sukūn/shadda, both pairs remain ambiguous. Keep them
-        # inventory-complete for post-diacritization verification, but expose
-        # every competing identity instead of silently calling one clean.
+        # Without sukūn/shadda, each hamza-preserving pair remains ambiguous.
+        # Keep its two identities available for contextual verification
+        # without mixing the أ and إ sides of the normalized collision.
         assert mappings[4].lemma_id == 2185
-        assert set(mappings[4].alternative_lemma_ids or []) == {
-            2186,
-            2187,
-            2188,
-        }
+        assert set(mappings[4].alternative_lemma_ids or []) == {2187}
         assert mappings[5].lemma_id == 2186
-        assert set(mappings[5].alternative_lemma_ids or []) == {
-            2185,
-            2187,
-            2188,
-        }
+        assert set(mappings[5].alternative_lemma_ids or []) == {2188}
 
     def test_word_maps_when_in_lookup(self):
         """هو is in lookup, so it gets a lemma_id. Also detected as function word."""
@@ -1220,23 +1282,63 @@ class TestMapTokensToLemmas:
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
         assert mappings[0].lemma_id == 2188
 
-    def test_unhamzated_an_preserves_particle_ambiguity(self):
+    def test_unhamzated_an_fails_closed(self):
         lemmas = [
             _FakeLemma(943, "ان", lemma_ar="آنٌ"),
             _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
             _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
         ]
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize_display("ان الطَّرِيقَ طَوِيلٌ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
-        assert {
+        assert mappings[0].lemma_id is None
+        assert mappings[0].alternative_lemma_ids is None
+
+    def test_bare_hamzated_particles_preserve_two_identity_candidates(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["أن", "إن"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert (
             mappings[0].lemma_id,
-            *(mappings[0].alternative_lemma_ids or []),
-        } == {
-            943,
-            2185,
-            2186,
-        }
+            set(mappings[0].alternative_lemma_ids or []),
+        ) == (2185, {2187})
+        assert (
+            mappings[1].lemma_id,
+            set(mappings[1].alternative_lemma_ids or []),
+        ) == (2186, {2188})
+
+    def test_exact_madda_form_excludes_normalized_particle_alternatives(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mapping = map_tokens_to_lemmas(
+            ["آن"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id == 943
+        assert mapping.alternative_lemma_ids is None
 
     def test_bi_anna_overrides_bana_content_verb(self):
         lemmas = [
@@ -1248,6 +1350,170 @@ class TestMapTokensToLemmas:
         tokens = tokenize_display("بِأَنَّ الطَّرِيقَ طَوِيلٌ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
         assert mappings[0].lemma_id == 2187
+
+    def test_bare_prefixed_particles_route_to_complete_hamza_candidates(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["بأن", "وإن", "وأن", "بان"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert (
+            mappings[0].lemma_id,
+            set(mappings[0].alternative_lemma_ids or []),
+        ) == (2185, {2187})
+        assert (
+            mappings[1].lemma_id,
+            set(mappings[1].alternative_lemma_ids or []),
+        ) == (2186, {2188})
+        assert (
+            mappings[2].lemma_id,
+            set(mappings[2].alternative_lemma_ids or []),
+        ) == (2185, {2187})
+        assert mappings[3].lemma_id == 554
+        assert mappings[3].alternative_lemma_ids is None
+        assert mappings[3].is_function_word is False
+
+    def test_bare_prefixed_particle_fails_closed_if_identity_is_missing(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["بأن"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert mappings[0].lemma_id is None
+        assert mappings[0].alternative_lemma_ids is None
+
+    def test_stored_laanna_identity_beats_derived_particle_alias(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            # Match the actual production row: its stored citation omits the
+            # prefix kasra even though running text supplies it.
+            _FakeLemma(3000, "لان", pos="conj", lemma_ar="لأنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["لِأَنَّ", "لِأَنَّ", "لأن", "لِأَنْ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [
+            3000,
+            3000,
+            3000,
+            2185,
+        ]
+
+        targeted = map_tokens_to_lemmas(
+            ["لِأَنَّ", "لِأَنَّ", "لِأَنْ"],
+            lookup,
+            target_lemma_id=3000,
+            target_bare="لان",
+        )
+        assert [mapping.lemma_id for mapping in targeted] == [
+            3000,
+            3000,
+            2185,
+        ]
+        assert [mapping.is_target for mapping in targeted] == [
+            True,
+            True,
+            False,
+        ]
+        assert refresh_target_mapping_flags(
+            targeted,
+            lookup,
+            {"لان": 3000},
+            required_target_ids={3000},
+        ) is True
+
+    def test_target_matching_respects_exact_particle_identity(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(943, "ان", pos="noun", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["أَنْ", "أَنَّ", "إِنْ", "إِنَّ", "آنٌ"],
+            lookup,
+            target_lemma_id=2185,
+            target_bare="ان",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [
+            2185,
+            2187,
+            2186,
+            2188,
+            943,
+        ]
+        assert [mapping.is_target for mapping in mappings] == [
+            True,
+            False,
+            False,
+            False,
+            False,
+        ]
+
+    def test_shadda_bearing_particle_can_be_the_exact_target(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["أَنَّ"],
+            lookup,
+            target_lemma_id=2187,
+            target_bare="انّ",
+        )
+
+        assert mappings[0].lemma_id == 2187
+        assert mappings[0].is_target is True
+
+    def test_target_flags_are_rechecked_after_mapping_correction(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+        ])
+        mappings = map_tokens_to_lemmas(
+            ["أَنْ"],
+            lookup,
+            target_lemma_id=2185,
+            target_bare="ان",
+        )
+        mappings[0].lemma_id = 2187
+
+        intact = refresh_target_mapping_flags(
+            mappings,
+            lookup,
+            {"ان": 2185},
+            required_target_ids={2185},
+        )
+
+        assert intact is False
+        assert mappings[0].is_target is False
 
     def test_alayhi_maps_to_preposition_not_ali(self):
         lemmas = [
@@ -1539,6 +1805,62 @@ class TestResolveExistingLemma:
 
     def test_new_word_returns_none(self):
         assert resolve_existing_lemma("سيارة", self.lookup) is None
+
+    @pytest.mark.parametrize(
+        ("surface", "expected_id"),
+        [
+            ("أَنْ", 2185),
+            ("أَنَّ", 2187),
+            ("إِنْ", 2186),
+            ("إِنَّ", 2188),
+            ("بِأَنَّ", 2187),
+            ("وَإِنْ", 2186),
+        ],
+    )
+    def test_exact_grammatical_identity_matches_import_dedup(
+        self,
+        surface,
+        expected_id,
+    ):
+        lookup = build_lemma_lookup([
+            _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
+            _FakeLemma(943, "ان", pos="noun", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        assert resolve_existing_lemma(surface, lookup) == expected_id
+
+    @pytest.mark.parametrize(
+        "surface",
+        ["ان", "أن", "إن", "بأن", "وإن", "وأن"],
+    )
+    def test_contextless_ambiguous_particle_dedup_fails_closed(
+        self,
+        surface,
+    ):
+        lookup = build_lemma_lookup([
+            _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        assert resolve_existing_lemma(surface, lookup) is None
+
+    def test_contextless_exact_madda_form_still_resolves(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        assert resolve_existing_lemma("آن", lookup) == 943
 
 
 class TestLookupCollisions:

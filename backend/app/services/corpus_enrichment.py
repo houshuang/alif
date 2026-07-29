@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from math import ceil
 from typing import Iterable, Sequence
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.models import (
@@ -38,7 +38,11 @@ from app.models import (
 )
 from app.services.activity_log import log_activity
 from app.services.canonical_resolution import resolve_canonical_via_map
-from app.services.pipeline_tiers import WordTier, compute_word_tiers
+from app.services.pipeline_tiers import (
+    WordTier,
+    compute_knowledge_tier,
+    compute_word_tiers,
+)
 from app.services.sentence_eligibility import (
     CORPUS_BLOCKED_SENTINEL,
     CORPUS_CLAIM_SENTINEL,
@@ -245,9 +249,15 @@ class CorpusActivationPlan:
     active_before: int = 0
     active_ceiling: int = 0
     capacity: int = 0
+    _planned_state_by_id: dict[int, tuple[dict, tuple]] = field(
+        default_factory=dict,
+        repr=False,
+    )
 
     def detail(self) -> dict:
-        return asdict(self)
+        detail = asdict(self)
+        detail.pop("_planned_state_by_id", None)
+        return detail
 
 
 @dataclass
@@ -262,7 +272,6 @@ class CorpusEnrichmentResult:
     prepared_ids: list[int] = field(default_factory=list)
     activated_ids: list[int] = field(default_factory=list)
     retry_ids: list[int] = field(default_factory=list)
-    mapping_rejected_ids: list[int] = field(default_factory=list)
     quality_rejected_ids: list[int] = field(default_factory=list)
     target_rejected_ids: list[int] = field(default_factory=list)
     activation_blocked_acquiring_ids: list[int] = field(default_factory=list)
@@ -336,6 +345,22 @@ def _scope_query(query, scope: CorpusScope):
     return query
 
 
+def outside_corpus_governor_clause():
+    """Exclude authentic rows that have entered the governed QA lifecycle.
+
+    ``NOT (source IN (...) AND quality_reviewed_at IS NOT NULL)`` is not safe
+    for legacy rows whose source is NULL: SQL's three-valued logic would also
+    exclude those rows.  Spell out the complement so legacy/LLM maintenance
+    keeps its historical behavior while reviewed book/corpus rows can only be
+    activated by this module's bounded governor.
+    """
+    return or_(
+        Sentence.source.is_(None),
+        Sentence.source.notin_(("corpus", "book")),
+        Sentence.quality_reviewed_at.is_(None),
+    )
+
+
 def _preflight_cursor_key(
     scope: CorpusScope,
     *,
@@ -389,19 +414,68 @@ def _load_learning_context(
     db: Session,
     *,
     now: datetime | None = None,
+    relevant_raw_lemma_ids: set[int] | None = None,
 ) -> _LearningContext:
     now = _aware(now) or datetime.now(timezone.utc)
-    lemmas = {lemma.lemma_id: lemma for lemma in db.query(Lemma).all()}
-    canonical_by_id = {
-        lemma_id: lemma.canonical_lemma_id
-        for lemma_id, lemma in lemmas.items()
-    }
-    knowledge_by_id = {
-        row.lemma_id: row for row in db.query(UserLemmaKnowledge).all()
-    }
-    tiers_by_id = {
-        tier.lemma_id: tier for tier in compute_word_tiers(db, now=now)
-    }
+    if relevant_raw_lemma_ids is None:
+        lemmas = {lemma.lemma_id: lemma for lemma in db.query(Lemma).all()}
+        canonical_by_id = {
+            lemma_id: lemma.canonical_lemma_id
+            for lemma_id, lemma in lemmas.items()
+        }
+        knowledge_by_id = {
+            row.lemma_id: row for row in db.query(UserLemmaKnowledge).all()
+        }
+        tiers_by_id = {
+            tier.lemma_id: tier for tier in compute_word_tiers(db, now=now)
+        }
+        relevant_canonical_ids: set[int] | None = None
+        coverage_raw_universe = set(lemmas)
+    else:
+        # Activation needs authoritative state only for lemmas present in the
+        # <=20 selected rows. Load the complete canonical ID graph as compact
+        # scalar pairs, then fetch ORM state for that small closure. This keeps
+        # BEGIN IMMEDIATE short instead of scanning corpus-wide coverage and
+        # learner state while all app writes are blocked.
+        canonical_by_id = dict(
+            db.query(Lemma.lemma_id, Lemma.canonical_lemma_id).all()
+        )
+        selected_raw_ids = {
+            lemma_id
+            for lemma_id in relevant_raw_lemma_ids
+            if lemma_id in canonical_by_id
+        }
+        relevant_canonical_ids = {
+            resolve_canonical_via_map(lemma_id, canonical_by_id)
+            for lemma_id in selected_raw_ids
+        }
+        coverage_raw_universe = {
+            lemma_id
+            for lemma_id in canonical_by_id
+            if resolve_canonical_via_map(lemma_id, canonical_by_id)
+            in relevant_canonical_ids
+        }
+        lemmas = {
+            lemma.lemma_id: lemma
+            for lemma in db.query(Lemma)
+            .filter(Lemma.lemma_id.in_(coverage_raw_universe))
+            .all()
+        }
+        knowledge_rows = (
+            db.query(UserLemmaKnowledge)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(relevant_canonical_ids)
+            )
+            .all()
+            if relevant_canonical_ids
+            else []
+        )
+        knowledge_by_id = {row.lemma_id: row for row in knowledge_rows}
+        tiers_by_id = {
+            row.lemma_id: compute_knowledge_tier(row, now=now)
+            for row in knowledge_rows
+            if row.knowledge_state not in {"suspended", "encountered"}
+        }
     introduced_ids = {
         lemma_id
         for lemma_id, row in knowledge_by_id.items()
@@ -413,7 +487,7 @@ def _load_learning_context(
     # that contains two variants of the same canonical lemma.
     raw_introduced_ids = {
         lemma_id
-        for lemma_id in lemmas
+        for lemma_id in coverage_raw_universe
         if resolve_canonical_via_map(lemma_id, canonical_by_id) in introduced_ids
     }
     coverage_sentence_ids: dict[int, set[int]] = {}
@@ -443,15 +517,19 @@ def _load_learning_context(
     }
 
     active_target_count_by_id: dict[int, int] = {}
-    for target_id, count in (
+    target_query = (
         db.query(Sentence.target_lemma_id, func.count(Sentence.id))
         .filter(
             Sentence.target_lemma_id.isnot(None),
             reviewable_sentence_clauses(),
         )
         .group_by(Sentence.target_lemma_id)
-        .all()
-    ):
+    )
+    if relevant_canonical_ids is not None:
+        target_query = target_query.filter(
+            Sentence.target_lemma_id.in_(coverage_raw_universe)
+        )
+    for target_id, count in target_query.all():
         canonical_id = resolve_canonical_via_map(target_id, canonical_by_id)
         active_target_count_by_id[canonical_id] = (
             active_target_count_by_id.get(canonical_id, 0) + count
@@ -775,7 +853,7 @@ def plan_corpus_enrichment_report(
     stored_order.sort(key=lambda item: item[0])
     preflight_rows = [sentence for _, sentence in stored_order]
 
-    lemma_lookup = build_comprehensive_lemma_lookup(db)
+    lemma_lookup = build_comprehensive_lemma_lookup(db, require_gated=True)
     first_pass_by_id: dict[int, list] = {}
     unmapped_frequency: dict[str, int] = {}
     for sentence in preflight_rows:
@@ -905,7 +983,10 @@ def recover_scoped_legacy_claims(
         Sentence.id.in_(recovered_ids),
         Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
     ).update(
-        {Sentence.mappings_verified_at: None},
+        {
+            Sentence.mappings_verified_at: None,
+            Sentence.is_active: False,
+        },
         synchronize_session=False,
     )
     db.commit()
@@ -1170,7 +1251,10 @@ def _release_claims(
             Sentence.id.in_(blocked_releasable),
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
         ).update(
-            {Sentence.mappings_verified_at: CORPUS_BLOCKED_SENTINEL},
+            {
+                Sentence.mappings_verified_at: CORPUS_BLOCKED_SENTINEL,
+                Sentence.is_active: False,
+            },
             synchronize_session=False,
         )
     if ordinary_releasable:
@@ -1178,7 +1262,10 @@ def _release_claims(
             Sentence.id.in_(ordinary_releasable),
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
         ).update(
-            {Sentence.mappings_verified_at: None},
+            {
+                Sentence.mappings_verified_at: None,
+                Sentence.is_active: False,
+            },
             synchronize_session=False,
         )
     if releasable:
@@ -1194,22 +1281,38 @@ def _mark_retry(
     blocked_retry_ids: set[int],
     result: CorpusEnrichmentResult,
     reason: str,
+    *,
+    expected_content_by_id: dict[int, dict[str, str | None]] | None = None,
+    content_change_reason: str = "content_changed_during_processing",
 ) -> None:
     ids = sorted(set(sentence_ids))
     if not ids:
         return
     released_ids: list[int] = []
     lost_ids: list[int] = []
+    content_guard_failed_ids: list[int] = []
     for sentence_id in ids:
         disposition = (
             CORPUS_BLOCKED_SENTINEL
             if sentence_id in blocked_retry_ids
             else None
         )
-        updated = db.query(Sentence).filter(
+        update_query = db.query(Sentence).filter(
             Sentence.id == sentence_id,
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
-        ).update(
+        )
+        expected_content = (
+            expected_content_by_id.get(sentence_id)
+            if expected_content_by_id is not None
+            else None
+        )
+        if expected_content is not None:
+            update_query = update_query.filter(
+                Sentence.is_active.is_(False),
+                Sentence.arabic_text == expected_content["arabic"],
+                Sentence.english_translation == expected_content["english"],
+            )
+        updated = update_query.update(
             {
                 Sentence.mappings_verified_at: disposition,
                 Sentence.is_active: False,
@@ -1218,15 +1321,27 @@ def _mark_retry(
         )
         if updated:
             released_ids.append(sentence_id)
+        elif expected_content is not None:
+            content_guard_failed_ids.append(sentence_id)
         else:
             lost_ids.append(sentence_id)
     db.commit()
-    pending_claim_ids.difference_update(ids)
+    pending_claim_ids.difference_update(released_ids)
     result.retry_ids.extend(
         sid for sid in released_ids if sid not in result.retry_ids
     )
     if released_ids:
         result.add_failure(reason, len(released_ids))
+    for sentence_id in content_guard_failed_ids:
+        _release_content_changed_for_retry(
+            db,
+            sentence_id,
+            pending_claim_ids=pending_claim_ids,
+            blocked_retry_ids=blocked_retry_ids,
+            result=result,
+            reason=content_change_reason,
+            expected_content=expected_content_by_id[sentence_id],
+        )
     for sentence_id in lost_ids:
         _record_claim_lost(
             result,
@@ -1234,6 +1349,112 @@ def _mark_retry(
             sentence_id=sentence_id,
             phase=f"retry_{reason}",
         )
+
+
+def _release_content_changed_for_retry(
+    db: Session,
+    sentence_id: int,
+    *,
+    pending_claim_ids: set[int],
+    blocked_retry_ids: set[int],
+    result: CorpusEnrichmentResult,
+    reason: str,
+    expected_content: dict[str, str | None],
+    claim_lost_phase: str | None = None,
+) -> None:
+    """Release an owned claim after its reviewed text changed concurrently.
+
+    The row must remain invisible, and any QA verdict for the old text must be
+    cleared. Rows that entered through an explicit blocked retry return to that
+    durable disposition instead of being silently promoted to an ordinary
+    unreviewed row.
+    """
+    db.rollback()
+    disposition = (
+        CORPUS_BLOCKED_SENTINEL
+        if sentence_id in blocked_retry_ids
+        else None
+    )
+    matched = (
+        db.query(Sentence)
+        .filter(
+            Sentence.id == sentence_id,
+            Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+        )
+        .update(
+            {Sentence.mappings_verified_at: CORPUS_CLAIM_SENTINEL},
+            synchronize_session=False,
+        )
+    )
+    if not matched:
+        db.rollback()
+        _record_claim_lost(
+            result,
+            pending_claim_ids,
+            sentence_id=sentence_id,
+            phase=claim_lost_phase or reason,
+        )
+        return
+
+    db.expire_all()
+    sentence = (
+        db.query(Sentence)
+        .filter(Sentence.id == sentence_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if sentence is None:
+        db.rollback()
+        _record_claim_lost(
+            result,
+            pending_claim_ids,
+            sentence_id=sentence_id,
+            phase=claim_lost_phase or reason,
+        )
+        return
+
+    values = {
+        Sentence.mappings_verified_at: disposition,
+        Sentence.is_active: False,
+        Sentence.quality_reviewed_at: None,
+        Sentence.quality_natural: None,
+        Sentence.quality_translation_correct: None,
+        Sentence.quality_reason: None,
+    }
+    if sentence.arabic_text != expected_content["arabic"]:
+        from app.services.transliteration import transliterate_arabic
+
+        values[Sentence.transliteration] = (
+            transliterate_arabic(sentence.arabic_text) or ""
+        )
+    updated = (
+        db.query(Sentence)
+        .filter(
+            Sentence.id == sentence_id,
+            Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+        )
+        .update(values, synchronize_session=False)
+    )
+    if not updated:
+        db.rollback()
+        _record_claim_lost(
+            result,
+            pending_claim_ids,
+            sentence_id=sentence_id,
+            phase=claim_lost_phase or reason,
+        )
+        return
+    db.commit()
+    pending_claim_ids.discard(sentence_id)
+    if sentence_id not in result.retry_ids:
+        result.retry_ids.append(sentence_id)
+    result.add_failure(reason)
+    _record_diagnostic(
+        result,
+        sentence_id=sentence_id,
+        disposition="retry",
+        reason=reason,
+    )
 
 
 def _target_choice(
@@ -1306,6 +1527,24 @@ def _target_choice(
     return target_id, position
 
 
+def _no_target_reason(
+    mappings: list,
+    context: _LearningContext,
+) -> str:
+    """Explain why a complete mapping has no currently valid target."""
+    content_states: list[str | None] = []
+    for mapping in mappings:
+        lemma_id = mapping.lemma_id if mapping.lemma_id not in (None, 0) else None
+        if lemma_id is None or not context.is_content(lemma_id):
+            continue
+        canonical_id = context.canonical_id(lemma_id)
+        knowledge = context.knowledge_by_id.get(canonical_id)
+        content_states.append(knowledge.knowledge_state if knowledge else None)
+    if content_states and all(state == "suspended" for state in content_states):
+        return "target_content_suspended"
+    return "no_valid_content_target"
+
+
 def _mapping_is_complete(
     mappings: list,
     context: _LearningContext,
@@ -1376,6 +1615,74 @@ def _write_final_mappings(
     if not target_written:
         return False
     sentence.target_lemma_id = target_lemma_id
+    return True
+
+
+def _mapping_state_signature(
+    sentence: Sentence,
+    words: Iterable[SentenceWord] | None = None,
+) -> tuple:
+    """Compact version signature for mappings observed before an LLM call."""
+    word_rows = list(words if words is not None else sentence.words)
+    return (
+        sentence.target_lemma_id,
+        tuple(
+            sorted(
+                (
+                    word.id,
+                    word.position,
+                    word.surface_form,
+                    word.lemma_id,
+                    bool(word.is_target_word),
+                )
+                for word in word_rows
+            )
+        ),
+    )
+
+
+def _activation_parent_state(sentence: Sentence) -> dict:
+    """Return parent fields whose derived mapping/QA state depends on them."""
+    return {
+        "arabic": sentence.arabic_text,
+        "english": sentence.english_translation,
+        "source": sentence.source,
+        "kind": sentence.kind,
+        "target": sentence.target_lemma_id,
+        "mapping_stamp": sentence.mappings_verified_at,
+        "quality_stamp": sentence.quality_reviewed_at,
+        "quality_natural": sentence.quality_natural,
+        "quality_translation": sentence.quality_translation_correct,
+        "quality_reason": sentence.quality_reason,
+    }
+
+
+def _invalidate_content_drift(
+    sentence: Sentence,
+    expected_parent: dict,
+) -> bool:
+    """Invalidate unchanged derived artifacts after parent content drift."""
+    arabic_changed = sentence.arabic_text != expected_parent.get("arabic")
+    english_changed = (
+        sentence.english_translation != expected_parent.get("english")
+    )
+    if not (arabic_changed or english_changed):
+        return False
+
+    sentence.is_active = False
+    if sentence.mappings_verified_at == expected_parent.get("mapping_stamp"):
+        sentence.mappings_verified_at = None
+    if sentence.quality_reviewed_at == expected_parent.get("quality_stamp"):
+        sentence.quality_reviewed_at = None
+        sentence.quality_natural = None
+        sentence.quality_translation_correct = None
+        sentence.quality_reason = None
+    if arabic_changed:
+        from app.services.transliteration import transliterate_arabic
+
+        sentence.transliteration = (
+            transliterate_arabic(sentence.arabic_text) or ""
+        )
     return True
 
 
@@ -1463,27 +1770,76 @@ def _mark_mapping_blocked(
     sentence_id: int,
     *,
     pending_claim_ids: set[int],
+    blocked_retry_ids: set[int],
     result: CorpusEnrichmentResult,
     reason: str,
+    expected_content: dict[str, str | None],
+    expected_mapping_state: tuple,
     positions: list[dict] | None = None,
-) -> None:
-    sentence = (
+) -> bool:
+    # Acquire the parent write boundary before inspecting child mappings. This
+    # prevents a stale terminal verifier result from stranding a mapping that
+    # a non-flock writer repaired while the external call was in flight.
+    matched = (
         db.query(Sentence)
-        .populate_existing()
         .filter(
             Sentence.id == sentence_id,
+            Sentence.is_active.is_(False),
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+            Sentence.arabic_text == expected_content["arabic"],
+            Sentence.english_translation == expected_content["english"],
         )
+        .update(
+            {Sentence.mappings_verified_at: CORPUS_CLAIM_SENTINEL},
+            synchronize_session=False,
+        )
+    )
+    if not matched:
+        db.rollback()
+        _release_content_changed_for_retry(
+            db,
+            sentence_id=sentence_id,
+            pending_claim_ids=pending_claim_ids,
+            blocked_retry_ids=blocked_retry_ids,
+            result=result,
+            reason="content_changed_during_mapping",
+            expected_content=expected_content,
+            claim_lost_phase="mapping_block",
+        )
+        return False
+
+    db.expire_all()
+    sentence = (
+        db.query(Sentence)
+        .filter(Sentence.id == sentence_id)
+        .with_for_update()
         .one_or_none()
     )
-    if sentence is None:
-        _record_claim_lost(
-            result,
+    words = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sentence_id)
+        .order_by(SentenceWord.id.asc())
+        .with_for_update()
+        .all()
+    )
+    if (
+        sentence is None
+        or _mapping_state_signature(sentence, words)
+        != expected_mapping_state
+    ):
+        db.rollback()
+        _mark_retry(
+            db,
+            [sentence_id],
             pending_claim_ids,
-            sentence_id=sentence_id,
-            phase="mapping_block",
+            blocked_retry_ids,
+            result,
+            "mapping_state_changed_during_verification",
+            expected_content_by_id={sentence_id: expected_content},
+            content_change_reason="content_changed_during_mapping",
         )
-        return
+        return False
+
     values = {
         Sentence.is_active: False,
         Sentence.mappings_verified_at: CORPUS_BLOCKED_SENTINEL,
@@ -1507,19 +1863,26 @@ def _mark_mapping_blocked(
         db.query(Sentence)
         .filter(
             Sentence.id == sentence_id,
+            Sentence.is_active.is_(False),
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+            Sentence.arabic_text == expected_content["arabic"],
+            Sentence.english_translation == expected_content["english"],
         )
         .update(values, synchronize_session=False)
     )
     if not updated:
         db.rollback()
-        _record_claim_lost(
-            result,
-            pending_claim_ids,
+        _release_content_changed_for_retry(
+            db,
             sentence_id=sentence_id,
-            phase="mapping_block",
+            pending_claim_ids=pending_claim_ids,
+            blocked_retry_ids=blocked_retry_ids,
+            result=result,
+            reason="content_changed_during_mapping",
+            expected_content=expected_content,
+            claim_lost_phase="mapping_block",
         )
-        return
+        return False
     db.commit()
     pending_claim_ids.discard(sentence_id)
     if sentence_id not in result.mapping_blocked_ids:
@@ -1532,6 +1895,7 @@ def _mark_mapping_blocked(
         positions=positions,
     )
     result.add_failure(reason)
+    return True
 
 
 def _mark_quality_rejected(
@@ -1540,10 +1904,12 @@ def _mark_quality_rejected(
     *,
     now: datetime,
     pending_claim_ids: set[int],
+    blocked_retry_ids: set[int],
     result: CorpusEnrichmentResult,
     natural: bool,
     translation_correct: bool,
     reason: str,
+    expected_content: dict[str, str | None],
 ) -> None:
     updated = (
         db.query(Sentence)
@@ -1551,6 +1917,8 @@ def _mark_quality_rejected(
             Sentence.id == sentence_id,
             Sentence.is_active.is_(False),
             Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+            Sentence.arabic_text == expected_content["arabic"],
+            Sentence.english_translation == expected_content["english"],
         )
         .update(
             {
@@ -1568,11 +1936,15 @@ def _mark_quality_rejected(
     )
     if not updated:
         db.rollback()
-        _record_claim_lost(
-            result,
-            pending_claim_ids,
+        _release_content_changed_for_retry(
+            db,
             sentence_id=sentence_id,
-            phase="quality_rejection",
+            pending_claim_ids=pending_claim_ids,
+            blocked_retry_ids=blocked_retry_ids,
+            result=result,
+            reason="content_changed_during_quality_review",
+            expected_content=expected_content,
+            claim_lost_phase="quality_rejection",
         )
         return
     db.commit()
@@ -1596,6 +1968,12 @@ def _prepared_query(db: Session, scope: CorpusScope):
         not_has_unmapped_words(),
     )
     return _scope_query(query, scope)
+
+
+def _begin_sqlite_write_boundary(db: Session) -> None:
+    """Serialize the short activation tranche before reloading live state."""
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
 
 
 def plan_corpus_activation(
@@ -1672,6 +2050,15 @@ def plan_corpus_activation(
         remaining.remove(chosen_id)
         for lemma_id in chosen_demand.fsrs_demand_lemma_ids:
             projected_coverage[lemma_id] = projected_coverage.get(lemma_id, 0) + 1
+    selected = set(plan.selected_ids)
+    plan._planned_state_by_id = {
+        sentence.id: (
+            _activation_parent_state(sentence),
+            _mapping_state_signature(sentence),
+        )
+        for sentence in rows
+        if sentence.id in selected
+    }
     return plan
 
 
@@ -1695,22 +2082,88 @@ def activate_prepared_corpus_sentences(
     if not plan.selected_ids:
         return plan
 
-    # The read-only planner may have populated the identity map with learner
-    # state that changed before this write pass. Expire it so both the
-    # prepared rows and the activation context are reloaded from the database.
+    # The read-only planner may have populated the identity map with state that
+    # changed before this write pass. End that snapshot, then acquire SQLite's
+    # writer boundary before reloading the active count, rows, and learner
+    # context once. This keeps the state authoritative for the whole bounded
+    # tranche without paying a full-context reload under the lock per row.
+    db.commit()
     db.expire_all()
-    rows = {
-        sentence.id: sentence
-        for sentence in _prepared_query(db, scope)
-        .filter(Sentence.id.in_(plan.selected_ids))
-        .all()
-    }
-    context = _load_learning_context(db, now=now)
-    activated_ids: list[int] = []
     try:
+        _begin_sqlite_write_boundary(db)
+        live_active = int(
+            db.query(func.count(Sentence.id))
+            .filter(Sentence.is_active.is_(True))
+            .scalar()
+            or 0
+        )
+        plan.active_before = live_active
+        plan.capacity = min(
+            activate_limit,
+            max(0, active_ceiling - live_active),
+        )
+        if plan.capacity == 0:
+            plan.selected_ids = []
+            db.commit()
+            return plan
+
+        rows = {
+            sentence.id: sentence
+            for sentence in _prepared_query(db, scope)
+            .filter(Sentence.id.in_(plan.selected_ids))
+            .all()
+        }
+        activation_raw_lemma_ids = {
+            word.lemma_id
+            for sentence in rows.values()
+            for word in sentence.words
+            if word.lemma_id is not None
+        }
+        context = _load_learning_context(
+            db,
+            now=now,
+            relevant_raw_lemma_ids=activation_raw_lemma_ids,
+        )
+        active_sentence = aliased(Sentence)
+        active_count = (
+            select(func.count(active_sentence.id))
+            .where(active_sentence.is_active.is_(True))
+            .scalar_subquery()
+        )
+        activated_ids: list[int] = []
         for sentence_id in plan.selected_ids:
+            if len(activated_ids) >= plan.capacity:
+                break
             sentence = rows.get(sentence_id)
             if sentence is None:
+                continue
+            parent_snapshot = _activation_parent_state(sentence)
+            mapping_snapshot = _mapping_state_signature(sentence)
+            planned_snapshot = plan._planned_state_by_id.get(sentence_id)
+            if planned_snapshot != (parent_snapshot, mapping_snapshot):
+                planned_parent = (
+                    planned_snapshot[0] if planned_snapshot is not None else {}
+                )
+                planned_mapping = (
+                    planned_snapshot[1] if planned_snapshot is not None else None
+                )
+                if sentence.is_active is False and _invalidate_content_drift(
+                    sentence,
+                    planned_parent,
+                ):
+                    # Mapping verification and translation QA are independent:
+                    # refreshing one cannot authenticate the other.
+                    pass
+                elif (
+                    sentence.is_active is False
+                    and sentence.mappings_verified_at
+                    == planned_parent.get("mapping_stamp")
+                    and mapping_snapshot != planned_mapping
+                ):
+                    # Preserve the external child edit, but its old verifier
+                    # stamp no longer authenticates the new mapping state.
+                    sentence.mappings_verified_at = None
+                    sentence.is_active = False
                 continue
             # Re-evaluate canonical demand from the reloaded row and learner
             # context. Planning is advisory: a word may have entered
@@ -1742,12 +2195,92 @@ def activate_prepared_corpus_sentences(
             )
             if target_id is None or target_position is None:
                 continue
-            for word in sentence.words:
-                word.is_target_word = False
+            # Claim a visibility slot with a final parent-state and ceiling
+            # guard. The tranche already holds SQLite's writer boundary, and
+            # later candidates in this transaction see earlier slot claims.
+            slot_claim = db.execute(
+                update(Sentence)
+                .where(
+                    Sentence.id == sentence_id,
+                    Sentence.is_active.is_(False),
+                    Sentence.arabic_text == parent_snapshot["arabic"],
+                    Sentence.english_translation
+                    == parent_snapshot["english"],
+                    Sentence.source == parent_snapshot["source"],
+                    Sentence.kind == parent_snapshot["kind"],
+                    Sentence.target_lemma_id == parent_snapshot["target"],
+                    Sentence.mappings_verified_at
+                    == parent_snapshot["mapping_stamp"],
+                    Sentence.quality_reviewed_at
+                    == parent_snapshot["quality_stamp"],
+                    Sentence.quality_natural
+                    == parent_snapshot["quality_natural"],
+                    Sentence.quality_translation_correct
+                    == parent_snapshot["quality_translation"],
+                    Sentence.quality_reason
+                    == parent_snapshot["quality_reason"],
+                    active_count < active_ceiling,
+                )
+                .values(is_active=True)
+                .execution_options(synchronize_session=False)
+            )
+            if slot_claim.rowcount != 1:
+                # If content changed without a new QA/mapping stamp, invalidate
+                # the stale derived state so a later activation pass cannot
+                # make the edited text visible.
+                db.expire_all()
+                live_sentence = (
+                    db.query(Sentence)
+                    .filter(Sentence.id == sentence_id)
+                    .with_for_update()
+                    .one_or_none()
+                )
+                if (
+                    live_sentence is not None
+                    and live_sentence.is_active is False
+                ):
+                    _invalidate_content_drift(
+                        live_sentence,
+                        parent_snapshot,
+                    )
+                continue
+
+            db.expire_all()
+            locked_sentence = (
+                db.query(Sentence)
+                .filter(Sentence.id == sentence_id)
+                .with_for_update()
+                .one_or_none()
+            )
+            locked_words = (
+                db.query(SentenceWord)
+                .filter(SentenceWord.sentence_id == sentence_id)
+                .order_by(SentenceWord.id.asc())
+                .with_for_update()
+                .all()
+            )
+            if (
+                locked_sentence is None
+                or _mapping_state_signature(locked_sentence, locked_words)
+                != mapping_snapshot
+            ):
+                db.query(Sentence).filter(
+                    Sentence.id == sentence_id,
+                    Sentence.is_active.is_(True),
+                    Sentence.mappings_verified_at
+                    == parent_snapshot["mapping_stamp"],
+                ).update(
+                    {
+                        Sentence.is_active: False,
+                        Sentence.mappings_verified_at: None,
+                    },
+                    synchronize_session=False,
+                )
+                continue
             target_word = min(
                 (
                     word
-                    for word in sentence.words
+                    for word in locked_words
                     if word.position == target_position
                     and word.lemma_id is not None
                     and context.canonical_id(word.lemma_id) == target_id
@@ -1756,10 +2289,21 @@ def activate_prepared_corpus_sentences(
                 default=None,
             )
             if target_word is None:
+                db.query(Sentence).filter(
+                    Sentence.id == sentence_id,
+                    Sentence.is_active.is_(True),
+                ).update(
+                    {
+                        Sentence.is_active: False,
+                        Sentence.mappings_verified_at: None,
+                    },
+                    synchronize_session=False,
+                )
                 continue
+            for word in locked_words:
+                word.is_target_word = False
             target_word.is_target_word = True
-            sentence.target_lemma_id = target_id
-            sentence.is_active = True
+            locked_sentence.target_lemma_id = target_id
             activated_ids.append(sentence_id)
         db.commit()
     except Exception:
@@ -1919,7 +2463,10 @@ def enrich_corpus_sentences(
             .all()
         }
         if claimed_ids:
-            lemma_lookup = build_comprehensive_lemma_lookup(db)
+            lemma_lookup = build_comprehensive_lemma_lookup(
+                db,
+                require_gated=True,
+            )
             db.commit()
         else:
             lemma_lookup = None
@@ -1939,6 +2486,7 @@ def enrich_corpus_sentences(
             enrichment_inputs = {
                 sentence.id: {
                     "arabic": sentence.arabic_text,
+                    "english": sentence.english_translation,
                     "needs_diacritics": not has_arabic_diacritics(
                         sentence.arabic_text
                     ),
@@ -1953,6 +2501,7 @@ def enrich_corpus_sentences(
             except Exception:
                 enriched = {}
             retry_ids: list[int] = []
+            content_changed_ids: list[int] = []
             for sentence in batch:
                 enrichment_input = enrichment_inputs[sentence.id]
                 item = enriched.get(sentence.id)
@@ -1963,51 +2512,72 @@ def enrich_corpus_sentences(
                     continue
                 diacritized = item.get("diacritized", "")
                 translation = item.get("translation", "")
-                if (
-                    (
-                        needs_diacritics
-                        and not has_arabic_diacritics(diacritized)
-                    )
-                    or (needs_translation and not translation)
-                    or (
-                        diacritized
-                        and not _same_letters(
+                invalid_diacritics = (
+                    needs_diacritics
+                    and (
+                        not has_arabic_diacritics(diacritized)
+                        or not _same_letters(
                             enrichment_input["arabic"],
                             diacritized,
                         )
                     )
-                ):
+                )
+                invalid_translation = needs_translation and not translation
+                if invalid_diacritics or invalid_translation:
                     retry_ids.append(sentence.id)
                     continue
                 values = {}
-                if diacritized:
+                if needs_diacritics:
                     values[Sentence.arabic_text] = diacritized
                     values[Sentence.transliteration] = (
                         transliterate_arabic(diacritized) or ""
                     )
-                if translation:
+                if needs_translation:
                     values[Sentence.english_translation] = translation
-                updated = (
-                    db.query(Sentence)
-                    .filter(
-                        Sentence.id == sentence.id,
-                        Sentence.is_active.is_(False),
-                        Sentence.mappings_verified_at
-                        == CORPUS_CLAIM_SENTINEL,
+                update_query = db.query(Sentence).filter(
+                    Sentence.id == sentence.id,
+                    Sentence.is_active.is_(False),
+                    Sentence.mappings_verified_at
+                    == CORPUS_CLAIM_SENTINEL,
+                )
+                # The external call ran without a DB lock. Preserve the
+                # field-specific "fill missing only" contract with an exact
+                # compare-and-set against each original value we replace.
+                # Translation also depends on the exact Arabic sent to the
+                # provider, so guard that input even when Arabic itself was
+                # already vocalized. A manual/concurrent edit that deliberately
+                # leaves our claim stamp in place must still win.
+                if needs_diacritics or needs_translation:
+                    update_query = update_query.filter(
+                        Sentence.arabic_text
+                        == enrichment_input["arabic"]
                     )
-                    .update(values, synchronize_session=False)
+                if needs_translation:
+                    update_query = update_query.filter(
+                        Sentence.english_translation
+                        == enrichment_input["english"]
+                    )
+                updated = update_query.update(
+                    values,
+                    synchronize_session=False,
                 )
                 if not updated:
-                    _record_claim_lost(
-                        result,
-                        pending_claim_ids,
-                        sentence_id=sentence.id,
-                        phase="phase1_enrichment",
-                    )
+                    content_changed_ids.append(sentence.id)
                     continue
                 ready_ids.add(sentence.id)
                 result.translated_ids.append(sentence.id)
             db.commit()
+            for sentence_id in content_changed_ids:
+                _release_content_changed_for_retry(
+                    db,
+                    sentence_id,
+                    pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
+                    result=result,
+                    reason="content_changed_during_enrichment",
+                    expected_content=enrichment_inputs[sentence_id],
+                    claim_lost_phase="phase1_enrichment",
+                )
             _mark_retry(
                 db,
                 retry_ids,
@@ -2023,10 +2593,17 @@ def enrich_corpus_sentences(
         quality_rows = [
             sentences[sentence_id] for sentence_id in sorted(ready_ids)
         ]
+        quality_snapshots = {
+            sentence.id: {
+                "arabic": sentence.arabic_text,
+                "english": sentence.english_translation,
+            }
+            for sentence in quality_rows
+        }
         quality_inputs = [
             {
-                "arabic": sentence.arabic_text,
-                "english": sentence.english_translation or "",
+                "arabic": quality_snapshots[sentence.id]["arabic"],
+                "english": quality_snapshots[sentence.id]["english"] or "",
             }
             for sentence in quality_rows
         ]
@@ -2048,6 +2625,8 @@ def enrich_corpus_sentences(
                 blocked_retry_ids,
                 result,
                 "quality_review_unavailable_or_incomplete",
+                expected_content_by_id=quality_snapshots,
+                content_change_reason="content_changed_during_quality_review",
             )
         else:
             incomplete_quality_ids: list[int] = []
@@ -2064,12 +2643,15 @@ def enrich_corpus_sentences(
                         sentence.id,
                         now=now,
                         pending_claim_ids=pending_claim_ids,
+                        blocked_retry_ids=blocked_retry_ids,
                         result=result,
                         natural=natural,
                         translation_correct=translation_correct,
                         reason=reason,
+                        expected_content=quality_snapshots[sentence.id],
                     )
                     continue
+                expected_content = quality_snapshots[sentence.id]
                 updated = (
                     db.query(Sentence)
                     .filter(
@@ -2077,6 +2659,9 @@ def enrich_corpus_sentences(
                         Sentence.is_active.is_(False),
                         Sentence.mappings_verified_at
                         == CORPUS_CLAIM_SENTINEL,
+                        Sentence.arabic_text == expected_content["arabic"],
+                        Sentence.english_translation
+                        == expected_content["english"],
                     )
                     .update(
                         {
@@ -2091,11 +2676,15 @@ def enrich_corpus_sentences(
                 )
                 if not updated:
                     db.rollback()
-                    _record_claim_lost(
-                        result,
-                        pending_claim_ids,
-                        sentence_id=sentence.id,
-                        phase="quality_pass",
+                    _release_content_changed_for_retry(
+                        db,
+                        sentence.id,
+                        pending_claim_ids=pending_claim_ids,
+                        blocked_retry_ids=blocked_retry_ids,
+                        result=result,
+                        reason="content_changed_during_quality_review",
+                        expected_content=expected_content,
+                        claim_lost_phase="quality_pass",
                     )
                     continue
                 db.commit()
@@ -2108,6 +2697,8 @@ def enrich_corpus_sentences(
                 blocked_retry_ids,
                 result,
                 "quality_review_unavailable_or_incomplete",
+                expected_content_by_id=quality_snapshots,
+                content_change_reason="content_changed_during_quality_review",
             )
 
         # Phase 3: rebuild prospective mappings from the enriched text. This
@@ -2116,9 +2707,9 @@ def enrich_corpus_sentences(
         first_pass_mappings: dict[int, list] = {}
         unmapped_frequency: dict[str, int] = {}
         for sentence_id in sorted(quality_pass_ids):
-            sentence = sentences[sentence_id]
+            expected_content = quality_snapshots[sentence_id]
             mappings = map_tokens_to_lemmas(
-                tokens=tokenize_display(sentence.arabic_text),
+                tokens=tokenize_display(expected_content["arabic"]),
                 lemma_lookup=lemma_lookup,
                 target_lemma_id=0,
                 target_bare="",
@@ -2154,9 +2745,11 @@ def enrich_corpus_sentences(
         context = _load_learning_context(db, now=now)
         for sentence_id in sorted(quality_pass_ids):
             sentence = sentences[sentence_id]
+            expected_content = quality_snapshots[sentence_id]
+            expected_mapping_state = _mapping_state_signature(sentence)
             mappings = (
                 map_tokens_to_lemmas(
-                    tokens=tokenize_display(sentence.arabic_text),
+                    tokens=tokenize_display(expected_content["arabic"]),
                     lemma_lookup=lemma_lookup,
                     target_lemma_id=0,
                     target_bare="",
@@ -2207,8 +2800,11 @@ def enrich_corpus_sentences(
                     db,
                     sentence_id,
                     pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
                     result=result,
                     reason=reason,
+                    expected_content=expected_content,
+                    expected_mapping_state=expected_mapping_state,
                     positions=_position_diagnostics(mappings, positions),
                 )
                 continue
@@ -2219,8 +2815,10 @@ def enrich_corpus_sentences(
             verification_candidates.append(
                 {
                     "sentence": sentence,
-                    "arabic": sentence.arabic_text,
-                    "english": sentence.english_translation or "",
+                    "arabic": expected_content["arabic"],
+                    "english": expected_content["english"] or "",
+                    "expected_content": expected_content,
+                    "mapping_state_signature": expected_mapping_state,
                     "mappings": mappings,
                     "has_ambiguous": any(
                         mapping.alternative_lemma_ids for mapping in mappings
@@ -2236,7 +2834,7 @@ def enrich_corpus_sentences(
         } if mapping_lemma_ids else {}
         db.commit()
 
-        verified_results: dict[int, tuple[Sentence, list]] = {}
+        verified_results: dict[int, tuple[dict, list]] = {}
         for start in range(
             0,
             len(verification_candidates),
@@ -2254,6 +2852,10 @@ def enrich_corpus_sentences(
             except Exception:
                 batch_results = None
             batch_ids = [candidate["sentence"].id for candidate in batch]
+            batch_content = {
+                candidate["sentence"].id: candidate["expected_content"]
+                for candidate in batch
+            }
             if batch_results is None or len(batch_results) != len(batch):
                 _mark_retry(
                     db,
@@ -2262,6 +2864,10 @@ def enrich_corpus_sentences(
                     blocked_retry_ids,
                     result,
                     "mapping_verification_unavailable_or_incomplete",
+                    expected_content_by_id=batch_content,
+                    content_change_reason=(
+                        "content_changed_during_mapping_verification"
+                    ),
                 )
                 continue
 
@@ -2278,6 +2884,12 @@ def enrich_corpus_sentences(
                         blocked_retry_ids,
                         result,
                         f"mapping_verifier_{invalid_reason}",
+                        expected_content_by_id={
+                            sentence.id: candidate["expected_content"]
+                        },
+                        content_change_reason=(
+                            "content_changed_during_mapping_verification"
+                        ),
                     )
                     _record_diagnostic(
                         result,
@@ -2311,6 +2923,12 @@ def enrich_corpus_sentences(
                         blocked_retry_ids,
                         result,
                         "mapping_verifier_contradictory_verdict",
+                        expected_content_by_id={
+                            sentence.id: candidate["expected_content"]
+                        },
+                        content_change_reason=(
+                            "content_changed_during_mapping_verification"
+                        ),
                     )
                     _record_diagnostic(
                         result,
@@ -2343,15 +2961,21 @@ def enrich_corpus_sentences(
                     mappings,
                     db,
                     lemma_lookup=lemma_lookup,
-                    arabic_text=sentence.arabic_text,
+                    arabic_text=candidate["expected_content"]["arabic"],
+                    require_gated_lemmas=True,
                 )
                 if failed_positions:
                     _mark_mapping_blocked(
                         db,
                         sentence.id,
                         pending_claim_ids=pending_claim_ids,
+                        blocked_retry_ids=blocked_retry_ids,
                         result=result,
                         reason="mapping_correction_failed",
+                        expected_content=candidate["expected_content"],
+                        expected_mapping_state=(
+                            candidate["mapping_state_signature"]
+                        ),
                         positions=_position_diagnostics(
                             mappings,
                             failed_positions,
@@ -2359,7 +2983,7 @@ def enrich_corpus_sentences(
                         ),
                     )
                     continue
-                verified_results[sentence.id] = (sentence, mappings)
+                verified_results[sentence.id] = (candidate, mappings)
             # Close the read/correction transaction before the next external
             # verifier call. The correction path never creates lemmas.
             db.commit()
@@ -2368,31 +2992,67 @@ def enrich_corpus_sentences(
         # completed pass and is preserved for any mapping/inventory blocker.
         context = _load_learning_context(db, now=now)
         for sentence_id in sorted(verified_results):
-            sentence, mappings = verified_results[sentence_id]
+            candidate, mappings = verified_results[sentence_id]
+            sentence = candidate["sentence"]
+            expected_content = candidate["expected_content"]
             complete, incomplete_reason = _mapping_is_complete(mappings, context)
             if not complete:
                 _mark_mapping_blocked(
                     db,
                     sentence_id,
                     pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
                     result=result,
                     reason=incomplete_reason or "incomplete_mapping",
+                    expected_content=expected_content,
+                    expected_mapping_state=(
+                        candidate["mapping_state_signature"]
+                    ),
                 )
                 continue
             target_id, target_position = _target_choice(
                 mappings,
                 context,
-                sentence.target_lemma_id,
+                candidate["mapping_state_signature"][0],
             )
             if target_id is None or target_position is None:
-                _mark_mapping_blocked(
+                target_reason = _no_target_reason(mappings, context)
+                if target_reason == "target_content_suspended":
+                    _mark_retry(
+                        db,
+                        [sentence_id],
+                        pending_claim_ids,
+                        blocked_retry_ids,
+                        result,
+                        target_reason,
+                        expected_content_by_id={
+                            sentence_id: expected_content
+                        },
+                        content_change_reason=(
+                            "content_changed_during_mapping_verification"
+                        ),
+                    )
+                    _record_diagnostic(
+                        result,
+                        sentence_id=sentence_id,
+                        disposition="retry",
+                        reason=target_reason,
+                    )
+                    continue
+                target_blocked = _mark_mapping_blocked(
                     db,
                     sentence_id,
                     pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
                     result=result,
                     reason="no_valid_content_target",
+                    expected_content=expected_content,
+                    expected_mapping_state=(
+                        candidate["mapping_state_signature"]
+                    ),
                 )
-                result.target_rejected_ids.append(sentence_id)
+                if target_blocked:
+                    result.target_rejected_ids.append(sentence_id)
                 continue
             # Consume the transient claim in the same transaction as the word
             # replacement. If a non-flock manual mutator changed the row during
@@ -2405,6 +3065,9 @@ def enrich_corpus_sentences(
                     Sentence.is_active.is_(False),
                     Sentence.mappings_verified_at
                     == CORPUS_CLAIM_SENTINEL,
+                    Sentence.arabic_text == expected_content["arabic"],
+                    Sentence.english_translation
+                    == expected_content["english"],
                 )
                 .update(
                     {Sentence.mappings_verified_at: now},
@@ -2413,52 +3076,114 @@ def enrich_corpus_sentences(
             )
             if not claimed_for_write:
                 db.rollback()
-                _record_claim_lost(
-                    result,
+                _release_content_changed_for_retry(
+                    db,
+                    sentence_id,
+                    pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
+                    result=result,
+                    reason="content_changed_during_mapping_verification",
+                    expected_content=expected_content,
+                    claim_lost_phase="final_mapping_write",
+                )
+                continue
+
+            # The parent CAS above is the write boundary. Reload and lock the
+            # child mappings, then reject any non-flock mapping edit made while
+            # contextual verification was in flight.
+            db.expire_all()
+            locked_sentence = (
+                db.query(Sentence)
+                .filter(Sentence.id == sentence_id)
+                .with_for_update()
+                .one_or_none()
+            )
+            locked_words = (
+                db.query(SentenceWord)
+                .filter(SentenceWord.sentence_id == sentence_id)
+                .order_by(SentenceWord.id.asc())
+                .with_for_update()
+                .all()
+            )
+            if (
+                locked_sentence is None
+                or _mapping_state_signature(locked_sentence, locked_words)
+                != candidate["mapping_state_signature"]
+            ):
+                db.rollback()
+                _mark_retry(
+                    db,
+                    [sentence_id],
                     pending_claim_ids,
-                    sentence_id=sentence_id,
-                    phase="final_mapping_write",
+                    blocked_retry_ids,
+                    result,
+                    "mapping_state_changed_during_verification",
+                    expected_content_by_id={
+                        sentence_id: expected_content
+                    },
+                    content_change_reason=(
+                        "content_changed_during_mapping_verification"
+                    ),
                 )
                 continue
             if not _write_final_mappings(
                 db,
-                sentence,
+                locked_sentence,
                 mappings,
                 target_lemma_id=target_id,
                 target_position=target_position,
                 context=context,
             ):
                 db.rollback()
-                _mark_mapping_blocked(
+                target_blocked = _mark_mapping_blocked(
                     db,
-                    sentence.id,
+                    sentence_id,
                     pending_claim_ids=pending_claim_ids,
+                    blocked_retry_ids=blocked_retry_ids,
                     result=result,
                     reason="target_write_failed",
+                    expected_content=expected_content,
+                    expected_mapping_state=(
+                        candidate["mapping_state_signature"]
+                    ),
                 )
-                result.target_rejected_ids.append(sentence.id)
+                if target_blocked:
+                    result.target_rejected_ids.append(sentence_id)
                 continue
 
-            sentence.is_active = False
+            locked_sentence.is_active = False
             db.commit()
-            pending_claim_ids.discard(sentence.id)
-            result.prepared_ids.append(sentence.id)
+            pending_claim_ids.discard(sentence_id)
+            result.prepared_ids.append(sentence_id)
 
-        activation = activate_prepared_corpus_sentences(
-            db,
-            scope=scope,
-            activate_limit=activate_limit,
-            active_ceiling=active_ceiling,
-            now=now,
-        )
-        result.activated_ids = activation.selected_ids
-        result.activation_blocked_acquiring_ids = (
-            activation.blocked_acquiring_ids
-        )
-        result.activation_no_demand_ids = activation.no_fsrs_demand_ids
-        result.active_before = activation.active_before
-        result.active_ceiling = activation.active_ceiling
-        result.activation_capacity = activation.capacity
+        if activate_limit:
+            activation = activate_prepared_corpus_sentences(
+                db,
+                scope=scope,
+                activate_limit=activate_limit,
+                active_ceiling=active_ceiling,
+                now=now,
+            )
+            result.activated_ids = activation.selected_ids
+            result.activation_blocked_acquiring_ids = (
+                activation.blocked_acquiring_ids
+            )
+            result.activation_no_demand_ids = activation.no_fsrs_demand_ids
+            result.active_before = activation.active_before
+            result.active_ceiling = activation.active_ceiling
+            result.activation_capacity = activation.capacity
+        else:
+            # Preparation can never activate a row. Keep the useful pool-size
+            # telemetry with one COUNT, without loading every prepared row or
+            # rebuilding the full learning context in the activation planner.
+            result.active_before = int(
+                db.query(func.count(Sentence.id))
+                .filter(Sentence.is_active.is_(True))
+                .scalar()
+                or 0
+            )
+            result.active_ceiling = active_ceiling
+            result.activation_capacity = 0
 
     except Exception as exc:
         released = _release_claims(

@@ -49,6 +49,25 @@ class WordTier:
     cap_floor: int
 
 
+def compute_knowledge_tier(
+    knowledge: UserLemmaKnowledge,
+    *,
+    now: Optional[datetime] = None,
+) -> WordTier:
+    """Compute one learner row's tier without scanning the whole table."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    due_dt = _extract_due_datetime(knowledge)
+    tier_config = _classify_tier(due_dt, now)
+    return WordTier(
+        lemma_id=knowledge.lemma_id,
+        due_dt=due_dt,
+        tier=tier_config.tier,
+        backfill_target=tier_config.backfill_target,
+        cap_floor=tier_config.cap_floor,
+    )
+
+
 def compute_word_tiers(
     db: Session,
     now: Optional[datetime] = None,
@@ -71,17 +90,7 @@ def compute_word_tiers(
 
     results: list[WordTier] = []
     for k in knowledges:
-        due_dt = _extract_due_datetime(k)
-        tier_config = _classify_tier(due_dt, now)
-        results.append(
-            WordTier(
-                lemma_id=k.lemma_id,
-                due_dt=due_dt,
-                tier=tier_config.tier,
-                backfill_target=tier_config.backfill_target,
-                cap_floor=tier_config.cap_floor,
-            )
-        )
+        results.append(compute_knowledge_tier(k, now=now))
 
     results.sort(key=lambda w: (w.due_dt or datetime.max.replace(tzinfo=timezone.utc)))
     return results

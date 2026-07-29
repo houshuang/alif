@@ -503,6 +503,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         build_comprehensive_lemma_lookup,
         build_lemma_lookup,
         map_tokens_to_lemmas,
+        refresh_target_mapping_flags,
         sanitize_arabic_word,
         strip_diacritics,
         tokenize_display,
@@ -724,7 +725,11 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         if lid and lid in all_lemma_by_id
     }
 
-    batch_results = batch_verify_sentences(candidates, lemma_map_for_verify)
+    batch_results = batch_verify_sentences(
+        candidates,
+        lemma_map_for_verify,
+        return_invalid_rows=True,
+    )
     if batch_results is None:
         logger.warning(f"Batch verification unavailable for lemma {lemma_id}, discarding all")
         return 0
@@ -734,6 +739,15 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     for cand, verify_result in zip(candidates, batch_results):
         if len(valid_sentences) >= needed:
             break
+        if verify_result.get("invalid_reason"):
+            _log_pipeline(_log_dir, {
+                "event": "verification_invalid_row",
+                "lemma_id": lemma_id,
+                "arabic": cand["arabic"],
+                "reason": verify_result["invalid_reason"],
+                "positions": verify_result.get("invalid_positions", []),
+            })
+            continue
 
         mappings = cand["mappings"]
 
@@ -743,11 +757,14 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             pos = choice.get("position")
             new_lid = choice.get("lemma_id")
             m = pos_to_mapping.get(pos)
-            if m and new_lid and new_lid != m.lemma_id:
-                # Validate the chosen lemma_id is one of the alternatives
+            if m and new_lid:
+                # Validate the chosen lemma_id is one of the alternatives.
+                # Clearing alternatives records that this row's contextual
+                # choice was explicit, even when it retained the first ID.
                 valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
                 if new_lid in valid_ids:
                     m.lemma_id = new_lid
+                    m.alternative_lemma_ids = None
 
         # Apply corrections
         corrections = verify_result.get("issues", [])
@@ -774,6 +791,24 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             _log_pipeline(_log_dir, {
                 "event": "correction_failed", "lemma_id": lemma_id,
                 "arabic": cand["arabic"], "corrections": corrections,
+            })
+            continue
+
+        if not refresh_target_mapping_flags(
+            mappings,
+            mapping_lookup,
+            {target_bare: target_lemma_id},
+            required_target_ids={target_lemma_id},
+        ):
+            logger.warning(
+                "Target mapping changed or disappeared for lemma %s; "
+                "discarding sentence",
+                lemma_id,
+            )
+            _log_pipeline(_log_dir, {
+                "event": "target_integrity_failed",
+                "lemma_id": lemma_id,
+                "arabic": cand["arabic"],
             })
             continue
 
@@ -927,6 +962,7 @@ def batch_generate_material(
         build_comprehensive_lemma_lookup,
         build_lemma_lookup,
         map_tokens_to_lemmas,
+        refresh_target_mapping_flags,
         sanitize_arabic_word,
         strip_diacritics,
         tokenize_display,
@@ -1135,6 +1171,7 @@ def batch_generate_material(
             "validation": validation,
             "tokens": tokens,
             "target_lemma_id": target_lemma_id,
+            "target_bare": target_bare,
         })
         word_candidate_count[target_lemma_id] += 1
 
@@ -1156,7 +1193,11 @@ def batch_generate_material(
         if lid and lid in all_lemma_by_id
     }
 
-    batch_results = batch_verify_sentences(candidates, lemma_map_for_verify)
+    batch_results = batch_verify_sentences(
+        candidates,
+        lemma_map_for_verify,
+        return_invalid_rows=True,
+    )
     if batch_results is None:
         logger.warning("Batch verification unavailable, discarding all")
         return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
@@ -1164,6 +1205,16 @@ def batch_generate_material(
     # ── Phase 2d: Apply corrections ──
     valid_sentences = []  # final sentences ready to store
     for cand, verify_result in zip(candidates, batch_results):
+        if verify_result.get("invalid_reason"):
+            _log_pipeline(_log_dir, {
+                "event": "batch_verification_invalid_row",
+                "lemma_id": cand["target_lemma_id"],
+                "arabic": cand["arabic"],
+                "reason": verify_result["invalid_reason"],
+                "positions": verify_result.get("invalid_positions", []),
+            })
+            continue
+
         mappings = cand["mappings"]
 
         # Apply disambiguation choices
@@ -1172,10 +1223,11 @@ def batch_generate_material(
             pos = choice.get("position")
             new_lid = choice.get("lemma_id")
             m = pos_to_mapping.get(pos)
-            if m and new_lid and new_lid != m.lemma_id:
+            if m and new_lid:
                 valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
                 if new_lid in valid_ids:
                     m.lemma_id = new_lid
+                    m.alternative_lemma_ids = None
 
         # Apply corrections
         corrections = verify_result.get("issues", [])
@@ -1196,6 +1248,19 @@ def batch_generate_material(
             failed = []
 
         if failed:
+            continue
+
+        if not refresh_target_mapping_flags(
+            mappings,
+            mapping_lookup,
+            {cand["target_bare"]: cand["target_lemma_id"]},
+            required_target_ids={cand["target_lemma_id"]},
+        ):
+            _log_pipeline(_log_dir, {
+                "event": "batch_target_integrity_failed",
+                "lemma_id": cand["target_lemma_id"],
+                "arabic": cand["arabic"],
+            })
             continue
 
         # Gloss gate: reject if any lemma has no English gloss
@@ -1333,22 +1398,9 @@ def validate_multi_target_sentence(
     """
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
-        strip_diacritics,
-        strip_punctuation,
+        refresh_target_mapping_flags,
         tokenize_display,
-        normalize_alef,
-        _strip_clitics,
     )
-
-    # Build expanded target forms for matching
-    target_normalized: dict[str, int] = {}
-    for bare, lid in target_bares.items():
-        norm = normalize_alef(bare)
-        target_normalized[norm] = lid
-        if not norm.startswith("ال"):
-            target_normalized["ال" + norm] = lid
-        if norm.startswith("ال") and len(norm) > 2:
-            target_normalized[norm[2:]] = lid
 
     tokens = tokenize_display(result.arabic)
     primary_bare = None
@@ -1431,19 +1483,21 @@ def validate_multi_target_sentence(
             logger.warning("Mapping correction failed in multi-target sentence, discarding")
             return None
 
-    # Pre-compute is_target so the write phase doesn't need target_normalized
-    for m in mappings:
-        if m.is_target:
-            continue
-        bare = strip_punctuation(strip_diacritics(m.surface_form))
-        bare_norm = normalize_alef(bare.replace("\u0640", ""))
-        if bare_norm in target_normalized:
-            m.is_target = True
-            continue
-        for stem in _strip_clitics(bare_norm):
-            if normalize_alef(stem) in target_normalized:
-                m.is_target = True
-                break
+    required_target_ids = set(
+        getattr(result, "target_lemma_ids", None)
+        or [result.primary_target_lemma_id]
+    )
+    if not refresh_target_mapping_flags(
+        mappings,
+        lemma_lookup,
+        target_bares,
+        required_target_ids=required_target_ids,
+    ):
+        logger.warning(
+            "Required target mapping changed or disappeared in multi-target "
+            "sentence, discarding"
+        )
+        return None
 
     return mappings
 
@@ -1463,11 +1517,8 @@ def validate_multi_target_sentences_batch(
         apply_corrections,
         batch_verify_sentences,
         map_tokens_to_lemmas,
-        normalize_alef,
-        strip_diacritics,
-        strip_punctuation,
+        refresh_target_mapping_flags,
         tokenize_display,
-        _strip_clitics,
     )
 
     if not candidates:
@@ -1477,15 +1528,6 @@ def validate_multi_target_sentences_batch(
     lemma_ids: set[int] = set()
 
     for result, target_bares in candidates:
-        target_normalized: dict[str, int] = {}
-        for bare, lid in target_bares.items():
-            norm = normalize_alef(bare)
-            target_normalized[norm] = lid
-            if not norm.startswith("ال"):
-                target_normalized["ال" + norm] = lid
-            if norm.startswith("ال") and len(norm) > 2:
-                target_normalized[norm[2:]] = lid
-
         primary_bare = None
         for bare, lid in target_bares.items():
             if lid == result.primary_target_lemma_id:
@@ -1515,7 +1557,11 @@ def validate_multi_target_sentences_batch(
 
         verification_candidates.append({
             "result": result,
-            "target_normalized": target_normalized,
+            "target_bares": target_bares,
+            "required_target_ids": set(
+                getattr(result, "target_lemma_ids", None)
+                or [result.primary_target_lemma_id]
+            ),
             "arabic": result.arabic,
             "english": result.english,
             "mappings": mappings,
@@ -1534,12 +1580,24 @@ def validate_multi_target_sentences_batch(
     validated: list[tuple[object, list]] = []
     for i in range(0, len(verification_candidates), MULTI_TARGET_VERIFY_BATCH_SIZE):
         chunk = verification_candidates[i:i + MULTI_TARGET_VERIFY_BATCH_SIZE]
-        batch_results = batch_verify_sentences(chunk, lemma_map_for_verify)
+        batch_results = batch_verify_sentences(
+            chunk,
+            lemma_map_for_verify,
+            return_invalid_rows=True,
+        )
         if batch_results is None:
             logger.warning("Batch mapping verification unavailable for multi-target sentences")
             continue
 
         for cand, verify_result in zip(chunk, batch_results):
+            if verify_result.get("invalid_reason"):
+                logger.warning(
+                    "Invalid batch-verifier row for multi-target sentence "
+                    "(%s), discarding",
+                    verify_result["invalid_reason"],
+                )
+                continue
+
             mappings = cand["mappings"]
 
             pos_to_mapping = {m.position: m for m in mappings}
@@ -1547,10 +1605,11 @@ def validate_multi_target_sentences_batch(
                 pos = choice.get("position")
                 new_lid = choice.get("lemma_id")
                 m = pos_to_mapping.get(pos)
-                if m and new_lid and new_lid != m.lemma_id:
+                if m and new_lid:
                     valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
                     if new_lid in valid_ids:
                         m.lemma_id = new_lid
+                        m.alternative_lemma_ids = None
 
             corrections = verify_result.get("issues", [])
             if corrections:
@@ -1561,19 +1620,17 @@ def validate_multi_target_sentences_batch(
                     logger.warning("Mapping correction failed in multi-target sentence, discarding")
                     continue
 
-            target_normalized = cand["target_normalized"]
-            for m in mappings:
-                if m.is_target:
-                    continue
-                bare = strip_punctuation(strip_diacritics(m.surface_form))
-                bare_norm = normalize_alef(bare.replace("\u0640", ""))
-                if bare_norm in target_normalized:
-                    m.is_target = True
-                    continue
-                for stem in _strip_clitics(bare_norm):
-                    if normalize_alef(stem) in target_normalized:
-                        m.is_target = True
-                        break
+            if not refresh_target_mapping_flags(
+                mappings,
+                lemma_lookup,
+                cand["target_bares"],
+                required_target_ids=cand["required_target_ids"],
+            ):
+                logger.warning(
+                    "Required target mapping changed or disappeared in "
+                    "multi-target sentence, discarding"
+                )
+                continue
 
             validated.append((cand["result"], mappings))
 

@@ -1497,6 +1497,27 @@ def review_sentences_quality(
         for the affected input. Generation callers still fail closed; durable
         maintenance callers can leave the row untouched and retry later.
     """
+    return _review_sentences_quality(
+        sentences,
+        retry_incomplete=True,
+        accept_single_idless=False,
+    )
+
+
+def _review_sentences_quality(
+    sentences: list[dict[str, str]],
+    *,
+    retry_incomplete: bool,
+    accept_single_idless: bool,
+) -> list[SentenceReviewResult]:
+    """Implementation with a bounded, identity-safe malformed-output retry.
+
+    Batch verdicts are always joined by their explicit ID.  If a successful
+    provider response leaves a row unresolved, the public entry point retries
+    only that sentence in a one-sentence request.  An ID-less verdict is safe
+    to accept only in that single-input/single-output retry; no batch result is
+    ever matched by array position.
+    """
     if not sentences:
         return []
 
@@ -1505,19 +1526,27 @@ def review_sentences_quality(
         "properties": {
             "reviews": {
                 "type": "array",
+                "minItems": len(sentences),
+                "maxItems": len(sentences),
                 "items": {
                     "type": "object",
                     "properties": {
-                        "id": {"type": "integer"},
+                        "id": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": len(sentences),
+                        },
                         "natural": {"type": "boolean"},
                         "translation_correct": {"type": "boolean"},
                         "reason": {"type": "string"},
                     },
                     "required": ["id", "natural", "translation_correct", "reason"],
+                    "additionalProperties": False,
                 },
             },
         },
         "required": ["reviews"],
+        "additionalProperties": False,
     }
 
     prompt = """Review each Arabic sentence for a language learning app. For each:
@@ -1598,6 +1627,15 @@ Sentences:
         if not isinstance(item, dict):
             continue
         item_id = item.get("id")
+        if (
+            accept_single_idless
+            and len(sentences) == 1
+            and len(items) == 1
+            and "id" not in item
+        ):
+            # This is an independently reviewed one-input request, not a
+            # positional join across a batch.
+            item_id = 1
         if not isinstance(item_id, int) or isinstance(item_id, bool):
             continue
         if item_id in by_id:
@@ -1637,4 +1675,16 @@ Sentences:
                     review_completed=False,
                 )
             )
+    if retry_incomplete:
+        for index, review in enumerate(reviews):
+            if review.review_completed:
+                continue
+            retried = _review_sentences_quality(
+                [sentences[index]],
+                retry_incomplete=False,
+                accept_single_idless=True,
+            )[0]
+            if retried.review_completed:
+                reviews[index] = retried
+
     return reviews
