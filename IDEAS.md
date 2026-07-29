@@ -1,22 +1,22 @@
 # Alif — Master Ideas File
 
-## 🟡 [IMPLEMENTED LOCALLY 2026-07-29 — DEPLOY/BACKFILL PENDING] Close verifier, grammatical-identity, and authentic-corpus lifecycle seams
+## 🟢 [IMPLEMENTED + DEPLOYED 2026-07-29 — exact backfill complete] Close verifier, grammatical-identity, and authentic-corpus lifecycle seams
 
 The adversarial review after PRs #232–#233 reproduced four gaps. A semantic
-error attributable to one mapping-verifier row can still discard every clean
+error attributable to one mapping-verifier row could discard every clean
 sibling in its batch. Bare hamzated bases `أن`/`إن` and compounds such as
-`بأن`, `وإن`, and `وأن` lose their particle candidate family after lossy
+`بأن`, `وإن`, and `وأن` lost their particle candidate family after lossy
 normalization (`بأن` can become the verb `بَانَ`), while simply restoring one
 old alias would guess between genuinely distinct `أَنْ`/`أَنَّ` and
 `إِنْ`/`إِنَّ` identities. Unhamzated `ان` is broader still and must remain
 unresolved; exact madda `آن` is not a particle alternative. Exact target
-matching also runs too early and can override a conflicting fully vocalized
+matching also ran too early and could override a conflicting fully vocalized
 identity.
 
-Two corpus-only gaps are latent until preparation is explicitly run. Existing
-due-dense salvage and green-page book reactivation can activate a successfully
+Two corpus-only gaps were latent until preparation was explicitly run. Existing
+due-dense salvage and green-page book reactivation could activate a successfully
 prepared authentic row outside the new governor. Translation-only enrichment
-can overwrite already-vocalized Arabic with an unvocalized same-letter echo
+could overwrite already-vocalized Arabic with an unvocalized same-letter echo
 (and the symmetric one-field overwrite exists for an already-good
 translation). Corpus lookup/correction must also exclude ungated lemmas, and a
 target that becomes temporarily suspended during external work must remain
@@ -30,16 +30,16 @@ quality review, only the scoped governor may activate it. Enrichment writes
 only fields that were actually missing, corpus mapping uses gated lemmas, and
 transient learner-state changes release the row for retry.
 
-The latest production-derived snapshot contains 1,215 wrong fully vocalized
+The pre-deployment production-derived snapshot contained 1,215 wrong fully vocalized
 `أن`/`إن` identity mappings. The deterministic repair classifies 1,208 as safe
 collateral-token fixes (46 active, 1,162 inactive) and excludes seven
 target-sensitive rows for contextual review. Its copied-snapshot rehearsal
 repaired all 1,208 in one transaction, left the seven excluded, preserved the
 1,950 active count and all sentence/word/target counts, did not write QA or
 review history, passed SQLite integrity, wrote one ActivityLog, and produced a
-zero-row second plan. Apply still requires a reviewed plan hash, explicit
-backup confirmation, the shared material-writer lock, and a database writer
-boundary held from live precondition validation through the atomic commit.
+zero-row second plan. The production apply retained the reviewed plan hash,
+explicit backup confirmation, shared material-writer lock, and database writer
+boundary from live precondition validation through the atomic commit.
 
 External enrichment, QA, and mapping calls now carry exact content snapshots.
 A concurrent edit preserves the external work and independently invalidates
@@ -63,9 +63,25 @@ first decide compound-vs-base canonical policy, then census multi-prefix forms,
 migrate learner state if needed, and run a new hash-pinned repair.
 
 Production currently has zero prepared authentic rows and zero active Book OCR
-stories, so no corpus rollback or cleanup is needed. Deployment and the
-separately backed-up production repair remain pending; *Momo* preparation stays
-blocked until both are complete.
+stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
+`41d03e96`. The live plan
+`3a78b83d1018d11372173292ad71f0c070626b16614072fc59ef5447fc91e4c3`
+contained exactly 1,208 safe repairs and seven excluded target-sensitive rows.
+Before apply, an online SQLite backup was written to
+`/opt/alif-backups/alif_pre_grammatical_identity_20260729_093137.db`
+(`baadebab5300c7559c5b8a243dc6a4b737f952bf4c6be907f1fb97d40e0f1f6e`,
+quick-check `ok`). The first apply attempt changed nothing because the normal
+material cron held the shared lock. After that cron completed cleanly and
+added three active sentences, the same hash-pinned plan passed every row
+precondition and repaired all 1,208 mappings. ActivityLog #3886 records no
+activation, QA, mapping-verification, review-history, or target mutation. The
+apply transaction preserved 40,960 sentences, 265,882 sentence-word rows,
+41,154 target flags, and 1,953 active sentences; full integrity is `ok`, and
+the post-apply plan
+`41c0bcc5db85d573681c0d7d707a0495b41f7531ce43147f8be981661e0a84a2`
+contains zero repairable rows and the same seven exclusions. *Momo* remains
+untouched; preparation or activation still requires its own explicit
+confirmation.
 
 ## 🟢 [IMPLEMENTED 2026-07-29 — three exact inventory gaps curated; corpus cron disabled] Scoped authentic-corpus enrichment
 
@@ -102,9 +118,10 @@ untranslated, mapping-unverified, and quality-unreviewed.
 
 **Still open:** separately confirm any small production preparation tranche;
 the code deployment and three-row inventory curation do not authorize one.
-Activation capacity is zero with production exactly at the 1,950 ceiling. The
-1,707 generic historical sentinel rows remain a distinct curation decision; no
-historical learner-state backfill is warranted.
+At post-apply verification, activation capacity was zero with 1,953 active
+sentences, above the default 1,950 ceiling. The 1,707 generic historical
+sentinel rows remain a distinct curation decision; no historical learner-state
+backfill is warranted.
 
 ## 🟢 [IMPLEMENTED 2026-07-27] Persistent rating-2 prompt + lemma-aware function homographs
 

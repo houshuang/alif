@@ -34,6 +34,13 @@ This project is developed with Claude Code and Codex.
   excluded seven target-sensitive rows, preserved the 1,950 active count, and
   produced a zero-row second plan; apply holds both the shared material lock
   and a database writer boundary from live validation through commit
+- Deploy PR #236 as `41d03e96`, take an integrity-checked online SQLite backup,
+  and apply the reviewed production plan to exactly 1,208 mappings after the
+  shared lock safely rejected an overlap with the normal material cron. The
+  repair excluded all seven target-sensitive rows, preserved the live
+  1,953-sentence activation snapshot and all QA/review/target state, logged
+  ActivityLog #3886, passed `PRAGMA integrity_check`, and produced a zero-row
+  second plan
 
 ## 2026-07-29 — Reviewed *Momo* dictionary inventory (PR #234)
 
