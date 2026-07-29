@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🟢 [IMPLEMENTED 2026-07-28 — copied-snapshot rehearsal complete; corpus cron disabled] Scoped authentic-corpus enrichment
+## 🟢 [IMPLEMENTED 2026-07-29 — three exact inventory gaps curated; corpus cron disabled] Scoped authentic-corpus enrichment
 
 The July 28 production audit found 243 hand-vetted *Momo* rows still inactive
 because corpus enrichment was opt-in, while the old Step A2 was unsafe to turn
@@ -27,11 +27,17 @@ full *Momo* preflight found 235/243 rows inventory-complete. The other eight
 contain nine standalone OCR-spaced `و` tokens and need separately confirmed
 source normalization—not vocabulary backfill.
 
+PR #234 subsequently curated exactly the three modeled dictionary gaps
+(`كُلِّيّ`, `إِلٰه`, `فَعَلَ`) as gated canonical scaffold rows using existing
+reviewed roots. It created no learner, review, frequency-core, sentence-mapping,
+preparation, or activation state. All 243 *Momo* rows remain inactive,
+untranslated, mapping-unverified, and quality-unreviewed.
+
 **Still open:** separately confirm any small production preparation tranche;
-the code deployment does not authorize one. Activation capacity is zero at
-1,961 active rows versus the 1,950 ceiling. The 1,707 generic historical
-sentinel rows remain a distinct curation decision; no historical learner-state
-backfill is warranted.
+the code deployment and three-row inventory curation do not authorize one.
+Activation capacity is zero with production exactly at the 1,950 ceiling. The
+1,707 generic historical sentinel rows remain a distinct curation decision; no
+historical learner-state backfill is warranted.
 
 ## 🟢 [IMPLEMENTED 2026-07-27] Persistent rating-2 prompt + lemma-aware function homographs
 

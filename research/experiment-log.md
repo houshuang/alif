@@ -48,6 +48,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Three reviewed *Momo* inventory lemmas curated; learning state unchanged
+
+**Boundary and evidence.** The PR #232 copied-snapshot rehearsal identified
+exactly three genuine dictionary gaps: adjective `كُلِّيّ` “total; overall;
+all-encompassing,” singular noun `إِلٰه` “god; deity,” and verb `فَعَلَ` “to
+do.” Existing rows with the same or nearby skeletons are distinct, learned
+identities and were left untouched: `كُلِّيَّة` “college,” plural `آلِهَةٌ`,
+and noun `فِعْل` “verb.” No additional *Momo* vocabulary batch was authorized.
+
+**Importer hardening.** PR #234 (`e20148b7`) made the operation exactly
+repeatable and fail-closed. Repeatable `--only` arguments select fully vocalized
+reviewed headwords; unknown values abort. Vocalized identities are NFC
+normalized, so the legacy combining-mark order of `كُلِّيّ` cannot create a
+duplicate. A compatible exact row with a null gate stamp resumes an interrupted
+quality-gate run, while incompatible metadata, duplicate Unicode identities,
+wrong/missing reviewed roots, and scoped collisions abort. The three roots are
+pinned to the existing reviewed inventory (`ك.ل.ل` #198, `ء.ل.ه` #809,
+`ف.ع.ل` #103), avoiding spurious `ك.ل.ي`/`ا.ل.ه` roots. A real copied-DB
+interruption left three committed ungated rows; the rerun resumed and stamped
+all three without duplication. Independent review found no remaining blocker.
+
+**Production result.** After an exact three-row dry run, an immediate SQLite
+online backup was saved as
+`/opt/alif-backups/alif_pre_pr234_momo_inventory_20260729.db`
+(`sha256=fd1a9eeeb81f36a80242e899c1172d3fbf1b4d325ea4722de45dffa2e61f3183`,
+integrity `ok`). The locked live run created canonical gated lemmas #4530–4532
+with sensible forms/transliteration/etymology and the reviewed roots. A second
+run, using the canonically equivalent legacy spelling of `كُلِّيّ`, skipped all
+three. ActivityLog #3879 records the operation.
+
+**Invariance and next boundary.** Lemmas increased 4,261→4,264; roots remained
+1,952. ULK stayed 3,304, frequency core 5,000, and sentence mappings 265,825;
+the new IDs own zero ULK, ReviewLog, FCE, or SentenceWord rows. All 243
+`momo_book` sentences remain inactive, untranslated, mapping-unverified, and
+quality-unreviewed. The active pool is exactly 1,950 and the corpus cron flag
+remains absent. This was dictionary curation only: raw unvocalized `فعل` can
+still initially resolve to learned noun #207, so contextual verifier
+disambiguation remains mandatory. Any sentence preparation/retry is a separate
+explicit operation, and activation still has zero capacity.
+
 ## 2026-07-28: PR #232 corpus preparation hardening + immutable-snapshot rehearsal
 
 **Boundary.** PR #232 was deployed as `094ee1c1` on 2026-07-28 at 22:44 UTC.

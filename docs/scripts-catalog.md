@@ -41,7 +41,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
     Activation defaults to 0, is capped at 20, rechecks fresh canonical demand,
     skips acquiring/no-FSRS-demand rows, and clamps to
     `--corpus-active-ceiling` (default 1950) without retiring anything. Current
-    copied-snapshot capacity is zero (1,961 active). A busy isolated run exits
+    production capacity is zero (exactly 1,950 active). A busy isolated run exits
     75. The production wrapper omits corpus enrichment; deploying this code
     does not enable it. Never bulk-reset durable sentinel debt.
 - `generate_story_claude.py` — Local story generation via `claude -p` with vocabulary compliance validation and retry loop, free with Max plan.
