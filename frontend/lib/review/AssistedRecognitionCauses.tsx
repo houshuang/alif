@@ -15,12 +15,16 @@ export function AssistedRecognitionCauses({
   selected,
   missingTashkeelApplicable,
   onToggle,
+  children,
 }: {
   surfaceForm: string;
   assistedWordCount: number;
   selected: readonly WordFailureCause[];
   missingTashkeelApplicable: boolean;
   onToggle: (cause: WordFailureCause) => void;
+  /** Rendered inside the panel, below the chips — the review screen uses this
+   *  for the confusion picker once "Mixed it up" is selected. */
+  children?: React.ReactNode;
 }) {
   const causes = missingTashkeelApplicable
     ? [
@@ -33,8 +37,8 @@ export function AssistedRecognitionCauses({
     <View style={styles.container}>
       <View style={styles.heading}>
         <Text style={styles.arabic}>{surfaceForm}</Text>
-        <Text style={styles.prompt}>
-          You recognized this after reveal. Why? (optional)
+        <Text style={styles.prompt} numberOfLines={1}>
+          Knew it after reveal — why? (optional)
         </Text>
       </View>
       <View style={styles.chips}>
@@ -55,9 +59,7 @@ export function AssistedRecognitionCauses({
           );
         })}
       </View>
-      {selected.includes("missing_tashkeel") && (
-        <Text style={styles.detail}>I knew it once the vowels appeared.</Text>
-      )}
+      {children}
       {assistedWordCount > 1 && (
         <Text style={styles.detail}>
           Use the word arrows to switch between yellow words.
@@ -69,10 +71,10 @@ export function AssistedRecognitionCauses({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 8,
+    marginTop: 6,
     marginHorizontal: 2,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(243, 156, 18, 0.55)",
@@ -82,7 +84,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
     gap: 8,
-    marginBottom: 9,
+    marginBottom: 6,
   },
   arabic: {
     color: colors.confused,

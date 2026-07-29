@@ -6,7 +6,8 @@ import { ConfusionAnalysis, ConfusionCaptureIn } from "../types";
 
 interface ConfusionPickerProps {
   failedLemmaId: number;
-  confusionData: ConfusionAnalysis;
+  /** Null when the backend found no confusion candidates — free text still works. */
+  confusionData: ConfusionAnalysis | null;
   existing?: ConfusionCaptureIn;
   onSave: (capture: ConfusionCaptureIn) => void;
   onClear: () => void;
@@ -26,10 +27,10 @@ export function ConfusionPicker({
   const candidateIds = useMemo(() => {
     const seen = new Set<number>();
     const out: number[] = [];
-    for (const w of confusionData.similar_words ?? []) {
+    for (const w of confusionData?.similar_words ?? []) {
       if (!seen.has(w.lemma_id)) { seen.add(w.lemma_id); out.push(w.lemma_id); }
     }
-    for (const w of confusionData.phonetic_similar ?? []) {
+    for (const w of confusionData?.phonetic_similar ?? []) {
       if (!seen.has(w.lemma_id)) { seen.add(w.lemma_id); out.push(w.lemma_id); }
     }
     return out;
@@ -38,7 +39,7 @@ export function ConfusionPicker({
   const savedSummary = useMemo(() => {
     if (!existing) return null;
     if (existing.capture_method === "suggested_pick") {
-      const all = [...(confusionData.similar_words ?? []), ...(confusionData.phonetic_similar ?? [])];
+      const all = [...(confusionData?.similar_words ?? []), ...(confusionData?.phonetic_similar ?? [])];
       const match = all.find((w) => w.lemma_id === existing.confused_with_lemma_id);
       return {
         kind: "lemma" as const,
@@ -93,13 +94,12 @@ export function ConfusionPicker({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.notListedLabel}>Not in the list? Type the word you thought it was:</Text>
       <View style={styles.textRow}>
         <TextInput
           value={freeText}
           onChangeText={setFreeText}
           onSubmitEditing={handleSubmitText}
-          placeholder="e.g. “inherit” or وضع"
+          placeholder="or type it: “inherit” / وضع"
           placeholderTextColor={colors.textSecondary}
           style={styles.textInput}
           returnKeyType="done"
@@ -119,19 +119,10 @@ export function ConfusionPicker({
 }
 
 const styles = StyleSheet.create({
+  // Flat by design: this control is nested inside the yellow assisted-recognition
+  // panel, which already supplies the frame.
   container: {
     marginTop: 6,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(243, 156, 18, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(243, 156, 18, 0.25)",
-  },
-  notListedLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: fontFamily.translitRegular,
-    marginBottom: 6,
   },
   textRow: {
     flexDirection: "row",
@@ -170,12 +161,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginTop: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: "rgba(243, 156, 18, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(243, 156, 18, 0.35)",
   },
   savedLabel: {
     color: colors.text,

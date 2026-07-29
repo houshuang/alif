@@ -30,6 +30,10 @@ interface WordInfoCardProps {
   confusionData?: ConfusionAnalysis | null;
   onPickConfusion?: (lemmaId: number) => void;
   pickedConfusionLemmaId?: number | null;
+  /** Candidate lists ("Easily confused" / "Sounds similar") are opt-in — the
+   *  review screen only reveals them once the learner says they mixed the word
+   *  up. Morphology, prefix hints and decomposition are unaffected. */
+  showConfusionCandidates?: boolean;
 }
 
 function stemWord(w: string): string {
@@ -170,6 +174,7 @@ export default function WordInfoCard({
   confusionData,
   onPickConfusion,
   pickedConfusionLemmaId,
+  showConfusionCandidates = true,
 }: WordInfoCardProps) {
   const hasFocus = !!surfaceForm && (markState !== null || !!result || loading);
   const showNav = hasPrev || hasNext;
@@ -261,6 +266,7 @@ export default function WordInfoCard({
             confusionData={markState === "did_not_recognize" ? confusionData : null}
             onPickConfusion={markState === "did_not_recognize" ? onPickConfusion : undefined}
             pickedConfusionLemmaId={markState === "did_not_recognize" ? pickedConfusionLemmaId ?? null : null}
+            showConfusionCandidates={showConfusionCandidates}
           />
         </ScrollView>
       )}
@@ -303,6 +309,7 @@ function RevealedView({
   confusionData,
   onPickConfusion,
   pickedConfusionLemmaId,
+  showConfusionCandidates = true,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
@@ -313,6 +320,7 @@ function RevealedView({
   confusionData?: ConfusionAnalysis | null;
   onPickConfusion?: (lemmaId: number) => void;
   pickedConfusionLemmaId?: number | null;
+  showConfusionCandidates?: boolean;
 }) {
   if (!result) return null;
 
@@ -339,8 +347,8 @@ function RevealedView({
 
   const decomp = confusionData?.decomposition;
   const morphExplanation = confusionData?.morphology?.explanation;
-  const similarWords = confusionData?.similar_words;
-  const phoneticSimilar = confusionData?.phonetic_similar;
+  const similarWords = showConfusionCandidates ? confusionData?.similar_words : null;
+  const phoneticSimilar = showConfusionCandidates ? confusionData?.phonetic_similar : null;
   const prefixHint = confusionData?.prefix_hint;
 
   return (
