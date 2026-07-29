@@ -48,7 +48,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-07-29: Approved verifier/corpus seam closure; exact-identity repair remains two-phase
+## 2026-07-29: Deployed verifier/corpus seam closure; exact-identity repair applied
 
 **Pre-change adversarial evidence.** Follow-up review of PRs #232–#233
 reproduced four gaps against the deployed code and production-shaped data.
@@ -153,7 +153,37 @@ left a zero-row second plan. Apply now takes the shared nonblocking
 material-update lock plus a database writer boundary before live header/row
 validation and holds both through commit; a non-cooperating writer cannot be
 silently overwritten between validation and flush. Production deployment,
-backup, and apply remain separately pending.
+backup, and apply were therefore kept as separately verified release steps.
+
+**Production deployment and repair.** PR #236 was squash-merged and deployed
+as `41d03e9639de084bea9b5ba98b8ae82617188dfc`. The live plan SHA-256 was
+`3a78b83d1018d11372173292ad71f0c070626b16614072fc59ef5447fc91e4c3`:
+1,208 repairable rows (`أَنْ` 579, `أَنَّ` 490, `إِنْ` 30, `إِنَّ` 109),
+45 active and 1,163 inactive at planning time, plus seven target-sensitive
+exclusions. Its header snapshot contained 40,957 sentences, 265,866
+sentence-word rows, 41,151 target flags, and 1,950 active sentences.
+
+Before apply, SQLite's online backup API wrote
+`/opt/alif-backups/alif_pre_grammatical_identity_20260729_093137.db`, SHA-256
+`baadebab5300c7559c5b8a243dc6a4b737f952bf4c6be907f1fb97d40e0f1f6e`;
+the backup's `PRAGMA quick_check` returned `ok`. The first apply attempt
+correctly refused the shared material lock and changed no rows while the
+normal cron was running. That cron completed cleanly and added three active
+sentences. A bounded retry of the same reviewed plan then passed all
+plan-structure and identity-inventory checks plus every row-level precondition,
+and committed exactly 1,208 changes. Its own before/after snapshot remained
+40,960 sentences, 265,882 sentence-word rows, 41,154 target flags, and 1,953
+active sentences.
+
+ActivityLog #3886 (`grammatical_identity_mapping_repair`, 2026-07-29
+09:37:23Z) records the exact identity counts and zero activation,
+mapping-verification, QA, review-history, or target changes. Production
+`PRAGMA integrity_check` returned `ok`, backend health remained HTTP 200, and
+the post-apply plan SHA-256
+`41c0bcc5db85d573681c0d7d707a0495b41f7531ce43147f8be981661e0a84a2`
+contains zero repairable rows and the same seven target-sensitive exclusions.
+The repair is complete and idempotent; no adjacent identity cohort was
+silently included.
 
 **Deferred adjacent census.** This reviewed plan intentionally remains narrow.
 The snapshot also exposes an unhandled `فإن` prefix family, 19 wrong exact

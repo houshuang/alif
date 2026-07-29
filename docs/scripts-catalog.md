@@ -42,12 +42,13 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
     one short SQLite writer boundary reloads live capacity and selected-lemma
     demand, then rechecks planned content/mappings before visibility. It skips
     acquiring/no-FSRS-demand rows and clamps to
-    `--corpus-active-ceiling` (default 1950) without retiring anything. Current
-    production capacity is zero (exactly 1,950 active). A busy isolated run exits
-    75. The production wrapper omits corpus enrichment; deploying this code
-    does not enable it. Once an authentic row has completed QA, due-dense
-    salvage and green-page book reactivation exclude it, so this bounded
-    governor is its only activation writer. Preparation uses gated lemmas,
+    `--corpus-active-ceiling` (default 1950) without retiring anything. At
+    post-apply verification, production capacity was zero (1,953 active, above
+    the default 1,950 ceiling). A busy isolated run exits 75. The
+    production wrapper omits corpus enrichment; deploying this code does not
+    enable it. Once an authentic row has completed QA, due-dense salvage and
+    green-page book reactivation exclude it, so this bounded governor is its
+    only activation writer. Preparation uses gated lemmas,
     preserves already-populated Arabic/translation fields, guards the Arabic
     used for translation, independently invalidates unchanged mapping/QA
     stamps after concurrent edits, and skips the activation scan entirely when
@@ -82,7 +83,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `audit_lemma_decomposition.py` — Phase 1 audit of clitic-compound lemmas in the DB. Standalone classifier (no SQLAlchemy) that uses CAMeL Tools `MLEDisambiguator` to bucket every lemma as canonical / compound_with_canonical (HIGH/MEDIUM/LOW tiers based on which clitic features fire) / orphan_compound (compound but canonical missing from DB) / no_analysis. Joins ULK review history so the migrator can prioritize by review impact. Filters MLE noise (lex==bare, POS-incompatible verb-misread-as-pronoun-compound). Run with `/usr/local/bin/python3` since CAMeL isn't in the backend venv. Writes JSON report to `research/`. See `research/decomposition-audit-2026-04-24.md` for methodology and Phase 2 sequence.
 
 ## Backfills
-- `repair_grammatical_identity_mappings_2026_07_29.py` — Deterministic two-phase repair for collateral `SentenceWord` rows whose fully vocalized surface proves one of `أَنْ`, `أَنَّ`, `إِنْ`, or `إِنَّ` but whose stored lemma differs. It accepts exact base forms plus ب/و-prefixed compositions, excludes ambiguous bare forms (`ان`, `أن`, `إن`, `بأن`, `وأن`, `وإن`), lexical `لأنّ`, and every target-sensitive row. `--plan --plan-file PATH` writes all original mapping/lifecycle preconditions and prints a SHA-256. `--apply` requires that exact `--expected-sha256` plus `--backup-confirmed`, acquires the shared nonblocking material-update lock and a SQLite writer boundary before live validation, updates atomically, preserves activation/verification/QA/targets/reviews, and writes an ActivityLog. Drift or a competing DB writer cannot enter the validation-to-flush window. No-flag mode is a read-only census. Production-derived rehearsal: 1,208 safe fixes, seven target-sensitive exclusions, zero-row second plan, integrity `ok`.
+- `repair_grammatical_identity_mappings_2026_07_29.py` — Deterministic two-phase repair for collateral `SentenceWord` rows whose fully vocalized surface proves one of `أَنْ`, `أَنَّ`, `إِنْ`, or `إِنَّ` but whose stored lemma differs. It accepts exact base forms plus ب/و-prefixed compositions, excludes ambiguous bare forms (`ان`, `أن`, `إن`, `بأن`, `وأن`, `وإن`), lexical `لأنّ`, and every target-sensitive row. `--plan --plan-file PATH` writes all original mapping/lifecycle preconditions and prints a SHA-256. `--apply` requires that exact `--expected-sha256` plus `--backup-confirmed`, acquires the shared nonblocking material-update lock and a SQLite writer boundary before live validation, updates atomically, preserves activation/verification/QA/targets/reviews, and writes an ActivityLog. Drift or a competing DB writer cannot enter the validation-to-flush window. No-flag mode is a read-only census. Production apply (PR #236, `41d03e96`): plan SHA-256 `3a78b83d1018d11372173292ad71f0c070626b16614072fc59ef5447fc91e4c3`; 1,208 safe fixes; seven target-sensitive exclusions; ActivityLog #3886; integrity `ok`; zero-row second plan.
 - `backfill_lemma_grammar.py` — Backfill grammar features for lemmas.
 - `backfill_examples.py` — Backfill example sentences for lemmas.
 - `backfill_forms.py` — Backfill inflection forms from CAMeL Tools.
