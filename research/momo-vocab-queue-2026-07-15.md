@@ -103,6 +103,21 @@ Jan 2 a durable inventory/mapping block, and Jan 3 a durable linguistic-QA
 rejection. The PR #232 code release leaves corpus cron disabled and performs no
 production corpus or learner-data mutation.
 
+**2026-07-29 inventory follow-up — exactly three persistent dictionary rows.**
+PR #234 (`e20148b7`) added the three reviewed rehearsal gaps as scaffold lemmas:
+#4530 `كُلِّيّ` “total/overall,” #4531 `إِلٰه` “god/deity,” and #4532
+`فَعَلَ` “to do.” They are gated canonical rows linked to existing reviewed
+roots #198 `ك.ل.ل`, #809 `ء.ل.ه`, and #103 `ف.ع.ل`; no duplicate roots were
+created. The exact operation created no ULK, ReviewLog, FCE, or SentenceWord
+rows. All 243 *Momo* sentences remain inactive, untranslated,
+mapping-unverified, and quality-unreviewed, with the active pool exactly at its
+1,950 ceiling and corpus cron still disabled. Raw `فعل` still needs contextual
+verification because the first lookup candidate can be known noun #207
+`فِعْل`; dictionary presence does not relax the mapping gate. Backup:
+`/opt/alif-backups/alif_pre_pr234_momo_inventory_20260729.db`
+(`sha256=fd1a9eeeb81f36a80242e899c1172d3fbf1b4d325ea4722de45dffa2e61f3183`);
+ActivityLog #3879. Preparation/retry and activation remain separate decisions.
+
 ## Bug evidence: /add fuzzy-lookup collisions (17 cases, 2 days)
 
 `POST /api/discover/add` resolves `lemma_ar_bare` through a lookup that strips

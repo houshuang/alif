@@ -6,6 +6,27 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-07-29 — Reviewed *Momo* dictionary inventory (PR #234)
+
+- Add exactly three independently reviewed scaffold lemmas needed by the
+  copied-snapshot *Momo* rehearsal: `كُلِّيّ` (total/overall), `إِلٰه`
+  (god/deity), and `فَعَلَ` (to do)
+- Harden `import_scaffold_lemmas.py` with repeatable exact `--only` scope,
+  NFC-normalized vocalized identity, fail-closed metadata/root checks, and
+  resumable quality gates after an interrupted post-insert run
+- Pin the three reviewed existing roots (`ك.ل.ل`, `ء.ل.ه`, `ف.ع.ل`) so
+  enrichment cannot create suffix/hamza-derived duplicate roots
+- Deploy PR #234 as `e20148b7`; production created gated canonical lemmas
+  #4530–4532 and reused roots #198/#809/#103
+- Verify zero new learner, review, frequency-core, or sentence-mapping rows;
+  all 243 *Momo* sentences remain inactive, untranslated, unverified, and
+  un-quality-reviewed; corpus cron remains disabled and the active pool remains
+  exactly at its 1,950 ceiling
+- Preserve an immediate integrity-checked online backup at
+  `/opt/alif-backups/alif_pre_pr234_momo_inventory_20260729.db`
+  (`sha256=fd1a9eeeb81f36a80242e899c1172d3fbf1b4d325ea4722de45dffa2e61f3183`)
+  and record the operation as ActivityLog #3879
+
 ## 2026-07-28 — Scoped corpus preparation hardening (PR #232)
 
 - Harden scoped corpus preparation with a cursor-progressive deterministic

@@ -1,6 +1,7 @@
 # Learning-system update — 2026-07-28
 
-*Updated 2026-07-28 with PR #232 hardening and immutable-snapshot rehearsal.*
+*Updated 2026-07-29 with PR #232 hardening, immutable-snapshot rehearsal, and
+the separately approved exact three-lemma inventory curation.*
 
 ## Executive verdict
 
@@ -27,14 +28,16 @@ For this single highly motivated learner, the fastest safe path is therefore:
    large catch-up days;
 3. start reading the physical *Momo* now, with support, rather than waiting for
    an unreliable OCR-derived 95% number;
-4. deploy the hardened corpus-preparation path, then prepare a reviewed subset
-   of the already-imported authentic *Momo* sentences; activation is a later
-   decision because the current pool has no headroom;
+4. with the hardened corpus path deployed and the three reviewed dictionary
+   gaps now curated, separately prepare a reviewed subset of the already
+   imported authentic *Momo* sentences; activation is a later decision because
+   the current pool has no headroom;
 5. leave FSRS weights and graduation thresholds alone until the July 27
    policy changes have mature follow-up.
 
-No learning-history or scheduler-state backfill is warranted. No production,
-scheduling, import, or learner-state change was made for this analysis.
+No learning-history or scheduler-state backfill is warranted. The analysis
+itself was read-only. A separately approved July 29 dictionary-only operation
+is recorded below; it changed no learner or corpus state.
 
 ## Scope and provenance
 
@@ -416,6 +419,27 @@ need separately confirmed source-text normalization and exact-ID Jan-2 retry,
 not vocabulary backfill. Preparation and activation remain mutually exclusive.
 With 1,961 active rows against the 1,950 ceiling, activation capacity is zero.
 
+### July 29 operational update — exact inventory curation complete
+
+PR #234 deployed as `e20148b7` and added exactly the three persistent scaffold
+lemmas modeled in the copied rehearsal: #4530 `كُلِّيّ`, #4531 `إِلٰه`, and
+#4532 `فَعَلَ`. All are gated, canonical, and linked to the independently
+reviewed existing roots `ك.ل.ل` (#198), `ء.ل.ه` (#809), and `ف.ع.ل` (#103).
+The importer now NFC-normalizes vocalized identity, fails closed under exact
+`--only` scope, pins reviewed roots, and resumes compatible ungated rows after
+an interrupted gate run.
+
+The immediate production backup is
+`/opt/alif-backups/alif_pre_pr234_momo_inventory_20260729.db`
+(`sha256=fd1a9eeeb81f36a80242e899c1172d3fbf1b4d325ea4722de45dffa2e61f3183`,
+integrity `ok`). Roots, ULK, ReviewLog, frequency-core, and sentence mappings
+were unchanged; none of the three new IDs has learner or corpus links.
+ActivityLog #3879 records the operation. All 243 *Momo* sentences remain
+inactive, untranslated, mapping-unverified, and quality-unreviewed; the corpus
+flag remains absent and the active pool is exactly 1,950. This completes only
+the three-lemma inventory boundary. It does not authorize preparation,
+blocked-row retry, source normalization, or activation.
+
 ### Stored target drift is a separate content-repair boundary
 
 The immutable snapshot also contains 22 active sentences whose stored canonical
@@ -467,15 +491,18 @@ production rows remains a separately reviewed and confirmed data operation.
 3. **Full replay complete:** 235/243 inventory-complete. Separately confirm
    source normalization for the eight rows with nine OCR-spaced standalone `و`
    tokens; this is not a vocabulary backfill.
-4. Back up production and separately confirm one small *Momo*-only
+4. **Exact inventory curation complete:** PR #234 added only `كُلِّيّ`,
+   `إِلٰه`, and `فَعَلَ` as dictionary-only scaffold rows with reviewed roots.
+   No ULK, FCE, review, sentence mapping, preparation, or activation changed.
+5. Back up production and separately confirm one small *Momo*-only
    **preparation** tranche with activation zero; code deployment alone does not
    authorize or run it.
    Inspect every Arabic sentence, translation, mapping, target, and disposition.
-5. Plan activation separately with preparation set to zero. At the July 28
-   snapshot the active pool is 1,961 against the default 1,950 corpus ceiling,
-   so capacity is currently **zero**; do not activate until an independently
-   reviewed headroom/retirement decision creates capacity.
-6. Continue only in inspected small tranches. Do not globally enable Step A2,
+6. Plan activation separately with preparation set to zero. Production is now
+   exactly at the default 1,950 corpus ceiling, so capacity remains **zero**;
+   do not activate until an independently reviewed headroom/retirement decision
+   creates capacity.
+7. Continue only in inspected small tranches. Do not globally enable Step A2,
    and keep the 1,707-row generic sentinel debt as a separate decision.
 
 ### Phase C — learner protocol for the next 10–14 days
@@ -500,7 +527,7 @@ production rows remains a separately reviewed and confirmed data operation.
 | Existing FSRS cards after rating-2 policy change | **No backfill; prospective boundary is correct** |
 | Graduation cards after PR #229 | **No backfill; monitor new graduates** |
 | Rapid-retry counters | **No backfill** |
-| More *Momo* vocabulary | **No** |
+| More *Momo* vocabulary | **No batch. Exactly three reviewed dictionary gaps were curated on July 29 without learner intake; add nothing else** |
 | Kalīla/classical vocabulary | **No new batch during recovery** |
 | 243 authentic *Momo* sentences | **235 are preparation-ready after deployment; eight need separately confirmed source normalization for nine OCR-spaced `و` tokens. Prepare only reviewed small tranches; activation is separate and currently has zero capacity** |
 | 18 reviewable stale-target sentences | **No history rewrite. Prospectively fixed in code; any exact production content repair is separately confirmed** |

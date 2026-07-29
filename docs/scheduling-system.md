@@ -1390,18 +1390,22 @@ From `backend/`, preparation and any later activation use separate commands:
 .venv/bin/python scripts/update_material.py --only-corpus-enrichment --kind momo_book --corpus-limit 0 --corpus-activate-limit N
 ```
 
-The second command is not currently actionable: the copied production snapshot
-has 1,961 active rows against the default 1,950 ceiling, so activation capacity
-is zero. The rehearsal used a disposable working copy derived from that
-immutable snapshot: rows 52182 and 52316 prepared, 52352 was terminally rejected
-for naturalness, nothing activated, and learner tables stayed unchanged. A full
-243-row *Momo* replay found 235 inventory-complete; the other eight contain nine
-standalone OCR-spaced `و` tokens and need separately confirmed source
-normalization, not vocabulary backfill.
+The second command is not currently actionable: production is exactly at the
+default 1,950 ceiling, so activation capacity is zero. The rehearsal used a
+disposable working copy derived from the immutable July 28 snapshot: rows 52182
+and 52316 prepared, 52352 was terminally rejected for naturalness, nothing
+activated, and learner tables stayed unchanged. A full 243-row *Momo* replay
+found 235 inventory-complete; the other eight contain nine standalone
+OCR-spaced `و` tokens and need separately confirmed source normalization, not
+vocabulary backfill.
 
-PR #232 is a code-only release. The cron wrapper does not opt into Step A2, so
-the deployment itself performs no corpus preparation, activation, or learner
-data change.
+PR #232 itself was a code-only release. PR #234 subsequently curated exactly
+three reviewed dictionary-only scaffold gaps (`كُلِّيّ`, `إِلٰه`, `فَعَلَ`)
+with no learner, frequency-core, sentence-mapping, preparation, or activation
+side effects. The cron wrapper still does not opt into Step A2; all 243 *Momo*
+rows remain inactive, untranslated, mapping-unverified, and
+quality-unreviewed. Any Jan-2 retry/preparation remains an exact, separately
+confirmed command, and activation remains a later capacity decision.
 
 ### Pipeline Cap & Due-Date Tiered Allocation
 
