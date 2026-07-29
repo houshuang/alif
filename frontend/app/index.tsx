@@ -3050,6 +3050,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const assistedWordInitiallyShowedTashkeel = assistedWord
     ? assistedWord.show_tashkeel !== false && assistedWordHasStoredTashkeel
     : true;
+  // The confusion candidates and the free-text box stay hidden until the learner
+  // says the word was mixed up with another one — otherwise a single yellow word
+  // stacks three panels below the sentence.
+  const mixedUpSelected =
+    activeAssistedRecognitionIndex != null
+    && (failureCausesByIndex[activeAssistedRecognitionIndex] ?? []).includes("mixed_up");
   const ensureFocusedCause = (cause: WordFailureCause) => {
     if (focusedWordIndex == null) return;
     setFailureCausesByIndex((prev) => {
@@ -3222,34 +3228,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           confusionData={confusionData}
           onPickConfusion={handlePickConfusion}
           pickedConfusionLemmaId={pickedConfusionLemmaId}
+          showConfusionCandidates={mixedUpSelected}
         />
-      )}
-
-      {!isListening
-        && focusedWordMark === "did_not_recognize"
-        && lookupLemmaId != null
-        && confusionData
-        && (
-          <ConfusionPicker
-            failedLemmaId={lookupLemmaId}
-            confusionData={confusionData}
-            existing={confusionCaptures[lookupLemmaId]}
-            onSave={(capture) => {
-              setConfusionCaptures((prev) => ({
-                ...prev,
-                [capture.failed_lemma_id]: capture,
-              }));
-              ensureFocusedCause("mixed_up");
-            }}
-            onClear={() =>
-              setConfusionCaptures((prev) => {
-                if (!prev[lookupLemmaId]) return prev;
-                const next = { ...prev };
-                delete next[lookupLemmaId];
-                return next;
-              })
-            }
-          />
       )}
 
       {!isListening
@@ -3267,7 +3247,34 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               && !assistedWordInitiallyShowedTashkeel
             }
             onToggle={handleToggleAssistedCause}
-          />
+          >
+            {/* focusedWordMark check keeps the capture bound to the word the
+                chips describe — assistedRecognitionIndex() only equals the
+                focused word while that word is yellow. */}
+            {mixedUpSelected
+              && focusedWordMark === "did_not_recognize"
+              && lookupLemmaId != null && (
+              <ConfusionPicker
+                failedLemmaId={lookupLemmaId}
+                confusionData={confusionData}
+                existing={confusionCaptures[lookupLemmaId]}
+                onSave={(capture) => {
+                  setConfusionCaptures((prev) => ({
+                    ...prev,
+                    [capture.failed_lemma_id]: capture,
+                  }));
+                }}
+                onClear={() =>
+                  setConfusionCaptures((prev) => {
+                    if (!prev[lookupLemmaId]) return prev;
+                    const next = { ...prev };
+                    delete next[lookupLemmaId];
+                    return next;
+                  })
+                }
+              />
+            )}
+          </AssistedRecognitionCauses>
       )}
 
       <View style={styles.bottomActions}>
