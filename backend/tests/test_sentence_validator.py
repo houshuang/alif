@@ -1399,6 +1399,149 @@ class TestMapTokensToLemmas:
         assert mappings[0].lemma_id is None
         assert mappings[0].alternative_lemma_ids is None
 
+    def test_fa_prefixed_particles_compose_without_losing_hamza_identity(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["فأن", "فإن", "فَأَنْ", "فَأَنَّ", "فَإِنْ", "فَإِنَّ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert (
+            mappings[0].lemma_id,
+            set(mappings[0].alternative_lemma_ids or []),
+        ) == (2185, {2187})
+        assert (
+            mappings[1].lemma_id,
+            set(mappings[1].alternative_lemma_ids or []),
+        ) == (2186, {2188})
+        assert [mapping.lemma_id for mapping in mappings[2:]] == [
+            2185,
+            2187,
+            2186,
+            2188,
+        ]
+
+    def test_unhamzated_fan_fails_closed_and_can_remain_a_proper_name(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        unresolved = map_tokens_to_lemmas(
+            ["فان"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+        proper_name = map_tokens_to_lemmas(
+            ["فان"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+            proper_names={"فان"},
+        )[0]
+
+        assert unresolved.lemma_id is None
+        assert unresolved.alternative_lemma_ids is None
+        assert unresolved.is_function_word is False
+        assert proper_name.lemma_id is None
+        assert proper_name.is_proper_name is True
+
+    @pytest.mark.parametrize(
+        ("surface", "expected_id"),
+        [
+            ("أَنَّهُ", 2187),
+            ("وَأَنَّهَا", 2187),
+            ("فَأَنَّكُمْ", 2187),
+            ("بِأَنَّنِي", 2187),
+            ("بأننى", 2187),
+            ("فأنه", 2187),
+            ("إِنَّهُ", 2188),
+            ("وَإِنَّهَا", 2188),
+            ("فَإِنَّكُمْ", 2188),
+            ("فَإِنِّي", 2188),
+            ("فإنه", 2188),
+            # Literal spelling in Momo Chapter 1 row #52135.
+            ("إننى", 2188),
+            ("فإننى", 2188),
+        ],
+    )
+    def test_attached_pronouns_compose_to_shadda_particle_identity(
+        self,
+        surface,
+        expected_id,
+    ):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mapping = map_tokens_to_lemmas(
+            [surface],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id == expected_id
+        assert mapping.alternative_lemma_ids is None
+        assert mapping.surface_form == surface
+
+    @pytest.mark.parametrize(
+        "surface",
+        ["بِإِنَّ", "بإن", "بِإِنَّهُ", "بإنه", "بإننى"],
+    )
+    def test_bi_inna_attached_forms_stay_outside_composition_policy(
+        self,
+        surface,
+    ):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mapping = map_tokens_to_lemmas(
+            [surface],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id is None
+        assert mapping.alternative_lemma_ids is None
+
+    def test_legacy_inna_pronoun_lemmas_cannot_steal_canonical_surface(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2071, "انه", pos="particle", lemma_ar="إِنَّهُ"),
+            _FakeLemma(2072, "انها", pos="particle", lemma_ar="إِنَّهَا"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        mappings = map_tokens_to_lemmas(
+            ["إِنَّهُ", "إِنَّهَا"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [2188, 2188]
+        assert [mapping.surface_form for mapping in mappings] == [
+            "إِنَّهُ",
+            "إِنَّهَا",
+        ]
+        assert resolve_existing_lemma("إِنَّهُ", lookup) == 2188
+        assert resolve_existing_lemma("إِنَّهَا", lookup) == 2188
+
     def test_stored_laanna_identity_beats_derived_particle_alias(self):
         lookup = build_lemma_lookup([
             _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
@@ -1444,6 +1587,55 @@ class TestMapTokensToLemmas:
             {"لان": 3000},
             required_target_ids={3000},
         ) is True
+
+    @pytest.mark.parametrize(
+        "surface",
+        [
+            "لِأَنَّهُ",
+            "لِأَنَّهَا",
+            "لِأَنَّكُمْ",
+            "لِأَنِّي",
+            "لأنه",
+            "لأننى",
+        ],
+    )
+    def test_laanna_attached_pronouns_keep_lexical_compound_identity(
+        self,
+        surface,
+    ):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(3000, "لان", pos="conj", lemma_ar="لأنَّ"),
+        ])
+
+        mapping = map_tokens_to_lemmas(
+            [surface],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id == 3000
+        assert mapping.alternative_lemma_ids is None
+        assert mapping.surface_form == surface
+
+    def test_li_an_with_sukun_remains_base_particle(self):
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(3000, "لان", pos="conj", lemma_ar="لأنَّ"),
+        ])
+
+        mapping = map_tokens_to_lemmas(
+            ["لِأَنْ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id == 2185
+        assert mapping.alternative_lemma_ids is None
 
     def test_target_matching_respects_exact_particle_identity(self):
         lookup = build_lemma_lookup([
@@ -1815,6 +2007,8 @@ class TestResolveExistingLemma:
             ("إِنَّ", 2188),
             ("بِأَنَّ", 2187),
             ("وَإِنْ", 2186),
+            ("فَأَنْ", 2185),
+            ("فَإِنْ", 2186),
         ],
     )
     def test_exact_grammatical_identity_matches_import_dedup(
@@ -1835,7 +2029,7 @@ class TestResolveExistingLemma:
 
     @pytest.mark.parametrize(
         "surface",
-        ["ان", "أن", "إن", "بأن", "وإن", "وأن"],
+        ["ان", "أن", "إن", "بأن", "وإن", "وأن", "فإن", "فأن", "فان"],
     )
     def test_contextless_ambiguous_particle_dedup_fails_closed(
         self,
@@ -2643,6 +2837,41 @@ class TestLookupLemmaCitation:
         lookup = build_lemma_lookup(lemmas)
         # /add normalizes the submitted bare before lookup
         assert lookup_lemma_citation("امير", lookup, original_bare="أمير") == 1
+
+    def test_identity_sensitive_particles_use_the_strict_citation_path(self):
+        from app.services.sentence_validator import lookup_lemma_citation
+        lookup = build_lemma_lookup([
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+            _FakeLemma(2187, "انّ", pos="particle", lemma_ar="أَنَّ"),
+            _FakeLemma(2188, "انّ", pos="particle", lemma_ar="إِنَّ"),
+        ])
+
+        unresolved = ["فان", "فأن", "فإن", "بإن", "بِإِنَّهُ"]
+        for surface in unresolved:
+            bare_norm = normalize_alef(strip_diacritics(surface))
+            assert (
+                lookup_lemma_citation(
+                    bare_norm,
+                    lookup,
+                    original_bare=surface,
+                )
+                is None
+            )
+
+        exact = {
+            "فَأَنْ": 2185,
+            "فَأَنَّ": 2187,
+            "فَإِنْ": 2186,
+            "فَإِنَّ": 2188,
+        }
+        for surface, expected in exact.items():
+            bare_norm = normalize_alef(strip_diacritics(surface))
+            assert lookup_lemma_citation(
+                bare_norm,
+                lookup,
+                original_bare=surface,
+            ) == expected
 
     def test_good_clitic_resolutions(self):
         """ال-bearing prefixes must keep resolving (بالمكتبة→مكتبة class)."""
