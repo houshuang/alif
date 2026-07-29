@@ -62,7 +62,7 @@ could strand learner state and coverage. Do not extend the 1,208-row apply:
 first decide compound-vs-base canonical policy, then census multi-prefix forms,
 migrate learner state if needed, and run a new hash-pinned repair.
 
-**Implemented resolver follow-up; production preparation pending
+**Resolver deployed; production preparation provider-blocked
 (2026-07-29).** Canonicalize attached-pronoun
 particle forms to base `أَنَّ`/`إِنَّ` while preserving their visible surface
 for morphology evidence; keep lexical `لأنّ` as its own winner, add explicit
@@ -80,6 +80,15 @@ semantic/inventory cases (`أحد`/`إذن`, interrogative `ألا`, and
 `يجب`/`تعودي`) that need a separate vocabulary/composition policy. Dry-run and
 inspect the exact ten-row universe, but do not convert known bad mappings into
 prepared material merely to hit a numeric target.
+
+PR #239 deployed the resolver as `fa5c646c`. Both exact-scope dry-runs passed,
+but the first seven-row live preparation was a verified no-op: Codex CLI
+failed, Claude CLI timed out, and the successful GPT-5.2 fallback produced no
+row accepted by the exact enrichment gate. All seven claims were released,
+ActivityLog #3890 records zero prepared/activated/blocked/rejected rows, and
+all corpus, active-pool, vocabulary, learner, and review fingerprints remained
+unchanged. Do not retry blindly; a provider-specific diagnostic/retry is the
+next operational gate.
 
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as

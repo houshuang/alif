@@ -48,6 +48,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Momo preparation attempt fails safely at the enrichment boundary
+
+PR #239 (`fa5c646c`) deployed the compositional identity resolver and passed
+the live health check. The exact ten-row Chapter 1 dry-run selected all ten;
+the narrowed safe scope then selected exactly seven of seven with activation
+zero, no inventory/no-demand skips, and zero activation capacity (1,982 active
+sentences against the 1,950 ceiling).
+
+Before the live call, a mode-600 online SQLite backup was written to
+`/opt/alif-backups/alif_pre_momo_ch1_prepare_20260729_143610.db`
+(`sha256=7da0df29f150d72177153c813297fd9c5a82ea7ce8c1175f394cbda59d81f097`;
+`PRAGMA quick_check=ok`). The live exact-seven call exited normally but
+prepared zero rows and released all seven ordinary claims for retry. The
+provider trace shows the Codex CLI failed, Claude CLI timed out at 60 seconds,
+and the GPT-5.2 API fallback returned successfully; every fallback row then
+failed the enrichment availability/exact-content gate. ActivityLog #3890
+records `prepared=0`, `activated=0`, `retry=7`, with no mapping blocks or
+quality/target rejections.
+
+The no-op was verified, not assumed. All 243 Momo rows remain inactive; zero
+are translated, mapping-verified, or quality-reviewed. The active-sentence ID
+hash and full fingerprints of `lemmas`, `user_lemma_knowledge`, `review_log`,
+`sentence_review_log`, and `word_review_evidence` are byte-for-byte unchanged;
+the ten scoped rows still have zero review/evidence/grammar state. Do not
+blindly retry. A controlled provider-specific diagnostic/retry requires
+explicit authorization for sending these short copyrighted excerpts to that
+external provider; absent that, the database is left exactly at the safe
+preparation boundary.
+
 ## 2026-07-29: Chapter 1 Momo semantic preflight narrows the live preparation set
 
 The deterministic source reconstruction yielded ten retained Chapter 1

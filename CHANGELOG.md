@@ -21,6 +21,11 @@ This project is developed with Claude Code and Codex.
   attached-pronoun forms to base `أَنَّ`/`إِنَّ` without losing their surface,
   keep lexical `لأنّ` authoritative, and fail closed on unhamzated `فان`,
   unsupported ب+إن composition, and contextless citation ambiguity
+- Deploy PR #239 as `fa5c646c`; exact ten-row and safe seven-row Momo dry-runs
+  passed, but the live prepare-only call released all seven rows after provider
+  failover produced no exact-gate-valid enrichment. The integrity-checked
+  backup and all corpus/learner/history fingerprints were preserved; zero rows
+  were prepared or activated
 - Make completed-QA authentic rows governor-exclusive by excluding them from
   due-dense salvage and green-page book reactivation
 - Preserve existing Arabic/transliteration or translation during one-field
