@@ -175,6 +175,67 @@ def test_due_dense_salvage_never_reactivates_durable_corpus_dispositions(
     assert claimed.is_active is False
 
 
+def test_due_dense_salvage_defers_reviewed_authentic_rows_to_governor(
+    monkeypatch,
+    db_session,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    governed = _sentence(db_session, 1, [target_a, target_b])
+    governed.source = "corpus"
+    governed.quality_reviewed_at = datetime.now(timezone.utc)
+    governed.quality_natural = True
+    governed.quality_translation_correct = True
+    generated = _sentence(db_session, 2, [target_a, target_b])
+    generated.source = "llm"
+    generated.arabic_text = "نص مولد"
+    generated.quality_reviewed_at = datetime.now(timezone.utc)
+    generated.quality_natural = True
+    generated.quality_translation_correct = True
+    legacy_null_source = _sentence(db_session, 3, [target_a, target_b])
+    legacy_null_source.arabic_text = "نص قديم"
+    legacy_null_source.quality_reviewed_at = datetime.now(timezone.utc)
+    legacy_null_source.quality_natural = True
+    legacy_null_source.quality_translation_correct = True
+    db_session.commit()
+
+    reviewed_arabic: list[str] = []
+
+    def approve(sentences):
+        reviewed_arabic.extend(row["arabic"] for row in sentences)
+        return [
+            SimpleNamespace(natural=True, translation_correct=True)
+            for _ in sentences
+        ]
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        approve,
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    db_session.refresh(governed)
+    db_session.refresh(generated)
+    db_session.refresh(legacy_null_source)
+    assert count == 2
+    assert governed.is_active is False
+    assert generated.is_active is True
+    assert legacy_null_source.is_active is True
+    assert reviewed_arabic == [
+        generated.arabic_text,
+        legacy_null_source.arabic_text,
+    ]
+
+
 def test_book_page_reactivation_skips_durable_corpus_dispositions(db_session):
     known = _lemma(db_session, 1, "كتاب")
     _active(db_session, known)
@@ -229,17 +290,55 @@ def test_book_page_reactivation_skips_durable_corpus_dispositions(db_session):
         is_active=False,
         mappings_verified_at=CORPUS_CLAIM_SENTINEL,
     )
-    db_session.add_all([ordinary, blocked, rejected, claimed])
+    governed = Sentence(
+        arabic_text="كِتَابٌ مُرَاجَعٌ",
+        source="book",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=datetime.now(timezone.utc),
+        quality_reviewed_at=datetime.now(timezone.utc),
+        quality_natural=True,
+        quality_translation_correct=True,
+    )
+    generated = Sentence(
+        arabic_text="جملة مولدة",
+        source="llm",
+        story_id=story.id,
+        page_number=1,
+        is_active=False,
+        mappings_verified_at=datetime.now(timezone.utc),
+        quality_reviewed_at=datetime.now(timezone.utc),
+        quality_natural=True,
+        quality_translation_correct=True,
+    )
+    db_session.add_all([
+        ordinary,
+        blocked,
+        rejected,
+        claimed,
+        governed,
+        generated,
+    ])
     db_session.commit()
 
-    assert step_reactivate_book_sentences(db_session) == 1
+    assert step_reactivate_book_sentences(db_session) == 2
 
-    for sentence in (ordinary, blocked, rejected, claimed):
+    for sentence in (
+        ordinary,
+        blocked,
+        rejected,
+        claimed,
+        governed,
+        generated,
+    ):
         db_session.refresh(sentence)
     assert ordinary.is_active is True
     assert blocked.is_active is False
     assert rejected.is_active is False
     assert claimed.is_active is False
+    assert governed.is_active is False
+    assert generated.is_active is True
 
 
 def test_reviewable_coverage_counts_includes_collateral(db_session):

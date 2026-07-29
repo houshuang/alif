@@ -1,5 +1,72 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED LOCALLY 2026-07-29 — DEPLOY/BACKFILL PENDING] Close verifier, grammatical-identity, and authentic-corpus lifecycle seams
+
+The adversarial review after PRs #232–#233 reproduced four gaps. A semantic
+error attributable to one mapping-verifier row can still discard every clean
+sibling in its batch. Bare hamzated bases `أن`/`إن` and compounds such as
+`بأن`, `وإن`, and `وأن` lose their particle candidate family after lossy
+normalization (`بأن` can become the verb `بَانَ`), while simply restoring one
+old alias would guess between genuinely distinct `أَنْ`/`أَنَّ` and
+`إِنْ`/`إِنَّ` identities. Unhamzated `ان` is broader still and must remain
+unresolved; exact madda `آن` is not a particle alternative. Exact target
+matching also runs too early and can override a conflicting fully vocalized
+identity.
+
+Two corpus-only gaps are latent until preparation is explicitly run. Existing
+due-dense salvage and green-page book reactivation can activate a successfully
+prepared authentic row outside the new governor. Translation-only enrichment
+can overwrite already-vocalized Arabic with an unvocalized same-letter echo
+(and the symmetric one-field overwrite exists for an already-good
+translation). Corpus lookup/correction must also exclude ungated lemmas, and a
+target that becomes temporarily suspended during external work must remain
+retryable rather than receiving the durable Jan-2 inventory blocker.
+
+**Approved closure.** Make verifier strictness row-granular once a trustworthy
+index exists; route ambiguous bare grammatical compounds as explicit candidate
+sets; resolve exact identity before target heuristics; and require the target
+to survive correction. Once an authentic `book`/`corpus` row has completed
+quality review, only the scoped governor may activate it. Enrichment writes
+only fields that were actually missing, corpus mapping uses gated lemmas, and
+transient learner-state changes release the row for retry.
+
+The latest production-derived snapshot contains 1,215 wrong fully vocalized
+`أن`/`إن` identity mappings. The deterministic repair classifies 1,208 as safe
+collateral-token fixes (46 active, 1,162 inactive) and excludes seven
+target-sensitive rows for contextual review. Its copied-snapshot rehearsal
+repaired all 1,208 in one transaction, left the seven excluded, preserved the
+1,950 active count and all sentence/word/target counts, did not write QA or
+review history, passed SQLite integrity, wrote one ActivityLog, and produced a
+zero-row second plan. Apply still requires a reviewed plan hash, explicit
+backup confirmation, the shared material-writer lock, and a database writer
+boundary held from live precondition validation through the atomic commit.
+
+External enrichment, QA, and mapping calls now carry exact content snapshots.
+A concurrent edit preserves the external work and independently invalidates
+only unchanged mapping/QA stamps; translation-only enrichment also guards the
+exact Arabic sent to the provider. A concurrent `SentenceWord` repair is
+detected before child rows can be replaced. Activation treats planning as
+advisory: one short database writer boundary reloads live capacity and only
+the selected lemmas' learner context, compares planned parent/mapping
+snapshots, then guards visibility. This closes content, learner-state, and
+ceiling races without a corpus-wide scan under the write lock.
+
+**Deferred adjacent identity audit (not in this repair).** The same snapshot
+shows additional resolver/data divergence that needs a separate reviewed
+policy and plan: the `فإن` family is not yet routed like `وإن`; 19 exact
+ل-prefixed rows are wrong but require lexical `لأنّ` handling; and 434 of 634
+attached-pronoun occurrences differ from the current resolver (six active,
+20 target-sensitive). The suffix cohort includes learned compound lemmas
+`إِنَّهُ` #2071 and `إِنَّهَا` #2072, so collapsing it onto base `إِنَّ`
+could strand learner state and coverage. Do not extend the 1,208-row apply:
+first decide compound-vs-base canonical policy, then census multi-prefix forms,
+migrate learner state if needed, and run a new hash-pinned repair.
+
+Production currently has zero prepared authentic rows and zero active Book OCR
+stories, so no corpus rollback or cleanup is needed. Deployment and the
+separately backed-up production repair remain pending; *Momo* preparation stays
+blocked until both are complete.
+
 ## 🟢 [IMPLEMENTED 2026-07-29 — three exact inventory gaps curated; corpus cron disabled] Scoped authentic-corpus enrichment
 
 The July 28 production audit found 243 hand-vetted *Momo* rows still inactive

@@ -89,7 +89,15 @@ def patched_verifier(monkeypatch):
 
     def install(fn):
         holder["fn"] = fn
-        monkeypatch.setattr(mapping_rescue, "batch_verify_sentences", fn)
+
+        def compatible(inputs, lemma_map, **_kwargs):
+            return fn(inputs, lemma_map)
+
+        monkeypatch.setattr(
+            mapping_rescue,
+            "batch_verify_sentences",
+            compatible,
+        )
     return install
 
 
@@ -471,6 +479,110 @@ def test_llm_failure_keeps_sentence_stale(db_session, patched_verifier):
     assert refreshed.mappings_verified_at == STALE  # unchanged
     assert stats.sentences_rescued == 0
     assert stats.lemmas_attempted == 1
+
+
+def test_lazy_rescue_skips_only_invalid_verifier_row(
+    db_session,
+    patched_verifier,
+):
+    lem = _lemma(db_session, "كِتاب", "book")
+    first = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    second = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    db_session.commit()
+
+    def mixed_rows(inputs, _lemma_map):
+        assert len(inputs) == 2
+        return [
+            {
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": "undeclared_disambiguation",
+                "invalid_positions": [0],
+            },
+            {"disambiguation": [], "issues": []},
+        ]
+
+    patched_verifier(mixed_rows)
+    stats = mapping_rescue.rescue_sentences_for_lemmas([lem.lemma_id])
+
+    db_session.expire_all()
+    assert db_session.get(Sentence, first.id).mappings_verified_at == STALE
+    assert db_session.get(Sentence, second.id).mappings_verified_at > STALE
+    assert stats.sentences_attempted == 2
+    assert stats.sentences_rescued == 1
+
+
+def test_reverify_skips_only_invalid_verifier_row(
+    db_session,
+    patched_verifier,
+):
+    lem = _lemma(db_session, "كِتاب", "book")
+    first = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    second = _stale_sentence(
+        db_session, [lem.lemma_id], target_id=lem.lemma_id
+    )
+    db_session.commit()
+
+    def mixed_rows(inputs, _lemma_map):
+        assert len(inputs) == 2
+        return [
+            {
+                "disambiguation": [],
+                "issues": [],
+                "invalid_reason": "undeclared_disambiguation",
+                "invalid_positions": [0],
+            },
+            {"disambiguation": [], "issues": []},
+        ]
+
+    patched_verifier(mixed_rows)
+    stats = mapping_rescue.reverify_all_active_sentences(
+        sentence_ids=[first.id, second.id],
+        batch_size=2,
+    )
+
+    db_session.expire_all()
+    assert db_session.get(Sentence, first.id).mappings_verified_at == STALE
+    assert db_session.get(Sentence, second.id).mappings_verified_at > STALE
+    assert stats.sentences_attempted == 2
+    assert stats.sentences_passed == 1
+    assert stats.llm_failures == 1
+
+
+def test_reverify_triage_mkdir_failure_is_best_effort(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "app.config.settings.log_dir",
+        tmp_path / "uncreatable",
+    )
+
+    def fail_mkdir(*_args, **_kwargs):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr("pathlib.Path.mkdir", fail_mkdir)
+
+    # Logging is diagnostic only and must never abort a completed sweep row.
+    mapping_rescue._log_reverify_triage(
+        sentence_id=1,
+        arabic_text="جُمْلَةٌ",
+        english_text="a sentence",
+        failed_positions=[0],
+        word_rows=[
+            mapping_rescue.TokenMapping(
+                position=0,
+                surface_form="جُمْلَةٌ",
+                lemma_id=1,
+                is_target=False,
+                is_function_word=False,
+            )
+        ],
+        issues=[],
+    )
 
 
 def test_no_stale_sentences_is_noop(db_session, patched_verifier):

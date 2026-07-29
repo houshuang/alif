@@ -48,6 +48,123 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Approved verifier/corpus seam closure; exact-identity repair remains two-phase
+
+**Pre-change adversarial evidence.** Follow-up review of PRs #232–#233
+reproduced four gaps against the deployed code and production-shaped data.
+First, one otherwise well-indexed verifier row that volunteers a
+disambiguation for an undeclared position returns `None` for the entire batch;
+clean siblings are discarded by generation, rescue, and corpus preparation.
+Second, lossy lookup keys make bare hamzated compounds unsafe: `بأن` resolves
+to verb `بَانَ` #554 with no alternatives, while `وإن` resolves to `أَنْ`
+#2185 with no alternatives. Bare `ان` already exposes the full particle
+collision set, so the review's claim that it has no collision was too broad;
+`وأن` is an additional uncovered member of the prefixed ambiguity class.
+Fully vocalized forms resolve correctly when they reach the exact-identity
+path.
+
+Third, the new prepared-but-inactive authentic state is not excluded from the
+two older `is_active=False→True` writers. With zero governor capacity and an
+acquiring content lemma, a prepared *Momo*-shaped row stayed blocked in the
+governor and was then activated by due-dense salvage; an equivalent prepared
+book row was activated by green-page reactivation. Fourth, a fully vocalized,
+untranslated corpus row whose enrichment response echoed unvocalized Arabic
+passed same-letter validation, overwrote the source, passed QA, and became
+prepared. The symmetric unnecessary translation overwrite is possible when
+only Arabic needed enrichment.
+
+**Additional live finding.** Target bare matching precedes exact grammatical
+identity. A direct mapper reproduction targeting `أَنْ` #2185 claimed
+`أَنَّ`, `إِنْ`, and `إِنَّ` as that target before exact lookup. The latest
+production-derived snapshot contains 1,215 wrong, fully vocalized `أن`/`إن`
+identity mappings. Of those, 1,208 are deterministic collateral-token repairs
+(46 active and 1,162 inactive); seven are target-sensitive and must remain
+outside an identity-only backfill. This requires a content repair after the
+prospective resolver fix; it is not safe to restore a single winner alias for
+ambiguous bare text.
+
+**Approved implementation boundary.**
+
+- Once a valid unique sentence index is known, semantic verifier failures are
+  row-local invalid markers. Top-level shape, cardinality, and unknown,
+  duplicate, or missing indices stay batch-fatal. Every caller must explicitly
+  discard/retry the marked row so an invalid marker can never be interpreted as
+  a clean verdict.
+- Bare hamzated `أن`/`إن` and prefixed `بأن`, `وإن`, and `وأن` expose only
+  their applicable exact particle pair as contextual candidates. Unhamzated
+  `ان` fails closed, exact madda `آن` excludes particle alternatives, `بان`
+  remains the verb, fully vocalized forms keep exact winners, and lexical
+  `لأنّ` is not mass-rewritten. Exact identity must precede target heuristics,
+  and correction cannot publish a sentence whose canonical target disappeared.
+- Once an authentic `source in {"book", "corpus"}` row has a completed quality
+  review, only the scoped corpus governor may activate it. Legacy QA-NULL book
+  behavior and non-authentic salvage remain unchanged.
+- Enrichment writes Arabic/transliteration only when diacritization was
+  requested and translation only when translation was missing. Corpus lookup
+  and correction require gated lemmas. A target that becomes transiently
+  unavailable through suspension is released for retry, while true inventory
+  failures retain the durable Jan-2 disposition.
+
+**Production/data boundary.** No rollback is needed: production has zero
+prepared authentic rows, zero inactive authentic rows with completed QA, and
+zero active Book OCR stories. Scheduled Step A salvage is disabled; book
+reactivation is presently inert. All 243 *Momo* rows remain untouched and no
+preparation is authorized before deployment. The mapping repair must be a
+separate plan/apply operation: exact vocalized identities only, reviewed row
+IDs and counts, precondition checks, backup, transactional write, ActivityLog,
+and no activation, learner-state, review-history, or ambiguous-bare mutation.
+
+**Local implementation and copied-snapshot rehearsal.** The verifier now
+preserves batch-fatal ownership failures but can return an explicit invalid
+marker for one attributable semantic row; generation, rescue, and corpus
+callers opt in and skip/retry that row. Hamza-preserving `أن`/`إن`, `بأن`,
+`وإن`, and `وأن` expose the appropriate two-identity contextual pair;
+unhamzated `ان` stays unresolved and exact `آن` has no particle alternatives.
+Exact identity runs before target matching, and every generation path
+recomputes target flags after disambiguation/correction. Authentic rows with
+completed QA are excluded from both legacy activation writers. Corpus
+enrichment writes only requested missing fields, requires gated
+lookup/corrections, and treats a newly suspended target as retryable.
+Quality-review batches with missing IDs retry unresolved inputs one at a time;
+only a one-input/one-output retry may accept an ID-less verdict, so array
+position is never used to join a batch.
+
+The adversarial concurrency pass added a second boundary around every external
+corpus call. Exact Arabic/English snapshots guard enrichment and QA verdicts;
+translation-only enrichment also compares the Arabic sent to the provider.
+Content drift preserves external work, keeps the row inactive, and
+independently clears only an unchanged mapping or QA stamp. The final mapping
+write also rechecks the pre-verifier `SentenceWord` signature after acquiring
+its parent write boundary, so a non-flock mapping repair is never deleted by a
+stale verifier result. Activation treats planning as advisory: one short
+`BEGIN IMMEDIATE` boundary reloads live capacity and authoritative learner
+state only for lemmas in the selected rows, then compares planned
+parent/mapping snapshots before guarded visibility writes. This closes
+capacity, content, child-mapping, and known→acquiring races without repeating a
+corpus-wide context scan under the writer lock.
+
+The two-phase repair script planned 1,208 exact collateral fixes by identity
+(`أَنْ` 579, `أَنَّ` 490, `إِنْ` 30, `إِنَّ` 109) and excluded seven
+target-sensitive rows. On a fresh production-derived copy it required the
+reviewed SHA-256 plus `--backup-confirmed`, changed exactly those 1,208 lemma
+IDs atomically, preserved 40,952 sentences, 265,825 sentence-word rows, 41,144
+target flags, and 1,950 active sentences, passed `PRAGMA integrity_check`, and
+left a zero-row second plan. Apply now takes the shared nonblocking
+material-update lock plus a database writer boundary before live header/row
+validation and holds both through commit; a non-cooperating writer cannot be
+silently overwritten between validation and flush. Production deployment,
+backup, and apply remain separately pending.
+
+**Deferred adjacent census.** This reviewed plan intentionally remains narrow.
+The snapshot also exposes an unhandled `فإن` prefix family, 19 wrong exact
+ل-prefixed rows, and 434/634 attached-pronoun occurrences whose stored mapping
+diverges from the current resolver (six active, 20 target-sensitive). The
+suffix set is not a mechanical extension: gated learned compound lemmas
+`إِنَّهُ` #2071 and `إِنَّهَا` #2072 conflict with base-particle aliases.
+Multi-prefix composition also exists. A follow-up must decide canonical
+compound policy and any learner-state migration before producing a separate
+reviewed plan; none of these rows belongs in the 1,208-row apply.
+
 ## 2026-07-29: Three reviewed *Momo* inventory lemmas curated; learning state unchanged
 
 **Boundary and evidence.** The PR #232 copied-snapshot rehearsal identified

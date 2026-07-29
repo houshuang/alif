@@ -64,12 +64,11 @@ def test_generate_corpus_enrichment_batch_returns_empty_on_provider_failure(mock
 def test_corpus_rejected_summary_includes_mapping_blockers():
     result = SimpleNamespace(
         mapping_blocked_ids=[10, 11],
-        mapping_rejected_ids=[11, 12],
         quality_rejected_ids=[13],
         target_rejected_ids=[10, 14],
     )
 
-    assert update_material._corpus_rejected_count(result) == 5
+    assert update_material._corpus_rejected_count(result) == 4
     assert update_material._corpus_rejected_count(None) == 0
 
 
@@ -95,7 +94,7 @@ def test_broad_corpus_dry_run_excludes_unrecoverable_claim_sentinels(
         patch(
             "scripts.update_material.plan_corpus_activation",
             return_value=empty_plan,
-        ),
+        ) as activation_plan,
     ):
         result = update_material._run_scoped_corpus_step(db_session, args)
 
@@ -103,6 +102,7 @@ def test_broad_corpus_dry_run_excludes_unrecoverable_claim_sentinels(
     assert (
         enrichment_plan.call_args.kwargs["include_legacy_claims"] is False
     )
+    activation_plan.assert_not_called()
 
 
 def _seed_due_lemma(db_session, lemma_id: int) -> None:

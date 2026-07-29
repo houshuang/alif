@@ -6,6 +6,35 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-07-29 — Verifier and authentic-corpus seam hardening
+
+- Isolate mapping-verifier semantic failures to the attributable sentence row
+  while retaining batch-fatal top-level, cardinality, and index-ownership
+  checks; generation, rescue, and corpus callers now explicitly skip/retry the
+  invalid marker and preserve clean siblings
+- Route bare hamzated `أن`/`إن` and prefixed `بأن`/`وإن`/`وأن` through
+  hamza-preserving contextual pairs, fail closed on unhamzated `ان`, preserve
+  exact `آن` and lexical `بان`/`لأنّ`, resolve fully vocalized identities
+  before target matching, and reject generated material if its required
+  canonical target disappears after disambiguation/correction
+- Make completed-QA authentic rows governor-exclusive by excluding them from
+  due-dense salvage and green-page book reactivation
+- Preserve existing Arabic/transliteration or translation during one-field
+  corpus enrichment, require gated lookup/corrections, keep suspension races
+  retryable, and bypass empty activation scans
+- Guard every external corpus phase with exact content compare-and-set checks;
+  concurrent text or mapping edits preserve the external work while
+  independently invalidating only unchanged derived stamps. Activation takes
+  one short SQLite writer boundary, reloads selected-lemma demand/capacity, and
+  compares planned parent/mapping snapshots before claiming visibility
+- Recover safely from ID-less quality-review API fallback output by retrying
+  unresolved sentences one at a time; batch array order is never trusted
+- Add a hash-pinned, backup-confirmed two-phase exact-identity repair. A
+  production-derived rehearsal repaired 1,208 collateral mappings atomically,
+  excluded seven target-sensitive rows, preserved the 1,950 active count, and
+  produced a zero-row second plan; apply holds both the shared material lock
+  and a database writer boundary from live validation through commit
+
 ## 2026-07-29 — Reviewed *Momo* dictionary inventory (PR #234)
 
 - Add exactly three independently reviewed scaffold lemmas needed by the

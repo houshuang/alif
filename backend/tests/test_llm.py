@@ -329,6 +329,93 @@ def test_quality_review_duplicate_id_is_retryable(mock_completion):
 
 
 @patch("app.services.llm.generate_completion")
+def test_quality_review_retries_idless_batch_rows_individually(mock_completion):
+    mock_completion.side_effect = [
+        {
+            "reviews": [
+                {
+                    "natural": True,
+                    "translation_correct": True,
+                    "reason": "id omitted in batch",
+                },
+                {
+                    "natural": False,
+                    "translation_correct": True,
+                    "reason": "second id omitted in batch",
+                },
+            ]
+        },
+        {
+            "reviews": [
+                {
+                    "natural": True,
+                    "translation_correct": True,
+                    "reason": "first independently reviewed",
+                }
+            ]
+        },
+        {
+            "reviews": [
+                {
+                    "natural": False,
+                    "translation_correct": True,
+                    "reason": "second independently reviewed",
+                }
+            ]
+        },
+    ]
+
+    reviews = review_sentences_quality([
+        {"arabic": "الأَوَّلُ", "english": "first"},
+        {"arabic": "الثَّانِي", "english": "second"},
+    ])
+
+    assert [review.reason for review in reviews] == [
+        "first independently reviewed",
+        "second independently reviewed",
+    ]
+    assert [review.natural for review in reviews] == [True, False]
+    assert all(review.review_completed for review in reviews)
+    assert mock_completion.call_count == 3
+    retry_prompts = [
+        call.kwargs["prompt"] for call in mock_completion.call_args_list[1:]
+    ]
+    assert "الأَوَّلُ" in retry_prompts[0]
+    assert "الثَّانِي" not in retry_prompts[0]
+    assert "الثَّانِي" in retry_prompts[1]
+    assert "الأَوَّلُ" not in retry_prompts[1]
+
+
+@patch("app.services.llm.generate_completion")
+def test_quality_review_never_positionally_accepts_multirow_idless_retry(
+    mock_completion,
+):
+    malformed = {
+        "reviews": [
+            {
+                "natural": True,
+                "translation_correct": True,
+                "reason": "first unidentifiable row",
+            },
+            {
+                "natural": False,
+                "translation_correct": False,
+                "reason": "second unidentifiable row",
+            },
+        ]
+    }
+    mock_completion.return_value = malformed
+
+    reviews = review_sentences_quality([
+        {"arabic": "الأَوَّلُ", "english": "first"},
+        {"arabic": "الثَّانِي", "english": "second"},
+    ])
+
+    assert all(not review.review_completed for review in reviews)
+    assert all(not review.natural for review in reviews)
+
+
+@patch("app.services.llm.generate_completion")
 def test_generate_sentence_omits_example_block_when_partial(mock_completion):
     """Only target_example_ar (no English) → block suppressed — both sides needed
     for sense grounding."""

@@ -407,6 +407,34 @@ GRAMMATICAL_EXACT_IDENTITY_FORMS = {
     "إِنَّ",
 }
 
+# These undiacritized, hamza-preserving particles and compounds are grammatical
+# candidate sets, not aliases with a fixed winner.  Hamza placement narrows the
+# base form to two identities (أن is an/anna; إن is in/inna), and prefix hamza
+# matters: بأن is bi+an/anna, whereas بان is the lexical verb بَانَ.
+# Contextual batch verification must choose between the two complete
+# identities.  If either identity is absent from the lookup, the form fails
+# closed instead of degrading to an unrelated normalized lemma.
+AMBIGUOUS_FUNCTION_FORM_IDENTITIES: dict[str, tuple[str, str]] = {
+    "أن": ("أَنْ", "أَنَّ"),
+    "إن": ("إِنْ", "إِنَّ"),
+    "بأن": ("أَنْ", "أَنَّ"),
+    "وإن": ("إِنْ", "إِنَّ"),
+    "وأن": ("أَنْ", "أَنَّ"),
+}
+
+# With no hamza, ان cannot distinguish either particle pair from one another
+# (and normalized lookup may also contain lexical آن).  Running-text mapping
+# and contextless import/dedup must leave it unresolved; exact آن remains a
+# distinct, resolvable spelling.
+UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS = {"ان"}
+
+# Stored lexical compounds whose citation spelling commonly omits a short
+# vowel on the attached prefix.  Production stores لأنّ as ``لأنَّ``; running
+# text normally supplies the prefix kasra (``لِأَنَّ``).  A byte-for-byte
+# exact-identity table cannot connect those equivalent spellings, so a unique
+# stored shadda-bearing lexical row must outrank the derived لِ + أَنَّ alias.
+LEXICAL_SHADDA_COMPOUND_BARES = {"لأن"}
+
 
 def tokenize(text: str) -> list[str]:
     """Tokenize Arabic text into words.
@@ -518,6 +546,11 @@ def _is_function_word(bare_form: str) -> bool:
     if not FUNCTION_WORDS:
         return False
     stripped = strip_punctuation(strip_tatweel(strip_diacritics(bare_form)))
+    # Preserve the hamza distinction for the lexical verb بَانَ.  Normalizing
+    # بأن ("that") to بان is useful only after the original spelling has
+    # already shown its hamza; the genuinely unhamzated surface is the verb.
+    if stripped == "بان":
+        return False
     normalized = normalize_alef(stripped)
     return normalized in _FUNCTION_WORDS_NORMALIZED
 
@@ -554,6 +587,149 @@ class TokenMapping:
     alternative_lemma_ids: list[int] | None = None
     via_clitic: bool = False
     is_proper_name: bool = False
+
+
+def _target_forms_for_bare(target_bare: str | None) -> set[str]:
+    """Return normalized direct/article forms for one target spelling."""
+    if not isinstance(target_bare, str) or not target_bare.strip():
+        return set()
+    cleaned = strip_punctuation(
+        strip_tatweel(strip_diacritics(target_bare.strip()))
+    )
+    target_normalized = normalize_alef(cleaned)
+    if not target_normalized:
+        return set()
+
+    forms: set[str] = set()
+    for variant in final_alef_variants(target_normalized):
+        forms.add(variant)
+        if not variant.startswith("ال"):
+            forms.add("ال" + variant)
+        elif len(variant) > 2:
+            forms.add(variant[2:])
+    return forms
+
+
+def _surface_matches_target_bare(
+    surface_form: str,
+    target_bare: str | None,
+) -> bool:
+    """Check orthographic target shape without deciding lexical identity."""
+    target_forms = _target_forms_for_bare(target_bare)
+    if not target_forms:
+        return False
+
+    bare = strip_punctuation(
+        strip_tatweel(strip_diacritics(surface_form))
+    )
+    bare_norm = normalize_alef(bare)
+    token_forms = {bare_norm, strip_tanwin_alif(bare_norm)}
+    if token_forms & target_forms:
+        return True
+    for stem in _strip_clitics(bare_norm):
+        stem_norm = normalize_alef(stem)
+        if (
+            stem_norm in target_forms
+            or strip_tanwin_alif(stem_norm) in target_forms
+        ):
+            return True
+    return False
+
+
+def _surface_identity_allows_target(
+    surface_form: str,
+    lemma_lookup: dict[str, int],
+    target_lemma_id: int,
+) -> bool:
+    """Reject target claims contradicted by exact grammatical identity."""
+    exact_surface = _exact_correction_form(surface_form)
+    exact_bare = _exact_lookup_bare(surface_form)
+    if "\u0651" in exact_surface and hasattr(
+        lemma_lookup,
+        "lexical_shadda_compound_overrides",
+    ):
+        lexical_id = (
+            lemma_lookup.lexical_shadda_compound_overrides.get(exact_bare)
+        )
+        if lexical_id is not None:
+            return lexical_id == target_lemma_id
+
+    if hasattr(lemma_lookup, "exact_identity_overrides"):
+        exact_id = lemma_lookup.exact_identity_overrides.get(exact_surface)
+        if exact_id is not None:
+            return exact_id == target_lemma_id
+
+    if (
+        hasattr(lemma_lookup, "required_exact_identities")
+        and exact_surface in lemma_lookup.required_exact_identities
+    ):
+        # The spelling requires an exact identity, but that identity is
+        # missing or duplicated in this lookup.
+        return False
+
+    if (
+        hasattr(lemma_lookup, "required_ambiguous_function_forms")
+        and exact_bare in lemma_lookup.required_ambiguous_function_forms
+    ):
+        # A partially vocalized compound that missed the exact layer must not
+        # degrade to the undiacritized candidate route.
+        if ARABIC_DIACRITICS.search(exact_surface):
+            return False
+        candidate_ids = (
+            lemma_lookup.ambiguous_function_form_candidates.get(exact_bare)
+            or ()
+        )
+        return target_lemma_id in candidate_ids
+
+    if exact_bare in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS:
+        return False
+
+    return True
+
+
+def refresh_target_mapping_flags(
+    mappings: list[TokenMapping],
+    lemma_lookup: dict[str, int],
+    target_bares: dict[str, int],
+    *,
+    required_target_ids: set[int] | None = None,
+) -> bool:
+    """Recompute target flags from final lemma IDs and exact surface identity.
+
+    This must run after contextual disambiguation/corrections. Bare spelling
+    alone is insufficient for identity-sensitive homographs: أَنْ may be
+    target #2185, while أَنَّ, إِنْ, إِنَّ, and آن must retain their own IDs.
+    Returns whether every required target identity is present.
+    """
+    found_ids: set[int] = set()
+    for mapping in mappings:
+        mapping.is_target = False
+        if mapping.lemma_id is None:
+            continue
+        for target_bare, target_id in target_bares.items():
+            if mapping.lemma_id != target_id:
+                continue
+            if not _surface_matches_target_bare(
+                mapping.surface_form,
+                target_bare,
+            ):
+                continue
+            if not _surface_identity_allows_target(
+                mapping.surface_form,
+                lemma_lookup,
+                target_id,
+            ):
+                continue
+            mapping.is_target = True
+            found_ids.add(target_id)
+            break
+
+    required = (
+        set(target_bares.values())
+        if required_target_ids is None
+        else set(required_target_ids)
+    )
+    return required <= found_ids
 
 
 def detect_proper_names(
@@ -659,15 +835,7 @@ def map_tokens_to_lemmas(
         and isinstance(target_bare, str)
         and bool(target_bare.strip())
     )
-    target_forms: set[str] = set()
-    if target_enabled:
-        target_normalized = normalize_alef(target_bare.strip())
-        if target_normalized:
-            target_forms.add(target_normalized)
-            if not target_normalized.startswith("ال"):
-                target_forms.add("ال" + target_normalized)
-            if target_normalized.startswith("ال") and len(target_normalized) > 2:
-                target_forms.add(target_normalized[2:])
+    target_forms = _target_forms_for_bare(target_bare) if target_enabled else set()
 
     result: list[TokenMapping] = []
     for i, token in enumerate(tokens):
@@ -678,20 +846,19 @@ def map_tokens_to_lemmas(
             continue
         bare_norm = normalize_alef(bare_clean)
 
-        # Check target
-        is_target = bool(target_forms) and bare_norm in target_forms
-        if target_forms and not is_target:
-            for stem in _strip_clitics(bare_norm):
-                if normalize_alef(stem) in target_forms:
-                    is_target = True
-                    break
-
-        if is_target:
-            result.append(TokenMapping(i, token, target_lemma_id, True, False))
-            continue
+        # Orthographic target shape is only a candidate signal. Resolve the
+        # token's lexical identity first so a shared normalized bare cannot
+        # overwrite an exact identity such as أَنَّ or إِنْ.
+        surface_matches_target = bool(target_forms) and (
+            _surface_matches_target_bare(token, target_bare)
+        )
 
         # Check proper names before function word / lemma lookup
-        if proper_names_norm and bare_norm in proper_names_norm:
+        if (
+            not surface_matches_target
+            and proper_names_norm
+            and bare_norm in proper_names_norm
+        ):
             result.append(TokenMapping(i, token, None, False, False, is_proper_name=True))
             continue
 
@@ -714,14 +881,14 @@ def map_tokens_to_lemmas(
                     if candidate != lemma_id
                 )
             )
-            result.append(TokenMapping(
+            mapping = TokenMapping(
                 i,
                 token,
                 lemma_id,
                 False,
                 is_function,
                 alternative_lemma_ids=alts or None,
-            ))
+            )
         else:
             alternatives: list[int] = []
             clitic_flag: list[bool] = [False]
@@ -732,11 +899,35 @@ def map_tokens_to_lemmas(
             )
             # Deduplicate and exclude winner
             alts = list(dict.fromkeys(a for a in alternatives if a != lemma_id))
-            result.append(TokenMapping(
+            mapping = TokenMapping(
                 i, token, lemma_id, False, False,
                 alternative_lemma_ids=alts or None,
                 via_clitic=clitic_flag[0],
-            ))
+            )
+
+        if surface_matches_target:
+            identity_allowed = _surface_identity_allows_target(
+                token,
+                lemma_lookup,
+                target_lemma_id,
+            )
+            if (
+                mapping.lemma_id == target_lemma_id
+                and not mapping.alternative_lemma_ids
+                and identity_allowed
+            ):
+                mapping.is_target = True
+                mapping.is_function_word = False
+            elif mapping.lemma_id is None and identity_allowed:
+                # Preserve the historical orthographic fallback for a target
+                # absent from derived lookup forms (for example a final-weak
+                # ا/ى surface alternation). Identity-sensitive forms are
+                # rejected by ``_surface_identity_allows_target`` above.
+                mapping.lemma_id = target_lemma_id
+                mapping.is_target = True
+                mapping.is_function_word = False
+
+        result.append(mapping)
 
     return result
 
@@ -760,9 +951,56 @@ def lookup_lemma_direct(
         and hasattr(lemma_lookup, "exact_identity_overrides")
     ):
         exact_identity = _exact_correction_form(original_exact)
+        exact_bare = _exact_lookup_bare(exact_identity)
+        if "\u0651" in exact_identity and hasattr(
+            lemma_lookup,
+            "lexical_shadda_compound_overrides",
+        ):
+            lexical_override = (
+                lemma_lookup.lexical_shadda_compound_overrides.get(exact_bare)
+            )
+            if lexical_override is not None:
+                return lexical_override
         override = lemma_lookup.exact_identity_overrides.get(exact_identity)
         if override is not None:
             return override
+
+    # Route undiacritized particles through their complete hamza-preserving
+    # candidate set. Do this before normalized lookup so أن/إن do not inherit
+    # whichever normalized ان collision was inserted first, بأن cannot fall
+    # into بَانَ, and وإن/وأن keep the hamza side shown by the surface. A
+    # vocalized form must have matched the exact layer above; it must not
+    # degrade to this ambiguous route.
+    if (
+        original_bare
+        and hasattr(lemma_lookup, "required_ambiguous_function_forms")
+    ):
+        exact_bare = _exact_lookup_bare(original_bare)
+        exact_surface = _exact_correction_form(original_exact)
+        if exact_bare in lemma_lookup.required_ambiguous_function_forms:
+            if exact_surface and ARABIC_DIACRITICS.search(exact_surface):
+                return None
+            candidate_ids = (
+                lemma_lookup.ambiguous_function_form_candidates.get(exact_bare)
+                or ()
+            )
+            if not candidate_ids:
+                return None
+            winner = candidate_ids[0]
+            if out_alternatives is not None:
+                out_alternatives.extend(
+                    lemma_id
+                    for lemma_id in candidate_ids[1:]
+                    if lemma_id != winner
+                )
+            return winner
+
+    if (
+        original_bare
+        and _exact_lookup_bare(original_bare)
+        in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+    ):
+        return None
 
     if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
         exact = _exact_lookup_bare(original_bare)
@@ -796,14 +1034,41 @@ def lookup_lemma_direct(
             return True, resolved
         return False, None
 
+    def _collision_alternatives(
+        key: str,
+        winner: int,
+        resolved: int | None,
+    ) -> list[int]:
+        entries = lemma_lookup.collisions[key]
+        if resolved is not None and original_bare:
+            # An exact hamza/madda spelling is decisive. Keep only genuinely
+            # same-spelling homographs as alternatives; normalized neighbors
+            # such as أَنْ/إِنْ are not alternatives to exact آن.
+            exact_entries = [
+                (lemma_id, candidate_bare)
+                for lemma_id, candidate_bare in entries
+                if candidate_bare == original_bare
+            ]
+            if exact_entries:
+                entries = exact_entries
+        return [
+            lemma_id
+            for lemma_id, _ in entries
+            if lemma_id != winner
+        ]
+
     if bare_norm in lemma_lookup:
         collided, resolved = _check_collision(bare_norm)
         if collided:
             winner = resolved if resolved is not None else lemma_lookup[bare_norm]
             if out_alternatives is not None:
-                for lemma_id, _ in lemma_lookup.collisions[bare_norm]:
-                    if lemma_id != winner:
-                        out_alternatives.append(lemma_id)
+                out_alternatives.extend(
+                    _collision_alternatives(
+                        bare_norm,
+                        winner,
+                        resolved,
+                    )
+                )
             return winner
         return lemma_lookup[bare_norm]
     if bare_norm.startswith("ال") and len(bare_norm) > 2:
@@ -817,9 +1082,13 @@ def lookup_lemma_direct(
                     else lemma_lookup[without_al]
                 )
                 if out_alternatives is not None:
-                    for lemma_id, _ in lemma_lookup.collisions[without_al]:
-                        if lemma_id != winner:
-                            out_alternatives.append(lemma_id)
+                    out_alternatives.extend(
+                        _collision_alternatives(
+                            without_al,
+                            winner,
+                            resolved,
+                        )
+                    )
                 return winner
             return lemma_lookup[without_al]
     elif len(bare_norm) >= 3:
@@ -833,9 +1102,13 @@ def lookup_lemma_direct(
                     else lemma_lookup[with_al]
                 )
                 if out_alternatives is not None:
-                    for lemma_id, _ in lemma_lookup.collisions[with_al]:
-                        if lemma_id != winner:
-                            out_alternatives.append(lemma_id)
+                    out_alternatives.extend(
+                        _collision_alternatives(
+                            with_al,
+                            winner,
+                            resolved,
+                        )
+                    )
                 return winner
             return lemma_lookup[with_al]
     return None
@@ -1104,6 +1377,17 @@ class LemmaLookupDict(dict):
         self.required_exact_identities: set[str] = set(
             GRAMMATICAL_EXACT_IDENTITY_FORMS
         )
+        # Hamza-preserving undiacritized compound → complete candidate IDs.
+        # ``required_ambiguous_function_forms`` is kept separately so absence
+        # of one identity can fail closed rather than falling through.
+        self.ambiguous_function_form_candidates: dict[str, tuple[int, ...]] = {}
+        self.required_ambiguous_function_forms: set[str] = set(
+            AMBIGUOUS_FUNCTION_FORM_IDENTITIES
+        )
+        # Hamza-preserving bare compound → unique stored lexical lemma. This
+        # bridges optional prefix vowels without weakening exact identity for
+        # the particle itself (for example لِأَنْ remains أَنْ).
+        self.lexical_shadda_compound_overrides: dict[str, int] = {}
 
     def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
@@ -1119,14 +1403,28 @@ class LemmaLookupDict(dict):
             self[key] = lemma_id
             self._first_bare[key] = bare
 
-    def set_exact_identity(self, key: str, lemma_id: int) -> None:
-        """Register a unique fully vocalized identity, removing duplicates."""
+    def set_exact_identity(
+        self,
+        key: str,
+        lemma_id: int,
+        *,
+        derived: bool = False,
+    ) -> None:
+        """Register a unique fully vocalized identity.
+
+        A stored lemma identity is authoritative. Derived prefix aliases may
+        fill an absent identity, but must never invalidate a stored lexical
+        compound such as لِأَنَّ by registering the base أَنَّ under the same
+        spelling.
+        """
         if not key or key in self._ambiguous_exact_identities:
             return
         existing = self.exact_identity_overrides.get(key)
         if existing is None:
             self.exact_identity_overrides[key] = lemma_id
         elif existing != lemma_id:
+            if derived:
+                return
             self.exact_identity_overrides.pop(key, None)
             self._ambiguous_exact_identities.add(key)
 
@@ -1273,6 +1571,9 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     lookup = LemmaLookupDict()
     bare_to_id: dict[str, int] = {}
     exact_bare_to_ids: dict[str, list[int]] = {}
+    lexical_shadda_compound_ids: dict[str, set[int]] = {
+        bare: set() for bare in LEXICAL_SHADDA_COMPOUND_BARES
+    }
 
     for lem in lemmas:
         exact_bare = _lemma_exact_bare(lem)
@@ -1283,6 +1584,17 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         )
         if exact_identity and ARABIC_DIACRITICS.search(exact_identity):
             lookup.set_exact_identity(exact_identity, lem.lemma_id)
+        if (
+            exact_bare in lexical_shadda_compound_ids
+            and "\u0651" in exact_identity
+        ):
+            lexical_shadda_compound_ids[exact_bare].add(lem.lemma_id)
+
+    for exact_bare, lemma_ids in lexical_shadda_compound_ids.items():
+        if len(lemma_ids) == 1:
+            lookup.lexical_shadda_compound_overrides[exact_bare] = next(
+                iter(lemma_ids)
+            )
 
     # Pass 1: Register all lemma bare forms (highest priority)
     for lem in lemmas:
@@ -1392,7 +1704,25 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             form_identity = _exact_correction_form(form)
             lookup.required_exact_identities.add(form_identity)
             if base_id is not None:
-                lookup.set_exact_identity(form_identity, base_id)
+                lookup.set_exact_identity(
+                    form_identity,
+                    base_id,
+                    derived=True,
+                )
+
+    # Register only complete contextual candidate sets.  Keeping the required
+    # form names even when one identity is absent makes direct lookup fail
+    # closed instead of falling through to a lexical collision.
+    for form, identities in AMBIGUOUS_FUNCTION_FORM_IDENTITIES.items():
+        candidate_ids = tuple(
+            lookup.exact_identity_overrides.get(identity)
+            for identity in identities
+        )
+        if (
+            all(lemma_id is not None for lemma_id in candidate_ids)
+            and len(set(candidate_ids)) == len(candidate_ids)
+        ):
+            lookup.ambiguous_function_form_candidates[form] = candidate_ids
 
     if lookup.collisions:
         _validator_logger.info(
@@ -1590,10 +1920,13 @@ def batch_verify_sentences(
 
     Returns a list parallel to ``sentences``, each element being:
         {"disambiguation": [...], "issues": [...]}
-    With ``return_invalid_rows=True``, a self-contradictory sentence verdict is
-    represented as empty verdict arrays plus ``invalid_reason`` and
-    ``invalid_positions`` so batch-oriented corpus callers can retry only that
-    row.  The default remains fail-closed for backward compatibility.
+    With ``return_invalid_rows=True``, a semantic error attributable to one
+    sentence row is represented as empty verdict arrays plus
+    ``invalid_reason`` and ``invalid_positions``.  This lets batch callers
+    discard/retry only that row while preserving clean siblings from the same
+    provider response.  Top-level shape errors and untrustworthy,
+    duplicate, unknown, or missing indices remain batch-fatal.  The default
+    remains fail-closed for backward compatibility.
     Returns None if the LLM call fails entirely.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
@@ -1804,6 +2137,38 @@ arrays. Never omit, merge, or duplicate an input index."""
         expected_positions_by_idx[index] = positions
         expected_ambiguities_by_idx[index] = ambiguities
 
+    # Establish trustworthy row ownership before parsing any verdict payload.
+    # A malformed payload can be isolated only after its input index is known
+    # to be valid and unique. Unknown, duplicate, or missing indices still
+    # make the whole provider response unusable.
+    raw_by_idx: dict[int, dict] = {}
+    for row in raw_sentences:
+        if not isinstance(row, dict):
+            _validator_logger.warning(
+                "Batch verification returned a non-object sentence row"
+            )
+            return None
+        index = row.get("index")
+        if (
+            not isinstance(index, int)
+            or isinstance(index, bool)
+            or index < 0
+            or index >= len(sentences)
+            or index in raw_by_idx
+        ):
+            _validator_logger.warning(
+                "Batch verification returned an invalid or duplicate index"
+            )
+            return None
+        raw_by_idx[index] = row
+
+    expected_indices = set(range(len(sentences)))
+    if set(raw_by_idx) != expected_indices:
+        _validator_logger.warning(
+            "Batch verification omitted one or more sentence verdicts"
+        )
+        return None
+
     result_by_idx: dict[int, dict] = {}
     required_issue_keys = {
         "position",
@@ -1812,63 +2177,109 @@ arrays. Never omit, merge, or duplicate an input index."""
         "correct_pos",
         "explanation",
     }
-    for row in raw_sentences:
-        if not isinstance(row, dict):
-            _validator_logger.warning(
-                "Batch verification returned a non-object sentence row"
-            )
-            return None
-        if not {"index", "disambiguation", "issues"} <= row.keys():
-            _validator_logger.warning(
-                "Batch verification sentence row is missing required keys"
-            )
-            return None
 
-        index = row["index"]
-        if (
-            not isinstance(index, int)
-            or isinstance(index, bool)
-            or index < 0
-            or index >= len(sentences)
-            or index in result_by_idx
-        ):
-            _validator_logger.warning(
-                "Batch verification returned an invalid or duplicate index"
-            )
-            return None
+    def _invalid_row(
+        index: int,
+        reason: str,
+        positions: list[int] | set[int] | tuple[int, ...] = (),
+    ) -> bool:
+        """Record one attributable bad verdict, or preserve legacy fail-close."""
+        _validator_logger.warning(
+            "Batch verification row %d is invalid: %s",
+            index,
+            reason,
+        )
+        if not return_invalid_rows:
+            return False
+        result_by_idx[index] = {
+            "index": index,
+            "disambiguation": [],
+            "issues": [],
+            "invalid_reason": reason,
+            "invalid_positions": sorted({
+                position
+                for position in positions
+                if isinstance(position, int) and not isinstance(position, bool)
+            }),
+        }
+        return True
 
+    for index in range(len(sentences)):
+        row = raw_by_idx[index]
+        if not {"disambiguation", "issues"} <= row.keys():
+            if _invalid_row(index, "missing_verdict_fields"):
+                continue
+            return None
         disambiguation = row["disambiguation"]
         issues = row["issues"]
         if not isinstance(disambiguation, list) or not isinstance(issues, list):
-            _validator_logger.warning(
-                "Batch verification row has non-list verdict fields"
-            )
+            if _invalid_row(index, "non_list_verdict_fields"):
+                continue
             return None
-        if any(
-            not isinstance(choice, dict)
-            or not {"position", "lemma_id"} <= choice.keys()
-            or not isinstance(choice["position"], int)
-            or isinstance(choice["position"], bool)
-            or not isinstance(choice["lemma_id"], int)
-            or isinstance(choice["lemma_id"], bool)
-            or choice["position"]
-            not in expected_ambiguities_by_idx[index]
-            or choice["lemma_id"]
-            not in expected_ambiguities_by_idx[index][choice["position"]]
+
+        malformed_choices = [
+            choice
             for choice in disambiguation
-        ):
-            _validator_logger.warning(
-                "Batch verification returned malformed disambiguation"
+            if (
+                not isinstance(choice, dict)
+                or not {"position", "lemma_id"} <= choice.keys()
+                or not isinstance(choice["position"], int)
+                or isinstance(choice["position"], bool)
+                or not isinstance(choice["lemma_id"], int)
+                or isinstance(choice["lemma_id"], bool)
             )
+        ]
+        if malformed_choices:
+            if _invalid_row(index, "malformed_disambiguation"):
+                continue
             return None
+
+        unsolicited_positions = {
+            choice["position"]
+            for choice in disambiguation
+            if choice["position"] not in expected_ambiguities_by_idx[index]
+        }
+        if unsolicited_positions:
+            if _invalid_row(
+                index,
+                "unsolicited_disambiguation",
+                unsolicited_positions,
+            ):
+                continue
+            return None
+
+        invalid_choice_positions = {
+            choice["position"]
+            for choice in disambiguation
+            if choice["lemma_id"]
+            not in expected_ambiguities_by_idx[index][choice["position"]]
+        }
+        if invalid_choice_positions:
+            if _invalid_row(
+                index,
+                "invalid_disambiguation_choice",
+                invalid_choice_positions,
+            ):
+                continue
+            return None
+
         disambiguation_positions = [
             choice["position"] for choice in disambiguation
         ]
         if len(disambiguation_positions) != len(set(disambiguation_positions)):
-            _validator_logger.warning(
-                "Batch verification returned duplicate disambiguation positions"
-            )
+            duplicate_positions = {
+                position
+                for position in disambiguation_positions
+                if disambiguation_positions.count(position) > 1
+            }
+            if _invalid_row(
+                index,
+                "duplicate_disambiguation_positions",
+                duplicate_positions,
+            ):
+                continue
             return None
+
         if any(
             not isinstance(issue, dict)
             or not required_issue_keys <= issue.keys()
@@ -1881,16 +2292,28 @@ arrays. Never omit, merge, or duplicate an input index."""
             )
             for issue in issues
         ):
-            _validator_logger.warning(
-                "Batch verification returned malformed issues"
-            )
+            malformed_positions = [
+                issue.get("position")
+                for issue in issues
+                if isinstance(issue, dict)
+            ]
+            if _invalid_row(index, "malformed_issues", malformed_positions):
+                continue
             return None
 
         issue_positions = [issue["position"] for issue in issues]
         if len(issue_positions) != len(set(issue_positions)):
-            _validator_logger.warning(
-                "Batch verification returned duplicate issue positions"
-            )
+            duplicate_positions = {
+                position
+                for position in issue_positions
+                if issue_positions.count(position) > 1
+            }
+            if _invalid_row(
+                index,
+                "duplicate_issue_positions",
+                duplicate_positions,
+            ):
+                continue
             return None
         contradictory_positions = set(disambiguation_positions) & set(
             issue_positions
@@ -1903,29 +2326,15 @@ arrays. Never omit, merge, or duplicate an input index."""
                 "Batch verification returned contradictory verdicts at "
                 f"positions {sorted(contradictory_positions)}"
             )
-            if not return_invalid_rows:
-                # Preserve the established fail-closed contract for existing
-                # callers. Corpus batching can explicitly request the marker
-                # below and retry just this row without another provider call
-                # for otherwise valid rows.
-                return None
-            result_by_idx[index] = {
-                "index": index,
-                "disambiguation": [],
-                "issues": [],
-                "invalid_reason": "contradictory_verdict",
-                "invalid_positions": sorted(contradictory_positions),
-            }
-            continue
+            if _invalid_row(
+                index,
+                "contradictory_verdict",
+                contradictory_positions,
+            ):
+                continue
+            return None
 
         result_by_idx[index] = row
-
-    expected_indices = set(range(len(sentences)))
-    if set(result_by_idx) != expected_indices:
-        _validator_logger.warning(
-            "Batch verification omitted one or more sentence verdicts"
-        )
-        return None
 
     # An ambiguous input cannot be silently omitted as "clean": the prompt
     # requires exactly one verdict for every listed ambiguous position.  A
@@ -1952,9 +2361,15 @@ arrays. Never omit, merge, or duplicate an input index."""
             disambiguated_positions
             | (issue_positions & set(ambiguities))
         ) != set(ambiguities):
-            _validator_logger.warning(
-                "Batch verification omitted an ambiguity verdict"
+            missing_positions = set(ambiguities) - (
+                disambiguated_positions | issue_positions
             )
+            if _invalid_row(
+                index,
+                "omitted_ambiguity_verdict",
+                missing_positions,
+            ):
+                continue
             return None
 
     output = []
@@ -2540,8 +2955,61 @@ def resolve_existing_lemma(
 
     Returns the matched lemma_id, or None if no match found.
     """
-    bare_norm = normalize_alef(bare)
-    return lookup_lemma(bare_norm, lemma_lookup, original_bare=bare)
+    exact_surface = _exact_correction_form(bare)
+    bare_clean = strip_punctuation(
+        strip_tatweel(strip_diacritics(exact_surface))
+    )
+    bare_norm = normalize_alef(bare_clean)
+    exact_bare = _exact_lookup_bare(exact_surface)
+
+    if exact_bare in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS:
+        return None
+
+    if (
+        hasattr(lemma_lookup, "required_ambiguous_function_forms")
+        and exact_bare in lemma_lookup.required_ambiguous_function_forms
+    ):
+        # Import/dedup has no sentence context with which to choose between
+        # أَنْ/أَنَّ or إِنْ/إِنَّ. A bare prefixed compound must remain
+        # unresolved instead of linking whichever normalized collision won.
+        if not ARABIC_DIACRITICS.search(exact_surface):
+            return None
+        return lookup_lemma_direct(
+            bare_norm,
+            lemma_lookup,
+            original_bare=bare_clean,
+            original_exact=exact_surface,
+        )
+
+    if (
+        (
+            hasattr(lemma_lookup, "required_exact_identities")
+            and exact_surface in lemma_lookup.required_exact_identities
+        )
+        or (
+            "\u0651" in exact_surface
+            and hasattr(
+                lemma_lookup,
+                "lexical_shadda_compound_overrides",
+            )
+            and exact_bare
+            in lemma_lookup.lexical_shadda_compound_overrides
+        )
+    ):
+        # Fully vocalized grammatical and stored lexical compounds must use
+        # the same exact-identity layer as running-text mapping.
+        return lookup_lemma_direct(
+            bare_norm,
+            lemma_lookup,
+            original_bare=bare_clean,
+            original_exact=exact_surface,
+        )
+
+    return lookup_lemma(
+        bare_norm,
+        lemma_lookup,
+        original_bare=bare_clean,
+    )
 
 
 @dataclass

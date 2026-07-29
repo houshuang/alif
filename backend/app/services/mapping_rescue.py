@@ -868,10 +868,6 @@ def _log_reverify_triage(
     import json
     from datetime import datetime as _dt
 
-    log_dir = settings.log_dir
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"mapping_reverify_failures_{_dt.now():%Y-%m-%d}.jsonl"
-
     failure_detail = []
     word_by_pos = {w.position: w for w in word_rows}
     issue_by_pos = {i.get("position"): i for i in issues if "position" in i}
@@ -896,6 +892,12 @@ def _log_reverify_triage(
         "failed_positions": failure_detail,
     }
     try:
+        log_dir = settings.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = (
+            log_dir
+            / f"mapping_reverify_failures_{_dt.now():%Y-%m-%d}.jsonl"
+        )
         with open(log_file, "a") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
@@ -1038,7 +1040,11 @@ def reverify_all_active_sentences(
         # ── LLM verify (no DB session held) ──────────────────────────────
         inputs = [snapshot.payload for snapshot in snapshots]
         try:
-            results = batch_verify_sentences(inputs, lemma_map)
+            results = batch_verify_sentences(
+                inputs,
+                lemma_map,
+                return_invalid_rows=True,
+            )
         except Exception:
             logger.exception("reverify: batch_verify raised, batch %d", batch_idx)
             results = None
@@ -1056,9 +1062,17 @@ def reverify_all_active_sentences(
 
         stats.batches_run += 1
         stats.sentences_attempted += len(snapshots)
+        verified_pairs = [
+            (snapshot, result)
+            for snapshot, result in zip(snapshots, results)
+            if isinstance(result, dict) and not result.get("invalid_reason")
+        ]
+        invalid_count = len(snapshots) - len(verified_pairs)
+        stats.llm_failures += invalid_count
+        verified_snapshots = [snapshot for snapshot, _ in verified_pairs]
         issues_by_sentence_id = {
             snapshot.sentence_id: list(result.get("issues") or [])
-            for snapshot, result in zip(snapshots, results)
+            for snapshot, result in verified_pairs
         }
         stats.sentences_flagged += sum(
             1 for issues in issues_by_sentence_id.values() if issues
@@ -1073,14 +1087,17 @@ def reverify_all_active_sentences(
                     stats.sentences_passed += 1
             continue
 
+        if not verified_snapshots:
+            continue
+
         proposal_stats = RescueStats()
         _prepare_unlinked_frequency_proposals(
-            snapshots, issues_by_sentence_id, proposal_stats
+            verified_snapshots, issues_by_sentence_id, proposal_stats
         )
         _fold_proposal_stats(stats, proposal_stats)
 
         # ── Write phase ──────────────────────────────────────────────────
-        for snapshot in snapshots:
+        for snapshot in verified_snapshots:
             issues = issues_by_sentence_id[snapshot.sentence_id]
             db = SessionLocal()
             sentence_stats = RescueStats()
@@ -1396,7 +1413,11 @@ def rescue_sentences_for_lemmas(
         chunk = snapshots[chunk_start:chunk_start + RESCUE_BATCH_SIZE]
         inputs = [snapshot.payload for snapshot in chunk]
         try:
-            results = batch_verify_sentences(inputs, lemma_map)
+            results = batch_verify_sentences(
+                inputs,
+                lemma_map,
+                return_invalid_rows=True,
+            )
         except Exception:
             logger.exception("mapping_rescue: batch_verify_sentences raised")
             results = None
@@ -1404,6 +1425,11 @@ def rescue_sentences_for_lemmas(
             # LLM failure for this chunk — skip rescuing these sentences this run
             continue
         for snapshot, result in zip(chunk, results):
+            if (
+                not isinstance(result, dict)
+                or result.get("invalid_reason")
+            ):
+                continue
             issues_by_sentence_id[snapshot.sentence_id] = list(
                 result.get("issues") or []
             )

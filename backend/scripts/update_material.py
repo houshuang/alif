@@ -47,12 +47,14 @@ from app.services.corpus_enrichment import (
     DEFAULT_ENRICH_LIMIT,
     MAX_ACTIVATE_LIMIT,
     MAX_ENRICH_LIMIT,
+    CorpusActivationPlan,
     CorpusEnrichmentResult,
     enrich_corpus_sentences,
     generate_corpus_enrichment_batch,
     has_arabic_diacritics,
     plan_corpus_activation,
     plan_corpus_enrichment_report,
+    outside_corpus_governor_clause,
 )
 from app.services.word_selector import select_next_words
 from app.services.material_generator import (
@@ -287,6 +289,7 @@ def salvage_due_dense_inactive_sentences(
             Sentence.mappings_verified_at.notin_(
                 CORPUS_NON_ACTIVATABLE_SENTINELS
             ),
+            outside_corpus_governor_clause(),
             SentenceWord.lemma_id.in_(target_lemma_ids),
         )
         .distinct()
@@ -419,7 +422,6 @@ def _corpus_rejected_count(result: CorpusEnrichmentResult | None) -> int:
         return 0
     return len(
         set(result.mapping_blocked_ids)
-        | set(result.mapping_rejected_ids)
         | set(result.quality_rejected_ids)
         | set(result.target_rejected_ids)
     )
@@ -444,13 +446,26 @@ def _run_scoped_corpus_step(
             include_blocked=kwargs["retry_blocked"],
             only_blocked=kwargs["retry_blocked"],
         )
-        activation_plan = plan_corpus_activation(
-            db,
-            kind=kwargs["kind"],
-            sentence_ids=kwargs["sentence_ids"],
-            activate_limit=kwargs["activate_limit"],
-            active_ceiling=kwargs["active_ceiling"],
-        )
+        if kwargs["activate_limit"]:
+            activation_plan = plan_corpus_activation(
+                db,
+                kind=kwargs["kind"],
+                sentence_ids=kwargs["sentence_ids"],
+                activate_limit=kwargs["activate_limit"],
+                active_ceiling=kwargs["active_ceiling"],
+            )
+        else:
+            active_before = int(
+                db.query(func.count(Sentence.id))
+                .filter(Sentence.is_active.is_(True))
+                .scalar()
+                or 0
+            )
+            activation_plan = CorpusActivationPlan(
+                active_before=active_before,
+                active_ceiling=kwargs["active_ceiling"],
+                capacity=0,
+            )
         print(
             json.dumps(
                 {
@@ -1297,6 +1312,7 @@ def step_reactivate_book_sentences(db: Session) -> int:
                         CORPUS_NON_ACTIVATABLE_SENTINELS
                     ),
                 ),
+                outside_corpus_governor_clause(),
             )
             .all()
         )
