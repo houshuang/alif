@@ -48,6 +48,42 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Confusion capture gated behind "Mixed it up" (data-collection discontinuity)
+
+**Change.** A yellow (recognized-after-reveal) word previously rendered three
+panels below the sentence at once: the `WordInfoCard` candidate lists
+("Easily confused" / "Sounds similar"), a standalone free-text
+`ConfusionPicker` box, and the rating-2 cause chips. The user reported it
+crowded the sentence off-screen. The candidate lists and the free-text box are
+now gated on the `mixed_up` cause being selected for that word, and the picker
+renders inside the cause panel rather than as a second yellow box. Morphology
+decomposition, prefix hints and the rest of the confusion analysis still show
+unconditionally. PR #238; frontend-only.
+
+**Why this belongs in the log.** It changes the *funnel* for the
+`confusion_captures` table, not just the layout. Before, candidates were one
+tap away from any yellow word; now they cost an extra deliberate tap
+("Mixed it up") first. Expect capture volume per yellow word to drop, and
+expect the surviving captures to be **more** intentional — the learner has
+asserted the failure mode before naming the word. Any analysis of
+`confusion_captures` spanning 2026-07-29 must segment on that date rather than
+pool across it; a volume drop after this date is the gate, not a change in how
+often words are actually confused. The ≥50-capture threshold noted when the
+feature shipped (PR #167) should be re-counted from post-gate captures only.
+
+**Side effect worth knowing.** `mixed_up` selection rate becomes a directly
+observable quantity for the first time — previously picking a candidate
+*implied* the cause via `ensureFocusedCause()`, so the chip and the capture
+were confounded. Causality now runs cause → detail, which makes the two
+independently interpretable.
+
+**Verification.** `tsc --noEmit` clean, 200 frontend tests pass. Shipped to
+iOS via `eas update --channel preview` (update group
+`e28daf67-d475-416d-90a0-f0d2441d74ce`, commit `17c079b1`) and to web by
+restarting `alif-expo` with the Metro cache cleared; served bundle confirmed to
+contain the new prompt string and `showConfusionCandidates`, and no longer the
+old ones.
+
 ## 2026-07-29: Deployed verifier/corpus seam closure; exact-identity repair applied
 
 **Pre-change adversarial evidence.** Follow-up review of PRs #232–#233
