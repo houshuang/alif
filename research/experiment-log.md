@@ -48,6 +48,62 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Chapter 1 Momo semantic preflight narrows the live preparation set
+
+The deterministic source reconstruction yielded ten retained Chapter 1
+snippets, but a token-by-token production audit found only seven safe under the
+approved no-new-vocabulary boundary: `52133`, `52195`, `52134`, `52135`,
+`52198`, `52199`, and `52136`. These include the two resolver-dependent
+surfaces `أنهم` and `إننى`; the latter's source spelling uses final `ى`, so the
+compositional alias is deliberately local to first-person particle forms
+rather than a global ي/ى normalization.
+
+Leave `52194`, `52196`, and `52197` untouched. Their current non-null mappings
+hide unrelated semantic/inventory failures: `أحد` maps to “Sunday” and `إذن`
+to “ear”; interrogative `ألا` lacks a composition policy; and `يجب` lacks the
+required canonical inventory while `تعودي` needs contextual repair. A broad
+cheap preflight can therefore call all ten inventory-complete even though
+three cannot pass the semantic verifier safely. The operational gate is:
+dry-run and inspect the exact ten IDs, then live-prepare only the seven safe
+IDs with `--corpus-activate-limit 0`. No activation, vocabulary creation,
+blocked-row retry, or durable disposition reset follows from this audit.
+
+## 2026-07-29: Approved compositional particle identity + Chapter 1 Momo preparation pilot
+
+**Decision.** Extend the PR #236 exact-identity resolver before broad authentic
+corpus preparation. Hamza-preserving bare `فأن` and `فإن` must expose only
+their applicable `أَنْ`/`أَنَّ` and `إِنْ`/`إِنَّ` pairs; fully vocalized
+forms resolve exactly; unhamzated `فان` remains unresolved because it also
+occurs in foreign names. Attached-pronoun forms are surface morphology, not
+independent scheduling units: `أنّ`/`إنّ` compounds resolve to their base
+particle while retaining the original `SentenceWord.surface_form`. The
+lexical `لأنّ` family (“because”) outranks derived `لِ` + `أَنَّ`, while exact
+`لِأَنْ` remains base `أَنْ`.
+
+This change is code and tests first. It does not yet rewrite the 634-row suffix
+census, the seven excluded target-sensitive rows, or learner history on legacy
+compound lemmas `إِنَّهُ` #2071 / `إِنَّهَا` #2072. Any production repair
+still requires a fresh census, copied-database rehearsal, reviewed hash,
+backup, and separate approval. Historical review evidence must be preserved;
+no FSRS interval may be fabricated by migration.
+
+**Momo boundary.** A current read-only production check found all 243
+`momo_book` rows still inactive, untranslated, mapping-unverified, and
+quality-unreviewed. The active pool was 1,976 against the corpus governor's
+1,950 ceiling. Exact matching reconstructs ten already-vetted snippets from
+Chapter 1 despite the importer having discarded page/order metadata. After
+the resolver deploy, prepare only those exact IDs with activation zero, inspect
+all Arabic, English, mappings, target bookkeeping, and QA, and stop. No corpus
+cron enablement, vocabulary intake, learner-state mutation, activation, or
+pool-ceiling override is authorized in this phase.
+
+**Next decision gate.** If the ten prepared rows are clean, consider a
+transactional one-for-one pilot that replaces at most five redundant,
+previously shown generated sentences while preserving tier floors and
+last-reviewable coverage. Activation remains separately approved and should
+be evaluated for delivery, comprehension burden, response time, yellow-token
+rate, and unintended intake before expanding chapter by chapter.
+
 ## 2026-07-29: Confusion capture gated behind "Mixed it up" (data-collection discontinuity)
 
 **Change.** A yellow (recognized-after-reveal) word previously rendered three

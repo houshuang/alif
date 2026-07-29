@@ -62,6 +62,25 @@ could strand learner state and coverage. Do not extend the 1,208-row apply:
 first decide compound-vs-base canonical policy, then census multi-prefix forms,
 migrate learner state if needed, and run a new hash-pinned repair.
 
+**Implemented resolver follow-up; production preparation pending
+(2026-07-29).** Canonicalize attached-pronoun
+particle forms to base `أَنَّ`/`إِنَّ` while preserving their visible surface
+for morphology evidence; keep lexical `لأنّ` as its own winner, add explicit
+hamza-preserving `فأن`/`فإن` composition, and leave unhamzated `فان` unresolved.
+The resolver/tests now apply the same fail-closed policy to running text,
+import/dedup, and strict citation lookup, with no data rewrite. Deploy it before
+preparing the exact Chapter 1 *Momo* scope with activation zero and inspecting
+every output. The legacy compound ULKs, seven target-sensitive rows, bulk
+suffix repair, and any Momo activation remain separate reviewed decisions.
+
+The row-level Chapter 1 audit then narrowed the safe live preparation set to
+seven IDs: `52133`, `52195`, `52134`, `52135`, `52198`, `52199`, and `52136`.
+Keep `52194`, `52196`, and `52197` untouched: they contain unrelated unresolved
+semantic/inventory cases (`أحد`/`إذن`, interrogative `ألا`, and
+`يجب`/`تعودي`) that need a separate vocabulary/composition policy. Dry-run and
+inspect the exact ten-row universe, but do not convert known bad mappings into
+prepared material merely to hit a numeric target.
+
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
 `41d03e96`. The live plan

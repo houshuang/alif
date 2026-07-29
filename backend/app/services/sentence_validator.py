@@ -312,9 +312,6 @@ def compute_bare_form(lemma_ar: str) -> str:
     return normalize_arabic(lemma_ar)
 
 
-# Pre-computed normalized set for fast lookup (must be after normalize_alef def)
-_FUNCTION_WORDS_NORMALIZED: set[str] = {normalize_alef(fw) for fw in FUNCTION_WORDS}
-
 # Conjugated function word forms → base lemma bare form.
 # Prevents false clitic analysis (e.g. كانت → ك+انت) by providing
 # a direct match path before clitic stripping is attempted.
@@ -380,22 +377,145 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     "لِأَنْ": "أَنْ", "لِأَنَّ": "أَنَّ",
     "وَأَنْ": "أَنْ", "وَأَنَّ": "أَنَّ",
     "وَإِنْ": "إِنْ", "وَإِنَّ": "إِنَّ",
+    "فَأَنْ": "أَنْ", "فَأَنَّ": "أَنَّ",
+    "فَإِنْ": "إِنْ", "فَإِنَّ": "إِنَّ",
     "الآن": "آن", "الان": "آن",
+}
+
+# Attached pronouns make the shadda-bearing identity unambiguous. Generate the
+# productive combinations instead of maintaining an inevitably incomplete
+# list of forms by hand. The bare prefix without a suffix is deliberately not
+# generated: فأن and فإن still require contextual choice between the sukūn
+# and shadda identities.
+_PARTICLE_PREFIXES_BY_IDENTITY: dict[str, tuple[str, ...]] = {
+    "أَنَّ": ("", "وَ", "فَ", "بِ"),
+    "إِنَّ": ("", "وَ", "فَ"),
+}
+_PARTICLE_ATTACHED_SUFFIXES: tuple[str, ...] = (
+    "هُ",
+    "هَا",
+    "هُمَا",
+    "هُمْ",
+    "هُنَّ",
+    "كَ",
+    "كِ",
+    "كُمَا",
+    "كُمْ",
+    "كُنَّ",
+    "نَا",
+    "نِي",
+)
+
+
+def _build_attached_particle_forms() -> dict[str, str]:
+    forms: dict[str, str] = {}
+    for identity in ("أَنَّ", "إِنَّ"):
+        for prefix_exact in _PARTICLE_PREFIXES_BY_IDENTITY[identity]:
+            prefixed_identity = prefix_exact + identity
+            # Fully vocalized bare particles are exact aliases. Do not add
+            # their stripped forms here; those belong to the candidate layer.
+            forms[prefixed_identity] = identity
+            for suffix in _PARTICLE_ATTACHED_SUFFIXES:
+                exact_form = prefixed_identity + suffix
+                forms[exact_form] = identity
+                forms.setdefault(strip_diacritics(exact_form), identity)
+                if exact_form.endswith("ي"):
+                    # Some source editions use final alif maqsura in the
+                    # first-person suffix (إننى). Register that spelling only
+                    # for this grammatical family; do not normalize final
+                    # ي/ى globally.
+                    maqsura_form = exact_form[:-1] + "ى"
+                    forms[maqsura_form] = identity
+                    forms.setdefault(strip_diacritics(maqsura_form), identity)
+
+            # ـي has the conventional أَنِّي / إِنِّي form; ـني retains the
+            # base vowel and is covered above by appending نِي.
+            first_person = prefixed_identity.replace("نَّ", "نِّ") + "ي"
+            forms[first_person] = identity
+            forms.setdefault(strip_diacritics(first_person), identity)
+            maqsura_first_person = first_person[:-1] + "ى"
+            forms[maqsura_first_person] = identity
+            forms.setdefault(
+                strip_diacritics(maqsura_first_person),
+                identity,
+            )
+    return forms
+
+
+_ATTACHED_PARTICLE_FORMS = _build_attached_particle_forms()
+_EXACT_PREFIX_PARTICLE_FORMS = {
+    prefix + identity
+    for identity, prefixes in _PARTICLE_PREFIXES_BY_IDENTITY.items()
+    for prefix in prefixes
+}
+FUNCTION_WORD_FORMS.update(_ATTACHED_PARTICLE_FORMS)
+
+# بِ + إِنَّ is outside the approved composition policy. It must remain
+# unresolved instead of falling through alef normalization to the generated
+# بِ + أَنَّ forms.
+_UNSUPPORTED_COMPOSED_PARTICLE_BARES: set[str] = {"بإن"}
+for _suffix in _PARTICLE_ATTACHED_SUFFIXES:
+    _unsupported_form = strip_diacritics("بِإِنَّ" + _suffix)
+    _UNSUPPORTED_COMPOSED_PARTICLE_BARES.add(_unsupported_form)
+    if _unsupported_form.endswith("ي"):
+        _UNSUPPORTED_COMPOSED_PARTICLE_BARES.add(
+            _unsupported_form[:-1] + "ى"
+        )
+_UNSUPPORTED_COMPOSED_PARTICLE_BARES.update({"بإني", "بإنى"})
+
+# لأنّ is a stored lexical compound rather than لِ + the base أَنَّ particle.
+# These generated forms are registered against that lexical row, when present,
+# in build_lemma_lookup(). Keeping them separate prevents the generic particle
+# aliases above from stealing attached-pronoun occurrences.
+_LEXICAL_LAANNA_ATTACHED_FORMS: set[str] = set()
+for _suffix in _PARTICLE_ATTACHED_SUFFIXES:
+    _exact_laanna = "لِأَنَّ" + _suffix
+    _LEXICAL_LAANNA_ATTACHED_FORMS.add(_exact_laanna)
+    _LEXICAL_LAANNA_ATTACHED_FORMS.add(strip_diacritics(_exact_laanna))
+    if _exact_laanna.endswith("ي"):
+        _maqsura_laanna = _exact_laanna[:-1] + "ى"
+        _LEXICAL_LAANNA_ATTACHED_FORMS.add(_maqsura_laanna)
+        _LEXICAL_LAANNA_ATTACHED_FORMS.add(
+            strip_diacritics(_maqsura_laanna)
+        )
+_exact_laanna_first_person = "لِأَنِّي"
+_LEXICAL_LAANNA_ATTACHED_FORMS.update(
+    {
+        _exact_laanna_first_person,
+        strip_diacritics(_exact_laanna_first_person),
+        _exact_laanna_first_person[:-1] + "ى",
+        strip_diacritics(_exact_laanna_first_person[:-1] + "ى"),
+    }
+)
+
+# Function-word classification operates on stripped, alef-normalized forms.
+# Include generated grammatical forms after their construction.
+FUNCTION_WORDS.update(_ATTACHED_PARTICLE_FORMS)
+FUNCTION_WORDS.update(_LEXICAL_LAANNA_ATTACHED_FORMS)
+_FUNCTION_WORDS_NORMALIZED: set[str] = {
+    normalize_alef(strip_diacritics(fw))
+    for fw in FUNCTION_WORDS
 }
 
 
 FUNCTION_WORD_FORM_OVERRIDES: set[str] = {
-    normalize_alef(strip_diacritics(form))
+    strip_diacritics(form)
     for form in FUNCTION_WORD_FORMS
-    if form in {
-        "عليه", "عليها", "عليهم", "عليهما", "عليك", "عليكم", "علينا",
-        "أنه", "انه", "أنها", "انها", "أنك", "انك",
-        "بأنه", "بانه", "بأنها", "بانها",
-        "لأنه", "لانه", "لأنها", "لانها",
-        "وأنه", "وانه", "وأنها", "وانها",
-        "إنه", "إنها", "وإنه", "وإنها",
-        "الآن", "الان",
-    }
+    if (
+        (
+            form in _ATTACHED_PARTICLE_FORMS
+            and form not in _EXACT_PREFIX_PARTICLE_FORMS
+        )
+        or form in {
+            "عليه", "عليها", "عليهم", "عليهما", "عليك", "عليكم", "علينا",
+            "أنه", "انه", "أنها", "انها", "أنك", "انك",
+            "بأنه", "بانه", "بأنها", "بانها",
+            "لأنه", "لانه", "لأنها", "لانها",
+            "وأنه", "وانه", "وأنها", "وانها",
+            "إنه", "إنها", "وإنه", "وإنها",
+            "الآن", "الان",
+        }
+    )
 }
 
 # A missing row for one of these fully vocalized grammatical identities must
@@ -420,13 +540,15 @@ AMBIGUOUS_FUNCTION_FORM_IDENTITIES: dict[str, tuple[str, str]] = {
     "بأن": ("أَنْ", "أَنَّ"),
     "وإن": ("إِنْ", "إِنَّ"),
     "وأن": ("أَنْ", "أَنَّ"),
+    "فإن": ("إِنْ", "إِنَّ"),
+    "فأن": ("أَنْ", "أَنَّ"),
 }
 
 # With no hamza, ان cannot distinguish either particle pair from one another
 # (and normalized lookup may also contain lexical آن).  Running-text mapping
 # and contextless import/dedup must leave it unresolved; exact آن remains a
 # distinct, resolvable spelling.
-UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS = {"ان"}
+UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS = {"ان", "فان"}
 
 # Stored lexical compounds whose citation spelling commonly omits a short
 # vowel on the attached prefix.  Production stores لأنّ as ``لأنَّ``; running
@@ -549,7 +671,11 @@ def _is_function_word(bare_form: str) -> bool:
     # Preserve the hamza distinction for the lexical verb بَانَ.  Normalizing
     # بأن ("that") to بان is useful only after the original spelling has
     # already shown its hamza; the genuinely unhamzated surface is the verb.
-    if stripped == "بان":
+    if (
+        stripped == "بان"
+        or stripped in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+        or stripped in _UNSUPPORTED_COMPOSED_PARTICLE_BARES
+    ):
         return False
     normalized = normalize_alef(stripped)
     return normalized in _FUNCTION_WORDS_NORMALIZED
@@ -644,6 +770,8 @@ def _surface_identity_allows_target(
     """Reject target claims contradicted by exact grammatical identity."""
     exact_surface = _exact_correction_form(surface_form)
     exact_bare = _exact_lookup_bare(surface_form)
+    if exact_bare in _UNSUPPORTED_COMPOSED_PARTICLE_BARES:
+        return False
     if "\u0651" in exact_surface and hasattr(
         lemma_lookup,
         "lexical_shadda_compound_overrides",
@@ -947,6 +1075,13 @@ def lookup_lemma_direct(
     """
 
     if (
+        original_bare
+        and _exact_lookup_bare(original_bare)
+        in _UNSUPPORTED_COMPOSED_PARTICLE_BARES
+    ):
+        return None
+
+    if (
         original_exact
         and hasattr(lemma_lookup, "exact_identity_overrides")
     ):
@@ -998,7 +1133,10 @@ def lookup_lemma_direct(
     if (
         original_bare
         and _exact_lookup_bare(original_bare)
-        in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+        in (
+            UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+            | _UNSUPPORTED_COMPOSED_PARTICLE_BARES
+        )
     ):
         return None
 
@@ -1237,7 +1375,30 @@ def lookup_lemma_citation(
     Returns None when the citation form is not in the vocabulary — callers
     like /api/discover/add treat that as "create a new lemma".
     """
-    exact_match = _lookup_exact_layers(bare_norm, lemma_lookup, original_bare)
+    exact_surface = _exact_correction_form(original_bare)
+    exact_bare = _exact_lookup_bare(exact_surface)
+    if (
+        exact_bare in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+        or exact_bare in _UNSUPPORTED_COMPOSED_PARTICLE_BARES
+    ):
+        return None
+    if (
+        exact_bare
+        and hasattr(lemma_lookup, "required_ambiguous_function_forms")
+        and exact_bare in lemma_lookup.required_ambiguous_function_forms
+        and not ARABIC_DIACRITICS.search(exact_surface)
+    ):
+        # Citation lookup has no sentence context. Bare أن/إن compositions
+        # therefore follow import/dedup and fail closed rather than choosing
+        # the first contextual candidate.
+        return None
+
+    exact_match = lookup_lemma_direct(
+        bare_norm,
+        lemma_lookup,
+        original_bare=original_bare,
+        original_exact=exact_surface,
+    )
     if exact_match is not None:
         return exact_match
 
@@ -1274,6 +1435,19 @@ def lookup_lemma(
         out_via_clitic: If provided (as single-element list), set to [True]
             when the match came from clitic stripping rather than direct match.
     """
+    if (
+        original_bare
+        and _exact_lookup_bare(original_bare)
+        in (
+            UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
+            | _UNSUPPORTED_COMPOSED_PARTICLE_BARES
+        )
+    ):
+        # In particular, فان may be an unvocalized particle sequence or the
+        # transliterated proper name Van. Never manufacture a particle identity
+        # by stripping ف or by normalizing away a missing hamza.
+        return None
+
     exact_match = _lookup_exact_layers(
         bare_norm, lemma_lookup, original_bare, out_alternatives
     )
@@ -1592,9 +1766,24 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
 
     for exact_bare, lemma_ids in lexical_shadda_compound_ids.items():
         if len(lemma_ids) == 1:
-            lookup.lexical_shadda_compound_overrides[exact_bare] = next(
-                iter(lemma_ids)
-            )
+            lexical_id = next(iter(lemma_ids))
+            lookup.lexical_shadda_compound_overrides[exact_bare] = lexical_id
+            if exact_bare == "لأن":
+                for form in _LEXICAL_LAANNA_ATTACHED_FORMS:
+                    form_identity = _exact_correction_form(form)
+                    form_bare = _exact_lookup_bare(form_identity)
+                    lookup.function_form_overrides[form_bare] = lexical_id
+                    lookup.function_form_overrides.setdefault(
+                        normalize_alef(form_bare),
+                        lexical_id,
+                    )
+                    if ARABIC_DIACRITICS.search(form_identity):
+                        lookup.required_exact_identities.add(form_identity)
+                        lookup.set_exact_identity(
+                            form_identity,
+                            lexical_id,
+                            derived=True,
+                        )
 
     # Pass 1: Register all lemma bare forms (highest priority)
     for lem in lemmas:
@@ -1678,7 +1867,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     for form, base in FUNCTION_WORD_FORMS.items():
         form_exact = _exact_lookup_bare(form)
         form_norm = normalize_alef(form_exact)
-        override = form_norm in FUNCTION_WORD_FORM_OVERRIDES
+        override = form_exact in FUNCTION_WORD_FORM_OVERRIDES
 
         base_identity = _exact_correction_form(base)
         base_id = lookup.exact_identity_overrides.get(base_identity)
@@ -1698,17 +1887,28 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             lookup[form_norm] = base_id
             lookup._first_bare[form_norm] = form_exact
             if override:
-                lookup.function_form_overrides[form_exact] = base_id
+                lookup.function_form_overrides.setdefault(form_exact, base_id)
                 lookup.function_form_overrides.setdefault(form_norm, base_id)
         if ARABIC_DIACRITICS.search(form):
             form_identity = _exact_correction_form(form)
             lookup.required_exact_identities.add(form_identity)
             if base_id is not None:
-                lookup.set_exact_identity(
-                    form_identity,
-                    base_id,
-                    derived=True,
-                )
+                if (
+                    form in _ATTACHED_PARTICLE_FORMS
+                    and form not in _EXACT_PREFIX_PARTICLE_FORMS
+                ):
+                    # Canonical particle + pronoun composition wins over
+                    # historical compound lemma rows such as إِنَّهُ. Keep
+                    # those rows and their learner history intact, but do not
+                    # let them steal running-text surface mappings.
+                    lookup.exact_identity_overrides[form_identity] = base_id
+                    lookup._ambiguous_exact_identities.discard(form_identity)
+                else:
+                    lookup.set_exact_identity(
+                        form_identity,
+                        base_id,
+                        derived=True,
+                    )
 
     # Register only complete contextual candidate sets.  Keeping the required
     # form names even when one identity is absent makes direct lookup fail

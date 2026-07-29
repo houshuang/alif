@@ -17,6 +17,10 @@ This project is developed with Claude Code and Codex.
   exact `آن` and lexical `بان`/`لأنّ`, resolve fully vocalized identities
   before target matching, and reject generated material if its required
   canonical target disappears after disambiguation/correction
+- Extend the same identity layer to `فأن`/`فإن`; canonicalize productive
+  attached-pronoun forms to base `أَنَّ`/`إِنَّ` without losing their surface,
+  keep lexical `لأنّ` authoritative, and fail closed on unhamzated `فان`,
+  unsupported ب+إن composition, and contextless citation ambiguity
 - Make completed-QA authentic rows governor-exclusive by excluding them from
   due-dense salvage and green-page book reactivation
 - Preserve existing Arabic/transliteration or translation during one-field
