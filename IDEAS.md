@@ -177,6 +177,9 @@ the seven approved parents, their 40 replaced child mappings, and those two
 new events; the three exclusions, every other table, active count (1,960), and
 all *Momo* visibility remained unchanged. All seven are prepared but inactive.
 Any activation is a separate policy decision and was not part of this rollout.
+A post-rollout activation-only dry-run found only `52134` currently eligible;
+`52199` is blocked by an acquiring lemma, the other five have no FSRS demand,
+and capacity is zero while 1,960 active sentences exceed the 1,950 ceiling.
 
 Before this rollout, production had zero prepared authentic rows and zero
 active Book OCR stories, so no corpus rollback or cleanup was needed. PR #236
