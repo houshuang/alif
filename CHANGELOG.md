@@ -46,6 +46,23 @@ This project is developed with Claude Code and Codex.
   alias metadata between independently committed batch items, reject
   conflicting Discover senses, refresh repaired StoryWord gloss/knowledge
   metadata, and preserve exact citations in all manual vocabulary importers
+- Deploy the exact-surface resolver as PR #242 (`ab62535a`), verify a clean
+  backend restart, and confirm the live resolver chooses `نَاسٌ` #270 for
+  `أُنَاسٌ` and `قَدْ` #2054 for `فَقَدْ`
+- Stop a second fresh production-copy rehearsal at 6/7 when the generic
+  generated-sentence reviewer misclassified the established fictional name
+  `مُومُو` and mildly formal published translation prose; activate nothing and
+  prove the production exact-seven plus exclusions remain byte-identical to
+  the pre-rehearsal backup
+- Add the versioned `MOMO_PUBLISHED_ARABIC_V1` provenance policy to quality
+  review only when live row metadata is exactly `source=corpus`,
+  `kind=momo_book`. The allowlisted prompt note is not an acceptance override:
+  mixed policies use separate provider calls, completed negative verdicts
+  remain terminal, retries retain row identity, and QA writes compare-and-set
+  source/kind as well as Arabic/English
+- Reuse the same metadata-derived policy for active-sentence review and
+  due-dense salvage so later maintenance cannot contradict corpus preparation;
+  generic/generated quality-review prompts retain their existing rubric
 
 ## 2026-07-29 — Verifier and authentic-corpus seam hardening
 

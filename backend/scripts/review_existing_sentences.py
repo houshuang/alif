@@ -13,10 +13,49 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Sentence
-from app.services.llm import review_sentences_quality
+from app.services.llm import (
+    review_sentences_quality,
+    sentence_quality_review_input,
+)
 from app.services.activity_log import log_activity
 
 BATCH_SIZE = 10
+
+
+def _review_snapshot(sentence: Sentence) -> dict:
+    """Capture every field that a quality verdict depends on or overwrites."""
+    return {
+        "arabic_text": sentence.arabic_text,
+        "english_translation": sentence.english_translation,
+        "source": sentence.source,
+        "kind": sentence.kind,
+        "is_active": bool(sentence.is_active),
+        "quality_reviewed_at": sentence.quality_reviewed_at,
+        "quality_natural": sentence.quality_natural,
+        "quality_translation_correct": (
+            sentence.quality_translation_correct
+        ),
+        "quality_reason": sentence.quality_reason,
+    }
+
+
+def _unchanged_snapshot_query(db, sentence_id: int, snapshot: dict):
+    """Return a query matching exactly the row reviewed by the provider."""
+    return db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.arabic_text == snapshot["arabic_text"],
+        Sentence.english_translation
+        == snapshot["english_translation"],
+        Sentence.source == snapshot["source"],
+        Sentence.kind == snapshot["kind"],
+        Sentence.is_active == snapshot["is_active"],
+        Sentence.quality_reviewed_at
+        == snapshot["quality_reviewed_at"],
+        Sentence.quality_natural == snapshot["quality_natural"],
+        Sentence.quality_translation_correct
+        == snapshot["quality_translation_correct"],
+        Sentence.quality_reason == snapshot["quality_reason"],
+    )
 
 
 def main():
@@ -51,35 +90,89 @@ def main():
 
         for i in range(0, len(sentences), args.batch_size):
             batch = sentences[i : i + args.batch_size]
+            review_rows = []
+            for sentence in batch:
+                snapshot = _review_snapshot(sentence)
+                if not snapshot["is_active"]:
+                    retry_ids.append(sentence.id)
+                    print(
+                        f"  RETRY id={sentence.id}: sentence became inactive "
+                        "before quality review"
+                    )
+                    continue
+                review_rows.append((sentence.id, snapshot))
+
             to_review = [
-                {"arabic": s.arabic_text, "english": s.english_translation or ""}
-                for s in batch
+                sentence_quality_review_input(
+                    arabic=snapshot["arabic_text"],
+                    english=snapshot["english_translation"] or "",
+                    source=snapshot["source"],
+                    kind=snapshot["kind"],
+                )
+                for _sentence_id, snapshot in review_rows
             ]
 
+            # Release the read transaction before the external call. The
+            # conditional write below then observes any concurrent mutation.
+            db.commit()
             reviews = review_sentences_quality(to_review)
 
-            for s, r in zip(batch, reviews):
+            for (sentence_id, snapshot), r in zip(review_rows, reviews):
                 if not getattr(r, "review_completed", True):
-                    retry_ids.append(s.id)
-                    print(f"  RETRY id={s.id}: {r.reason}")
+                    retry_ids.append(sentence_id)
+                    print(f"  RETRY id={sentence_id}: {r.reason}")
                     continue
+
+                rejected = not r.natural or not r.translation_correct
+                unchanged_query = _unchanged_snapshot_query(
+                    db,
+                    sentence_id,
+                    snapshot,
+                )
+                if args.dry_run:
+                    unchanged = unchanged_query.first() is not None
+                else:
+                    values = {
+                        Sentence.quality_reviewed_at: datetime.now(
+                            timezone.utc
+                        ),
+                        Sentence.quality_natural: bool(r.natural),
+                        Sentence.quality_translation_correct: bool(
+                            r.translation_correct
+                        ),
+                        Sentence.quality_reason: r.reason[:500],
+                    }
+                    if rejected:
+                        values[Sentence.is_active] = False
+                    unchanged = bool(
+                        unchanged_query.update(
+                            values,
+                            synchronize_session=False,
+                        )
+                    )
+
+                if not unchanged:
+                    retry_ids.append(sentence_id)
+                    print(
+                        f"  RETRY id={sentence_id}: sentence changed during "
+                        "quality review"
+                    )
+                    continue
+
                 reviewed += 1
-                if not r.natural or not r.translation_correct:
-                    failed_ids.append(s.id)
-                    print(f"  FAIL id={s.id}: {r.reason}")
-                    print(f"    ar: {s.arabic_text}")
-                    print(f"    en: {s.english_translation}")
-                if not args.dry_run:
-                    s.quality_reviewed_at = datetime.now(timezone.utc)
-                    s.quality_natural = bool(r.natural)
-                    s.quality_translation_correct = bool(r.translation_correct)
-                    s.quality_reason = r.reason[:500]
-                    if not r.natural or not r.translation_correct:
-                        s.is_active = False
-                        retired_ids.append(s.id)
+                if rejected:
+                    failed_ids.append(sentence_id)
+                    print(f"  FAIL id={sentence_id}: {r.reason}")
+                    print(f"    ar: {snapshot['arabic_text']}")
+                    print(f"    en: {snapshot['english_translation']}")
+                    if not args.dry_run:
+                        retired_ids.append(sentence_id)
 
             if not args.dry_run:
                 db.commit()
+            else:
+                # Release any read snapshot opened by the unchanged checks.
+                db.rollback()
 
             done = min(i + args.batch_size, len(sentences))
             action_count = len(failed_ids) if args.dry_run else len(retired_ids)

@@ -145,6 +145,31 @@ Identity repair also refreshes dependent classification/gloss/story-known
 metadata, and independently committed import batches rebuild the lookup before
 the next item so a newly created duplicate cannot leave alias metadata stale.
 
+PR #242 deployed that exact-surface policy as `ab62535a`; the backend restarted
+cleanly, and read-only production resolution returned #270 for `أُنَاسٌ` and
+#2054 for `فَقَدْ`. A second, completely fresh copied-production rehearsal
+(`20260730_113602`) then passed the curated prefill exactly 7/7 but prepared
+only six rows. Sentence `52135` received a completed Jan-3 quality rejection:
+the generic generated-sentence reviewer called the established fictional name
+`مُومُو` “not a real Arabic name” and rejected mildly formal wording copied
+byte-for-byte from the published Arabic translation. Activation remained zero;
+the active-ID set, vocabulary, learner/review tables, excluded rows, and every
+other *Momo* row were unchanged. The production exact-seven and exclusions
+still matched the pre-rehearsal backup exactly.
+
+The approved correction is provenance-aware QA, not rewritten Arabic or a
+manual pass. A fixed `MOMO_PUBLISHED_ARABIC_V1` note applies only when the live
+row itself has `source=corpus`, `kind=momo_book`; it identifies Michael Ende's
+published translated-fiction context and the protagonist's established name,
+while explicitly preserving strict tashkīl, grammar, meaning, and English
+checks. Unlike policy keys are reviewed in separate calls, unknown/free-form
+contexts never enter the prompt, retries retain row identity, and the verdict
+CAS now pins source/kind with Arabic/English. Active review and due-dense
+maintenance derive the same policy from row metadata so later maintenance
+cannot contradict preparation. A completed negative result remains terminal.
+Production remains untouched until this is deployed and another brand-new
+copied-production rehearsal passes 7/7 with activation zero.
+
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
 `41d03e96`. The live plan
