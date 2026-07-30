@@ -63,6 +63,14 @@ This project is developed with Claude Code and Codex.
 - Reuse the same metadata-derived policy for active-sentence review and
   due-dense salvage so later maintenance cannot contradict corpus preparation;
   generic/generated quality-review prompts retain their existing rubric
+- Deploy the source-aware review as PR #243 (`6ec5c8cb`), after an exact
+  detached run of 1,895 backend tests and an adversarial review that found and
+  closed the all-CAS-miss SQLite writer-lock path in due-dense salvage
+- Pass a brand-new copied-production rehearsal 7/7, then apply the separately
+  planned and backed-up exact-seven production preparation with every retry,
+  rejection, blocker, diagnostic, translation, and activation result empty.
+  All seven rows remain inactive; the active count stays 1,960 and no other
+  *Momo*, learner, vocabulary, review, evidence, or unrelated table state moves
 
 ## 2026-07-29 — Verifier and authentic-corpus seam hardening
 

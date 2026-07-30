@@ -48,7 +48,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-07-30: Published-*Momo* QA provenance after the 6/7 rehearsal
+## 2026-07-30: Published-*Momo* QA provenance and exact-seven rollout
 
 **Deployment and fresh preimage.** PR #242 deployed as
 `ab62535a0e84a2917f0d00c2a790ba15e75a742c`; the backend restarted cleanly and
@@ -103,8 +103,65 @@ unknown keys fail before provider use, retries retain only their row's policy,
 and pass/reject compare-and-set source/kind with Arabic/English. Active review
 and due-dense salvage use the same metadata helper. **H:** this removes the
 provenance false positive while retaining a real negative gate, so a brand-new
-copied-production rehearsal will prepare 7/7 and activate 0. Production remains
-blocked until that pre-registered result is observed.
+copied-production rehearsal will prepare 7/7 and activate 0. At
+preregistration time, production remained blocked until that result was
+observed.
+
+**Implementation and review.** PR #243 deployed as
+`6ec5c8cbceaecfa1c19e4793f3e5db14a4599a20`. The exact detached head passed
+1,895 backend tests (nine intentionally deselected). Final adversarial review
+found one non-Momo concurrency defect before merge: a due-dense salvage batch
+whose every approval lost its CAS could retain SQLite's writer transaction
+across later LLM work. The merged version explicitly rolls back that all-miss
+path, and a real second-session regression proves another writer can commit
+immediately. Active-sentence review, salvage, early corpus QA, post-QA mapping,
+and final preparation now all preserve concurrent text/provenance/QA changes.
+
+**Fresh copied-production confirmation.** An initial `20260730_134640`
+artifact was rejected before apply because its verification open left
+`-wal`/`-shm` sidecars; no prefill write occurred and the artifact was not
+reused. The replacement standalone online backup was
+`/opt/alif-backups/alif_momo_ch1_rehearsal_source_20260730_134936.db`,
+SHA-256
+`2c6d57067bc3413fe7d1a717a97a6bf1380575904ee5918c8b8fbc8777ac017b`,
+mode 0600, DELETE journal, and `quick_check=ok`. The hash-pinned prefill plan
+was `44045ff9a8bae908549ad918dd9030b590c606a41bd44613d1d8334d45e341e8`;
+the script and manifest hashes were respectively
+`97f4958b250272d8bf23a21eb6736b23c5744ded5dcd4de770afd158c3e7ef8b`
+and `b43dbd00062fb6d797de2531b4895727899a54863ddddf2422e3f2dc1d522281`.
+Prefill changed exactly seven parents plus one event. Normal preparation then
+selected and prepared exactly
+`52133, 52134, 52135, 52136, 52195, 52198, 52199`; translation, retry,
+quality rejection, mapping block, target rejection, recovery, activation,
+diagnostics, and failure reasons were all empty. The baseline and final active
+counts were both 1,960, all 243 *Momo* rows remained inactive, exclusions were
+identical, and only `sentences`, `sentence_words`, and the two expected
+`activity_log` rows differed.
+
+**Production application and audit.** A separate fresh standalone backup,
+`/opt/alif-backups/alif_momo_ch1_production_source_20260730_135606.db`,
+had the same contemporaneous SHA-256, mode 0600, and `quick_check=ok`; it was a
+separate inode and not a rehearsal artifact. The production plan SHA-256 was
+`c921c8e751a0e2d4aec347130d59df8263e9971afe9ee0cb2cd3cb856ee8f289`.
+The immutable apply changed only reviewed Arabic, English, and transliteration
+for the exact seven, then the normal governed pipeline again prepared 7/7
+with every failure and activation field empty. ActivityLog #3918 records the
+prefill and #3919 records “Prepared 7, activated 0, retry 0, blocked 0,
+rejected 0.” All seven have completed positive naturalness and translation
+verdicts, fresh mapping stamps, and `is_active=0`. Sentence 52133 maps
+`أُنَاسٌ` at position 2 to #270 and `فَقَدْ` at position 4 to #2054.
+
+**Exact mutation boundary and conclusion.** Primary-key diff against the fresh
+backup found no added/removed sentence and exactly the seven approved parent
+IDs changed. The normal verifier replaced exactly 40 old `sentence_words`
+with 40 new rows, all positions belonging to those seven IDs; no child outside
+scope moved. Exactly ActivityLog #3918 and #3919 were added, with no existing
+event changed or removed. The three exclusions were byte-identical, every
+other table fingerprint was unchanged, active count stayed 1,960, *Momo*
+active stayed zero, and integrity remained `ok`. **Result: H confirmed.**
+Source-aware QA removed the provenance false positive without relaxing the
+negative gate. The cohort is prepared, not activated; activation remains a
+separate decision and currently has zero capacity under the 1,950 ceiling.
 
 ## 2026-07-30: Approved exact-running-text aliases for *Momo* 52133
 
