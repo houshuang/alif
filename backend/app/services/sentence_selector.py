@@ -1317,9 +1317,10 @@ def build_session(
     # Comprehension-aware recency cutoffs
     # Failed sentences can be re-shown quickly so learner gets a positive review,
     # then ideally sees the same word in a different sentence next time.
-    # "understood" uses 1-day window (was 4d, but high-volume learners exhaust the
-    # 610-sentence pool within 4 days, causing undersized sessions).
-    cutoff_understood = now - timedelta(days=1)
+    # An understood sentence should provide word evidence without itself
+    # becoming a daily review card. Keep it out for a full week; the due word
+    # can use another sentence while the material pipeline replenishes variety.
+    cutoff_understood = now - timedelta(days=7)
     cutoff_partial = now - timedelta(hours=4)
     cutoff_no_idea = now - timedelta(minutes=30)
 
@@ -1612,9 +1613,9 @@ def build_session(
         .all()
     )
 
-    # Rescue pass: for due words whose sentences ALL failed recency (e.g. all
-    # "understood" within 4 days), fetch those sentences anyway so the word isn't
-    # dropped from the session entirely. They'll get a score penalty below.
+    # Rescue pass: a recently failed sentence may be useful when it is the only
+    # test for a due word. Never rescue an understood sentence: that used to
+    # bypass the recency rule and made "Know all" sentences recur every day.
     fresh_sent_ids = {s.id for s in sentences}
     words_with_fresh = {
         sw.lemma_id for sw in sentence_words
@@ -1636,6 +1637,7 @@ def build_session(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    comp_col.in_(("partial", "no_idea")),
                 )
                 .all()
             )
@@ -2726,6 +2728,7 @@ def build_session(
 
 MAX_REINTRO_PER_SESSION = 3
 STRUGGLING_MIN_SEEN = 3
+REINTRO_TEST_WINDOW_CARDS = 5
 
 
 _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
@@ -3079,7 +3082,7 @@ def _find_pregenerated_sentences_for_words(
 
     # Recency filter (same cutoffs as build_session)
     now = datetime.now(timezone.utc)
-    cutoff_understood = now - timedelta(days=1)
+    cutoff_understood = now - timedelta(days=7)
     cutoff_partial = now - timedelta(hours=4)
     cutoff_no_idea = now - timedelta(minutes=30)
 
@@ -3126,6 +3129,7 @@ def _find_pregenerated_sentences_for_words(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    comp_col.in_(("partial", "no_idea")),
                 )
                 .all()
             )
@@ -3563,6 +3567,96 @@ def _drop_function_and_proper_name_lemma_ids(
     return keep
 
 
+def _due_test_sentence_id(item: dict, lemma_id: int) -> int | None:
+    """Return the exact sentence testing ``lemma_id`` in a review item.
+
+    Merely appearing as a scaffold word is not enough: the word must be marked
+    due in the returned item. Passage cards retain each word's sentence ID, so
+    the pairing can still point at the precise sentence inside the passage.
+    """
+    selection_due_ids = set(
+        (item.get("selection_info") or {}).get("due_lemma_ids") or []
+    )
+    if lemma_id not in selection_due_ids:
+        return None
+
+    for word in item.get("words") or []:
+        if not word.get("is_due"):
+            continue
+        word_ids = {
+            word.get("lemma_id"),
+            word.get("canonical_lemma_id"),
+        }
+        if lemma_id in word_ids:
+            return word.get("sentence_id") or item.get("sentence_id")
+    return None
+
+
+def _reserve_reintro_tests(
+    items: list[dict],
+    reintro_cards: list[dict] | None,
+) -> tuple[list[dict], list[dict]]:
+    """Keep only reintros with an exact test reserved within five cards.
+
+    Reintro cards render as a short block before the sentence flow. Moving
+    their paired review items to the front guarantees the first reintro's test
+    is at most ``MAX_REINTRO_PER_SESSION - 1`` reintros plus three sentence
+    cards away. The explicit distance check keeps the invariant safe if either
+    limit changes later.
+    """
+    pairings: list[tuple[dict, int, int]] = []
+    for card in reintro_cards or []:
+        lemma_id = card.get("lemma_id")
+        if not isinstance(lemma_id, int):
+            continue
+        for item_index, item in enumerate(items):
+            sentence_id = _due_test_sentence_id(item, lemma_id)
+            if sentence_id is not None:
+                pairings.append((card, item_index, sentence_id))
+                break
+
+    while pairings:
+        paired_item_indexes = list(dict.fromkeys(pair[1] for pair in pairings))
+        paired_positions = {
+            item_index: position
+            for position, item_index in enumerate(paired_item_indexes)
+        }
+        kept = []
+        for card_index, pairing in enumerate(pairings):
+            _, item_index, _ = pairing
+            visible_distance = (
+                len(pairings)
+                - card_index
+                - 1
+                + paired_positions[item_index]
+                + 1
+            )
+            if visible_distance <= REINTRO_TEST_WINDOW_CARDS:
+                kept.append(pairing)
+        if len(kept) == len(pairings):
+            break
+        pairings = kept
+
+    paired_item_indexes = list(dict.fromkeys(pair[1] for pair in pairings))
+    paired_index_set = set(paired_item_indexes)
+    reordered_items = [
+        *(items[index] for index in paired_item_indexes),
+        *(item for index, item in enumerate(items) if index not in paired_index_set),
+    ]
+    for order, item in enumerate(reordered_items, start=1):
+        if item.get("selection_info"):
+            item["selection_info"]["order"] = order
+
+    paired_cards = []
+    for card, _, sentence_id in pairings:
+        paired_card = dict(card)
+        paired_card["test_sentence_id"] = sentence_id
+        paired_card["max_test_card_distance"] = REINTRO_TEST_WINDOW_CARDS
+        paired_cards.append(paired_card)
+
+    return reordered_items, paired_cards
+
+
 def _with_fallbacks(
     db: Session,
     session_id: str,
@@ -3720,6 +3814,11 @@ def _with_fallbacks(
                 "Speculative build omitted %d cold-containing cards",
                 before - len(items),
             )
+
+    # A reintro without a nearby retrieval attempt is just repeated teaching.
+    # Pair only against an exact due-word test in the final returned session,
+    # and reserve those sentence cards at the front of the sentence flow.
+    items, reintro_cards = _reserve_reintro_tests(items, reintro_cards)
 
     # Check for un-introduced grammar features in session sentences. Passage
     # cards carry multiple sentence IDs behind one review card.

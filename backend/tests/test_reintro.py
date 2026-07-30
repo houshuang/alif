@@ -6,7 +6,7 @@ import pytest
 
 from app.models import Lemma, ReviewLog, Root, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card
-from app.services.sentence_selector import build_session
+from app.services.sentence_selector import _reserve_reintro_tests, build_session
 
 
 def _make_card(stability_days=30.0, due_offset_hours=-1):
@@ -72,16 +72,29 @@ def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_surfa
     return sent
 
 
+def _seed_function_word(db, lemma_id=50):
+    db.add(Lemma(
+        lemma_id=lemma_id,
+        lemma_ar="هذا",
+        lemma_ar_bare="هذا",
+        pos="pron",
+        gloss_en="this",
+    ))
+
+
 class TestReintroCards:
     def test_struggling_words_become_reintro(self, db_session):
-        """Words with times_seen >= 3 and times_correct == 0 should appear as reintro cards."""
+        """A struggling word with a reserved test should get a reintro card."""
         _seed_word(db_session, 1, "صعب", "difficult",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
         _seed_word(db_session, 2, "سهل", "easy",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=4)
+        _seed_function_word(db_session)
 
         _seed_sentence(db_session, 1, "هذا سهل", "this is easy", 2,
-                       [("هذا", None), ("سهل", 2)])
+                       [("هذا", 50), ("سهل", 2)])
+        _seed_sentence(db_session, 2, "هذا صعب", "this is difficult", 1,
+                       [("هذا", 50), ("صعب", 1)])
 
         db_session.commit()
 
@@ -90,6 +103,23 @@ class TestReintroCards:
         assert len(reintro) == 1
         assert reintro[0]["lemma_id"] == 1
         assert reintro[0]["lemma_ar"] == "صعب"
+        assert reintro[0]["test_sentence_id"] == 2
+        assert result["items"][0]["sentence_id"] == 2
+
+    def test_struggling_word_without_reserved_test_has_no_reintro(self, db_session):
+        """A reintro must not appear when the exact word has no sentence test."""
+        _seed_word(db_session, 1, "صعب", "difficult",
+                   stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
+        _seed_word(db_session, 2, "سهل", "easy",
+                   stability=0.1, due_hours=-1, times_seen=5, times_correct=4)
+        _seed_function_word(db_session)
+        _seed_sentence(db_session, 1, "هذا سهل", "this is easy", 2,
+                       [("هذا", 50), ("سهل", 2)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10, log_events=False)
+
+        assert result.get("reintro_cards", []) == []
 
     def test_struggling_words_keep_sentence_alongside_reintro(self, db_session):
         """Struggling words stay in the sentence pool AND get a reintro card.
@@ -100,10 +130,7 @@ class TestReintroCards:
         _seed_word(db_session, 1, "صعب", "difficult",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
         # Function-word lemma — required by the not-has-unmapped-words gate.
-        db_session.add(Lemma(
-            lemma_id=50, lemma_ar="هذا", lemma_ar_bare="هذا",
-            pos="pron", gloss_en="this",
-        ))
+        _seed_function_word(db_session)
 
         _seed_sentence(db_session, 1, "هذا صعب", "this is difficult", 1,
                        [("هذا", 50), ("صعب", 1)])
@@ -116,17 +143,80 @@ class TestReintroCards:
         reintro = result.get("reintro_cards", [])
         assert len(reintro) == 1
         assert reintro[0]["lemma_id"] == 1
+        assert reintro[0]["test_sentence_id"] == 1
 
     def test_reintro_limit(self, db_session):
         """At most 3 reintro cards per session."""
+        _seed_function_word(db_session, lemma_id=50)
         for i in range(6):
             _seed_word(db_session, i + 1, f"word{i}", f"word_{i}",
                        stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
+            _seed_sentence(
+                db_session,
+                i + 1,
+                f"هذا word{i}",
+                f"this is word {i}",
+                i + 1,
+                [("هذا", 50), (f"word{i}", i + 1)],
+            )
         db_session.commit()
 
         result = build_session(db_session, limit=10, log_events=False)
         reintro = result.get("reintro_cards", [])
-        assert len(reintro) <= 3
+        assert 1 <= len(reintro) <= 3
+
+        for card_index, card in enumerate(reintro):
+            test_item_index = next(
+                index
+                for index, item in enumerate(result["items"])
+                if card["test_sentence_id"] in item.get("sentence_ids", [])
+            )
+            visible_distance = (
+                len(reintro) - card_index - 1 + test_item_index + 1
+            )
+            assert visible_distance <= 5
+            assert card["lemma_id"] in (
+                result["items"][test_item_index]["selection_info"]["due_lemma_ids"]
+            )
+
+    def test_three_reintros_reserve_tests_within_five_cards(self):
+        """The reservation helper pulls exact tests into the bounded window."""
+        cards = [{"lemma_id": lemma_id} for lemma_id in (1, 2, 3)]
+        items = [
+            {
+                "sentence_id": sentence_id,
+                "sentence_ids": [sentence_id],
+                "words": [{
+                    "lemma_id": lemma_id,
+                    "canonical_lemma_id": lemma_id,
+                    "sentence_id": sentence_id,
+                    "is_due": True,
+                }],
+                "selection_info": {"due_lemma_ids": [lemma_id]},
+            }
+            for sentence_id, lemma_id in (
+                (90, 90),
+                (91, 91),
+                (101, 1),
+                (102, 2),
+                (103, 3),
+            )
+        ]
+
+        reserved_items, reserved_cards = _reserve_reintro_tests(items, cards)
+
+        assert [card["test_sentence_id"] for card in reserved_cards] == [101, 102, 103]
+        assert [item["sentence_id"] for item in reserved_items[:3]] == [101, 102, 103]
+        for card_index, card in enumerate(reserved_cards):
+            test_item_index = next(
+                index
+                for index, item in enumerate(reserved_items)
+                if card["test_sentence_id"] in item["sentence_ids"]
+            )
+            visible_distance = (
+                len(reserved_cards) - card_index - 1 + test_item_index + 1
+            )
+            assert visible_distance <= 5
 
     def test_non_struggling_words_not_reintro(self, db_session):
         """Words with some correct reviews should NOT be reintro'd."""
@@ -158,6 +248,9 @@ class TestReintroCards:
         _seed_word(db_session, 2, "كاتب", "writer",
                    stability=30, due_hours=24, times_seen=10, times_correct=8,
                    root_id=root.root_id)
+        _seed_function_word(db_session)
+        _seed_sentence(db_session, 1, "هذا كتاب", "this is a book", 1,
+                       [("هذا", 50), ("كتاب", 1)])
         db_session.commit()
 
         result = build_session(db_session, limit=10, log_events=False)
@@ -315,6 +408,9 @@ class TestReintroCooldown:
             db_session, 1, "صعب", "difficult",
             stability=0.1, due_hours=-1, times_seen=5, times_correct=0,
         )
+        _seed_function_word(db_session)
+        _seed_sentence(db_session, 1, "هذا صعب", "this is difficult", 1,
+                       [("هذا", 50), ("صعب", 1)])
         knowledge.experiment_intro_shown_at = datetime.utcnow() - timedelta(hours=21)
         db_session.commit()
 

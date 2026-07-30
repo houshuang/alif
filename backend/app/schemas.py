@@ -560,6 +560,8 @@ class ReintroCardOut(BaseModel):
     intro_kind: str | None = None
     frequency_rank: int | None = None
     frequency_source_count: int | None = None
+    test_sentence_id: int | None = None
+    max_test_card_distance: int | None = None
 
 
 class ReintroResultIn(BaseModel):

@@ -709,7 +709,7 @@ build_session(db, limit=10, mode="reading")
 │ Find active sentences containing ≥1 due word │
 │ Apply comprehension-aware recency filters:   │
 │   • Never shown: always eligible             │
-│   • understood: 1-day cooldown               │
+│   • understood: 7-day cooldown               │
 │   • partial: 4-hour cooldown                 │
 │   • no_idea: 30-min cooldown                 │
 │   • shown, no comprehension: 1-day cooldown  │
@@ -1972,7 +1972,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 
 | Last Comprehension | Cooldown |
 |-------------------|----------|
-| `understood` | 1 day |
+| `understood` | 7 days |
 | `partial` | 4 hours |
 | `no_idea` | 30 minutes |
 | No record | 1 day |

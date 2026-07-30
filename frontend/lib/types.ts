@@ -444,6 +444,8 @@ export interface ReintroCard {
   intro_kind?: string | null;
   frequency_rank?: number | null;
   frequency_source_count?: number | null;
+  test_sentence_id?: number | null;
+  max_test_card_distance?: number | null;
 }
 
 export interface VerseWord {

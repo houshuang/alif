@@ -75,6 +75,10 @@ import {
   pickReadyRetest,
   retestArm,
 } from "../lib/review/retest";
+import {
+  itemHasExactReintroTest,
+  reintrosWithinVisibleWindow,
+} from "../lib/review/reintro-flow";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 import { bestVocalizedDisplayForm } from "../lib/arabic-display";
@@ -129,7 +133,21 @@ function buildInterleavedSession(
   readingMode: boolean,
   verseCards: VerseCard[] = [],
   alreadyShownIntroLemmaIds: Set<number> = new Set(),
+  reservedReintroCards: ReintroCard[] = [],
 ): SessionSlot[] {
+  const reservedItemIndexes = Array.from(
+    new Set(
+      reservedReintroCards
+        .map((card) => items.findIndex((item) => itemHasExactReintroTest(item, card)))
+        .filter((index) => index >= 0),
+    ),
+  );
+  const reservedItemIndexSet = new Set(reservedItemIndexes);
+  const baseItemOrder = [
+    ...reservedItemIndexes,
+    ...items.map((_, index) => index).filter((index) => !reservedItemIndexSet.has(index)),
+  ];
+
   // Drop intros for lemmas the user already saw this UI session — applyFreshSession
   // rebuilds slots on every prefetch; without this, an intro re-fires whenever
   // the server's ack hasn't propagated yet.
@@ -138,7 +156,7 @@ function buildInterleavedSession(
   }
   // If no intro cards, just build sentence slots + deprecated intro candidates
   if (introCards.length === 0) {
-    const slots: SessionSlot[] = items.map((_, i) => ({
+    const slots: SessionSlot[] = baseItemOrder.map((i) => ({
       type: "sentence" as const,
       itemIndex: i,
     }));
@@ -175,12 +193,17 @@ function buildInterleavedSession(
   //    no-intro wind-down (back). The wind-down guarantees the last ~20% of
   //    the session is intro-free, so the learner finishes with practice, not
   //    a fresh-card flood (fixed 2026-04-27).
-  const allOrder = items.map((_, i) => i);
-  const noIntro = allOrder.filter((i) => sentenceIntroWords[i].size === 0);
-  const withIntro = allOrder.filter((i) => sentenceIntroWords[i].size > 0);
+  const unreservedOrder = baseItemOrder.filter((i) => !reservedItemIndexSet.has(i));
+  const noIntro = unreservedOrder.filter((i) => sentenceIntroWords[i].size === 0);
+  const withIntro = unreservedOrder.filter((i) => sentenceIntroWords[i].size > 0);
   const warmup = noIntro.slice(0, Math.min(2, noIntro.length));
   const winddown = noIntro.slice(warmup.length);
-  const sentenceOrder = [...warmup, ...withIntro, ...winddown];
+  const sentenceOrder = [
+    ...reservedItemIndexes,
+    ...warmup,
+    ...withIntro,
+    ...winddown,
+  ];
 
   // 4. Walk in chosen order. Before each sentence, emit any unshown intro
   //    cards whose lemma appears in this sentence. Sentence-bound intros are
@@ -250,6 +273,37 @@ function buildInterleavedSession(
   }
 
   return result;
+}
+
+function prepareSessionFlow(
+  items: SentenceReviewItem[],
+  introCards: ReintroCard[],
+  introCandidates: IntroCandidate[],
+  readingMode: boolean,
+  verseCards: VerseCard[],
+  alreadyShownIntroLemmaIds: Set<number>,
+  reintroCandidates: ReintroCard[],
+): { slots: SessionSlot[]; reintroCards: ReintroCard[] } {
+  let pairedReintros = reintroCandidates.filter((card) =>
+    items.some((item) => itemHasExactReintroTest(item, card)),
+  );
+
+  while (true) {
+    const slots = buildInterleavedSession(
+      items,
+      introCards,
+      introCandidates,
+      readingMode,
+      verseCards,
+      alreadyShownIntroLemmaIds,
+      pairedReintros,
+    );
+    const kept = reintrosWithinVisibleWindow(items, pairedReintros, slots);
+    if (kept.length === pairedReintros.length) {
+      return { slots, reintroCards: pairedReintros };
+    }
+    pairedReintros = kept;
+  }
 }
 
 interface CardSnapshot {
@@ -915,23 +969,24 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         if (ss.intro_candidates && ss.intro_candidates.length > 0 && m === "reading") {
           setAutoIntroduced(ss.intro_candidates);
         }
-        const slots = buildInterleavedSession(
+        const preparedFlow = prepareSessionFlow(
           ss.items,
           ss.experiment_intro_cards ?? [],
           ss.intro_candidates ?? [],
           m === "reading",
           ss.verse_cards ?? [],
           shownIntroLemmaIdsRef.current,
+          ss.reintro_cards ?? [],
         );
-        setSessionSlots(slots);
+        setSessionSlots(preparedFlow.slots);
         if (ss.verse_cards && ss.verse_cards.length > 0) {
           setVerseCards(ss.verse_cards);
         }
         if (ss.experiment_intro_cards && ss.experiment_intro_cards.length > 0) {
           setExperimentIntroCards(ss.experiment_intro_cards);
         }
-        if (ss.reintro_cards && ss.reintro_cards.length > 0) {
-          setReintroCards(ss.reintro_cards);
+        if (preparedFlow.reintroCards.length > 0) {
+          setReintroCards(preparedFlow.reintroCards);
           setReintroIndex(0);
         }
         // Load grammar lessons (refreshers first, then intros)
@@ -1618,16 +1673,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else {
       setAutoIntroduced([]);
     }
-    const slots = buildInterleavedSession(
+    const preparedFlow = prepareSessionFlow(
       fresh.items,
       fresh.experiment_intro_cards ?? [],
       fresh.intro_candidates ?? [],
       mode === "reading",
       fresh.verse_cards ?? [],
       shownIntroLemmaIdsRef.current,
+      fresh.reintro_cards ?? [],
     );
     setVerseCards(fresh.verse_cards ?? []);
-    setSessionSlots(slots);
+    setSessionSlots(preparedFlow.slots);
     setCardIndex(0);
     setCardState(mode === "listening" ? "audio" : "front");
     setResults(null);
@@ -1660,8 +1716,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     checkpointFetchingRef.current = false;
     autoWrapUpTriggeredRef.current = false;
     prefetchTriggered.current = false;
-    if (fresh.reintro_cards && fresh.reintro_cards.length > 0) {
-      setReintroCards(fresh.reintro_cards);
+    if (preparedFlow.reintroCards.length > 0) {
+      setReintroCards(preparedFlow.reintroCards);
       setReintroIndex(0);
     } else {
       setReintroCards([]);

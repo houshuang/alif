@@ -1194,6 +1194,7 @@ class TestGreedySetCover:
                               target_lemma_id=1,
                               word_surfaces_and_ids=[("الكتاب", 1)])
         sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=2)
+        sent.last_reading_comprehension = "understood"
         db_session.commit()
 
         result = build_session(db_session, limit=10)
@@ -1201,6 +1202,25 @@ class TestGreedySetCover:
         # No word-only fallback — word just gets skipped (or on-demand gen attempted)
         # In test mode with no LLM, uncovered words are simply skipped
         assert result["total_due_words"] == 1
+        assert all(item["sentence_id"] != 1 for item in result["items"])
+
+    def test_understood_sentence_returns_after_seven_day_cooldown(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        sent = _seed_sentence(
+            db_session,
+            1,
+            "الكتاب",
+            "the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("الكتاب", 1)],
+        )
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=8)
+        sent.last_reading_comprehension = "understood"
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+
+        assert any(item["sentence_id"] == 1 for item in result["items"])
 
     def test_no_due_words_returns_empty(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=24)
@@ -2443,18 +2463,15 @@ class TestFillPhasePregenerated:
 
 
 class TestRescuePass:
-    """Regression: words blocked by recency filter should get a rescue pass
-    with stale sentences at 0.3x penalty (reverted by 7ee81cf)."""
+    """Recently failed sentences can be rescued, but understood ones cannot."""
 
-    def test_rescue_pass_uses_stale_sentences(self, db_session):
-        """A due word whose only sentence was recently shown should still appear
-        via rescue pass rather than being dropped entirely."""
+    def test_rescue_pass_uses_recently_failed_sentences(self, db_session):
+        """A recently partial sentence can still provide a near-term retry."""
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         sent = _seed_sentence(db_session, 1, "الكتاب", "the book", 1,
                               [("الكتاب", 1)])
-        # Mark as recently shown with "understood" (7-day cooldown)
-        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=3)
-        sent.last_reading_result = "understood"
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        sent.last_reading_comprehension = "partial"
 
         # Create a second due word with a fresh sentence (control)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=-1)
@@ -2468,6 +2485,19 @@ class TestRescuePass:
         # The rescue pass should include the stale sentence for word 1
         assert 1 in sentence_ids, \
             "Rescue pass should include stale sentence rather than dropping the word"
+
+    def test_rescue_pass_never_bypasses_understood_cooldown(self, db_session):
+        """Know-all evidence keeps the exact sentence out for seven days."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        sent = _seed_sentence(db_session, 1, "الكتاب", "the book", 1,
+                              [("الكتاب", 1)])
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=3)
+        sent.last_reading_comprehension = "understood"
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+
+        assert all(item["sentence_id"] != 1 for item in result["items"])
 
 
 class TestSelectionInfo:
