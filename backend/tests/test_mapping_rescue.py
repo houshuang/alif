@@ -207,6 +207,146 @@ def test_compatible_same_lemma_overcall_still_stamps(db_session, patched_verifie
     assert stats.sentences_rescued == 1
 
 
+def test_exact_alias_conflict_is_not_calibrated_as_overcall(
+    db_session,
+    patched_verifier,
+):
+    """A contradictory verifier proposal cannot reopen exact identity."""
+    people = _lemma(
+        db_session,
+        "نَاسٌ",
+        "people",
+        bare="ناس",
+        pos="noun",
+    )
+    forget = _lemma(
+        db_session,
+        "نَسِيَ",
+        "to forget",
+        bare="نسي",
+        pos="verb",
+    )
+    sent = _stale_sentence(
+        db_session,
+        [people.lemma_id],
+        target_id=people.lemma_id,
+    )
+    word = (
+        db_session.query(SentenceWord)
+        .filter_by(sentence_id=sent.id)
+        .one()
+    )
+    word.surface_form = "أُنَاسٌ"
+    db_session.commit()
+
+    def contradictory_alias(inputs, _lemma_map):
+        return [
+            {
+                "disambiguation": [],
+                "issues": [
+                    {
+                        "position": 0,
+                        "correct_lemma_ar": "نَسِيَ",
+                        "correct_gloss": "to forget",
+                        "correct_pos": "verb",
+                        "explanation": "contradicts exact surface",
+                    }
+                ],
+            }
+            for _ in inputs
+        ]
+
+    patched_verifier(contradictory_alias)
+
+    stats = mapping_rescue.rescue_sentences_for_lemmas([people.lemma_id])
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    refreshed_word = (
+        db_session.query(SentenceWord)
+        .filter_by(sentence_id=sent.id)
+        .one()
+    )
+    assert refreshed.mappings_verified_at == STALE
+    assert refreshed_word.lemma_id == people.lemma_id
+    assert refreshed_word.lemma_id != forget.lemma_id
+    assert stats.sentences_unfixable == 1
+    assert stats.sentences_rescued == 0
+
+
+def test_exact_alias_never_creates_frequency_proposal(
+    db_session,
+    patched_verifier,
+):
+    """A governed surface cannot enter mapping-rescue lemma creation."""
+    people = _lemma(
+        db_session,
+        "نَاسٌ",
+        "people",
+        bare="ناس",
+        pos="noun",
+    )
+    fce = _fce(
+        db_session,
+        "جديد",
+        lemma_id=None,
+        gloss="new",
+        pos="adj",
+        rank=401,
+    )
+    sent = _stale_sentence(
+        db_session,
+        [people.lemma_id],
+        target_id=people.lemma_id,
+    )
+    word = (
+        db_session.query(SentenceWord)
+        .filter_by(sentence_id=sent.id)
+        .one()
+    )
+    word.surface_form = "أُنَاسٌ"
+    db_session.commit()
+
+    def missing_alias_proposal(inputs, _lemma_map):
+        return [
+            {
+                "disambiguation": [],
+                "issues": [
+                    {
+                        "position": 0,
+                        "correct_lemma_ar": "جَدِيد",
+                        "correct_gloss": "new",
+                        "correct_pos": "adj",
+                        "explanation": "contradicts exact surface",
+                    }
+                ],
+            }
+            for _ in inputs
+        ]
+
+    patched_verifier(missing_alias_proposal)
+    count_before = db_session.query(Lemma).count()
+    with patch("app.services.lemma_quality.run_quality_gates") as gates:
+        stats = mapping_rescue.rescue_sentences_for_lemmas(
+            [people.lemma_id]
+        )
+
+    gates.assert_not_called()
+    db_session.expire_all()
+    assert db_session.query(Lemma).count() == count_before
+    assert db_session.query(FrequencyCoreEntry).get(fce.id).lemma_id is None
+    assert db_session.query(Sentence).get(sent.id).mappings_verified_at == STALE
+    assert (
+        db_session.query(SentenceWord)
+        .filter_by(sentence_id=sent.id)
+        .one()
+        .lemma_id
+        == people.lemma_id
+    )
+    assert stats.proposals_created_lemma == 0
+    assert stats.sentences_unfixable == 1
+
+
 def test_fixable_issue_via_existing_lemma(db_session, patched_verifier):
     """Verifier proposes a correction whose target lemma already exists in DB."""
     wrong = _lemma(db_session, "عَلِيّ", "Ali (name)")

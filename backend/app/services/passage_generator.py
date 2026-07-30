@@ -32,6 +32,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     strip_punctuation,
     strip_tatweel,
@@ -811,6 +812,14 @@ def store_maintenance_passage(
             proper_names=proper_name_norms,
         )
         for mapping in mappings:
+            if (
+                mapping.lemma_id is None
+                and requires_exact_running_text_alias(mapping.surface_form)
+            ):
+                raise PassageGenerationError(
+                    "Passage sentence has unresolved exact-running-text "
+                    f"identity: {mapping.surface_form}"
+                )
             if mapping.is_proper_name and mapping.lemma_id is None:
                 mapping.lemma_id = get_or_create_proper_name_lemma(
                     db,

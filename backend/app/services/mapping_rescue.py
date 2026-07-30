@@ -56,6 +56,7 @@ from app.services.sentence_validator import (
     batch_verify_sentences,
     build_comprehensive_lemma_lookup,
     normalize_arabic,
+    resolve_exact_running_text_alias,
     strip_diacritics,
     strip_tanwin_alif,
 )
@@ -604,6 +605,14 @@ def _prepare_unlinked_frequency_proposals(
                 proposed_pos = str(issue.get("correct_pos", "") or "")
                 if not proposed_ar:
                     continue
+                if resolve_exact_running_text_alias(
+                    word.surface_form or "",
+                    lemma_lookup,
+                ).applicable:
+                    # Exact-alias corrections may only use their reviewed
+                    # destination. Never pre-create a verifier proposal for
+                    # one of these governed surfaces.
+                    continue
 
                 from app.services.sentence_validator import correct_mapping
 
@@ -716,6 +725,18 @@ def _apply_with_proposal_fallback(
         proposed_ar = str(issue.get("correct_lemma_ar", "") or "")
         proposed_gloss = str(issue.get("correct_gloss", "") or "")
         proposed_pos = str(issue.get("correct_pos", "") or "")
+
+        alias = resolve_exact_running_text_alias(
+            word.surface_form or "",
+            lemma_lookup,
+        )
+        if alias.applicable:
+            # ``apply_corrections`` rejects every contradictory or unresolved
+            # exact-alias proposal. Do not reinterpret that failure as the
+            # calibrated ordinary-inflection overcall below, and never let it
+            # reach frequency-gated lemma creation.
+            still_failed.append(pos)
+            continue
 
         # Does the verifier's proposal resolve to any lemma in the DB?
         # `current_lemma_id=None` so we don't prefer a different lemma — we

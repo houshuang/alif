@@ -53,6 +53,31 @@ class ArabicSegment:
     speaker: str | None = None
 
 
+def _resolve_contextless_import_word(
+    surface_form: str,
+    bare_form: str,
+    lemma_lookup: dict[str, int],
+) -> tuple[bool, int | None]:
+    """Return whether a contextless word import must reuse or skip a row.
+
+    Exact running-text aliases are resolved from the original vocalized
+    surface.  They remain governed when their destination is unavailable, so
+    that case returns ``(True, None)`` instead of falling through to the
+    stripped-bare resolver and creating a competing citation row.
+    """
+    from app.services.sentence_validator import (
+        resolve_exact_running_text_alias,
+        resolve_existing_lemma,
+    )
+
+    alias = resolve_exact_running_text_alias(surface_form, lemma_lookup)
+    if alias.applicable:
+        return True, alias.lemma_id
+
+    existing_id = resolve_existing_lemma(bare_form, lemma_lookup)
+    return existing_id is not None, existing_id
+
+
 # --------------------------------------------------------------------------- #
 # Phase 1: Transcribe
 # --------------------------------------------------------------------------- #
@@ -321,7 +346,6 @@ def phase_import(dry_run: bool = False):
     from fsrs import Scheduler, Card, Rating
     from app.services.sentence_validator import (
         build_lemma_lookup,
-        resolve_existing_lemma,
         strip_diacritics,
         normalize_alef,
         tokenize_display,
@@ -395,7 +419,12 @@ def phase_import(dry_run: bool = False):
         if dry_run:
             logger.info("\n--- DRY RUN: Words ---")
             for bare, info in sorted(words_to_import.items()):
-                exists = bare in existing_bares or resolve_existing_lemma(bare, lemma_lookup)
+                must_skip, _existing_id = _resolve_contextless_import_word(
+                    info["arabic"],
+                    info["bare"],
+                    lemma_lookup,
+                )
+                exists = bare in existing_bares or must_skip
                 marker = "EXISTS" if exists else "NEW"
                 logger.info(f"  [{marker}] {info['arabic']} ({info['bare']}) = {info['english']}")
 
@@ -432,12 +461,13 @@ def phase_import(dry_run: bool = False):
         now = datetime.now(timezone.utc)
 
         for bare_norm, info in words_to_import.items():
-            # Check existing
-            if bare_norm in existing_bares:
-                n_existing += 1
-                continue
-            existing_id = resolve_existing_lemma(info["bare"], lemma_lookup)
-            if existing_id:
+            # Check exact aliases before discarding citation vocalization.
+            must_skip, _existing_id = _resolve_contextless_import_word(
+                info["arabic"],
+                info["bare"],
+                lemma_lookup,
+            )
+            if bare_norm in existing_bares or must_skip:
                 n_existing += 1
                 continue
 

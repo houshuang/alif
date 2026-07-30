@@ -30,6 +30,8 @@ from app.services.sentence_validator import (
     FUNCTION_WORDS,
     MultiTargetValidationResult,
     ValidationResult,
+    lookup_lemma_id,
+    resolve_exact_running_text_alias,
     strip_diacritics,
     tokenize,
     validate_sentence,
@@ -296,6 +298,7 @@ def _check_scaffold_diversity(
     target_bare: str,
     content_word_counts: dict[int, int],
     lemma_lookup: dict[str, int],
+    target_lemma_id: int | None = None,
 ) -> tuple[bool, list[str]]:
     """Check if a sentence's scaffold words are diverse enough.
 
@@ -307,9 +310,19 @@ def _check_scaffold_diversity(
     overused: list[str] = []
     for tok in tokens:
         bare = strip_diacritics(tok)
-        if bare == target_bare or bare in FUNCTION_WORDS:
+        alias = resolve_exact_running_text_alias(tok, lemma_lookup)
+        if alias.applicable:
+            if alias.is_function_word:
+                continue
+            lid = alias.lemma_id
+        else:
+            if bare in FUNCTION_WORDS:
+                continue
+            lid = lookup_lemma_id(tok, lemma_lookup)
+        if bare == target_bare or (
+            target_lemma_id is not None and lid == target_lemma_id
+        ):
             continue
-        lid = lemma_lookup.get(bare)
         count = content_word_counts.get(lid, 0) if lid else 0
         if count >= DIVERSITY_SENTENCE_THRESHOLD:
             overused.append(tok)
@@ -405,7 +418,11 @@ def generate_validated_sentence(
             # Post-validation diversity check
             if content_word_counts and lemma_lookup:
                 diverse, overused = _check_scaffold_diversity(
-                    result.arabic, target_bare, content_word_counts, lemma_lookup,
+                    result.arabic,
+                    target_bare,
+                    content_word_counts,
+                    lemma_lookup,
+                    target_lemma_id,
                 )
                 if not diverse:
                     overused_str = "، ".join(overused)

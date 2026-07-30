@@ -347,6 +347,8 @@ def map_story_to_lemma_ids(story: dict, db) -> tuple[list[int], list[dict]]:
     from app.services.sentence_validator import (
         _is_function_word,
         build_comprehensive_lemma_lookup,
+        lookup_lemma_id,
+        resolve_exact_running_text_alias,
         strip_diacritics,
         strip_punctuation,
     )
@@ -361,8 +363,13 @@ def map_story_to_lemma_ids(story: dict, db) -> tuple[list[int], list[dict]]:
         mappings = []
         for token in tokens:
             bare = strip_diacritics(token)
-            is_func = _is_function_word(bare)
-            lemma_id = lookup.get(bare)
+            alias = resolve_exact_running_text_alias(token, lookup)
+            if alias.applicable:
+                is_func = alias.is_function_word
+                lemma_id = alias.lemma_id
+            else:
+                is_func = _is_function_word(bare)
+                lemma_id = lookup_lemma_id(token, lookup)
             mappings.append({
                 "surface": token,
                 "lemma_id": lemma_id,

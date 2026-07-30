@@ -382,6 +382,24 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     "الآن": "آن", "الان": "آن",
 }
 
+# Fully vocalized running-text forms whose learner identity is an existing,
+# independently gated lemma even though stripped-bare lookup would choose a
+# different lexeme. These are deliberately not FUNCTION_WORD_FORMS:
+#
+# - the alias key remains exact and vocalized, so bare ``فقد`` continues to
+#   name the stored noun rather than being coerced to the particle;
+# - the destination is resolved from a unique gated citation identity while
+#   building the lookup, never from a hard-coded production lemma ID;
+# - citation lookup and verifier correction remain strict and do not learn an
+#   unvocalized shortcut from this running-text-only policy.
+#
+# ``أُنَاس`` and ``نَاس`` are one learner concept ("people"). ``فَقَدْ`` is
+# transparently فَـ + قَدْ in running prose; the displayed surface is retained.
+EXACT_RUNNING_TEXT_ALIAS_IDENTITIES: dict[str, tuple[str, bool]] = {
+    "أُنَاسٌ": ("نَاسٌ", False),
+    "فَقَدْ": ("قَدْ", True),
+}
+
 # Attached pronouns make the shadda-bearing identity unambiguous. Generate the
 # productive combinations instead of maintaining an inevitably incomplete
 # list of forms by hand. The bare prefix without a suffix is deliberately not
@@ -715,6 +733,77 @@ class TokenMapping:
     is_proper_name: bool = False
 
 
+@dataclass(frozen=True)
+class ExactRunningTextAliasResolution:
+    """Resolution state for one exact-only running-text alias."""
+
+    applicable: bool
+    lemma_id: int | None = None
+    is_function_word: bool = False
+
+
+def requires_exact_running_text_alias(surface_form: str) -> bool:
+    """Return whether a surface is governed by exact-only alias policy."""
+    return (
+        _exact_correction_form(surface_form)
+        in EXACT_RUNNING_TEXT_ALIAS_IDENTITIES
+    )
+
+
+def _resolve_exact_running_text_alias(
+    surface_form: str,
+    lemma_lookup: dict[str, int],
+) -> ExactRunningTextAliasResolution:
+    """Resolve an approved vocalized alias, or fail it closed.
+
+    ``applicable=True`` with ``lemma_id=None`` means the surface is governed
+    by the exact policy but its unique gated destination is unavailable. The
+    caller must not continue into stripped-bare or CAMeL lookup.
+    """
+    exact_surface = _exact_correction_form(surface_form)
+    specification = EXACT_RUNNING_TEXT_ALIAS_IDENTITIES.get(exact_surface)
+    if specification is None:
+        return ExactRunningTextAliasResolution(applicable=False)
+    required = getattr(
+        lemma_lookup,
+        "required_exact_running_text_aliases",
+        set(EXACT_RUNNING_TEXT_ALIAS_IDENTITIES),
+    )
+    if exact_surface not in required:
+        return ExactRunningTextAliasResolution(applicable=False)
+
+    resolved = getattr(
+        lemma_lookup,
+        "exact_running_text_aliases",
+        {},
+    ).get(exact_surface)
+    if resolved is not None:
+        lemma_id, is_function_word = resolved
+        return ExactRunningTextAliasResolution(
+            applicable=True,
+            lemma_id=lemma_id,
+            is_function_word=is_function_word,
+        )
+
+    return ExactRunningTextAliasResolution(
+        applicable=True,
+        lemma_id=None,
+        # Classification belongs to a successfully resolved destination.
+        # Keeping this false is part of fail-closed behavior: callers that
+        # only inspect the flag must not silently accept an unavailable alias
+        # as a free function word.
+        is_function_word=False,
+    )
+
+
+def resolve_exact_running_text_alias(
+    surface_form: str,
+    lemma_lookup: dict[str, int],
+) -> ExactRunningTextAliasResolution:
+    """Public surface-aware resolver for exact-only alias call paths."""
+    return _resolve_exact_running_text_alias(surface_form, lemma_lookup)
+
+
 def _target_forms_for_bare(target_bare: str | None) -> set[str]:
     """Return normalized direct/article forms for one target spelling."""
     if not isinstance(target_bare, str) or not target_bare.strip():
@@ -772,6 +861,9 @@ def _surface_identity_allows_target(
     exact_bare = _exact_lookup_bare(surface_form)
     if exact_bare in _UNSUPPORTED_COMPOSED_PARTICLE_BARES:
         return False
+    alias = _resolve_exact_running_text_alias(surface_form, lemma_lookup)
+    if alias.applicable:
+        return alias.lemma_id == target_lemma_id
     if "\u0651" in exact_surface and hasattr(
         lemma_lookup,
         "lexical_shadda_compound_overrides",
@@ -837,10 +929,19 @@ def refresh_target_mapping_flags(
         for target_bare, target_id in target_bares.items():
             if mapping.lemma_id != target_id:
                 continue
-            if not _surface_matches_target_bare(
+            alias = _resolve_exact_running_text_alias(
                 mapping.surface_form,
-                target_bare,
-            ):
+                lemma_lookup,
+            )
+            surface_identity_matches = (
+                alias.lemma_id == target_id
+                if alias.applicable
+                else _surface_matches_target_bare(
+                    mapping.surface_form,
+                    target_bare,
+                )
+            )
+            if not surface_identity_matches:
                 continue
             if not _surface_identity_allows_target(
                 mapping.surface_form,
@@ -973,65 +1074,91 @@ def map_tokens_to_lemmas(
         if not bare_clean:
             continue
         bare_norm = normalize_alef(bare_clean)
+        alias = _resolve_exact_running_text_alias(token, lemma_lookup)
 
         # Orthographic target shape is only a candidate signal. Resolve the
         # token's lexical identity first so a shared normalized bare cannot
         # overwrite an exact identity such as أَنَّ or إِنْ.
         surface_matches_target = bool(target_forms) and (
-            _surface_matches_target_bare(token, target_bare)
+            (
+                alias.lemma_id == target_lemma_id
+                if alias.applicable
+                else _surface_matches_target_bare(token, target_bare)
+            )
         )
 
-        # Check proper names before function word / lemma lookup
-        if (
+        if alias.applicable:
+            # A missing/ambiguous destination is intentionally represented as
+            # unmapped. Never let an approved exact form fall through to
+            # stripped-bare lookup, CAMeL, or proper-name inference.
+            mapping = TokenMapping(
+                i,
+                token,
+                alias.lemma_id,
+                False,
+                alias.is_function_word,
+            )
+        # Check proper names before ordinary function word / lemma lookup.
+        elif (
             not surface_matches_target
             and proper_names_norm
             and bare_norm in proper_names_norm
         ):
             result.append(TokenMapping(i, token, None, False, False, is_proper_name=True))
             continue
-
-        is_function = _is_function_word(bare_clean)
-        if is_function:
-            # Direct-only lookup for function words — no clitic stripping.
-            # This prevents false analysis like كانت → ك+انت → أنت.
-            alternatives: list[int] = []
-            lemma_id = lookup_lemma_direct(
-                bare_norm,
-                lemma_lookup,
-                original_bare=bare_clean,
-                original_exact=exact_surface,
-                out_alternatives=alternatives,
-            )
-            alts = list(
-                dict.fromkeys(
-                    candidate
-                    for candidate in alternatives
-                    if candidate != lemma_id
-                )
-            )
-            mapping = TokenMapping(
-                i,
-                token,
-                lemma_id,
-                False,
-                is_function,
-                alternative_lemma_ids=alts or None,
-            )
         else:
-            alternatives: list[int] = []
-            clitic_flag: list[bool] = [False]
-            lemma_id = lookup_lemma(
-                bare_norm, lemma_lookup, original_bare=bare_clean,
-                out_alternatives=alternatives,
-                out_via_clitic=clitic_flag,
-            )
-            # Deduplicate and exclude winner
-            alts = list(dict.fromkeys(a for a in alternatives if a != lemma_id))
-            mapping = TokenMapping(
-                i, token, lemma_id, False, False,
-                alternative_lemma_ids=alts or None,
-                via_clitic=clitic_flag[0],
-            )
+            is_function = _is_function_word(bare_clean)
+            if is_function:
+                # Direct-only lookup for function words — no clitic stripping.
+                # This prevents false analysis like كانت → ك+انت → أنت.
+                alternatives: list[int] = []
+                lemma_id = lookup_lemma_direct(
+                    bare_norm,
+                    lemma_lookup,
+                    original_bare=bare_clean,
+                    original_exact=exact_surface,
+                    out_alternatives=alternatives,
+                )
+                alts = list(
+                    dict.fromkeys(
+                        candidate
+                        for candidate in alternatives
+                        if candidate != lemma_id
+                    )
+                )
+                mapping = TokenMapping(
+                    i,
+                    token,
+                    lemma_id,
+                    False,
+                    is_function,
+                    alternative_lemma_ids=alts or None,
+                )
+            else:
+                alternatives = []
+                clitic_flag: list[bool] = [False]
+                lemma_id = lookup_lemma(
+                    bare_norm, lemma_lookup, original_bare=bare_clean,
+                    out_alternatives=alternatives,
+                    out_via_clitic=clitic_flag,
+                )
+                # Deduplicate and exclude winner
+                alts = list(
+                    dict.fromkeys(
+                        candidate
+                        for candidate in alternatives
+                        if candidate != lemma_id
+                    )
+                )
+                mapping = TokenMapping(
+                    i,
+                    token,
+                    lemma_id,
+                    False,
+                    False,
+                    alternative_lemma_ids=alts or None,
+                    via_clitic=clitic_flag[0],
+                )
 
         if surface_matches_target:
             identity_allowed = _surface_identity_allows_target(
@@ -1080,6 +1207,13 @@ def lookup_lemma_direct(
         in _UNSUPPORTED_COMPOSED_PARTICLE_BARES
     ):
         return None
+
+    alias = _resolve_exact_running_text_alias(
+        original_exact or "",
+        lemma_lookup,
+    )
+    if alias.applicable:
+        return alias.lemma_id
 
     if (
         original_exact
@@ -1377,6 +1511,9 @@ def lookup_lemma_citation(
     """
     exact_surface = _exact_correction_form(original_bare)
     exact_bare = _exact_lookup_bare(exact_surface)
+    alias = _resolve_exact_running_text_alias(exact_surface, lemma_lookup)
+    if alias.applicable:
+        return alias.lemma_id
     if (
         exact_bare in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS
         or exact_bare in _UNSUPPORTED_COMPOSED_PARTICLE_BARES
@@ -1514,6 +1651,9 @@ def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
 
 def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | None:
     """Resolve a sentence token surface form to a lemma_id using lookup variants."""
+    alias = _resolve_exact_running_text_alias(surface_form, lemma_lookup)
+    if alias.applicable:
+        return alias.lemma_id
     bare = strip_diacritics(surface_form)
     bare_clean = strip_punctuation(strip_tatweel(bare))
     bare_norm = normalize_alef(bare_clean)
@@ -1562,6 +1702,14 @@ class LemmaLookupDict(dict):
         # bridges optional prefix vowels without weakening exact identity for
         # the particle itself (for example لِأَنْ remains أَنْ).
         self.lexical_shadda_compound_overrides: dict[str, int] = {}
+        # Exact NFC running-text identity → (unique gated base lemma ID,
+        # is_function_word). Required identities stay separate so an absent or
+        # duplicate destination fails closed instead of reaching bare/CAMeL
+        # fallback.
+        self.exact_running_text_aliases: dict[str, tuple[int, bool]] = {}
+        self.required_exact_running_text_aliases: set[str] = set(
+            EXACT_RUNNING_TEXT_ALIAS_IDENTITIES
+        )
 
     def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
@@ -1748,6 +1896,9 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     lexical_shadda_compound_ids: dict[str, set[int]] = {
         bare: set() for bare in LEXICAL_SHADDA_COMPOUND_BARES
     }
+    stored_exact_identity_ids: dict[str, set[int]] = {}
+    gated_exact_identity_ids: dict[str, set[int]] = {}
+    missing_gate_attribute = object()
 
     for lem in lemmas:
         exact_bare = _lemma_exact_bare(lem)
@@ -1757,12 +1908,56 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             getattr(lem, "lemma_ar", None)
         )
         if exact_identity and ARABIC_DIACRITICS.search(exact_identity):
+            stored_exact_identity_ids.setdefault(
+                exact_identity,
+                set(),
+            ).add(lem.lemma_id)
             lookup.set_exact_identity(exact_identity, lem.lemma_id)
+            gate_value = getattr(
+                lem,
+                "gates_completed_at",
+                missing_gate_attribute,
+            )
+            # Real Lemma rows must be gated. Lightweight lemma-like objects
+            # used by pure lookup callers have no gate attribute and are
+            # assumed to have been pre-filtered by that caller.
+            if (
+                gate_value is missing_gate_attribute
+                or gate_value is not None
+            ):
+                gated_exact_identity_ids.setdefault(
+                    exact_identity,
+                    set(),
+                ).add(lem.lemma_id)
         if (
             exact_bare in lexical_shadda_compound_ids
             and "\u0651" in exact_identity
         ):
             lexical_shadda_compound_ids[exact_bare].add(lem.lemma_id)
+
+    for surface, (
+        destination_identity,
+        is_function_word,
+    ) in EXACT_RUNNING_TEXT_ALIAS_IDENTITIES.items():
+        destination_ids = gated_exact_identity_ids.get(
+            destination_identity,
+            set(),
+        )
+        stored_destination_ids = stored_exact_identity_ids.get(
+            destination_identity,
+            set(),
+        )
+        source_ids = stored_exact_identity_ids.get(surface, set())
+        if (
+            len(stored_destination_ids) == 1
+            and destination_ids == stored_destination_ids
+            and not source_ids
+            and destination_identity not in EXACT_RUNNING_TEXT_ALIAS_IDENTITIES
+        ):
+            lookup.exact_running_text_aliases[surface] = (
+                next(iter(destination_ids)),
+                is_function_word,
+            )
 
     for exact_bare, lemma_ids in lexical_shadda_compound_ids.items():
         if len(lemma_ids) == 1:
@@ -2978,6 +3173,11 @@ def apply_corrections(
     If throughput pressure seems to demand softening this, the answer
     is to fix upstream (better Sonnet vocab discipline, self-correction
     loop on generation) — not downstream.
+
+    Exact-running-text aliases add a second hard boundary. A verifier may
+    correct an affected surface only to the alias's unique gated destination.
+    A contradictory proposal cannot overwrite exact surface identity, and an
+    unresolved required alias remains a failed position.
     ═══════════════════════════════════════════════════════════════════
 
     Args:
@@ -3003,11 +3203,35 @@ def apply_corrections(
     pos_to_mapping = {m.position: m for m in mappings}
     failed_positions: list[int] = []
     failure_reasons: dict[int, str] = {}
+    resolved_lookup = lemma_lookup
 
     for corr in corrections:
         pos = corr.get("position") if isinstance(corr.get("position"), int) else corr["position"]
         m = pos_to_mapping.get(pos)
         if not m:
+            continue
+
+        if (
+            requires_exact_running_text_alias(
+                getattr(m, "surface_form", "")
+            )
+            and resolved_lookup is None
+        ):
+            resolved_lookup = build_comprehensive_lemma_lookup(
+                db,
+                require_gated=require_gated_lemmas,
+            )
+        alias = _resolve_exact_running_text_alias(
+            getattr(m, "surface_form", ""),
+            resolved_lookup or {},
+        )
+        if alias.applicable and alias.lemma_id is None:
+            _validator_logger.warning(
+                f"Correction for pos {pos} '{m.surface_form}': "
+                "required exact alias destination is unavailable"
+            )
+            failed_positions.append(pos)
+            failure_reasons[pos] = "exact_alias_unresolved"
             continue
 
         new_lid = correct_mapping(
@@ -3016,16 +3240,38 @@ def apply_corrections(
             str(corr.get("correct_gloss", "") or ""),
             str(corr.get("correct_pos", "") or ""),
             current_lemma_id=m.lemma_id,
-            lemma_lookup=lemma_lookup,
+            lemma_lookup=resolved_lookup,
             require_gated=require_gated_lemmas,
         )
 
-        if new_lid and new_lid != m.lemma_id:
+        if (
+            alias.applicable
+            and new_lid != alias.lemma_id
+        ):
+            _validator_logger.warning(
+                f"Correction for pos {pos} '{m.surface_form}': "
+                f"proposed lemma #{new_lid} conflicts with required "
+                f"exact alias destination #{alias.lemma_id}"
+            )
+            failed_positions.append(pos)
+            failure_reasons[pos] = "exact_alias_conflict"
+        elif new_lid and new_lid != m.lemma_id:
             _validator_logger.info(
                 f"Corrected mapping pos {pos} '{m.surface_form}': "
                 f"#{m.lemma_id} → #{new_lid}"
             )
             m.lemma_id = new_lid
+            if alias.applicable:
+                # A successful exact restoration owns classification as well
+                # as lemma identity. This repairs stale noun/proper-name
+                # metadata instead of leaving فَقَدْ linked to قَدْ while
+                # still behaving like the old فَقْد row.
+                if hasattr(m, "is_function_word"):
+                    m.is_function_word = alias.is_function_word
+                if hasattr(m, "is_proper_name"):
+                    m.is_proper_name = False
+                if hasattr(m, "name_type"):
+                    m.name_type = None
         elif not new_lid:
             _validator_logger.warning(
                 f"Correction for pos {pos} '{m.surface_form}': "
@@ -3161,6 +3407,9 @@ def resolve_existing_lemma(
     )
     bare_norm = normalize_alef(bare_clean)
     exact_bare = _exact_lookup_bare(exact_surface)
+    alias = _resolve_exact_running_text_alias(exact_surface, lemma_lookup)
+    if alias.applicable:
+        return alias.lemma_id
 
     if exact_bare in UNHAMZATED_AMBIGUOUS_FUNCTION_FORMS:
         return None
@@ -3283,14 +3532,31 @@ def validate_sentence_multi_target(
         bare = strip_diacritics(token)
         bare_clean = strip_tatweel(bare)
         bare_normalized = normalize_alef(bare_clean)
+        alias_lookup = (
+            comprehensive_lemma_lookup
+            or known_lemma_lookup
+            or {}
+        )
+        alias = _resolve_exact_running_text_alias(token, alias_lookup)
 
         # Check if it's a target word (try tanwin-alif stripping too)
-        matched_target = target_form_map.get(bare_normalized)
-        if not matched_target:
+        matched_target = None
+        if alias.applicable and alias.lemma_id is not None:
+            matched_target = next(
+                (
+                    target_bare
+                    for target_bare, target_id in target_bares.items()
+                    if target_id == alias.lemma_id
+                ),
+                None,
+            )
+        elif not alias.applicable:
+            matched_target = target_form_map.get(bare_normalized)
+        if not matched_target and not alias.applicable:
             sans_alif = strip_tanwin_alif(bare_normalized)
             if sans_alif != bare_normalized:
                 matched_target = target_form_map.get(sans_alif)
-        if not matched_target:
+        if not matched_target and not alias.applicable:
             for stem in _strip_clitics(bare_normalized):
                 matched_target = target_form_map.get(normalize_alef(stem))
                 if matched_target:
@@ -3305,26 +3571,36 @@ def validate_sentence_multi_target(
             targets_found[matched_target] = True
             continue
 
-        if bare_normalized in proper_names_normalized:
+        if (
+            not alias.applicable
+            and bare_normalized in proper_names_normalized
+        ):
             known_words.append(token)
             continue
 
-        if _is_function_word(bare_clean):
+        if (
+            alias.applicable
+            and alias.lemma_id is not None
+            and alias.is_function_word
+        ) or (
+            not alias.applicable
+            and _is_function_word(bare_clean)
+        ):
             function_words.append(token)
             continue
 
         # Known word check (same logic as validate_sentence)
         is_known = False
         if known_lemma_lookup is not None:
-            lid = lookup_lemma(
-                bare_normalized,
-                known_lemma_lookup,
-                original_bare=bare_clean,
-            )
+            lid = lookup_lemma_id(token, known_lemma_lookup)
             if lid is not None:
                 is_known = True
 
-        if not is_known and known_lemma_lookup is None:
+        if (
+            not is_known
+            and known_lemma_lookup is None
+            and not alias.applicable
+        ):
             forms_to_check = [bare_normalized]
             if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
                 forms_to_check.append(bare_normalized[2:])
@@ -3352,11 +3628,7 @@ def validate_sentence_multi_target(
                         break
 
         if not is_known and comprehensive_lemma_lookup is not None:
-            lid = lookup_lemma(
-                bare_normalized,
-                comprehensive_lemma_lookup,
-                original_bare=bare_clean,
-            )
+            lid = lookup_lemma_id(token, comprehensive_lemma_lookup)
             if lid is not None:
                 is_known = True
 
@@ -3462,6 +3734,12 @@ def validate_sentence(
         bare = strip_diacritics(token)
         bare_clean = strip_tatweel(bare)
         bare_normalized = normalize_alef(bare_clean)
+        alias_lookup = (
+            comprehensive_lemma_lookup
+            or known_lemma_lookup
+            or {}
+        )
+        alias = _resolve_exact_running_text_alias(token, alias_lookup)
 
         # Check: is it the target word? (with ال prefix + tanwin-alif +
         # word-final ا ↔ ى handling for final-weak verbs.)
@@ -3479,8 +3757,20 @@ def validate_sentence(
         if token_sans_alif != bare_normalized:
             token_forms.append(token_sans_alif)
 
-        is_target = any(tf in target_forms for tf in token_forms)
-        if not is_target:
+        if alias.applicable:
+            destination_identity = EXACT_RUNNING_TEXT_ALIAS_IDENTITIES[
+                _exact_correction_form(token)
+            ][0]
+            destination_bare = normalize_alef(
+                _exact_lookup_bare(destination_identity)
+            )
+            is_target = (
+                alias.lemma_id is not None
+                and destination_bare in target_forms
+            )
+        else:
+            is_target = any(tf in target_forms for tf in token_forms)
+        if not is_target and not alias.applicable:
             for stem in _strip_clitics(bare_normalized):
                 stem_norm = normalize_alef(stem)
                 if stem_norm in target_forms:
@@ -3498,8 +3788,16 @@ def validate_sentence(
             target_found = True
             continue
 
-        # Check: function word?
-        if _is_function_word(bare_clean):
+        # Check: function word? Exact aliases carry their own classification;
+        # declared-but-unresolved forms remain unknown and cannot fall back.
+        if (
+            alias.applicable
+            and alias.lemma_id is not None
+            and alias.is_function_word
+        ) or (
+            not alias.applicable
+            and _is_function_word(bare_clean)
+        ):
             classifications.append(
                 WordClassification(token, bare_clean, "function_word")
             )
@@ -3513,17 +3811,17 @@ def validate_sentence(
         # of unknown-word failures are words lookup_lemma would resolve).
         is_known = False
         if known_lemma_lookup is not None:
-            lid = lookup_lemma(
-                bare_normalized,
-                known_lemma_lookup,
-                original_bare=bare_clean,
-            )
+            lid = lookup_lemma_id(token, known_lemma_lookup)
             if lid is not None:
                 is_known = True
 
         # Fallback: bare-set + clitic-stripping path (legacy behavior, kept
         # for callers that pass only known_bare_forms).
-        if not is_known and known_lemma_lookup is None:
+        if (
+            not is_known
+            and known_lemma_lookup is None
+            and not alias.applicable
+        ):
             forms_to_check = [bare_normalized]
             # If word starts with ال, also check without it
             if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
@@ -3564,11 +3862,7 @@ def validate_sentence(
         # for logging.
         known_via_comp = False
         if not is_known and comprehensive_lemma_lookup is not None:
-            lid = lookup_lemma(
-                bare_normalized,
-                comprehensive_lemma_lookup,
-                original_bare=bare_clean,
-            )
+            lid = lookup_lemma_id(token, comprehensive_lemma_lookup)
             if lid is not None:
                 is_known = True
                 known_via_comp = True

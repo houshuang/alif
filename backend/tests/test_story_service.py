@@ -11,6 +11,7 @@ from app.services.fsrs_service import create_new_card
 from app.services.story_service import (
     _check_story_compliance,
     _get_known_words,
+    _import_unknown_words,
     complete_story,
     generate_story,
     get_stories,
@@ -19,6 +20,7 @@ from app.services.story_service import (
     lookup_word,
     recalculate_readiness,
 )
+from app.services.sentence_validator import build_lemma_lookup
 
 
 def _seed_words(db):
@@ -59,6 +61,51 @@ def _seed_words(db):
 
     db.commit()
     return lemmas
+
+
+def _seed_exact_alias_inventory(db, *, include_destinations: bool) -> dict[str, Lemma]:
+    """Create the real Momo collision shapes with optional alias destinations."""
+    now = datetime.now(timezone.utc)
+    rows = {
+        "forget": Lemma(
+            lemma_ar="نَسِيَ",
+            lemma_ar_bare="نسي",
+            gloss_en="to forget",
+            pos="verb",
+            forms_json={
+                "active_participle": "نَاسٍ",
+                "imperative": "اِنْسَ",
+            },
+            gates_completed_at=now,
+        ),
+        "loss": Lemma(
+            lemma_ar="فَقْد",
+            lemma_ar_bare="فقد",
+            gloss_en="loss",
+            pos="noun",
+            gates_completed_at=now,
+        ),
+    }
+    if include_destinations:
+        rows.update({
+            "people": Lemma(
+                lemma_ar="نَاسٌ",
+                lemma_ar_bare="ناس",
+                gloss_en="people",
+                pos="noun",
+                gates_completed_at=now,
+            ),
+            "particle": Lemma(
+                lemma_ar="قَدْ",
+                lemma_ar_bare="قد",
+                gloss_en="indeed",
+                pos="particle",
+                gates_completed_at=now,
+            ),
+        })
+    db.add_all(rows.values())
+    db.commit()
+    return rows
 
 
 class TestImportStory:
@@ -104,6 +151,198 @@ class TestImportStory:
         _seed_words(db_session)
         story, _ = import_story(db_session, arabic_text="في البيت")
         assert story.readiness_pct > 0
+
+
+class TestExactAliasStoryImport:
+    @staticmethod
+    def _forbid_lossy_fallbacks(monkeypatch):
+        def fail(*_args, **_kwargs):
+            raise AssertionError(
+                "an exact running-text alias reached a lossy import fallback"
+            )
+
+        monkeypatch.setattr(story_service_module, "get_word_features", fail)
+        monkeypatch.setattr(story_service_module, "find_best_db_match", fail)
+        monkeypatch.setattr(story_service_module, "generate_completion", fail)
+        monkeypatch.setattr(
+            story_service_module,
+            "get_or_create_proper_name_lemma",
+            fail,
+        )
+
+    def test_stale_wrong_aliases_resolve_by_full_surface_without_import(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        rows = _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=True,
+        )
+        lookup = build_lemma_lookup(list(rows.values()))
+        assert lookup["انس"] == rows["forget"].lemma_id
+        assert lookup["فقد"] == rows["loss"].lemma_id
+
+        story = Story(
+            body_ar="أُنَاسٌ فَقَدْ",
+            source="book_ocr",
+            status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+        story.words.extend([
+            StoryWord(
+                position=0,
+                surface_form="أُنَاسٌ",
+                lemma_id=rows["forget"].lemma_id,
+                is_function_word=True,
+                name_type="personal",
+            ),
+            StoryWord(
+                position=1,
+                surface_form="فَقَدْ",
+                lemma_id=rows["loss"].lemma_id,
+                is_function_word=False,
+            ),
+        ])
+        db_session.flush()
+        before_lemmas = db_session.query(Lemma).count()
+        self._forbid_lossy_fallbacks(monkeypatch)
+
+        created_ids = _import_unknown_words(db_session, story, lookup)
+
+        assert created_ids == []
+        assert [word.surface_form for word in story.words] == [
+            "أُنَاسٌ",
+            "فَقَدْ",
+        ]
+        assert [word.lemma_id for word in story.words] == [
+            rows["people"].lemma_id,
+            rows["particle"].lemma_id,
+        ]
+        assert [word.is_function_word for word in story.words] == [
+            False,
+            True,
+        ]
+        assert all(word.name_type is None for word in story.words)
+        assert db_session.query(Lemma).count() == before_lemmas
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    def test_book_story_keeps_unresolved_aliases_out_of_unknown_import(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        rows = _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=False,
+        )
+        lookup = build_lemma_lookup(list(rows.values()))
+        story = Story(
+            body_ar="أُنَاسٌ فَقَدْ",
+            source="book_ocr",
+            status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+        story.words.extend([
+            StoryWord(
+                position=0,
+                surface_form="أُنَاسٌ",
+                lemma_id=rows["forget"].lemma_id,
+                is_function_word=True,
+                name_type="personal",
+            ),
+            StoryWord(
+                position=1,
+                surface_form="فَقَدْ",
+                lemma_id=rows["loss"].lemma_id,
+                is_function_word=False,
+            ),
+        ])
+        db_session.flush()
+        before_lemmas = db_session.query(Lemma).count()
+        self._forbid_lossy_fallbacks(monkeypatch)
+
+        created_ids = _import_unknown_words(db_session, story, lookup)
+
+        assert created_ids == []
+        assert all(word.lemma_id is None for word in story.words)
+        assert all(word.name_type is None for word in story.words)
+        assert db_session.query(Lemma).count() == before_lemmas
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    def test_resolved_alias_refreshes_stale_gloss_and_known_metadata(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        rows = _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=True,
+        )
+        lookup = build_lemma_lookup(list(rows.values()))
+        story = Story(
+            body_ar="أُنَاسٌ",
+            source="book_ocr",
+            status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            position=0,
+            surface_form="أُنَاسٌ",
+            lemma_id=rows["people"].lemma_id,
+            gloss_en=rows["forget"].gloss_en,
+            is_known_at_creation=True,
+            is_function_word=False,
+        )
+        story.words.append(word)
+        db_session.flush()
+        self._forbid_lossy_fallbacks(monkeypatch)
+
+        assert _import_unknown_words(db_session, story, lookup) == []
+
+        assert word.lemma_id == rows["people"].lemma_id
+        assert word.gloss_en == rows["people"].gloss_en
+        assert word.is_known_at_creation is False
+        assert word.is_function_word is False
+        assert word.name_type is None
+
+    def test_import_story_keeps_missing_destinations_fail_closed(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=False,
+        )
+        before_lemmas = db_session.query(Lemma).count()
+        self._forbid_lossy_fallbacks(monkeypatch)
+
+        story, created_ids = import_story(
+            db_session,
+            arabic_text="أُنَاسٌ فَقَدْ",
+            title="Exact aliases",
+        )
+
+        words = (
+            db_session.query(StoryWord)
+            .filter(StoryWord.story_id == story.id)
+            .order_by(StoryWord.position)
+            .all()
+        )
+        assert created_ids == []
+        assert [word.surface_form for word in words] == [
+            "أُنَاسٌ",
+            "فَقَدْ",
+        ]
+        assert all(word.lemma_id is None for word in words)
+        assert all(word.is_function_word is False for word in words)
+        assert all(word.name_type is None for word in words)
+        assert db_session.query(Lemma).count() == before_lemmas
+        assert db_session.query(UserLemmaKnowledge).count() == 0
 
 
 class TestGenerateStory:

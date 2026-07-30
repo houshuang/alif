@@ -23,6 +23,16 @@ from app.services.sentence_generator import (
     get_avoid_words,
     sample_known_words_weighted,
 )
+from app.services.sentence_validator import build_lemma_lookup
+
+
+class _LookupLemma:
+    def __init__(self, lemma_id, lemma_ar, lemma_ar_bare, forms_json=None):
+        self.lemma_id = lemma_id
+        self.lemma_ar = lemma_ar
+        self.lemma_ar_bare = lemma_ar_bare
+        self.forms_json = forms_json
+        self.gates_completed_at = "2026-01-01"
 
 # Helper: mock quality review to always pass (no API key in tests)
 _QUALITY_PASS = [SentenceReviewResult(natural=True, translation_correct=True, reason="test")]
@@ -685,6 +695,80 @@ class TestCheckScaffoldDiversity:
         )
         assert passes
         assert len(overused) == 0  # في skipped as function word
+
+    def test_exact_aliases_use_resolved_identity_and_function_class(self):
+        lookup = build_lemma_lookup([
+            _LookupLemma(270, "نَاسٌ", "ناس"),
+            _LookupLemma(
+                3711,
+                "نَسِيَ",
+                "نسي",
+                {"active_participle": "نَاسٍ"},
+            ),
+            _LookupLemma(2054, "قَدْ", "قد"),
+            _LookupLemma(2189, "فَقْد", "فقد"),
+        ])
+        counts = {
+            270: DIVERSITY_SENTENCE_THRESHOLD + 1,
+            2054: DIVERSITY_SENTENCE_THRESHOLD + 1,
+            2189: DIVERSITY_SENTENCE_THRESHOLD + 1,
+        }
+
+        passes, overused = _check_scaffold_diversity(
+            "فَقَدْ أُنَاسٌ",
+            "كتاب",
+            counts,
+            lookup,
+        )
+
+        assert passes
+        assert overused == ["أُنَاسٌ"]
+
+    def test_exact_alias_target_is_not_counted_as_scaffold(self):
+        lookup = build_lemma_lookup([
+            _LookupLemma(270, "نَاسٌ", "ناس"),
+            _LookupLemma(2, "جَمِيلٌ", "جميل"),
+        ])
+        counts = {
+            270: DIVERSITY_SENTENCE_THRESHOLD + 1,
+            2: DIVERSITY_SENTENCE_THRESHOLD + 1,
+        }
+
+        passes, overused = _check_scaffold_diversity(
+            "أُنَاسٌ جَمِيلٌ",
+            "ناس",
+            counts,
+            lookup,
+            target_lemma_id=270,
+        )
+
+        assert passes
+        assert overused == ["جَمِيلٌ"]
+
+    def test_unresolved_exact_alias_does_not_fall_through_to_collision(self):
+        lookup = build_lemma_lookup([
+            _LookupLemma(
+                3711,
+                "نَسِيَ",
+                "نسي",
+                {"active_participle": "نَاسٍ"},
+            ),
+            _LookupLemma(2189, "فَقْد", "فقد"),
+        ])
+        counts = {
+            3711: DIVERSITY_SENTENCE_THRESHOLD + 1,
+            2189: DIVERSITY_SENTENCE_THRESHOLD + 1,
+        }
+
+        passes, overused = _check_scaffold_diversity(
+            "أُنَاسٌ فَقَدْ",
+            "كتاب",
+            counts,
+            lookup,
+        )
+
+        assert passes
+        assert overused == []
 
 
 class TestStarterDiversity:

@@ -35,6 +35,8 @@ from app.services.sentence_validator import (
     strip_tatweel,
     _is_function_word,
     lookup_lemma,
+    requires_exact_running_text_alias,
+    resolve_exact_running_text_alias,
 )
 
 logger = logging.getLogger(__name__)
@@ -457,6 +459,13 @@ def _step2_morphology(words: list[str]) -> list[dict]:
             "pos": None,
         }
 
+        # Exact running-text aliases must reach the DB resolver unchanged.
+        # A CAMeL guess here would erase the vocalization that separates them
+        # from their same-skeleton lexical collisions.
+        if requires_exact_running_text_alias(word):
+            results.append(entry)
+            continue
+
         if CAMEL_AVAILABLE:
             mle_result = get_best_lemma_mle(word)
             if mle_result:
@@ -712,15 +721,24 @@ def process_textbook_page(
             # Compute bare form and get base_lemma from morphological analysis
             bare = compute_bare_form(arabic)
             base_lemma_bare = word_data.get("base_lemma")  # from Step 2 morphology
+            alias = resolve_exact_running_text_alias(arabic, lemma_lookup)
 
             # Skip function words (check both bare and base_lemma)
-            if _is_function_word(bare):
-                continue
-            if base_lemma_bare and _is_function_word(base_lemma_bare):
-                continue
+            if alias.applicable:
+                if alias.lemma_id is None or alias.is_function_word:
+                    continue
+            else:
+                if _is_function_word(bare):
+                    continue
+                if base_lemma_bare and _is_function_word(base_lemma_bare):
+                    continue
 
             # Dedup: use base_lemma if available, fall back to bare
-            dedup_key = base_lemma_bare or bare
+            dedup_key = (
+                f"lemma:{alias.lemma_id}"
+                if alias.applicable
+                else base_lemma_bare or bare
+            )
             if dedup_key in seen_bares:
                 continue
             seen_bares.add(dedup_key)
@@ -728,11 +746,12 @@ def process_textbook_page(
                 seen_bares.add(bare)
 
             # Try to find existing lemma — try base_lemma first, then bare
-            lemma_id = None
-            if base_lemma_bare and base_lemma_bare != bare:
-                lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
-            if not lemma_id:
-                lemma_id = lookup_lemma(bare, lemma_lookup)
+            lemma_id = alias.lemma_id if alias.applicable else None
+            if not alias.applicable:
+                if base_lemma_bare and base_lemma_bare != bare:
+                    lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
+                if not lemma_id:
+                    lemma_id = lookup_lemma(bare, lemma_lookup)
 
             if lemma_id:
                 # If lookup landed on a variant, redirect to its canonical so
@@ -1134,15 +1153,24 @@ def process_batch(
 
         bare = compute_bare_form(arabic)
         base_lemma_bare = word_data.get("base_lemma")
+        alias = resolve_exact_running_text_alias(arabic, lemma_lookup)
 
-        if _is_function_word(bare):
-            continue
-        if base_lemma_bare and _is_function_word(base_lemma_bare):
-            continue
+        if alias.applicable:
+            if alias.lemma_id is None or alias.is_function_word:
+                continue
+        else:
+            if _is_function_word(bare):
+                continue
+            if base_lemma_bare and _is_function_word(base_lemma_bare):
+                continue
         if bare in rejected_bares or (base_lemma_bare and base_lemma_bare in rejected_bares):
             continue
 
-        dedup_key = base_lemma_bare or bare
+        dedup_key = (
+            f"lemma:{alias.lemma_id}"
+            if alias.applicable
+            else base_lemma_bare or bare
+        )
         if dedup_key in seen_bares:
             continue
         seen_bares.add(dedup_key)
@@ -1150,11 +1178,12 @@ def process_batch(
             seen_bares.add(bare)
 
         # Look up existing lemma
-        lemma_id = None
-        if base_lemma_bare and base_lemma_bare != bare:
-            lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
-        if not lemma_id:
-            lemma_id = lookup_lemma(bare, lemma_lookup)
+        lemma_id = alias.lemma_id if alias.applicable else None
+        if not alias.applicable:
+            if base_lemma_bare and base_lemma_bare != bare:
+                lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
+            if not lemma_id:
+                lemma_id = lookup_lemma(bare, lemma_lookup)
 
         if lemma_id:
             from app.services.canonical_resolution import resolve_canonical_lemma_id

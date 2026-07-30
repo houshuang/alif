@@ -107,7 +107,7 @@ def load_experiment_vocabulary(db_path):
     # Strong words: FSRS stability ≥ 7 days
     strong_rows = conn.execute("""
         SELECT l.lemma_id, l.lemma_ar, l.lemma_ar_bare, l.gloss_en, l.pos,
-               l.forms_json, ulk.knowledge_state,
+               l.forms_json, l.gates_completed_at, ulk.knowledge_state,
                CAST(json_extract(ulk.fsrs_card_json, '$.stability') AS REAL) as stability
         FROM lemmas l
         JOIN user_lemma_knowledge ulk ON l.lemma_id = ulk.lemma_id
@@ -120,7 +120,7 @@ def load_experiment_vocabulary(db_path):
     # Challenge words: FSRS stability 1-7 days (graduated but fragile)
     challenge_rows = conn.execute("""
         SELECT l.lemma_id, l.lemma_ar, l.lemma_ar_bare, l.gloss_en, l.pos,
-               l.forms_json, ulk.knowledge_state,
+               l.forms_json, l.gates_completed_at, ulk.knowledge_state,
                CAST(json_extract(ulk.fsrs_card_json, '$.stability') AS REAL) as stability
         FROM lemmas l
         JOIN user_lemma_knowledge ulk ON l.lemma_id = ulk.lemma_id
@@ -155,11 +155,18 @@ def load_experiment_vocabulary(db_path):
                 forms = json.loads(r["forms_json"]) if isinstance(r["forms_json"], str) else r["forms_json"]
             except (json.JSONDecodeError, TypeError):
                 forms = None
-        usable_lemmas.append(SimpleLemma(r["lemma_id"], r["lemma_ar_bare"], forms))
+        usable_lemmas.append(SimpleLemma(
+            r["lemma_id"],
+            r["lemma_ar"],
+            r["lemma_ar_bare"],
+            forms,
+            r["gates_completed_at"],
+        ))
 
     # Also load all lemmas for the full lookup
     all_rows = conn.execute(
-        "SELECT lemma_id, lemma_ar_bare, forms_json FROM lemmas"
+        "SELECT lemma_id, lemma_ar, lemma_ar_bare, forms_json, "
+        "gates_completed_at FROM lemmas"
     ).fetchall()
     all_lemmas = []
     for r in all_rows:
@@ -169,7 +176,13 @@ def load_experiment_vocabulary(db_path):
                 forms = json.loads(r["forms_json"]) if isinstance(r["forms_json"], str) else r["forms_json"]
             except (json.JSONDecodeError, TypeError):
                 forms = None
-        all_lemmas.append(SimpleLemma(r["lemma_id"], r["lemma_ar_bare"], forms))
+        all_lemmas.append(SimpleLemma(
+            r["lemma_id"],
+            r["lemma_ar"],
+            r["lemma_ar_bare"],
+            forms,
+            r["gates_completed_at"],
+        ))
 
     conn.close()
 
@@ -276,6 +289,7 @@ def generate_experiment_stories(db_path, model="opus", dry_run=False, num_storie
                 last_check = check_compliance(
                     best_story["body_ar"],
                     vocab["compliance_lookup"],
+                    vocab["all_lemma_lookup"],
                     vocab["function_word_bares"],
                     set(),  # no acquiring IDs in this experiment
                 )
@@ -300,6 +314,7 @@ def generate_experiment_stories(db_path, model="opus", dry_run=False, num_storie
             compliance = check_compliance(
                 story["body_ar"],
                 vocab["compliance_lookup"],
+                vocab["all_lemma_lookup"],
                 vocab["function_word_bares"],
                 set(),
             )

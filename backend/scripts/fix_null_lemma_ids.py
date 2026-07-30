@@ -33,8 +33,9 @@ from app.services.sentence_validator import (
     _WORD_CHAR,
     build_comprehensive_lemma_lookup,
     detect_proper_names,
-    lookup_lemma,
+    lookup_lemma_id,
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     strip_punctuation,
     strip_tatweel,
@@ -82,19 +83,16 @@ def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int
             null_words_after_purge.append(sw)
     null_words = null_words_after_purge
 
-    # First pass: comprehensive lookup
-    # Note: `original_bare` must already be punctuation-stripped — otherwise
-    # leading guillemets/quotes break collision/CAMeL disambiguation. The
-    # production `map_tokens_to_lemmas` path passes `bare_clean` (which IS
-    # punctuation-stripped) for the same reason.
+    # First pass: comprehensive surface-aware lookup. Keep the stored token
+    # intact through exact-identity resolution; lookup_lemma_id performs its
+    # own punctuation/tatweel cleanup only after that policy boundary.
     fixed_by_lookup = 0
     still_unmapped: list[SentenceWord] = []
     for sw in null_words:
         bare = _canonical_bare(sw.surface_form)
         if not bare:
             continue
-        original_bare = strip_punctuation(strip_tatweel(strip_diacritics(sw.surface_form or "")))
-        lemma_id = lookup_lemma(bare, lookup, original_bare=original_bare)
+        lemma_id = lookup_lemma_id(sw.surface_form or "", lookup)
         if lemma_id is not None:
             sw.lemma_id = lemma_id
             fixed_by_lookup += 1
@@ -105,6 +103,8 @@ def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int
     # Second pass: proper-name detection on residual unmapped surface forms
     surface_freq: Counter[str] = Counter()
     for sw in still_unmapped:
+        if requires_exact_running_text_alias(sw.surface_form or ""):
+            continue
         bare = _canonical_bare(sw.surface_form)
         if bare:
             surface_freq[bare] += 1
@@ -112,6 +112,8 @@ def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int
 
     fixed_by_proper_name = 0
     for sw in still_unmapped:
+        if requires_exact_running_text_alias(sw.surface_form or ""):
+            continue
         bare = _canonical_bare(sw.surface_form)
         if not bare or bare not in proper_names:
             continue

@@ -40,6 +40,9 @@ from app.services.sentence_validator import (
     is_function_word_lemma,
     _WORD_CHAR,
     lookup_lemma,
+    lookup_lemma_id,
+    requires_exact_running_text_alias,
+    resolve_exact_running_text_alias,
 )
 from app.services.morphology import find_best_db_match, get_word_features, is_valid_root
 from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
@@ -191,17 +194,22 @@ def _create_story_words(
     for sent_idx, sentence_text in enumerate(sentences):
         for display_form, clean_form in _tokenize_story_display(sentence_text):
             bare_norm = normalize_alef(clean_form)
-            if bare_norm in proper_name_norms:
+            exact_required = requires_exact_running_text_alias(display_form)
+            if bare_norm in proper_name_norms and not exact_required:
                 continue
             if not _is_function_word(clean_form):
-                lid = lookup_lemma(bare_norm, lemma_lookup)
-                if not lid and bare_norm not in morph_cache:
+                lid = lookup_lemma_id(display_form, lemma_lookup)
+                if (
+                    not lid
+                    and not exact_required
+                    and bare_norm not in morph_cache
+                ):
                     match = find_best_db_match(clean_form, known_bare_forms)
                     if match:
                         lex_norm = normalize_alef(match["lex_bare"])
                         lid = lemma_lookup.get(lex_norm)
                     morph_cache[bare_norm] = lid
-                elif not lid:
+                elif not lid and not exact_required:
                     lid = morph_cache.get(bare_norm)
                 if lid:
                     all_lemma_ids_needed.add(lid)
@@ -216,7 +224,10 @@ def _create_story_words(
             bare_norm = normalize_alef(clean_form)
 
             is_func = _is_function_word(clean_form)
-            is_proper_name = bare_norm in proper_name_norms
+            exact_required = requires_exact_running_text_alias(display_form)
+            is_proper_name = (
+                bare_norm in proper_name_norms and not exact_required
+            )
             lemma_id = None
             if is_proper_name:
                 lemma_id = get_or_create_proper_name_lemma(
@@ -225,8 +236,13 @@ def _create_story_words(
                     source=proper_name_source,
                 )
             elif not is_func:
-                lemma_id = lookup_lemma(bare_norm, lemma_lookup)
-            if not lemma_id and not is_func and not is_proper_name:
+                lemma_id = lookup_lemma_id(display_form, lemma_lookup)
+            if (
+                not lemma_id
+                and not is_func
+                and not is_proper_name
+                and not exact_required
+            ):
                 lemma_id = morph_cache.get(bare_norm)
 
             # Also check the resolved lemma's bare form (catches cliticized
@@ -299,10 +315,41 @@ def _import_unknown_words(
     """
     # ── Phase 1: Collect unknowns + CAMeL analysis (read-only) ──────────
 
-    # Collect unknown surface forms
+    # Collect unknown surface forms. Exact-running-text aliases are resolved
+    # from their full stored surface before any lossy operation. A declared
+    # alias whose destination is unavailable or ambiguous is deliberately
+    # omitted from the unknown-import pipeline: CAMeL, bare lookup, LLM
+    # translation, proper-name inference, and lemma creation must not reopen a
+    # mapping that the exact-identity layer failed closed.
     unknown_words: list[StoryWord] = []
     seen_bares: set[str] = set()
+    resolved_updates: list[
+        tuple[StoryWord, int, bool | None, bool]
+    ] = []
+    resolved_lemma_ids: set[int] = set()
+    unresolved_alias_updates: list[StoryWord] = []
     for sw in story.words:
+        alias = resolve_exact_running_text_alias(
+            sw.surface_form,
+            lemma_lookup,
+        )
+        if alias.applicable:
+            if alias.lemma_id is not None:
+                # Queue every resolved exact row, even when lemma/class flags
+                # already match: the stored gloss or historical-known flag may
+                # still belong to the pre-fix collision identity.
+                resolved_updates.append(
+                    (sw, alias.lemma_id, alias.is_function_word, True)
+                )
+                resolved_lemma_ids.add(alias.lemma_id)
+            elif (
+                sw.lemma_id is not None
+                or sw.gloss_en is not None
+                or sw.is_function_word
+                or sw.name_type is not None
+            ):
+                unresolved_alias_updates.append(sw)
+            continue
         if sw.lemma_id is not None or sw.is_function_word:
             continue
         bare = normalize_alef(strip_diacritics(sw.surface_form))
@@ -311,15 +358,61 @@ def _import_unknown_words(
         seen_bares.add(bare)
         unknown_words.append(sw)
 
+    def load_resolved_metadata() -> tuple[dict[int, str], set[int]]:
+        glosses = {
+            lem.lemma_id: lem.gloss_en or ""
+            for lem in db.query(Lemma)
+            .filter(Lemma.lemma_id.in_(resolved_lemma_ids))
+            .all()
+        }
+        known_ids = {
+            row.lemma_id
+            for row in db.query(UserLemmaKnowledge)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(resolved_lemma_ids),
+                UserLemmaKnowledge.knowledge_state.in_(("learning", "known")),
+            )
+            .all()
+        }
+        return glosses, known_ids
+
+    def apply_deferred_resolutions(
+        resolved_gloss_map: dict[int, str],
+        resolved_known_ids: set[int],
+    ) -> None:
+        for sw, lid, function_override, refresh_exact_metadata in resolved_updates:
+            sw.lemma_id = lid
+            sw.gloss_en = resolved_gloss_map.get(lid)
+            if function_override is not None:
+                sw.is_function_word = function_override
+                sw.name_type = None
+            if refresh_exact_metadata:
+                sw.is_known_at_creation = bool(
+                    function_override or lid in resolved_known_ids
+                )
+        for sw in unresolved_alias_updates:
+            sw.lemma_id = None
+            sw.gloss_en = None
+            sw.is_known_at_creation = False
+            sw.is_function_word = False
+            sw.name_type = None
+
     if not unknown_words:
+        if resolved_updates or unresolved_alias_updates:
+            resolved_gloss_map, resolved_known_ids = (
+                load_resolved_metadata()
+            )
+            apply_deferred_resolutions(
+                resolved_gloss_map,
+                resolved_known_ids,
+            )
+            db.flush()
         return []
 
     # CAMeL morphological analysis — resolve to existing lemmas where possible
     word_analyses: list[dict] = []
     # Deferred StoryWord updates for words resolved to existing lemmas.
     # Collected here, applied in Phase 3 to avoid dirtying the session early.
-    resolved_updates: list[tuple[StoryWord, int]] = []  # (sw, existing_lemma_id)
-    resolved_lemma_ids: set[int] = set()
 
     for sw in unknown_words:
         # Normalize Quranic orthography before CAMeL analysis:
@@ -335,7 +428,7 @@ def _import_unknown_words(
             existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
         if existing_id:
             # CAMeL resolved it to a known lemma — defer update to Phase 3
-            resolved_updates.append((sw, existing_id))
+            resolved_updates.append((sw, existing_id, None, False))
             resolved_lemma_ids.add(existing_id)
             continue
         word_analyses.append({
@@ -350,15 +443,16 @@ def _import_unknown_words(
 
     # Batch-load glosses for all resolved lemmas (avoids N+1 queries later)
     resolved_gloss_map: dict[int, str] = {}
+    resolved_known_ids: set[int] = set()
     if resolved_lemma_ids:
-        for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(resolved_lemma_ids)).all():
-            resolved_gloss_map[lem.lemma_id] = lem.gloss_en or ""
+        resolved_gloss_map, resolved_known_ids = load_resolved_metadata()
 
     if not word_analyses:
         # Apply deferred resolved updates before returning
-        for sw, lid in resolved_updates:
-            sw.lemma_id = lid
-            sw.gloss_en = resolved_gloss_map.get(lid)
+        apply_deferred_resolutions(
+            resolved_gloss_map,
+            resolved_known_ids,
+        )
         db.flush()
         return []
 
@@ -463,9 +557,10 @@ Set name_type to "personal" for personal names (people, characters), "place" for
     # ── Phase 3: Batch DB writes (all roots, lemmas, story word updates) ─
 
     # First, apply deferred resolved updates from Phase 1
-    for sw, lid in resolved_updates:
-        sw.lemma_id = lid
-        sw.gloss_en = resolved_gloss_map.get(lid)
+    apply_deferred_resolutions(
+        resolved_gloss_map,
+        resolved_known_ids,
+    )
 
     # Prepare transliterations (deterministic, no DB/LLM needed)
     from app.services.transliteration import transliterate_lemma
@@ -1017,10 +1112,21 @@ def _check_story_compliance(
 
     for token in tokens:
         bare = normalize_alef(strip_tatweel(strip_diacritics(token)))
-        if bare in func_bares:
+        alias = resolve_exact_running_text_alias(token, lemma_lookup)
+        if (
+            alias.applicable
+            and alias.lemma_id is not None
+            and alias.is_function_word
+        ):
+            continue
+        if not alias.applicable and bare in func_bares:
             continue
         content_total += 1
-        lemma_id = lookup_lemma(bare, lemma_lookup)
+        lemma_id = (
+            alias.lemma_id
+            if alias.applicable
+            else lookup_lemma_id(token, lemma_lookup)
+        )
         if lemma_id and (known_lemma_ids is None or lemma_id in known_lemma_ids):
             content_known += 1
         elif bare not in unknown_list:

@@ -43,6 +43,85 @@ def test_frequency_core_intake_resolves_existing_lemma(db_session):
     assert entry.gap_status is None
 
 
+def test_frequency_core_intake_preserves_exact_surface_identity(db_session):
+    now = datetime.now(timezone.utc)
+    qad = Lemma(
+        lemma_ar="قَدْ",
+        lemma_ar_bare="قد",
+        gloss_en="already",
+        pos="particle",
+        gates_completed_at=now,
+    )
+    loss = Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=now,
+    )
+    entry = _core_entry(1, "فَقَدْ")
+    db_session.add_all([qad, loss, entry])
+    db_session.commit()
+
+    stats = intake_frequency_core_gaps(
+        db_session,
+        limit=1,
+        max_rank=10,
+        create_missing=False,
+    )
+    db_session.refresh(entry)
+
+    assert stats["resolved_existing"] == 1
+    assert entry.lemma_id == qad.lemma_id
+    assert entry.lemma_id != loss.lemma_id
+
+
+def test_frequency_core_intake_unresolved_alias_never_reaches_import(
+    db_session,
+    monkeypatch,
+):
+    import app.services.frequency_core_intake as intake
+
+    loss = Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    entry = _core_entry(1, "فَقَدْ")
+    db_session.add_all([loss, entry])
+    db_session.commit()
+
+    monkeypatch.setattr(
+        intake,
+        "get_word_features",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("exact alias must not reach morphology")
+        ),
+    )
+    monkeypatch.setattr(
+        intake,
+        "_classify_unmapped_entries",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("exact alias must not reach creation classifier")
+        ),
+    )
+
+    stats = intake_frequency_core_gaps(
+        db_session,
+        limit=1,
+        max_rank=10,
+        create_missing=True,
+    )
+    db_session.refresh(entry)
+
+    assert stats["skipped"] == 1
+    assert stats["created"] == 0
+    assert entry.lemma_id is None
+    assert db_session.query(Lemma).count() == 1
+
+
 def test_frequency_core_intake_creates_gated_lemma_without_ulk(db_session, monkeypatch):
     import app.services.frequency_core_intake as intake
 

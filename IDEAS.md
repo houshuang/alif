@@ -116,6 +116,35 @@ pipeline still owns QA, mapping verification, target validation, and inactive
 preparation. There is no caller-supplied override, activation, new vocabulary,
 blocked-row retry, or access to the three excluded rows.
 
+The first fresh production-copy rehearsal proved the curated prefill itself
+7/7 and byte-audited clean, then exposed one deterministic normal-pipeline
+block in sentence 52133. Exact `أُنَاسٌ` collided with an active-participle
+form on `نَسِيَ` #3711 instead of scheduling existing `نَاسٌ` #270, while
+exact `فَقَدْ` collided with noun `فَقْد` #2189 instead of particle `قَدْ`
+#2054. Both source readings were independently reviewed. The approved fix is
+two code-only, fully vocalized exact-surface identities—not a general clitic
+or normalization rule, new vocabulary, or data backfill. Each alias registers
+only when exactly one stored destination exists, that row is gated, and no
+exact source identity exists;
+otherwise mapping, import/proper-name creation, CAMeL rescue, and NULL repair
+all fail closed. The visible surface remains unchanged, exact identity replaces
+the lossy target identity, and unvocalized/other-case forms remain unaffected.
+Verifier correction cannot learn a broader shortcut: it may only restore the
+same unique exact destination and its function/proper-name classification.
+Production data remains untouched until the resolver is deployed and a
+completely new copied-snapshot rehearsal passes all seven rows.
+
+The implementation audit treats “retain the running surface until identity is
+resolved” as the durable boundary. That includes verifier correction and
+mapping rescue, Discover, story/book/OCR/Quran intake, frequency-core paths,
+readiness and scaffold analysis, podcast persistence, Hindawi name inference,
+and repair scripts. A governed surface with no usable destination is neither a
+content mapping nor a free function word; it remains an explicit gap. This
+closes integration escapes without broadening the two-entry policy.
+Identity repair also refreshes dependent classification/gloss/story-known
+metadata, and independently committed import batches rebuild the lookup before
+the next item so a newly created duplicate cannot leave alias metadata stale.
+
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
 `41d03e96`. The live plan
@@ -1110,7 +1139,10 @@ After the 2026-05-15 chimera deletion (#2307 آنِسَة/نسي + #3450 + #3452
 - إِنْسَان "human" — root ا.ن.س, surfaces like إِنْسَانًا
 - نِسْيَان "forgetfulness" (masdar of نَسِيَ) — surfaces like النِّسْيَانُ
 - أُنْس "intimacy, familiarity" — root ا.ن.س, surface like أُنْسِي
-- أَنَاس "people" — surface أناس
+- أَنَاس "people" — surface أناس. The exact fully vocalized *Momo* surface
+  `أُنَاسٌ` is now intentionally routed to existing gated `نَاسٌ` #270 by the
+  narrow 2026-07-30 resolver; the broader orphan cohort remains open, so do
+  not add a duplicate lemma solely for that row.
 
 Quick fix: add to `import_scaffold_lemmas.py:SCAFFOLD_WORDS` with diacritized form + gloss + pos for each. After re-import, `fix_null_lemma_ids.remap_unmapped_sentence_words` picks them up automatically and the affected sentences activate. ~6-8 entries, 5-min curation.
 

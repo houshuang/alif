@@ -47,6 +47,46 @@ def _make_known(db, lemma):
     return ulk
 
 
+def _seed_exact_alias_inventory(db, *, include_destinations: bool):
+    gated_at = datetime.now(timezone.utc)
+    forget = Lemma(
+        lemma_ar="نَسِيَ",
+        lemma_ar_bare="نسي",
+        gloss_en="to forget",
+        pos="verb",
+        forms_json={"active_participle": "نَاسٍ"},
+        gates_completed_at=gated_at,
+    )
+    loss = Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=gated_at,
+    )
+    rows = {"forget": forget, "loss": loss}
+    if include_destinations:
+        rows.update(
+            people=Lemma(
+                lemma_ar="نَاسٌ",
+                lemma_ar_bare="ناس",
+                gloss_en="people",
+                pos="noun",
+                gates_completed_at=gated_at,
+            ),
+            particle=Lemma(
+                lemma_ar="قَدْ",
+                lemma_ar_bare="قد",
+                gloss_en="already",
+                pos="particle",
+                gates_completed_at=gated_at,
+            ),
+        )
+    db.add_all(rows.values())
+    db.flush()
+    return rows
+
+
 class TestExtractCoverMetadata:
     @patch("app.services.book_import_service._call_gemini_vision")
     def test_extracts_title_and_author(self, mock_vision):
@@ -179,6 +219,107 @@ class TestCreateBookSentences:
 
         sentences = create_book_sentences(db_session, story, extracted)
         assert len(sentences) == 0
+
+    def test_exact_aliases_resolve_before_book_fallbacks(self, db_session):
+        rows = _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=True,
+        )
+        story = Story(
+            title_ar="Exact aliases",
+            body_ar="أُنَاسٌ فَقَدْ.",
+            source="book_ocr",
+            status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+
+        from app.services.book_import_service import create_book_sentences
+
+        with patch(
+            "app.services.sentence_validator.verify_and_correct_mappings_llm",
+            return_value=[],
+        ), patch(
+            "app.services.book_import_service.get_word_features",
+            side_effect=AssertionError("resolved exact alias reached CAMeL"),
+        ):
+            sentences = create_book_sentences(
+                db_session,
+                story,
+                [{
+                    "arabic": "أُنَاسٌ فَقَدْ.",
+                    "english": "People, therefore.",
+                    "transliteration": "unāsun fa-qad.",
+                }],
+                story_word_lookup={
+                    "اناس": rows["forget"].lemma_id,
+                    "فقد": rows["loss"].lemma_id,
+                },
+            )
+
+        words = (
+            db_session.query(SentenceWord)
+            .filter_by(sentence_id=sentences[0].id)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        assert [word.surface_form for word in words] == [
+            "أُنَاسٌ",
+            "فَقَدْ.",
+        ]
+        assert [word.lemma_id for word in words] == [
+            rows["people"].lemma_id,
+            rows["particle"].lemma_id,
+        ]
+
+    def test_unresolved_exact_aliases_skip_camel_and_story_word_fallbacks(
+        self,
+        db_session,
+    ):
+        rows = _seed_exact_alias_inventory(
+            db_session,
+            include_destinations=False,
+        )
+        story = Story(
+            title_ar="Exact aliases",
+            body_ar="أُنَاسٌ فَقَدْ.",
+            source="book_ocr",
+            status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+
+        from app.services.book_import_service import create_book_sentences
+
+        with patch(
+            "app.services.book_import_service.get_word_features",
+            side_effect=AssertionError("unresolved exact alias reached CAMeL"),
+        ):
+            sentences = create_book_sentences(
+                db_session,
+                story,
+                [{
+                    "arabic": "أُنَاسٌ فَقَدْ.",
+                    "english": "People, therefore.",
+                    "transliteration": "unāsun fa-qad.",
+                }],
+                story_word_lookup={
+                    "اناس": rows["forget"].lemma_id,
+                    "فقد": rows["loss"].lemma_id,
+                },
+            )
+
+        words = (
+            db_session.query(SentenceWord)
+            .filter_by(sentence_id=sentences[0].id)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        assert [word.surface_form for word in words] == [
+            "أُنَاسٌ",
+            "فَقَدْ.",
+        ]
+        assert all(word.lemma_id is None for word in words)
 
 
 class TestImportBookEndToEnd:

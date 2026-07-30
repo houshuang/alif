@@ -14,6 +14,7 @@ from app.services.sentence_validator import (
     strip_diacritics as _sv_strip_diacritics,
     normalize_alef,
     build_lemma_lookup,
+    resolve_exact_running_text_alias,
     resolve_existing_lemma,
 )
 from app.services.variant_detection import detect_variants_llm, detect_definite_variants, mark_variants
@@ -199,6 +200,14 @@ def run_import(db: Session) -> dict:
         # Skip names/countries/nationalities
         if text in ALL_SKIP:
             skipped_names += 1
+            continue
+
+        # Preserve the fully vocalized citation for exact-only alias policy.
+        # Both a healthy destination and an unavailable/ambiguous destination
+        # make this source ineligible for creation in a contextless importer.
+        alias = resolve_exact_running_text_alias(text, lemma_lookup)
+        if alias.applicable:
+            skipped_existing += 1
             continue
 
         bare = strip_diacritics(text)

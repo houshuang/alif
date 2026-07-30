@@ -9,7 +9,10 @@ from scripts.build_frequency_core import (
     finalize_candidate_confidence,
     load_ranked_file,
     load_hindawi_from_db_corpus,
+    normalize_form,
+    resolve_lemma_id,
 )
+from app.services.sentence_validator import build_lemma_lookup
 
 
 def test_add_source_uses_best_source_rank_once_per_lemma():
@@ -41,6 +44,64 @@ def test_add_source_uses_best_source_rank_once_per_lemma():
     assert cand.score == first_score
     assert cand.camel_count == 15
     assert cand.source_flags["camel"]["rank"] == 100
+
+
+def test_exact_vocalized_frequency_surface_uses_running_text_identity():
+    gated_at = datetime(2026, 1, 1)
+    people = Lemma(
+        lemma_id=270,
+        lemma_ar="نَاسٌ",
+        lemma_ar_bare="ناس",
+        gates_completed_at=gated_at,
+    )
+    forget = Lemma(
+        lemma_id=3711,
+        lemma_ar="نَسِيَ",
+        lemma_ar_bare="نسي",
+        forms_json={"active_participle": "نَاسٍ"},
+        gates_completed_at=gated_at,
+    )
+    qad = Lemma(
+        lemma_id=2054,
+        lemma_ar="قَدْ",
+        lemma_ar_bare="قد",
+        gates_completed_at=gated_at,
+    )
+    loss = Lemma(
+        lemma_id=2189,
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gates_completed_at=gated_at,
+    )
+    lookup = build_lemma_lookup([people, forget, qad, loss])
+
+    assert resolve_lemma_id(
+        normalize_form("أُنَاسٌ"),
+        "أُنَاسٌ",
+        lookup,
+    ) == 270
+    assert resolve_lemma_id(
+        normalize_form("فَقَدْ"),
+        "فَقَدْ",
+        lookup,
+    ) == 2054
+
+
+def test_unresolved_exact_vocalized_frequency_surface_fails_closed():
+    gated_at = datetime(2026, 1, 1)
+    loss = Lemma(
+        lemma_id=2189,
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gates_completed_at=gated_at,
+    )
+    lookup = build_lemma_lookup([loss])
+
+    assert resolve_lemma_id(
+        normalize_form("فَقَدْ"),
+        "فَقَدْ",
+        lookup,
+    ) is None
 
 
 def test_confidence_high_accepts_two_strong_reading_sources():

@@ -1,4 +1,6 @@
 """Tests for the Dragoman vocabulary-discovery router (app/routers/discover.py)."""
+from datetime import datetime, timezone
+
 import pytest
 
 from app.models import Lemma, UserLemmaKnowledge
@@ -52,6 +54,27 @@ def _rich_gloss(monkeypatch, mapping):
             out[it["index"]] = g
         return out
     monkeypatch.setattr(discover, "_gloss", fake_gloss)
+
+
+def _seed_faqad_collision(db_session):
+    now = datetime.now(timezone.utc)
+    qad = Lemma(
+        lemma_ar="قَدْ",
+        lemma_ar_bare="قد",
+        gloss_en="already",
+        pos="particle",
+        gates_completed_at=now,
+    )
+    loss = Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=now,
+    )
+    db_session.add_all([qad, loss])
+    db_session.commit()
+    return qad, loss
 
 
 def test_oov_dropped_by_default(client, db_session, monkeypatch):
@@ -119,6 +142,51 @@ def test_gloss_correction_to_known_word_is_filtered(client, db_session, monkeypa
     assert all(w["lemma_ar_bare"] != "خطوة" for w in r.json()["words"])
 
 
+def test_words_preserves_exact_faqad_surface_identity(db_session):
+    qad, loss = _seed_faqad_collision(db_session)
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=qad.lemma_id,
+        knowledge_state="known",
+    ))
+    db_session.commit()
+
+    words = discover.discover_words_in_text(db_session, "فَقَدْ", count=8)
+
+    assert words == []
+    assert db_session.query(UserLemmaKnowledge).filter_by(
+        lemma_id=loss.lemma_id
+    ).count() == 0
+
+
+def test_words_unresolved_exact_alias_does_not_fall_through(
+    db_session,
+    monkeypatch,
+):
+    db_session.add(Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
+    ))
+    db_session.commit()
+
+    monkeypatch.setattr(
+        discover,
+        "_classify",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("exact alias must not reach CAMeL/OOV classification")
+        ),
+    )
+
+    assert discover.discover_words_in_text(
+        db_session,
+        "فَقَدْ",
+        count=8,
+        include_oov=True,
+    ) == []
+
+
 def test_proper_noun_dropped_in_learn_mode(client, db_session, monkeypatch):
     """Default (learn-next) mode drops names — they aren't vocabulary to schedule."""
     _rich_gloss(monkeypatch, {"لندن": {"gloss_en": "London", "is_proper_noun": True}})
@@ -146,6 +214,96 @@ def test_add_persists_register_dialect(client, db_session):
     lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "كس").first()
     assert lem is not None
     assert lem.register == "vulgar" and lem.dialect == "gulf"
+
+
+def test_add_exact_vocalized_alias_reuses_destination(client, db_session):
+    qad, loss = _seed_faqad_collision(db_session)
+
+    response = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "فقد",
+        "lemma_ar": "فَقَدْ",
+        "gloss_en": "already",
+        "pos": "particle",
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created"] is False
+    assert body["lemma_id"] == qad.lemma_id
+    assert db_session.query(Lemma).count() == 2
+    assert db_session.query(UserLemmaKnowledge).filter_by(
+        lemma_id=loss.lemma_id
+    ).count() == 0
+
+
+def test_add_unresolved_exact_alias_refuses_creation(client, db_session):
+    loss = Lemma(
+        lemma_ar="فَقْد",
+        lemma_ar_bare="فقد",
+        gloss_en="loss",
+        pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(loss)
+    db_session.commit()
+
+    response = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "فقد",
+        "lemma_ar": "فَقَدْ",
+        "gloss_en": "already",
+        "pos": "particle",
+    })
+
+    assert response.status_code == 400
+    assert "exact running-text alias destination is unavailable" in (
+        response.json()["detail"]
+    )
+    assert db_session.query(Lemma).count() == 1
+    assert db_session.query(UserLemmaKnowledge).count() == 0
+
+
+@pytest.mark.parametrize("include_collision", [False, True])
+def test_add_exact_alias_conflicting_sense_cannot_reroute_or_create(
+    client,
+    db_session,
+    include_collision,
+):
+    qad = Lemma(
+        lemma_ar="قَدْ",
+        lemma_ar_bare="قد",
+        gloss_en="already",
+        pos="particle",
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(qad)
+    if include_collision:
+        db_session.add(Lemma(
+            lemma_ar="فَقْد",
+            lemma_ar_bare="فقد",
+            gloss_en="loss",
+            pos="noun",
+            gates_completed_at=datetime.now(timezone.utc),
+        ))
+    db_session.commit()
+    before_ids = {
+        lemma.lemma_id for lemma in db_session.query(Lemma).all()
+    }
+
+    response = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "فقد",
+        "lemma_ar": "فَقَدْ",
+        "gloss_en": "loss",
+        "pos": "noun",
+    })
+
+    assert response.status_code == 400
+    assert "supplied sense conflicts with exact running-text alias" in (
+        response.json()["detail"]
+    )
+    assert {
+        lemma.lemma_id for lemma in db_session.query(Lemma).all()
+    } == before_ids
+    assert db_session.query(UserLemmaKnowledge).count() == 0
 
 
 def test_words_excludes_known_via_hardened_lookup(client, seeded, monkeypatch):
@@ -299,6 +457,52 @@ def test_add_batch_dedupes_repeated_word(client, db_session):
     assert r.status_code == 200
     rows = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "دستور").all()
     assert len(rows) == 1  # second add resolved to the first via in-batch lookup
+
+
+def test_add_batch_rebuilds_exact_alias_metadata_after_each_commit(
+    client,
+    db_session,
+):
+    people = Lemma(
+        lemma_ar="نَاسٌ",
+        lemma_ar_bare="ناس",
+        gloss_en="people",
+        pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(people)
+    db_session.commit()
+
+    response = client.post("/api/discover/add-batch", json={"words": [
+        {
+            # A deliberately conflicting sense creates a second exact
+            # destination identity in the first independently committed item.
+            "lemma_ar_bare": "ناس",
+            "lemma_ar": "نَاسٌ",
+            "gloss_en": "copper",
+            "pos": "noun",
+        },
+        {
+            "lemma_ar_bare": "أناس",
+            "lemma_ar": "أُنَاسٌ",
+            "gloss_en": "people",
+            "pos": "noun",
+        },
+    ]})
+
+    assert response.status_code == 200
+    added = response.json()["added"]
+    assert added[0]["created"] is True
+    assert added[0]["lemma_id"] != people.lemma_id
+    assert "exact running-text alias destination is unavailable" in (
+        added[1]["error"]
+    )
+    assert db_session.query(Lemma).filter(
+        Lemma.lemma_ar == "أُنَاسٌ"
+    ).count() == 0
+    assert db_session.query(UserLemmaKnowledge).filter_by(
+        lemma_id=people.lemma_id
+    ).count() == 0
 
 
 def test_add_new_word_shaped_like_clitic_plus_known(client, db_session):

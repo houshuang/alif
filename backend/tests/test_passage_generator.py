@@ -93,6 +93,63 @@ def test_store_maintenance_passage_creates_story_and_sentence_rows(db_session):
     assert {sw.sentence_index for sw in story_words} == {0, 1, 2}
 
 
+def test_store_passage_rejects_unresolved_exact_function_alias(
+    db_session,
+    monkeypatch,
+):
+    import app.services.passage_generator as passage_generator
+
+    book = _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book")
+    db_session.commit()
+    target_words = [{
+        "lemma_id": book.lemma_id,
+        "arabic": book.lemma_ar,
+        "english": book.gloss_en,
+        "pos": book.pos,
+    }]
+    eligible_words = list(target_words)
+    generated = {
+        "title_ar": "نَصٌّ",
+        "title_en": "Text",
+        "style_tag": "informative",
+        "sentences": [
+            {"arabic": "كِتَابٌ فَقَدْ.", "english": "A book, already."},
+            {"arabic": "كِتَابٌ.", "english": "A book."},
+            {"arabic": "كِتَابٌ.", "english": "A book."},
+        ],
+    }
+
+    # Exercise the storage defense independently of the validator's matching
+    # fail-closed rule. The mapper reports the unresolved alias as a null
+    # function token; storage must still reject it before proper-name/import
+    # handling or the generic unmapped filter can waive it.
+    monkeypatch.setattr(
+        passage_generator,
+        "validate_sentence_multi_target",
+        lambda **kwargs: SimpleNamespace(
+            valid=True,
+            issues=[],
+            targets_found={
+                bare: True for bare in kwargs["target_bares"]
+            },
+        ),
+    )
+
+    try:
+        store_maintenance_passage(
+            db_session,
+            generated,
+            target_words=target_words,
+            eligible_words=eligible_words,
+            quality_gate=False,
+        )
+    except PassageGenerationError as exc:
+        assert "unresolved exact-running-text identity" in str(exc)
+        assert "فَقَدْ" in str(exc)
+    else:
+        raise AssertionError("Expected unresolved exact alias to be rejected")
+
+
 def test_store_maintenance_passage_rejects_no_shared_anchor(db_session):
     words = [
         _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),

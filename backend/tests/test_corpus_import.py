@@ -1,5 +1,9 @@
 """Tests for corpus import and enrichment pipeline."""
+from unittest.mock import Mock
+
 import pytest
+
+from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.sentence_validator import (
     detect_proper_names,
     map_tokens_to_lemmas,
@@ -9,7 +13,11 @@ from app.services.sentence_validator import (
     FUNCTION_WORDS,
     TokenMapping,
 )
-from scripts.import_hindawi import _split_on_terminators, extract_sentences
+from scripts.import_hindawi import (
+    _split_on_terminators,
+    build_name_set,
+    extract_sentences,
+)
 
 
 class TestDetectProperNames:
@@ -64,6 +72,30 @@ class TestProperNamesInMapping:
             target_bare="",
         )
         assert all(not m.is_proper_name for m in mappings)
+
+    def test_unresolved_exact_alias_is_not_proper_name_evidence(self):
+        sentences = [
+            {"text": "أُنَاسٌ", "title": "one book"}
+            for _ in range(20)
+        ]
+
+        names = build_name_set(
+            sentences,
+            {"اناس": 3711},
+        )
+
+        assert "اناس" not in names
+
+    def test_exact_alias_cannot_be_created_as_proper_name(self):
+        db = Mock()
+
+        with pytest.raises(
+            ValueError,
+            match="exact running-text aliases",
+        ):
+            get_or_create_proper_name_lemma(db, "أُنَاسٌ")
+
+        db.query.assert_not_called()
 
 
 class TestFunctionWordsPrepositionPronoun:

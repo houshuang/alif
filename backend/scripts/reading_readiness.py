@@ -22,7 +22,8 @@ Takes a text/HTML/EPUB file. No text content or provenance is stored in this rep
 
 CANONICAL TEXT→LEMMA PATH (reuse this; do NOT hand-roll). Mapping goes through
 the production-hardened lookup — `build_comprehensive_lemma_lookup` +
-`lookup_lemma` (clitic stripping + CAMeL disambiguation + collision handling) —
+`lookup_lemma_id` (exact-surface identity + clitic stripping + CAMeL
+disambiguation + collision handling) —
 and every token is classified by the RESOLVED lemma's production attributes
 (`_is_function_word` on the lemma bare, `word_category` for proper names), NOT by
 surface-only guesses. A surface-only function check misses clitic-attached forms
@@ -48,14 +49,17 @@ from app.models import Lemma, UserLemmaKnowledge
 from app.services.sentence_validator import (
     _is_function_word,
     build_comprehensive_lemma_lookup,
-    lookup_lemma,
+    lookup_lemma_id,
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     strip_tatweel,
 )
 
 # A token is a maximal run of Arabic letters (incl. the standard diacritic range).
-ARABIC_TOKEN_RE = re.compile(r"[ء-يٰ-ۿݐ-ݿ]+")
+ARABIC_TOKEN_RE = re.compile(
+    r"[\u0621-\u064A\u064B-\u065F\u0670-\u06FF\u0750-\u077F]+"
+)
 
 
 def load_text(path: Path) -> str:
@@ -147,11 +151,25 @@ def analyze(db, text: str, top: int) -> dict:
             continue
         counts["total"] += 1
         # Function words: trivially readable, count toward coverage, not a gap.
-        if _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
+        exact_alias_required = requires_exact_running_text_alias(tok)
+        if (
+            not exact_alias_required
+            and (
+                _is_function_word(bare)
+                or _is_function_word(bare.replace("ى", "ي"))
+            )
+        ):
             counts["function"] += 1
             continue
-        lemma_id = lookup_lemma(bare, lemma_lookup, original_bare=strip_diacritics(tok))
+        lemma_id = lookup_lemma_id(tok, lemma_lookup)
         if lemma_id is None:
+            if exact_alias_required:
+                # A declared exact alias with no unique gated destination is
+                # a real coverage gap, not an ignorable "function/unknown"
+                # CAMeL result.
+                counts["unmapped"] += 1
+                unmapped_surface_freq[bare] += 1
+                continue
             # OOV — try CAMeL to group inflections under one lemma and drop
             # function/proper words (no content POS) from the gap list.
             camel_lemma = _camel_content_lemma(tok, camel_cache)
