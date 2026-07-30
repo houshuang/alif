@@ -167,12 +167,20 @@ contexts never enter the prompt, retries retain row identity, and the verdict
 CAS now pins source/kind with Arabic/English. Active review and due-dense
 maintenance derive the same policy from row metadata so later maintenance
 cannot contradict preparation. A completed negative result remains terminal.
-Production remains untouched until this is deployed and another brand-new
-copied-production rehearsal passes 7/7 with activation zero.
+PR #243 deployed the correction as `6ec5c8cb`. A brand-new standalone
+production-copy rehearsal (`20260730_134936`) prepared all seven with every
+failure/skip/diagnostic array empty and activation zero. A separate fresh
+production plan and online backup then produced the identical 7/7 result.
+ActivityLog #3918 records the exact curated prefill and #3919 the governed
+preparation. Row-level comparison against the immutable backup found exactly
+the seven approved parents, their 40 replaced child mappings, and those two
+new events; the three exclusions, every other table, active count (1,960), and
+all *Momo* visibility remained unchanged. All seven are prepared but inactive.
+Any activation is a separate policy decision and was not part of this rollout.
 
-Production currently has zero prepared authentic rows and zero active Book OCR
-stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
-`41d03e96`. The live plan
+Before this rollout, production had zero prepared authentic rows and zero
+active Book OCR stories, so no corpus rollback or cleanup was needed. PR #236
+was deployed as `41d03e96`. The live plan
 `3a78b83d1018d11372173292ad71f0c070626b16614072fc59ef5447fc91e4c3`
 contained exactly 1,208 safe repairs and seven excluded target-sensitive rows.
 Before apply, an online SQLite backup was written to
