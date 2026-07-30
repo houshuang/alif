@@ -21,6 +21,9 @@ a bounded, explicitly named sentence-ID scope.
 from __future__ import annotations
 
 import hashlib
+import json
+import os
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from math import ceil
@@ -1042,6 +1045,236 @@ _CORPUS_ENRICH_SCHEMA = {
     "required": ["sentences"],
 }
 
+_PROJECTABLE_HARAKAT = frozenset(
+    chr(codepoint) for codepoint in range(0x064B, 0x0653)
+)
+_VOWEL_OR_SUKUN_HARAKAT = frozenset(
+    {
+        "\u064b",  # fathatan
+        "\u064c",  # dammatan
+        "\u064d",  # kasratan
+        "\u064e",  # fatha
+        "\u064f",  # damma
+        "\u0650",  # kasra
+        "\u0652",  # sukun
+    }
+)
+_SHADDA = "\u0651"
+_TATWEEL = "\u0640"
+_CORPUS_ENRICH_PROVIDER_OVERRIDES = frozenset({"openai", "anthropic"})
+
+
+def _is_layout_separator(char: str) -> bool:
+    """Whether a provider may reformat this character without changing text.
+
+    The provider's layout is never stored. Punctuation and whitespace merely
+    delimit immutable content tokens, while tatweel is ignored for alignment
+    and retained exactly from the source during reconstruction.
+    """
+    return (
+        char.isspace()
+        or char == _TATWEEL
+        or unicodedata.category(char).startswith("P")
+    )
+
+
+def _content_tokens(text: str) -> tuple[str, ...]:
+    """Return exact NFC content tokens with ordinary harakat removed.
+
+    Token boundaries remain part of identity: ``كل ما`` must not align with
+    ``كلما``. Only provider punctuation/spacing/tatweel layout is flexible.
+    Identity-bearing marks such as combining hamza, maddah, dagger alef, and
+    Quranic annotations remain in the tokens and therefore cannot be added or
+    removed through the harakat path.
+    """
+    tokens: list[str] = []
+    current: list[str] = []
+    for char in text:
+        if char in _PROJECTABLE_HARAKAT:
+            continue
+        if char == _TATWEEL:
+            continue
+        if _is_layout_separator(char):
+            if current:
+                tokens.append(unicodedata.normalize("NFC", "".join(current)))
+                current = []
+            continue
+        current.append(char)
+    if current:
+        tokens.append(unicodedata.normalize("NFC", "".join(current)))
+    return tuple(tokens)
+
+
+def _numeric_separator_signature(
+    text: str,
+) -> tuple[tuple[int, str], ...]:
+    """Protect punctuation whose identity changes a written number."""
+    signature: list[tuple[int, str]] = []
+    digits_seen = 0
+    for index, char in enumerate(text):
+        if char.isdigit():
+            digits_seen += 1
+        if not unicodedata.category(char).startswith("P"):
+            continue
+        previous = index - 1
+        while previous >= 0 and (
+            text[previous] in _PROJECTABLE_HARAKAT
+            or text[previous] == _TATWEEL
+        ):
+            previous -= 1
+        following = index + 1
+        while following < len(text) and (
+            text[following] in _PROJECTABLE_HARAKAT
+            or text[following] == _TATWEEL
+        ):
+            following += 1
+        if (
+            previous >= 0
+            and following < len(text)
+            and text[previous].isdigit()
+            and text[following].isdigit()
+        ):
+            # Bind the separator to the exact preceding digit ordinal. Merely
+            # comparing separator characters would accept regrouping such as
+            # ``١،٢ ٣،٤`` -> ``١،٢،٣ ٤``.
+            signature.append((digits_seen, char))
+    return tuple(signature)
+
+
+def _is_arabic_base_letter(char: str) -> bool:
+    if char == _TATWEEL or not unicodedata.category(char).startswith("L"):
+        return False
+    return unicodedata.name(char, "").startswith("ARABIC LETTER")
+
+
+def _arabic_harakat_clusters(
+    text: str,
+) -> list[tuple[str, tuple[str, ...]]] | None:
+    """Collect ordinary harakat attached to each Arabic base letter.
+
+    Non-projectable combining marks stay in the content identity comparison.
+    An ordinary haraka anywhere except the combining cluster immediately after
+    an Arabic base is ambiguous and rejects the proposal.
+    """
+    clusters: list[tuple[str, tuple[str, ...]]] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if _is_arabic_base_letter(char):
+            marks: list[str] = []
+            cursor = index + 1
+            while (
+                cursor < len(text)
+                and unicodedata.category(text[cursor]).startswith("M")
+            ):
+                if text[cursor] in _PROJECTABLE_HARAKAT:
+                    marks.append(text[cursor])
+                cursor += 1
+            clusters.append((char, tuple(marks)))
+            index = cursor
+            continue
+        if char in _PROJECTABLE_HARAKAT:
+            return None
+        index += 1
+    return clusters
+
+
+def _valid_harakat_cluster(marks: tuple[str, ...]) -> bool:
+    if any(mark not in _PROJECTABLE_HARAKAT for mark in marks):
+        return False
+    if len(set(marks)) != len(marks):
+        return False
+    vowel_or_sukun = set(marks) & _VOWEL_OR_SUKUN_HARAKAT
+    if len(vowel_or_sukun) > 1:
+        return False
+    if _SHADDA in marks and "\u0652" in marks:
+        return False
+    return True
+
+
+def _project_diacritics_onto_source(
+    source: str,
+    proposed: str,
+) -> str | None:
+    """Project validated ordinary harakat onto the immutable source layout.
+
+    The provider may change punctuation, quote style, whitespace, or tatweel,
+    because none of those characters are copied from its response. Exact NFC
+    content tokens, word boundaries, digits, and Arabic letter identities must
+    still match. Only U+064B–U+0652 may be transferred.
+    """
+    if not source or not proposed:
+        return None
+    if _content_tokens(source) != _content_tokens(proposed):
+        return None
+    if _numeric_separator_signature(source) != _numeric_separator_signature(
+        proposed
+    ):
+        return None
+
+    source_clusters = _arabic_harakat_clusters(source)
+    proposed_clusters = _arabic_harakat_clusters(proposed)
+    if (
+        source_clusters is None
+        or proposed_clusters is None
+        or len(source_clusters) != len(proposed_clusters)
+    ):
+        return None
+
+    merged_marks: list[tuple[str, ...]] = []
+    for (_, existing), (_, supplied) in zip(
+        source_clusters,
+        proposed_clusters,
+        strict=True,
+    ):
+        if not _valid_harakat_cluster(existing):
+            return None
+        if not _valid_harakat_cluster(supplied):
+            return None
+        merged = list(supplied)
+        merged.extend(mark for mark in existing if mark not in merged)
+        merged_tuple = tuple(merged)
+        if not _valid_harakat_cluster(merged_tuple):
+            return None
+        merged_marks.append(merged_tuple)
+
+    output: list[str] = []
+    letter_index = 0
+    index = 0
+    while index < len(source):
+        char = source[index]
+        if _is_arabic_base_letter(char):
+            output.append(char)
+            cursor = index + 1
+            while (
+                cursor < len(source)
+                and unicodedata.category(source[cursor]).startswith("M")
+            ):
+                if source[cursor] not in _PROJECTABLE_HARAKAT:
+                    output.append(source[cursor])
+                cursor += 1
+            output.extend(merged_marks[letter_index])
+            letter_index += 1
+            index = cursor
+            continue
+        if char in _PROJECTABLE_HARAKAT:
+            return None
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _corpus_enrichment_provider() -> str:
+    provider = (os.environ.get("ALIF_CORPUS_ENRICH_PROVIDER") or "").strip()
+    if not provider:
+        return "claude_haiku"
+    if provider not in _CORPUS_ENRICH_PROVIDER_OVERRIDES:
+        raise ValueError(
+            "ALIF_CORPUS_ENRICH_PROVIDER must be one of "
+            + ", ".join(sorted(_CORPUS_ENRICH_PROVIDER_OVERRIDES))
+        )
+    return provider
+
 
 def has_arabic_diacritics(arabic_text: str | None) -> bool:
     """Return whether Arabic text has substantial lexical vowel coverage.
@@ -1093,11 +1326,24 @@ def generate_corpus_enrichment_batch(
 
     if not sentences:
         return {}
-    lines = [f"- id={sent.id}: {sent.arabic_text}" for sent in sentences]
+    lines = [
+        (
+            f"- id={sent.id}: {sent.arabic_text}\n"
+            "  exact non-diacritic content tokens: "
+            + json.dumps(
+                list(_content_tokens(sent.arabic_text)),
+                ensure_ascii=False,
+            )
+        )
+        for sent in sentences
+    ]
     prompt = (
         "For each Arabic sentence below:\n"
         "1. Add full tashkeel (diacritics/vowelization) to the Arabic text. "
-        "Keep the exact same words and letters; only add harakat.\n"
+        "Keep the exact same Unicode words and letters; only add harakat. "
+        "Never normalize spelling or substitute distinct letters such as "
+        "ى/ي or ة/ه. Verify that the output has the exact content-token list "
+        "shown for its id after harakat are removed.\n"
         "2. Translate it faithfully into natural English.\n\n"
         + "\n".join(lines)
         + "\n\nReturn JSON exactly as "
@@ -1112,7 +1358,7 @@ def generate_corpus_enrichment_batch(
             ),
             json_schema=_CORPUS_ENRICH_SCHEMA,
             temperature=0.0,
-            model_override="claude_haiku",
+            model_override=_corpus_enrichment_provider(),
             task_type="corpus_enrichment",
         )
     except AllProvidersFailed:
@@ -1150,11 +1396,8 @@ def generate_corpus_enrichment_batch(
 
 
 def _same_letters(original: str, diacritized: str) -> bool:
-    from app.services.sentence_validator import strip_diacritics, strip_tatweel
-
-    return strip_diacritics(strip_tatweel(original)).strip() == strip_diacritics(
-        strip_tatweel(diacritized)
-    ).strip()
+    """Backward-compatible identity predicate for one-off diagnostics."""
+    return _project_diacritics_onto_source(original, diacritized) is not None
 
 
 def _claim_candidates(
@@ -2512,13 +2755,20 @@ def enrich_corpus_sentences(
                     continue
                 diacritized = item.get("diacritized", "")
                 translation = item.get("translation", "")
+                projected_diacritized = (
+                    _project_diacritics_onto_source(
+                        enrichment_input["arabic"],
+                        diacritized,
+                    )
+                    if needs_diacritics
+                    else None
+                )
                 invalid_diacritics = (
                     needs_diacritics
                     and (
-                        not has_arabic_diacritics(diacritized)
-                        or not _same_letters(
-                            enrichment_input["arabic"],
-                            diacritized,
+                        projected_diacritized is None
+                        or not has_arabic_diacritics(
+                            projected_diacritized
                         )
                     )
                 )
@@ -2528,9 +2778,9 @@ def enrich_corpus_sentences(
                     continue
                 values = {}
                 if needs_diacritics:
-                    values[Sentence.arabic_text] = diacritized
+                    values[Sentence.arabic_text] = projected_diacritized
                     values[Sentence.transliteration] = (
-                        transliterate_arabic(diacritized) or ""
+                        transliterate_arabic(projected_diacritized) or ""
                     )
                 if needs_translation:
                     values[Sentence.english_translation] = translation

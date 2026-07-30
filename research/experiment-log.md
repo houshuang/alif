@@ -48,6 +48,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-29: Approved source-preserving corpus harakat projection
+
+**Observed blocker.** The authorized read-only provider diagnostic reproduced
+the Chapter 1 *Momo* enrichment failure without touching the database. Both
+GPT-5.2 and Claude Haiku 4.5 returned valid integer IDs, full-looking tashkeel,
+and usable translations, but regularized Arabic punctuation, quote style, and
+spacing in all seven rows. Both also normalized the source spelling `إننى` /
+`بيتى` from final `ى` to `ي`. The existing exact-string gate therefore rejected
+all seven correctly. A stricter one-row GPT-5.2 probe preserved `إننى`, `في`,
+and `بيتى` only after those exact spellings and their distinct U+0649/U+064A
+identities were enumerated; Claude still normalized them. Provider switching
+alone is not a reliable source-integrity policy.
+
+**Approved implementation boundary.** Treat provider Arabic as a proposal for
+ordinary harakat only, never as replacement prose. Compare exact
+non-diacritic content tokens and word boundaries under NFC; tolerate provider
+changes only to punctuation, whitespace, quotes, and tatweel layout. Transfer
+only U+064B–U+0652 marks by aligned Arabic-letter position and reconstruct from
+the original source, preserving its spelling, punctuation, spaces, digits,
+embedded non-Arabic text, and tatweel. Pre-existing compatible harakat remain;
+orphan, duplicate, or conflicting marks fail closed. Hamza/maddah combining
+marks, dagger alef, Quranic annotations, `ى`/`ي`, `ة`/`ه`, digit changes, and
+word joining/splitting are identity changes and must reject rather than be
+projected. Translation and Arabic remain atomic per row.
+
+The provider prompt may expose the exact bare token list, and a validated
+operations-only provider override may pin a controlled retry, but neither
+relaxes the projection gate. Verification requires focused mutation/property
+tests, the full backend suite, independent review, deployment health, a fresh
+online SQLite backup, and an exact-seven run with activation zero. Inspect all
+Arabic/English pairs, mappings, targets, and QA manually; prove the three
+excluded Chapter 1 rows plus active IDs, vocabulary, learner state, and review
+history remain unchanged. Stop before activation, identity backfill, or
+learner-history migration.
+
 ## 2026-07-29: Momo preparation attempt fails safely at the enrichment boundary
 
 PR #239 (`fa5c646c`) deployed the compositional identity resolver and passed

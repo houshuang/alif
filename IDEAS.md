@@ -62,8 +62,8 @@ could strand learner state and coverage. Do not extend the 1,208-row apply:
 first decide compound-vs-base canonical policy, then census multi-prefix forms,
 migrate learner state if needed, and run a new hash-pinned repair.
 
-**Resolver deployed; production preparation provider-blocked
-(2026-07-29).** Canonicalize attached-pronoun
+**Resolver deployed; provider failure diagnosed and source-projection repair
+validated locally (2026-07-29).** Canonicalize attached-pronoun
 particle forms to base `أَنَّ`/`إِنَّ` while preserving their visible surface
 for morphology evidence; keep lexical `لأنّ` as its own winner, add explicit
 hamza-preserving `فأن`/`فإن` composition, and leave unhamzated `فان` unresolved.
@@ -87,8 +87,19 @@ failed, Claude CLI timed out, and the successful GPT-5.2 fallback produced no
 row accepted by the exact enrichment gate. All seven claims were released,
 ActivityLog #3890 records zero prepared/activated/blocked/rejected rows, and
 all corpus, active-pool, vocabulary, learner, and review fingerprints remained
-unchanged. Do not retry blindly; a provider-specific diagnostic/retry is the
-next operational gate.
+unchanged.
+
+The authorized provider diagnostic then isolated the cause: GPT-5.2 and Claude
+Haiku returned valid IDs/translations but normalized punctuation/spacing in all
+seven rows, and both changed final `ى` to `ي` in `إننى`/`بيتى`. The repair keeps
+the strict letter policy while accepting harmless provider layout: compare
+exact NFC content tokens and word boundaries, transfer only ordinary harakat,
+and reconstruct from the source so no provider punctuation, spacing, spelling,
+digit, or tatweel is stored. An exact token checklist helps the provider retain
+nonstandard spelling, and a validated operations-only provider pin makes a
+controlled retry observable. Focused tests and the full 1,772-test backend
+suite pass. Deploy/re-audit before retrying the exact seven; activation remains
+zero and separately approval-gated.
 
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as

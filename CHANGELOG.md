@@ -26,6 +26,12 @@ This project is developed with Claude Code and Codex.
   failover produced no exact-gate-valid enrichment. The integrity-checked
   backup and all corpus/learner/history fingerprints were preserved; zero rows
   were prepared or activated
+- Diagnose that fallback output had valid IDs/translations but normalized
+  punctuation/spacing in every row and `ى`/`ي` spelling in one row; project
+  only validated ordinary harakat onto the immutable source, reject all
+  content/word-boundary/identity-bearing-mark mutations, expose exact token
+  spellings in the prompt, and add a validated provider pin for controlled
+  corpus operations
 - Make completed-QA authentic rows governor-exclusive by excluding them from
   due-dense salvage and green-page book reactivation
 - Preserve existing Arabic/transliteration or translation during one-field
