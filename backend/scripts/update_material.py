@@ -417,6 +417,11 @@ def salvage_due_dense_inactive_sentences(
             summary=f"Reactivated {reactivated} due-dense inactive sentences",
             detail={"reactivated": reactivated},
         )
+    else:
+        # Even a zero-row UPDATE starts a SQLite write transaction. Release it
+        # after all compare-and-set attempts miss so later LLM work cannot hold
+        # the database writer lock.
+        db.rollback()
     return reactivated
 
 

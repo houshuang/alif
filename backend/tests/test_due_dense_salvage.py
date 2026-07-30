@@ -268,6 +268,64 @@ def test_due_dense_salvage_cas_does_not_claim_concurrent_activation(
     assert sentence.is_active is True
 
 
+def test_due_dense_salvage_all_cas_misses_release_writer_lock(
+    monkeypatch,
+    db_session,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    sentence = _sentence(db_session, 1, [target_a, target_b])
+    db_session.commit()
+    ConcurrentSession = sessionmaker(bind=db_session.bind)
+
+    def mutate_then_approve(sentences):
+        with ConcurrentSession() as concurrent_db:
+            concurrent_db.query(Sentence).filter(
+                Sentence.id == sentence.id
+            ).update(
+                {Sentence.kind: "concurrent_kind"},
+                synchronize_session=False,
+            )
+            concurrent_db.commit()
+        return [
+            SimpleNamespace(natural=True, translation_correct=True)
+            for _ in sentences
+        ]
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        mutate_then_approve,
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    assert count == 0
+    assert db_session.in_transaction() is False
+    with ConcurrentSession() as second_writer:
+        updated = second_writer.query(Sentence).filter(
+            Sentence.id == sentence.id
+        ).update(
+            {Sentence.quality_reason: "second writer acquired"},
+            synchronize_session=False,
+        )
+        second_writer.commit()
+    assert updated == 1
+
+    db_session.expire_all()
+    stored = db_session.get(Sentence, sentence.id)
+    assert stored.is_active is False
+    assert stored.kind == "concurrent_kind"
+    assert stored.quality_reason == "second writer acquired"
+
+
 def test_single_coverage_salvaged_for_deficit_word(monkeypatch, db_session):
     # One due word with zero reviewable coverage; its only retired sentence
     # covers just that 1 due word — the old >=2 rule would strand it forever.
