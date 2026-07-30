@@ -162,6 +162,10 @@ active stayed zero, and integrity remained `ok`. **Result: H confirmed.**
 Source-aware QA removed the provenance false positive without relaxing the
 negative gate. The cohort is prepared, not activated; activation remains a
 separate decision and currently has zero capacity under the 1,950 ceiling.
+A final activation-only dry-run made that boundary explicit: `52134` was the
+sole eligible row, `52199` was blocked because one lemma is acquiring, and
+`52133, 52135, 52136, 52195, 52198` had no FSRS demand. With 1,960 active
+sentences, the plan selected zero and performed no write.
 
 ## 2026-07-30: Approved exact-running-text aliases for *Momo* 52133
 
