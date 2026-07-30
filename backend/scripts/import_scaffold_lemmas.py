@@ -28,6 +28,7 @@ from app.services.lemma_quality import run_quality_gates
 from app.services.sentence_validator import (
     strip_diacritics,
     normalize_alef,
+    resolve_exact_running_text_alias,
     resolve_existing_lemma,
     build_comprehensive_lemma_lookup,
 )
@@ -224,7 +225,7 @@ def import_scaffold_words(
         resumed = 0
         skipped = 0
         gate_ids: list[int] = []
-        planned: list[tuple[str, str, str, str, Lemma | None]] = []
+        planned: list[tuple[str, str, str, str, Lemma | int | None]] = []
 
         # Validate and plan the entire request before mutating the database.
         for raw_arabic, gloss, pos in scaffold_words:
@@ -274,6 +275,20 @@ def import_scaffold_words(
                     planned.append(("resume", arabic, gloss, pos, exact))
                 else:
                     planned.append(("skip", arabic, gloss, pos, exact))
+                continue
+
+            # This check must precede bare-form dedup and the curated homograph
+            # bypass. Exact aliases are governed by their full vocalization:
+            # reuse a healthy destination, and fail closed when that
+            # destination is missing or ambiguous.
+            alias = resolve_exact_running_text_alias(arabic, lookup)
+            if alias.applicable:
+                action = (
+                    "resolve_skip"
+                    if alias.lemma_id is not None
+                    else "alias_unresolved_skip"
+                )
+                planned.append((action, arabic, gloss, pos, alias.lemma_id))
                 continue
 
             # Bare-form dedup (default). Bypass for curated homograph entries.
@@ -327,6 +342,13 @@ def import_scaffold_words(
                 print(
                     f"  [skip] {arabic} ({gloss}) — resolves to existing "
                     f"#{existing}"
+                )
+                skipped += 1
+                continue
+            if action == "alias_unresolved_skip":
+                print(
+                    f"  [skip] {arabic} ({gloss}) — exact alias destination "
+                    "is unavailable or ambiguous"
                 )
                 skipped += 1
                 continue

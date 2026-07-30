@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.models import Lemma
 from app.services.sentence_validator import (
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     strip_punctuation,
     strip_tatweel,
@@ -48,6 +49,11 @@ def get_or_create_proper_name_lemma(
     Returns None if the surface form is empty or too short to be a real word
     (so the caller can decide whether to drop the SentenceWord row).
     """
+    if requires_exact_running_text_alias(surface_form):
+        raise ValueError(
+            "exact running-text aliases cannot be imported as proper names"
+        )
+
     bare = _canonical_bare(surface_form)
     if not bare or len(bare) < 2:
         return None

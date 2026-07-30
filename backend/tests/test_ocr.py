@@ -1,6 +1,7 @@
 """Tests for OCR service and textbook scanner endpoints."""
 
 import json
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -191,6 +192,73 @@ class TestProcessTextbookPage:
             UserLemmaKnowledge.lemma_id == lemma_ids[0]
         ).first()
         assert ulk.total_encounters == 6  # was 5, now 6
+
+    @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_exact_unas_surface_beats_morphology_collision(
+        self,
+        mock_extract,
+        mock_classify,
+        mock_schedule,
+        mock_backfill,
+        db_session,
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        now = datetime.now(timezone.utc)
+        people = Lemma(
+            lemma_ar="نَاسٌ",
+            lemma_ar_bare="ناس",
+            gloss_en="people",
+            pos="noun",
+            gates_completed_at=now,
+        )
+        forget = Lemma(
+            lemma_ar="نَسِيَ",
+            lemma_ar_bare="نسي",
+            gloss_en="to forget",
+            pos="verb",
+            forms_json={"active_participle": "نَاسٍ"},
+            gates_completed_at=now,
+        )
+        upload = PageUpload(
+            batch_id="test_exact_unas",
+            filename="page1.jpg",
+            status="pending",
+        )
+        db_session.add_all([people, forget, upload])
+        db_session.commit()
+
+        # Simulate the production collision: upstream morphology proposes the
+        # unrelated verb, while the fully vocalized running surface says people.
+        mock_extract.return_value = ([
+            {
+                "arabic": "أُنَاسٌ",
+                "arabic_bare": "أناس",
+                "english": "people",
+                "pos": "noun",
+                "root": "ن.س.ي",
+                "base_lemma": "نسي",
+                "base_lemma_vocalized": "نَسِيَ",
+            },
+        ], None)
+        mock_classify.return_value = (
+            [{"arabic": "أناس", "word_category": "standard"}],
+            [],
+        )
+
+        process_textbook_page(db_session, upload, b"fake_image")
+
+        assert upload.extracted_words_json[0]["status"] == "existing"
+        assert upload.extracted_words_json[0]["lemma_id"] == people.lemma_id
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=people.lemma_id
+        ).count() == 1
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=forget.lemma_id
+        ).count() == 0
+        mock_schedule.assert_called_once()
 
     @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.import_quality.classify_lemmas")

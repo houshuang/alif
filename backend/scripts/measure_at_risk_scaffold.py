@@ -20,7 +20,13 @@ from app.services.sentence_generator import (
     get_content_word_counts, sample_known_words_weighted, build_at_risk_boost_map,
     get_avoid_words, KNOWN_SAMPLE_SIZE,
 )
-from app.services.sentence_validator import build_lemma_lookup, strip_diacritics, tokenize
+from app.services.sentence_validator import (
+    build_lemma_lookup,
+    lookup_lemma_id,
+    resolve_exact_running_text_alias,
+    strip_diacritics,
+    tokenize,
+)
 from app.services.llm import generate_sentences_batch
 
 
@@ -59,14 +65,21 @@ def main():
     targets = random.sample(known_ids, args.targets)
     tgt = {l.lemma_id: l for l in active}
 
-    def classify(arabic, target_bare):
+    def classify(arabic, target_bare, target_lemma_id):
         """Return (n_content, n_at_risk) for scaffold (non-target) content words."""
         n_content = n_atrisk = 0
         for tok in tokenize(arabic):
             bare = strip_diacritics(tok)
-            if bare == target_bare:
+            alias = resolve_exact_running_text_alias(tok, lemma_lookup)
+            if alias.applicable:
+                if alias.is_function_word:
+                    continue
+                resolved_id = alias.lemma_id
+            else:
+                resolved_id = lookup_lemma_id(tok, lemma_lookup)
+            if bare == target_bare or resolved_id == target_lemma_id:
                 continue
-            lid = lemma_lookup.get(bare)
+            lid = resolved_id
             if lid is None:
                 continue  # function word / unmapped
             n_content += 1
@@ -93,7 +106,7 @@ def main():
                 continue
             tb = lem.lemma_ar_bare or strip_diacritics(lem.lemma_ar)
             for s in res:
-                nc, na = classify(s.arabic, tb)
+                nc, na = classify(s.arabic, tb, lid)
                 if nc == 0:
                     continue
                 sentences += 1; content_total += nc; atrisk_total += na

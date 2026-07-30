@@ -26,6 +26,7 @@ from app.services.sentence_validator import (
     strip_diacritics as _sv_strip_diacritics,
     normalize_alef,
     build_lemma_lookup,
+    resolve_exact_running_text_alias,
     resolve_existing_lemma,
 )
 from app.services.variant_detection import detect_variants_llm, detect_definite_variants, mark_variants
@@ -141,6 +142,15 @@ def run_import(db, dry_run: bool = False) -> dict:
             arabic, san_warnings = sanitize_arabic_word(arabic)
             if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
                 skipped_multiword += 1
+                continue
+
+            # Exact running-text aliases must be decided while the original
+            # vocalization is still available. A missing/ambiguous destination
+            # is still governed by that policy and must not fall through to a
+            # stripped-bare lookup or become a new citation row.
+            alias = resolve_exact_running_text_alias(arabic, lemma_lookup)
+            if alias.applicable:
+                skipped_existing += 1
                 continue
 
             bare = strip_diacritics(arabic)

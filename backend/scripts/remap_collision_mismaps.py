@@ -42,8 +42,7 @@ from app.services.lemma_quality import _normalize  # noqa: E402
 from app.services.sentence_eligibility import MAPPING_VERIFICATION_MIN_AT  # noqa: E402
 from app.services.sentence_validator import (  # noqa: E402
     build_comprehensive_lemma_lookup,
-    lookup_lemma,
-    strip_diacritics,
+    lookup_lemma_id,
 )
 
 FINDINGS = Path(__file__).resolve().parents[2] / "research" / "lookup-collision-findings-2026-07-15.json"
@@ -120,11 +119,7 @@ def main() -> None:
         active_sentence_ids: set[int] = set()
         for m in mismaps:
             sw = db.get(SentenceWord, m["sw_id"])
-            bare = _normalize(sw.surface_form or "")
-            new_id = lookup_lemma(
-                bare, lookup,
-                original_bare=strip_diacritics(sw.surface_form or ""),
-            )
+            new_id = lookup_lemma_id(sw.surface_form or "", lookup)
             if new_id is not None and new_id != m["wrong_lemma_id"]:
                 sw.lemma_id = new_id
                 remapped += 1

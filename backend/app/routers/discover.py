@@ -14,7 +14,8 @@ Endpoints:
        and (in the background) run quality gates + generate review material.
 
 Word identity for /words (running-text tokens) goes through the production-hardened
-lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma`): clitic stripping,
+lookup path (`build_comprehensive_lemma_lookup` + `lookup_lemma_id`): exact-surface
+identity first, then clitic stripping,
 CAMeL disambiguation, collision handling, and variant→canonical resolution — the same
 path the corpus importer uses. We never hand-roll surface-only classification (that
 leaks clitic-attached and variant forms — 2026-06-03 lesson). /add[-batch] submits
@@ -53,7 +54,8 @@ from app.services.sentence_validator import (
     correct_mapping,
     lookup_lemma,
     lookup_lemma_citation,
-    strip_diacritics,
+    lookup_lemma_id,
+    requires_exact_running_text_alias,
 )
 from app.services.word_selector import introduce_word
 
@@ -64,7 +66,9 @@ router = APIRouter(prefix="/api/discover", tags=["discover"])
 # A token is a maximal run of Arabic letters + diacritics (matches the reference
 # tokenizer in scripts/reading_readiness.py). Deliberately excludes Arabic
 # punctuation (، ؛ ؟) and digits, which sit in adjacent code points.
-_ARABIC_TOKEN = re.compile(r"[ء-يٰ-ۿݐ-ݿ]+")
+_ARABIC_TOKEN = re.compile(
+    r"[\u0621-\u064A\u064B-\u065F\u0670-\u06FF\u0750-\u077F]+"
+)
 # Clause boundaries for pulling one example occurrence per word.
 _CLAUSE_SPLIT = re.compile(r"[.!?؟\n،؛]+")
 _MAX_WORDS = 50
@@ -299,15 +303,25 @@ def discover_words_in_text(
 
     for tok in _ARABIC_TOKEN.findall(text or ""):
         bare = _normalize(tok)
-        if len(bare) < 2 or _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
+        exact_alias_required = requires_exact_running_text_alias(tok)
+        if len(bare) < 2 or (
+            not exact_alias_required
+            and (
+                _is_function_word(bare)
+                or _is_function_word(bare.replace("ى", "ي"))
+            )
+        ):
             continue
         # Resolve against the corpus, but only suppress words the learner has actually
         # introduced.  Previously every corpus Lemma was treated as "known", which
         # left ordinary book pages with zero or one suggestion.
-        existing_id = lookup_lemma(
-            bare, lemma_lookup, original_bare=strip_diacritics(tok)
-        )
+        existing_id = lookup_lemma_id(tok, lemma_lookup)
         if existing_id in already_learning_ids:
+            continue
+        # Approved exact-running-text identities are fail-closed. If their
+        # unique gated destination is unavailable, do not let CAMeL or the OOV
+        # surface fallback reinterpret the stripped consonant skeleton.
+        if existing_id is None and exact_alias_required:
             continue
         existing = get_lemma(existing_id) if existing_id is not None else None
         if existing is not None:
@@ -412,8 +426,10 @@ def discover_words_in_text(
         # /add does. The pre-gloss checks ran on the surface/key; a gloss correction
         # can land on a form that's already in the vocabulary, so re-check here —
         # otherwise we'd offer a word that /add immediately reports "already known".
-        corrected_id = lookup_lemma(
-            lemma_bare, lemma_lookup, original_bare=lemma_bare
+        corrected_id = lookup_lemma_citation(
+            lemma_bare,
+            lemma_lookup,
+            original_bare=corrected or lemma_ar,
         )
         if corrected_id in already_learning_ids:
             continue
@@ -543,14 +559,28 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         raise ValueError(f"refusing to add proper noun {w.lemma_ar_bare!r}")
     source = (w.source or "").strip() or "dragoman"
     bare = _normalize(w.lemma_ar_bare)
+    citation_surface = (w.lemma_ar or w.lemma_ar_bare).strip()
+    exact_alias_required = requires_exact_running_text_alias(
+        citation_surface
+    )
     # Citation-strict existence check: exact/variant/ال-prefix matches only.
     # The full lookup_lemma fuzzy path (single-letter clitic strip + CAMeL
     # last resort) mis-resolved 18 documented citation forms onto wrong
     # lemmas (لاحظ→حَظّ, كناس→نَاس …) — see
     # research/spec-2026-07-15-lookup-clitic-collision.md §7.
     existing_id = lookup_lemma_citation(
-        bare, lemma_lookup, original_bare=strip_diacritics(w.lemma_ar_bare)
+        bare,
+        lemma_lookup,
+        original_bare=citation_surface,
     )
+    if (
+        existing_id is None
+        and exact_alias_required
+    ):
+        raise ValueError(
+            "exact running-text alias destination is unavailable for "
+            f"{citation_surface!r}"
+        )
     created = False
     sense_rerouted_from = None
     if existing_id is not None:
@@ -567,6 +597,15 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         # 2026-07-21 Kalila import: 5/36 curated words hit this.
         if lemma is not None and (w.gloss_en or "").strip():
             if not _candidate_matches_correction(lemma, w.gloss_en, w.pos or ""):
+                if exact_alias_required:
+                    # The exact citation is authoritative. A conflicting
+                    # supplied sense must not reroute to the stripped-bare
+                    # collision or fall through to creating an exact-source
+                    # lemma that would disable the alias globally.
+                    raise ValueError(
+                        "supplied sense conflicts with exact running-text "
+                        f"alias destination for {citation_surface!r}"
+                    )
                 sense_rerouted_from = existing_id
                 sibling = correct_mapping(
                     db, w.lemma_ar or bare, w.gloss_en, w.pos or "",
@@ -649,10 +688,14 @@ class WordsIn(BaseModel):
 def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create + introduce several words at once. Each word is committed independently
     so one failure can't roll back the rest of the batch."""
-    lemma_lookup = build_comprehensive_lemma_lookup(db)
     results, new_ids = [], []
     for w in req.words:
         try:
+            # Each prior item commits independently and may have changed an
+            # exact identity's uniqueness or source-conflict precondition.
+            # Rebuild rather than carrying stale alias metadata across the
+            # public batch boundary.
+            lemma_lookup = build_comprehensive_lemma_lookup(db)
             out = _create_and_introduce(db, w, lemma_lookup)
             db.commit()
             results.append(out)

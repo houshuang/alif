@@ -25,8 +25,10 @@ from app.services.sentence_validator import (
     is_function_word_lemma,
     build_lemma_lookup,
     lookup_lemma,
+    lookup_lemma_id,
     normalize_alef,
     normalize_quranic_to_msa,
+    resolve_exact_running_text_alias,
     resolve_existing_lemma,
     strip_diacritics,
     strip_tatweel,
@@ -365,10 +367,26 @@ def select_verse_cards(
         )
         for vw in vw_rows:
             lemma = vw.lemma
+            alias = resolve_exact_running_text_alias(
+                vw.surface_form,
+                lemma_lookup,
+            )
             # For words without a gloss, try progressively harder lookups
-            gloss = lemma.gloss_en if lemma else None
-            resolved_lemma = lemma
-            if not gloss:
+            if alias.applicable:
+                # The exact surface is authoritative even if an older stored
+                # QuranicVerseWord row points at the stripped-bare homograph.
+                # A missing gated destination stays unmapped and only receives
+                # a display gloss below; it must not inherit the old identity.
+                resolved_lemma = (
+                    lemma_by_id.get(alias.lemma_id)
+                    if alias.lemma_id is not None
+                    else None
+                )
+                gloss = resolved_lemma.gloss_en if resolved_lemma else None
+            else:
+                gloss = lemma.gloss_en if lemma else None
+                resolved_lemma = lemma
+            if not gloss and not alias.applicable:
                 bare = _quran_bare(vw.surface_form)
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
                 if not gloss:
@@ -380,22 +398,41 @@ def select_verse_cards(
                         resolved_lemma = db_lemma
                 if not gloss:
                     # Full morphological lookup (handles conjugations, broken plurals via forms_json)
-                    resolved_id = lookup_lemma(bare, lemma_lookup)
+                    resolved_id = lookup_lemma_id(
+                        vw.surface_form,
+                        lemma_lookup,
+                    )
                     if resolved_id:
                         resolved_lemma = lemma_by_id.get(resolved_id)
                         if resolved_lemma:
                             gloss = resolved_lemma.gloss_en
             # Use resolved_lemma for richer word data when original lemma was missing
             rl = resolved_lemma  # may be same as lemma, or a morphologically resolved one
+            stored_fallback = None if alias.applicable else lemma
             verse_words_by_id[vw.verse_id].append({
                 "surface_form": vw.surface_form,
-                "lemma_id": vw.lemma_id or (rl.lemma_id if rl else None),
-                "lemma_ar": (rl.lemma_ar if rl else None) or (lemma.lemma_ar if lemma else None),
+                "lemma_id": (
+                    alias.lemma_id
+                    if alias.applicable
+                    else vw.lemma_id or (rl.lemma_id if rl else None)
+                ),
+                "lemma_ar": (
+                    (rl.lemma_ar if rl else None)
+                    or (
+                        stored_fallback.lemma_ar
+                        if stored_fallback
+                        else None
+                    )
+                ),
                 "gloss_en": gloss,
                 "root": rl.root.root if rl and rl.root else None,
                 "root_meaning": rl.root.core_meaning_en if rl and rl.root else None,
                 "pos": rl.pos if rl else None,
-                "is_function_word": vw.is_function_word or False,
+                "is_function_word": (
+                    bool(alias.lemma_id is not None and alias.is_function_word)
+                    if alias.applicable
+                    else vw.is_function_word or False
+                ),
             })
 
     # Safety net: LLM-translate any remaining glossless words
@@ -622,11 +659,12 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
             # so over-generating their alef here is harmless.
             clean_msa = strip_diacritics(normalize_quranic_to_msa(surface))
             bare_norm = normalize_alef(strip_tatweel(clean_msa))
-            is_func = _is_function_word(clean)
+            alias = resolve_exact_running_text_alias(surface, lemma_lookup)
+            is_func = False if alias.applicable else _is_function_word(clean)
 
-            lemma_id = None
-            if not is_func:
-                lemma_id = lookup_lemma(bare_norm, lemma_lookup)
+            lemma_id = alias.lemma_id if alias.applicable else None
+            if not is_func and not alias.applicable:
+                lemma_id = lookup_lemma_id(surface, lemma_lookup)
                 if not lemma_id:
                     match = find_best_db_match(clean_msa, known_bare_forms)
                     if match:
@@ -642,14 +680,16 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
 
             # Function-word-looking tokens may be cliticized content words
             # (e.g. بسم starts with بِ but is actually بِ + اسم)
-            if is_func and not lemma_id:
+            if is_func and not lemma_id and not alias.applicable:
                 clitic_id = _hamzat_wasl_lookup(bare_norm, lemma_lookup)
                 if clitic_id:
                     lemma_id = clitic_id
                     is_func = False
 
             # Check if resolved lemma is actually a function word
-            if lemma_id:
+            if alias.applicable and lemma_id is not None:
+                is_func = alias.is_function_word
+            elif lemma_id:
                 lemma = lemma_by_bare.get(bare_norm)
                 if not lemma:
                     for l in all_lemmas:
@@ -662,7 +702,12 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
                         lemma.function_word_override,
                     )
 
-            if not lemma_id and not is_func and bare_norm:
+            if (
+                not lemma_id
+                and not is_func
+                and bare_norm
+                and not alias.applicable
+            ):
                 unknown_forms[bare_norm] = surface
 
             resolved.append((surface, bare_norm, lemma_id, is_func))
@@ -719,10 +764,21 @@ def _camel_canonicalize_unknowns(
     canonical_groups: dict[str, dict] = {}
     fallback_forms: dict[str, str] = {}
 
-    if not CAMEL_AVAILABLE:
-        return already_resolved, canonical_groups, dict(unknown_forms)
-
+    ordinary_unknowns: dict[str, str] = {}
     for surface_bare, surface in unknown_forms.items():
+        alias = resolve_exact_running_text_alias(surface, lemma_lookup)
+        if alias.applicable:
+            if alias.lemma_id is not None:
+                already_resolved[surface_bare] = alias.lemma_id
+            # Missing or ambiguous exact destinations deliberately disappear
+            # from every creation bucket; CAMeL must not reinterpret them.
+            continue
+        ordinary_unknowns[surface_bare] = surface
+
+    if not CAMEL_AVAILABLE:
+        return already_resolved, canonical_groups, ordinary_unknowns
+
+    for surface_bare, surface in ordinary_unknowns.items():
         # Convert Mushaf presentation letters (dagger alef → ا) before CAMeL sees
         # them, else a dropped long vowel makes CAMeL pick a proper-name analysis
         # (خَٰلِدُونَ → خلدون → Khaldūn) instead of the participle خالِد.

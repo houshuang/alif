@@ -46,6 +46,7 @@ from app.services.sentence_validator import (
     detect_proper_names,
     map_tokens_to_lemmas,
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     strip_punctuation,
     strip_tatweel,
@@ -161,6 +162,11 @@ def build_name_set(
         )
         for m in mappings:
             if m.lemma_id is None and not m.is_function_word:
+                if requires_exact_running_text_alias(m.surface_form):
+                    # A declared exact alias with no unique gated destination is
+                    # deliberately unmapped. It must not become evidence for a
+                    # bare-form proper-name promotion in this import pass.
+                    continue
                 bare = normalize_alef(strip_diacritics(strip_punctuation(
                     strip_tatweel(m.surface_form)
                 )))

@@ -12,13 +12,44 @@ from app.database import SessionLocal
 from app.models import Story, StoryWord, Lemma
 from app.services.sentence_validator import (
     build_lemma_lookup,
+    lookup_lemma_id,
     normalize_alef,
+    resolve_exact_running_text_alias,
     strip_diacritics,
     strip_tatweel,
-    lookup_lemma,
 )
 from app.services.morphology import find_best_db_match
 from app.services.story_service import _import_unknown_words, _recalculate_story_counts
+
+
+def _resolve_story_word_from_existing_inventory(
+    surface_form: str,
+    lemma_lookup: dict[str, int],
+    known_bare_forms: set[str],
+) -> tuple[int | None, bool | None, bool]:
+    """Resolve one stored surface without bypassing exact-only identity.
+
+    Returns ``(lemma_id, function_override, exact_policy_applies)``. When the
+    last value is true and ``lemma_id`` is absent, callers must leave the row
+    unmapped rather than attempting CAMeL or unknown-word import.
+    """
+    alias = resolve_exact_running_text_alias(surface_form, lemma_lookup)
+    if alias.applicable:
+        return (
+            alias.lemma_id,
+            alias.is_function_word if alias.lemma_id is not None else None,
+            True,
+        )
+
+    bare = strip_diacritics(surface_form)
+    bare_clean = strip_tatweel(bare)
+    lid = lookup_lemma_id(surface_form, lemma_lookup)
+    if not lid:
+        match = find_best_db_match(bare_clean, known_bare_forms)
+        if match:
+            lex_norm = normalize_alef(match["lex_bare"])
+            lid = lemma_lookup.get(lex_norm)
+    return lid, None, False
 
 
 def main():
@@ -56,18 +87,19 @@ def main():
             # Phase 1: Try morphological fallback for each null word
             resolved = 0
             for sw in null_words:
-                bare = strip_diacritics(sw.surface_form)
-                bare_clean = strip_tatweel(bare)
-                bare_norm = normalize_alef(bare_clean)
-
-                # Try lookup_lemma first (may work now with updated lookup)
-                lid = lookup_lemma(bare_norm, lemma_lookup)
-                if not lid:
-                    # Try CAMeL morphological analysis
-                    match = find_best_db_match(bare_clean, known_bare_forms)
-                    if match:
-                        lex_norm = normalize_alef(match["lex_bare"])
-                        lid = lemma_lookup.get(lex_norm)
+                lid, function_override, exact_policy_applies = (
+                    _resolve_story_word_from_existing_inventory(
+                        sw.surface_form,
+                        lemma_lookup,
+                        known_bare_forms,
+                    )
+                )
+                if exact_policy_applies and lid is None:
+                    print(
+                        "  Protected exact alias remains unmapped: "
+                        f"{sw.surface_form}"
+                    )
+                    continue
 
                 if lid:
                     lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
@@ -76,6 +108,9 @@ def main():
                         sw.lemma_id = lid
                         if lemma:
                             sw.gloss_en = lemma.gloss_en
+                        if function_override is not None:
+                            sw.is_function_word = function_override
+                            sw.name_type = None
                     resolved += 1
 
             total_resolved += resolved
@@ -88,15 +123,31 @@ def main():
                 lemma_lookup = build_lemma_lookup(all_lemmas)
 
             # Phase 2: Import remaining unknown words via LLM
-            remaining = (
+            remaining_words = (
                 db.query(StoryWord)
                 .filter(
                     StoryWord.story_id == story.id,
                     StoryWord.lemma_id == None,
                     StoryWord.is_function_word == False,
                 )
-                .count()
+                .all()
             )
+            remaining = 0
+            protected = 0
+            for sw in remaining_words:
+                alias = resolve_exact_running_text_alias(
+                    sw.surface_form,
+                    lemma_lookup,
+                )
+                if alias.applicable:
+                    protected += 1
+                else:
+                    remaining += 1
+            if protected:
+                print(
+                    f"  Phase 2: keeping {protected} exact-alias word(s) "
+                    "outside unknown-word import"
+                )
 
             if remaining > 0 and not dry_run:
                 print(f"  Phase 2: importing {remaining} unknown words via LLM...")

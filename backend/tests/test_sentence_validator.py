@@ -4,6 +4,8 @@ Uses hardcoded Arabic sentences with known word sets to verify
 word classification and validation logic.
 """
 
+import unicodedata
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -15,12 +17,15 @@ from app.services.sentence_validator import (
     TokenMapping,
     ValidationResult,
     _is_function_word,
+    apply_corrections,
     batch_verify_sentences,
     is_function_word_lemma,
     _strip_clitics,
     build_lemma_lookup,
     compute_bare_form,
     lookup_lemma,
+    lookup_lemma_citation,
+    lookup_lemma_id,
     map_tokens_to_lemmas,
     normalize_alef,
     normalize_arabic,
@@ -898,12 +903,41 @@ class TestCliticIntegration:
 
 class _FakeLemma:
     """Minimal lemma-like object for testing build_lemma_lookup."""
-    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None, pos: str | None = None, lemma_ar: str | None = None):
+
+    def __init__(
+        self,
+        lemma_id: int,
+        lemma_ar_bare: str,
+        forms_json: dict | None = None,
+        pos: str | None = None,
+        lemma_ar: str | None = None,
+        *,
+        gated: bool = True,
+    ):
         self.lemma_id = lemma_id
         self.lemma_ar_bare = lemma_ar_bare
         self.lemma_ar = lemma_ar or lemma_ar_bare
         self.forms_json = forms_json
         self.pos = pos
+        self.gates_completed_at = object() if gated else None
+
+
+def _momo_52133_collision_lemmas() -> list[_FakeLemma]:
+    return [
+        _FakeLemma(270, "ناس", pos="noun", lemma_ar="نَاسٌ"),
+        _FakeLemma(
+            3711,
+            "نسي",
+            forms_json={
+                "active_participle": "نَاسٍ",
+                "imperative": "اِنْسَ",
+            },
+            pos="verb",
+            lemma_ar="نَسِيَ",
+        ),
+        _FakeLemma(2054, "قد", pos="particle", lemma_ar="قَدْ"),
+        _FakeLemma(2189, "فقد", pos="noun", lemma_ar="فَقْد"),
+    ]
 
 
 class TestBuildLemmaLookup:
@@ -1258,6 +1292,348 @@ class TestMapTokensToLemmas:
             2456,
             2456,
         ]
+
+    def test_exact_momo_aliases_beat_real_collision_shapes(self):
+        lookup = build_lemma_lookup(_momo_52133_collision_lemmas())
+
+        assert lookup["انس"] == 3711
+        assert lookup["فقد"] == 2189
+
+        mappings = map_tokens_to_lemmas(
+            [
+                "أُنَاسٌ",
+                "فَقَدْ",
+                "فَقْدٌ",
+                "فقد",
+                "أناس",
+                "أُنَاسًا",
+                "فَقَدَ",
+            ],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings[:4]] == [
+            270,
+            2054,
+            2189,
+            2189,
+        ]
+        assert [
+            mapping.is_function_word for mapping in mappings[:4]
+        ] == [False, True, False, False]
+        assert mappings[4].lemma_id != 270
+        assert mappings[5].lemma_id != 270
+        assert mappings[6].lemma_id != 2054
+
+    def test_exact_momo_aliases_are_nfc_and_boundary_stable(self):
+        forward = build_lemma_lookup(_momo_52133_collision_lemmas())
+        reverse = build_lemma_lookup(
+            list(reversed(_momo_52133_collision_lemmas()))
+        )
+        decomposed_people = unicodedata.normalize("NFD", "أُنَاسٌ")
+
+        for lookup in (forward, reverse):
+            mappings = map_tokens_to_lemmas(
+                [f"«{decomposed_people}»", "فَقَدْ،"],
+                lookup,
+                target_lemma_id=0,
+                target_bare="",
+            )
+            assert [mapping.lemma_id for mapping in mappings] == [270, 2054]
+            assert [mapping.surface_form for mapping in mappings] == [
+                f"«{decomposed_people}»",
+                "فَقَدْ،",
+            ]
+
+    @pytest.mark.parametrize("failure_mode", ["missing", "ungated"])
+    def test_exact_momo_aliases_fail_closed_without_gated_destinations(
+        self,
+        failure_mode,
+    ):
+        destinations = [
+            _FakeLemma(
+                270,
+                "ناس",
+                pos="noun",
+                lemma_ar="نَاسٌ",
+                gated=failure_mode != "ungated",
+            ),
+            _FakeLemma(
+                2054,
+                "قد",
+                pos="particle",
+                lemma_ar="قَدْ",
+                gated=failure_mode != "ungated",
+            ),
+        ]
+        lemmas = _momo_52133_collision_lemmas()[1::2]
+        if failure_mode == "ungated":
+            lemmas += destinations
+        lookup = build_lemma_lookup(lemmas)
+
+        mappings = map_tokens_to_lemmas(
+            ["أُنَاسٌ", "فَقَدْ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+            proper_names={"أناس", "فقد"},
+        )
+        validation = validate_sentence_multi_target(
+            "أُنَاسٌ فَقَدْ",
+            target_bares={"ناس": 270},
+            known_bare_forms=set(),
+            min_targets=1,
+            known_lemma_lookup=lookup,
+            comprehensive_lemma_lookup=lookup,
+            proper_names={"أناس", "فقد"},
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [None, None]
+        assert all(not mapping.is_function_word for mapping in mappings)
+        assert all(not mapping.is_proper_name for mapping in mappings)
+        assert validation.targets_found == {"ناس": False}
+        assert validation.unknown_words == ["أُنَاسٌ", "فَقَدْ"]
+
+    @pytest.mark.parametrize(
+        "conflicting_source",
+        [
+            _FakeLemma(5000, "أناس", pos="noun", lemma_ar="أُنَاسٌ"),
+            _FakeLemma(5001, "فقد", pos="particle", lemma_ar="فَقَدْ"),
+        ],
+    )
+    def test_stored_exact_source_identity_disables_alias(
+        self,
+        conflicting_source,
+    ):
+        lookup = build_lemma_lookup(
+            _momo_52133_collision_lemmas() + [conflicting_source]
+        )
+        surface = conflicting_source.lemma_ar
+
+        mapping = map_tokens_to_lemmas(
+            [surface],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )[0]
+
+        assert mapping.lemma_id is None
+        assert lookup_lemma_id(surface, lookup) is None
+
+    @pytest.mark.parametrize("duplicate_gated", [False, True])
+    def test_duplicate_exact_destination_disables_alias(
+        self,
+        duplicate_gated,
+    ):
+        lookup = build_lemma_lookup(
+            _momo_52133_collision_lemmas()
+            + [
+                _FakeLemma(
+                    271,
+                    "ناس",
+                    pos="noun",
+                    lemma_ar="نَاسٌ",
+                    gated=duplicate_gated,
+                )
+            ]
+        )
+
+        mappings = map_tokens_to_lemmas(
+            ["أُنَاسٌ", "فَقَدْ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert mappings[0].lemma_id is None
+        assert mappings[1].lemma_id == 2054
+
+    def test_exact_momo_aliases_share_surface_aware_lookup_paths(self):
+        lookup = build_lemma_lookup(_momo_52133_collision_lemmas())
+
+        assert lookup_lemma_id("أُنَاسٌ", lookup) == 270
+        assert lookup_lemma_id("فَقَدْ", lookup) == 2054
+        assert lookup_lemma_id("فقد", lookup) == 2189
+        assert resolve_existing_lemma("أُنَاسٌ", lookup) == 270
+        assert resolve_existing_lemma("فَقَدْ", lookup) == 2054
+        assert resolve_existing_lemma("فقد", lookup) == 2189
+        assert (
+            lookup_lemma_citation("اناس", lookup, original_bare="أُنَاسٌ")
+            == 270
+        )
+        assert (
+            lookup_lemma_citation("فقد", lookup, original_bare="فَقَدْ")
+            == 2054
+        )
+        assert (
+            lookup_lemma_citation("فقد", lookup, original_bare="فقد")
+            == 2189
+        )
+
+    def test_exact_momo_aliases_replace_bare_target_identity(self):
+        lookup = build_lemma_lookup(_momo_52133_collision_lemmas())
+
+        people_target = map_tokens_to_lemmas(
+            ["أُنَاسٌ", "فَقَدْ", "فَقْدٌ"],
+            lookup,
+            target_lemma_id=270,
+            target_bare="ناس",
+        )
+        particle_target = map_tokens_to_lemmas(
+            ["فَقَدْ", "فَقْدٌ"],
+            lookup,
+            target_lemma_id=2054,
+            target_bare="قد",
+        )
+        loss_target = map_tokens_to_lemmas(
+            ["فَقَدْ", "فَقْدٌ"],
+            lookup,
+            target_lemma_id=2189,
+            target_bare="فقد",
+        )
+
+        assert [mapping.is_target for mapping in people_target] == [
+            True,
+            False,
+            False,
+        ]
+        assert [mapping.is_target for mapping in particle_target] == [
+            True,
+            False,
+        ]
+        assert [mapping.is_target for mapping in loss_target] == [
+            False,
+            True,
+        ]
+        assert refresh_target_mapping_flags(
+            people_target,
+            lookup,
+            {"ناس": 270},
+            required_target_ids={270},
+        )
+        assert refresh_target_mapping_flags(
+            particle_target,
+            lookup,
+            {"قد": 2054},
+            required_target_ids={2054},
+        )
+        assert refresh_target_mapping_flags(
+            loss_target,
+            lookup,
+            {"فقد": 2189},
+            required_target_ids={2189},
+        )
+
+    def test_sentence_validators_share_exact_momo_alias_identity(self):
+        lookup = build_lemma_lookup(_momo_52133_collision_lemmas())
+
+        single = validate_sentence(
+            "أُنَاسٌ فَقَدْ",
+            target_bare="ناس",
+            known_bare_forms=set(),
+            known_lemma_lookup=lookup,
+            comprehensive_lemma_lookup=lookup,
+        )
+        wrong_single = validate_sentence(
+            "فَقَدْ",
+            target_bare="فقد",
+            known_bare_forms=set(),
+            known_lemma_lookup=lookup,
+            comprehensive_lemma_lookup=lookup,
+        )
+        multiple = validate_sentence_multi_target(
+            "أُنَاسٌ فَقَدْ",
+            target_bares={"ناس": 270},
+            known_bare_forms=set(),
+            min_targets=1,
+            known_lemma_lookup=lookup,
+            comprehensive_lemma_lookup=lookup,
+        )
+
+        assert single.valid is True
+        assert single.target_found is True
+        assert single.function_words == ["فَقَدْ"]
+        assert wrong_single.target_found is False
+        assert multiple.valid is True
+        assert multiple.targets_found == {"ناس": True}
+
+    def test_full_momo_52133_maps_to_reviewed_existing_identities(self):
+        lookup = build_lemma_lookup(
+            _momo_52133_collision_lemmas()
+            + [
+                _FakeLemma(
+                    4248,
+                    "لاحظ",
+                    forms_json={"past_3fs": "لَاحَظَتْ"},
+                    pos="verb",
+                    lemma_ar="لَاحَظَ",
+                ),
+                _FakeLemma(
+                    2187,
+                    "انّ",
+                    pos="particle",
+                    lemma_ar="أَنَّ",
+                ),
+                _FakeLemma(
+                    1580,
+                    "لطيف",
+                    forms_json={"plural": "لِطَاف"},
+                    pos="adj",
+                    lemma_ar="لَطِيف",
+                ),
+                _FakeLemma(385, "كان", pos="verb", lemma_ar="كَانَ"),
+                _FakeLemma(
+                    357,
+                    "نفس",
+                    forms_json={"plural": "أَنْفُس"},
+                    pos="noun",
+                    lemma_ar="نَفْس",
+                ),
+                _FakeLemma(
+                    2646,
+                    "فقير",
+                    forms_json={"plural": "فُقَرَاء"},
+                    pos="noun",
+                    lemma_ar="فَقِير",
+                ),
+                _FakeLemma(
+                    389,
+                    "عرف",
+                    forms_json={"present": "يَعْرِفُ"},
+                    pos="verb",
+                    lemma_ar="عَرَفَ",
+                ),
+                _FakeLemma(354, "حياة", pos="noun", lemma_ar="حَيَاة"),
+            ]
+        )
+
+        mappings = map_tokens_to_lemmas(
+            tokenize_display(
+                "لَاحَظَتْ أَنَّهُمْ أُنَاسٌ لِطَافٌ ، فَقَدْ "
+                "كَانُوا أَنْفُسُهُمْ فُقَرَاءَ "
+                "وَيَعْرِفُونَ الْحَيَاةَ ."
+            ),
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        assert [mapping.lemma_id for mapping in mappings] == [
+            4248,
+            2187,
+            270,
+            1580,
+            2054,
+            385,
+            357,
+            2646,
+            389,
+            354,
+        ]
+        assert all(not mapping.is_target for mapping in mappings)
+        assert mappings[4].is_function_word is True
 
     def test_an_particle_collision_does_not_map_to_time(self):
         lemmas = [
@@ -2501,6 +2877,218 @@ class TestCorrectMapping:
         from app.services.sentence_validator import correct_mapping
 
         assert correct_mapping(db_session, "", "to write", "verb") is None
+
+
+class TestApplyCorrectionsExactRunningTextAliases:
+    """Verifier proposals cannot override approved exact surface identity."""
+
+    @staticmethod
+    def _collision_inventory(db_session):
+        from app.models import Lemma
+
+        gated_at = datetime(2026, 7, 30)
+        people = Lemma(
+            lemma_ar="نَاسٌ",
+            lemma_ar_bare="ناس",
+            gloss_en="people",
+            pos="noun",
+            gates_completed_at=gated_at,
+        )
+        forget = Lemma(
+            lemma_ar="نَسِيَ",
+            lemma_ar_bare="نسي",
+            gloss_en="to forget",
+            pos="verb",
+            forms_json={"active_participle": "نَاسٌ"},
+            gates_completed_at=gated_at,
+        )
+        particle = Lemma(
+            lemma_ar="قَدْ",
+            lemma_ar_bare="قد",
+            gloss_en="indeed; already",
+            pos="particle",
+            gates_completed_at=gated_at,
+        )
+        loss = Lemma(
+            lemma_ar="فَقْد",
+            lemma_ar_bare="فقد",
+            gloss_en="loss",
+            pos="noun",
+            gates_completed_at=gated_at,
+        )
+        db_session.add_all([people, forget, particle, loss])
+        db_session.flush()
+        lookup = build_lemma_lookup([people, forget, particle, loss])
+        return people, forget, particle, loss, lookup
+
+    def test_contradictory_corrections_cannot_overwrite_aliases(
+        self,
+        db_session,
+    ):
+        people, forget, particle, loss, lookup = self._collision_inventory(
+            db_session
+        )
+        mappings = map_tokens_to_lemmas(
+            ["أُنَاسٌ", "فَقَدْ"],
+            lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
+
+        failed = apply_corrections(
+            [
+                {
+                    "position": 0,
+                    "correct_lemma_ar": "نَسِيَ",
+                    "correct_gloss": "to forget",
+                    "correct_pos": "verb",
+                },
+                {
+                    "position": 1,
+                    "correct_lemma_ar": "فَقْد",
+                    "correct_gloss": "loss",
+                    "correct_pos": "noun",
+                },
+            ],
+            mappings,
+            db_session,
+            lemma_lookup=lookup,
+        )
+
+        assert failed == [0, 1]
+        assert [mapping.lemma_id for mapping in mappings] == [
+            people.lemma_id,
+            particle.lemma_id,
+        ]
+        assert forget.lemma_id not in {
+            mapping.lemma_id for mapping in mappings
+        }
+        assert loss.lemma_id not in {
+            mapping.lemma_id for mapping in mappings
+        }
+
+    def test_correct_proposals_can_restore_required_alias_destinations(
+        self,
+        db_session,
+    ):
+        people, forget, particle, loss, lookup = self._collision_inventory(
+            db_session
+        )
+        mappings = [
+            TokenMapping(
+                position=0,
+                surface_form="أُنَاسٌ",
+                lemma_id=forget.lemma_id,
+                is_target=False,
+                is_function_word=False,
+                is_proper_name=True,
+            ),
+            TokenMapping(
+                position=1,
+                surface_form="فَقَدْ",
+                lemma_id=loss.lemma_id,
+                is_target=False,
+                is_function_word=False,
+                is_proper_name=True,
+            ),
+        ]
+
+        failed = apply_corrections(
+            [
+                {
+                    "position": 0,
+                    "correct_lemma_ar": "نَاسٌ",
+                    "correct_gloss": "people",
+                    "correct_pos": "noun",
+                },
+                {
+                    "position": 1,
+                    "correct_lemma_ar": "قَدْ",
+                    "correct_gloss": "indeed",
+                    "correct_pos": "particle",
+                },
+            ],
+            mappings,
+            db_session,
+        )
+
+        assert failed == []
+        assert [mapping.lemma_id for mapping in mappings] == [
+            people.lemma_id,
+            particle.lemma_id,
+        ]
+        assert [mapping.is_function_word for mapping in mappings] == [
+            False,
+            True,
+        ]
+        assert all(not mapping.is_proper_name for mapping in mappings)
+
+    def test_unresolved_alias_rejects_correction_without_mutation(
+        self,
+        db_session,
+    ):
+        from app.models import Lemma
+
+        forget = Lemma(
+            lemma_ar="نَسِيَ",
+            lemma_ar_bare="نسي",
+            gloss_en="to forget",
+            pos="verb",
+            forms_json={"active_participle": "نَاسٌ"},
+            gates_completed_at=datetime(2026, 7, 30),
+        )
+        loss = Lemma(
+            lemma_ar="فَقْد",
+            lemma_ar_bare="فقد",
+            gloss_en="loss",
+            pos="noun",
+            gates_completed_at=datetime(2026, 7, 30),
+        )
+        db_session.add_all([forget, loss])
+        db_session.flush()
+        lookup = build_lemma_lookup([forget, loss])
+        mappings = [
+            TokenMapping(
+                position=0,
+                surface_form="أُنَاسٌ",
+                lemma_id=forget.lemma_id,
+                is_target=False,
+                is_function_word=False,
+            ),
+            TokenMapping(
+                position=1,
+                surface_form="فَقَدْ",
+                lemma_id=loss.lemma_id,
+                is_target=False,
+                is_function_word=True,
+            ),
+        ]
+
+        failed = apply_corrections(
+            [
+                {
+                    "position": 0,
+                    "correct_lemma_ar": "نَسِيَ",
+                    "correct_gloss": "to forget",
+                    "correct_pos": "verb",
+                },
+                {
+                    "position": 1,
+                    "correct_lemma_ar": "فَقْد",
+                    "correct_gloss": "loss",
+                    "correct_pos": "noun",
+                },
+            ],
+            mappings,
+            db_session,
+            lemma_lookup=lookup,
+        )
+
+        assert failed == [0, 1]
+        assert [mapping.lemma_id for mapping in mappings] == [
+            forget.lemma_id,
+            loss.lemma_id,
+        ]
 
 
 # ---------------------------------------------------------------------------

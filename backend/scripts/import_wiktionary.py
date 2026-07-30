@@ -30,6 +30,7 @@ from app.services.sentence_validator import (
     strip_diacritics as _sv_strip_diacritics,
     normalize_alef,
     build_lemma_lookup,
+    resolve_exact_running_text_alias,
     resolve_existing_lemma,
 )
 from app.services.variant_detection import detect_variants_llm, detect_definite_variants, mark_variants
@@ -174,12 +175,23 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
     lemma_lookup = build_lemma_lookup(all_lemmas)
     existing_roots = {r.root: r for r in db.query(Root).all()}
 
-    # Filter out already-existing words (exact bare match + clitic-aware lookup)
-    new_candidates = [
-        c for c in candidates
-        if normalize_alef(c["bare"]) not in existing_bare
-        and not resolve_existing_lemma(c["bare"], lemma_lookup)
-    ]
+    # Filter out already-existing words (exact bare match + clitic-aware
+    # lookup). Exact-only aliases are checked first against the original
+    # vocalized citation: even an unavailable/ambiguous destination must not
+    # fall through and become a new source lemma.
+    new_candidates = []
+    for candidate in candidates:
+        alias = resolve_exact_running_text_alias(
+            candidate["arabic"],
+            lemma_lookup,
+        )
+        if alias.applicable:
+            continue
+        if normalize_alef(candidate["bare"]) in existing_bare:
+            continue
+        if resolve_existing_lemma(candidate["bare"], lemma_lookup):
+            continue
+        new_candidates.append(candidate)
     print(f"After filtering existing: {len(new_candidates)} new candidates (from {len(candidates)})")
 
     # Take top N (the JSONL is roughly ordered by frequency/importance)

@@ -27,6 +27,25 @@ This project is developed with Claude Code and Codex.
 - Keep linguistic QA, contextual mapping verification, target validation, and
   final inactive preparation in the normal scoped corpus pipeline with
   activation zero and no provider pin
+- Catch two deterministic identity collisions in the first production-copy
+  normal-pipeline rehearsal: sentence 52133's fully vocalized `أُنَاسٌ` was
+  routed to `نَسِيَ` #3711 instead of `نَاسٌ` #270, and `فَقَدْ` to noun
+  `فَقْد` #2189 instead of particle `قَدْ` #2054
+- Add fail-closed, code-only exact-surface resolution for those two approved
+  identities. Require a unique gated destination and no stored exact-source
+  conflict; preserve the sentence surface, replace the lossy target identity,
+  and prevent CAMeL, proper-name creation, story/import, and NULL-repair
+  fallbacks from widening the policy to unvocalized or other case forms
+- Carry the same full-surface guard through verifier correction, mapping
+  rescue, Discover, OCR, Quran, frequency-core intake, story compliance and
+  persistence, reading-readiness/scaffold analysis, Hindawi name inference,
+  and repair scripts. An unresolved identity remains unmapped and unclassified
+  rather than becoming a free function word or a new lemma
+- Require the destination to be the sole stored exact identity and gated
+  (a gated row plus any ungated duplicate now fails closed), rebuild Discover
+  alias metadata between independently committed batch items, reject
+  conflicting Discover senses, refresh repaired StoryWord gloss/knowledge
+  metadata, and preserve exact citations in all manual vocabulary importers
 
 ## 2026-07-29 — Verifier and authentic-corpus seam hardening
 

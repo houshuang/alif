@@ -48,6 +48,66 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-30: Approved exact-running-text aliases for *Momo* 52133
+
+**Observed rehearsal blocker.** The hash-pinned curated prefill passed all seven
+rows on a fresh production copy, but the normal zero-activation preparation
+prepared only six. Sentence `52133` was correctly blocked at mapping
+verification. Fully vocalized `أُنَاسٌ` fell through the absent `أناس` lookup
+identity and CAMeL selected `نَسِيَ` #3711 (“to forget”); fully vocalized
+`فَقَدْ` hit the exact bare noun `فَقْد` #2189 (“loss”) before the resolver
+could recognize `فَـ + قَدْ`. The verifier proposed the correct meanings, but
+the correction gate could not safely translate its surface citations to the
+existing gated identities `نَاسٌ` #270 and `قَدْ` #2054. Retrying unchanged is
+not a remedy: it would depend on the verifier missing both errors or changing
+its citation spelling.
+
+**Approved policy.** Add a small exact-running-text alias layer for precisely
+`أُنَاسٌ → نَاسٌ` and `فَقَدْ → قَدْ`. Resolve the destinations from unique,
+gated, fully vocalized lemma identities rather than numeric IDs. Preserve each
+original `SentenceWord.surface_form`; classify the second alias as a function
+word and the first as lexical. If a destination is absent or ambiguous, the
+exact alias must fail closed instead of falling through to CAMeL or lossy bare
+lookup. Do not add an unvocalized alias, teach `correct_mapping()` a bare
+shortcut, or change the behavior of `فقد`, `فَقْد`, or `فَقَدَ`. This treats
+`أُنَاس`/`نَاس` as one learner concept while retaining the option to rationalize
+both under `إِنْسَان` in a later vocabulary migration.
+
+**Expected result and non-effects.** A fresh copied-production rehearsal should
+map `أُنَاسٌ` to the existing “people” identity and `فَقَدْ` to the existing
+particle, prepare all seven exact Chapter 1 rows, and activate none. Regression
+tests must reproduce the real `نَسِيَ` collision, preserve noun `فَقْد`, keep
+bare `فقد` uncoerced, and prove missing destination identities are unmapped.
+The change creates no lemma or learner row, migrates no history, changes no
+stored mapping by itself, and does not authorize blocked-row retry, vocabulary
+backfill, the three excluded Momo rows, or activation. Only after merge,
+deployment, and a completely fresh 7/7 rehearsal may the separately
+hash-pinned production prefill and normal zero-activation preparation run.
+
+**Pre-deployment integration audit.** The exact check must occur anywhere a
+stored or newly observed running surface could otherwise be reduced to a bare
+key: sentence validation and target refresh, verifier correction and mapping
+rescue, Discover, story/book import and repair, OCR, Quran verse processing,
+frequency-core intake/building, reading-readiness analysis, story compliance
+and podcast persistence, scaffold accounting, Hindawi name inference, and
+proper-name creation. An unresolved alias is neither lexical nor a free
+function word. This audit boundary is deliberately broader than sentence
+`52133`, but the policy data remains only the two approved exact surfaces.
+Destination uniqueness is over every stored exact identity, not just gated
+rows; exactly one row must exist and that row must be gated. Mutable batch
+callers must rebuild lookup metadata after each commit, and identity repair
+must refresh dependent classification, gloss, and story-known metadata rather
+than changing only the foreign key.
+
+**Pre-deployment verification.** The final backend suite passed `1855` tests
+with `9` deliberately deselected; all changed Python compiled and the scoped
+diff passed whitespace validation. One preceding run hit the unrelated,
+randomized FSRS Easy-interval bound (five days versus a four-day test ceiling);
+the test passed immediately in isolation and the complete rerun was clean.
+Independent adversarial review reproduced and closed the destination-duplicate,
+Discover sense/batch, StoryWord metadata, correction, and contextless-import
+escapes before declaring the surface audit clean.
+
 ## 2026-07-30: Approved exact-seven curated *Momo* prefill
 
 **Decision.** The first source-preserving Chapter 1 preparation attempt was a

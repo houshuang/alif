@@ -25,7 +25,9 @@ from app.services.lemma_quality import run_quality_gates
 from app.services.morphology import get_word_features, is_valid_root
 from app.services.sentence_validator import (
     lookup_lemma,
+    lookup_lemma_id,
     normalize_alef,
+    requires_exact_running_text_alias,
     resolve_existing_lemma,
     strip_diacritics,
     strip_tatweel,
@@ -51,6 +53,7 @@ class _CoreAnalysis:
     camel_lex_norm: str | None
     camel_pos: str | None
     camel_root: str | None
+    requires_exact_alias: bool
 
 
 def _normalize_form(text: str | None) -> str:
@@ -62,7 +65,16 @@ def _normalize_form(text: str | None) -> str:
 def _analyze_entry(entry: FrequencyCoreEntry) -> _CoreAnalysis:
     norm = _normalize_form(entry.display_form)
     without_al = norm[2:] if norm.startswith("ال") and len(norm) > 2 else None
-    features = get_word_features((entry.display_form or "").replace("\u0671", "\u0627"))
+    requires_exact_alias = requires_exact_running_text_alias(
+        entry.display_form or ""
+    )
+    features = (
+        {}
+        if requires_exact_alias
+        else get_word_features(
+            (entry.display_form or "").replace("\u0671", "\u0627")
+        )
+    )
     camel_lex = features.get("lex")
     camel_lex_norm = _normalize_form(camel_lex) if camel_lex else None
     return _CoreAnalysis(
@@ -73,10 +85,18 @@ def _analyze_entry(entry: FrequencyCoreEntry) -> _CoreAnalysis:
         camel_lex_norm=camel_lex_norm,
         camel_pos=features.get("pos"),
         camel_root=features.get("root"),
+        requires_exact_alias=requires_exact_alias,
     )
 
 
 def _resolve_existing(analysis: _CoreAnalysis, lemma_lookup: dict[str, int]) -> int | None:
+    surface_id = lookup_lemma_id(
+        analysis.entry.display_form or "",
+        lemma_lookup,
+    )
+    if surface_id is not None or analysis.requires_exact_alias:
+        return surface_id
+
     original = strip_tatweel(strip_diacritics(analysis.entry.display_form or ""))
     for candidate in (
         analysis.normalized,
@@ -466,6 +486,12 @@ def intake_frequency_core_gaps(
             elif dry_run:
                 stats["resolved_existing"] += 1
                 stats["mapped_ranks"].append(entry.core_rank)
+            continue
+        if analysis.requires_exact_alias:
+            # No generic frequency-core creation is allowed for a declared
+            # exact running-text identity. Its destination may become
+            # available after gating, at which point a later run can map it.
+            stats["skipped"] += 1
             continue
         unresolved.append(analysis)
 

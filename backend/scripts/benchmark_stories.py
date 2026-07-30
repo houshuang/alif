@@ -37,8 +37,9 @@ from app.services.sentence_validator import (
     FUNCTION_WORD_GLOSSES,
     FUNCTION_WORD_FORMS,
     build_lemma_lookup,
-    lookup_lemma,
+    lookup_lemma_id,
     normalize_alef,
+    resolve_exact_running_text_alias,
     strip_diacritics,
     strip_tatweel,
     tokenize,
@@ -238,10 +239,19 @@ Respond with JSON: {{"narrative_arc": N, "interestingness": N, "naturalness": N,
 
 class SimpleLemma:
     """Minimal lemma object for build_lemma_lookup compatibility."""
-    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None):
+    def __init__(
+        self,
+        lemma_id: int,
+        lemma_ar: str,
+        lemma_ar_bare: str,
+        forms_json: dict | None = None,
+        gates_completed_at: str | None = None,
+    ):
         self.lemma_id = lemma_id
+        self.lemma_ar = lemma_ar
         self.lemma_ar_bare = lemma_ar_bare
         self.forms_json = forms_json
+        self.gates_completed_at = gates_completed_at
 
 
 def load_vocabulary(db_path: str) -> dict:
@@ -260,7 +270,8 @@ def load_vocabulary(db_path: str) -> dict:
     # Usable words: learning + known + acquiring (excluding variants)
     rows = conn.execute("""
         SELECT l.lemma_id, l.lemma_ar, l.lemma_ar_bare, l.gloss_en, l.pos,
-               l.forms_json, ulk.knowledge_state, ulk.acquisition_box
+               l.forms_json, l.gates_completed_at,
+               ulk.knowledge_state, ulk.acquisition_box
         FROM lemmas l
         JOIN user_lemma_knowledge ulk ON l.lemma_id = ulk.lemma_id
         WHERE ulk.knowledge_state IN ('learning', 'known', 'acquiring')
@@ -288,14 +299,22 @@ def load_vocabulary(db_path: str) -> dict:
             "state": r["knowledge_state"],
             "box": r["acquisition_box"],
         })
-        usable_lemmas.append(SimpleLemma(r["lemma_id"], r["lemma_ar_bare"], forms))
+        usable_lemmas.append(SimpleLemma(
+            r["lemma_id"],
+            r["lemma_ar"],
+            r["lemma_ar_bare"],
+            forms,
+            r["gates_completed_at"],
+        ))
 
         if r["knowledge_state"] == "acquiring":
             acquiring_ids.add(r["lemma_id"])
 
     # All lemmas for full lookup
     all_rows = conn.execute("""
-        SELECT lemma_id, lemma_ar_bare, forms_json FROM lemmas
+        SELECT lemma_id, lemma_ar, lemma_ar_bare, forms_json,
+               gates_completed_at
+        FROM lemmas
     """).fetchall()
     all_lemmas = []
     for r in all_rows:
@@ -305,9 +324,17 @@ def load_vocabulary(db_path: str) -> dict:
                 forms = json.loads(r["forms_json"]) if isinstance(r["forms_json"], str) else r["forms_json"]
             except (json.JSONDecodeError, TypeError):
                 forms = None
-        all_lemmas.append(SimpleLemma(r["lemma_id"], r["lemma_ar_bare"], forms))
+        all_lemmas.append(SimpleLemma(
+            r["lemma_id"],
+            r["lemma_ar"],
+            r["lemma_ar_bare"],
+            forms,
+            r["gates_completed_at"],
+        ))
 
     conn.close()
+    compliance_lookup = build_lemma_lookup(usable_lemmas)
+    all_lemma_lookup = build_lemma_lookup(all_lemmas)
 
     # Build function word bare forms
     func_bares = set()
@@ -319,8 +346,8 @@ def load_vocabulary(db_path: str) -> dict:
     return {
         "usable_words": usable_words,
         "acquiring_ids": acquiring_ids,
-        "compliance_lookup": build_lemma_lookup(usable_lemmas),
-        "all_lemma_lookup": build_lemma_lookup(all_lemmas),
+        "compliance_lookup": compliance_lookup,
+        "all_lemma_lookup": all_lemma_lookup,
         "function_word_bares": func_bares,
     }
 
@@ -530,6 +557,7 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "...", "bo
 def analyze_compliance(
     body_ar: str,
     compliance_lookup: dict[str, int],
+    all_lemma_lookup: dict[str, int],
     function_word_bares: set[str],
     acquiring_ids: set[int],
 ) -> dict:
@@ -541,11 +569,27 @@ def analyze_compliance(
     content_unknown = 0
     func_count = 0
     unknown_list = []
+    usable_ids = set(compliance_lookup.values())
 
     for token in tokens:
         bare = strip_diacritics(token)
         bare = strip_tatweel(bare)
         bare = normalize_alef(bare)
+        alias = resolve_exact_running_text_alias(token, all_lemma_lookup)
+        if alias.applicable:
+            if alias.is_function_word:
+                func_count += 1
+                continue
+            content_total += 1
+            if alias.lemma_id is not None and alias.lemma_id in usable_ids:
+                if alias.lemma_id in acquiring_ids:
+                    content_acquiring += 1
+                content_known += 1
+            else:
+                content_unknown += 1
+                if bare not in unknown_list:
+                    unknown_list.append(bare)
+            continue
 
         # Function word check
         if bare in function_word_bares:
@@ -557,7 +601,7 @@ def analyze_compliance(
             continue
 
         content_total += 1
-        lid = lookup_lemma(bare, compliance_lookup)
+        lid = lookup_lemma_id(token, compliance_lookup)
         if lid:
             if lid in acquiring_ids:
                 content_acquiring += 1
@@ -716,6 +760,7 @@ def run_single(
     compliance = analyze_compliance(
         result["body_ar"],
         vocab["compliance_lookup"],
+        vocab["all_lemma_lookup"],
         vocab["function_word_bares"],
         vocab["acquiring_ids"],
     )

@@ -26,6 +26,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
     normalize_alef,
+    requires_exact_running_text_alias,
     strip_diacritics,
     tokenize_display,
 )
@@ -275,6 +276,11 @@ def _resolve_unmapped_via_camel(
     for m in mappings:
         if m.lemma_id is not None:
             continue
+        if requires_exact_running_text_alias(m.surface_form):
+            # A declared exact alias with no unique gated destination must
+            # remain unmapped. CAMeL/bare fallback would defeat fail-closed
+            # identity and can select the exact collision this layer guards.
+            continue
         # Normalize Quranic orthography (alef wasla → regular alef) before CAMeL
         surface_normalized = m.surface_form.replace("\u0671", "\u0627")
         features = get_word_features(surface_normalized)
@@ -335,7 +341,10 @@ def create_book_sentences(
         # Fallback: use StoryWord surface→lemma mappings
         if story_word_lookup and any(m.lemma_id is None for m in mappings):
             for m in mappings:
-                if m.lemma_id is None:
+                if (
+                    m.lemma_id is None
+                    and not requires_exact_running_text_alias(m.surface_form)
+                ):
                     bare = normalize_alef(strip_diacritics(m.surface_form))
                     if bare in story_word_lookup:
                         m.lemma_id = story_word_lookup[bare]

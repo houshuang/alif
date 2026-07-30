@@ -47,6 +47,7 @@ from app.services.sentence_validator import (
     build_comprehensive_lemma_lookup,
     lookup_lemma,
     normalize_alef,
+    resolve_exact_running_text_alias,
     strip_diacritics,
     strip_tatweel,
 )
@@ -399,6 +400,9 @@ def should_skip_lemma(lemma: Lemma, include_function_words: bool) -> bool:
 def resolve_lemma_id(norm: str, original: str, lemma_lookup: dict[str, int]) -> int | None:
     if not norm:
         return None
+    alias = resolve_exact_running_text_alias(original, lemma_lookup)
+    if alias.applicable:
+        return alias.lemma_id
     return lookup_lemma(norm, lemma_lookup, original_bare=strip_diacritics(original))
 
 

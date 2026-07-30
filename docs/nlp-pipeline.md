@@ -2,11 +2,22 @@
 
 ## Rule-based (sentence_validator.py)
 1. Whitespace tokenization + Arabic punctuation removal
-2. Diacritic stripping + tatweel removal + alef normalization (أ إ آ ٱ → ا)
-3. Clitic stripping: proclitics (و، ف، ب، ل، ك، وال، بال، فال، لل، كال) and enclitics (ه، ها، هم، هن، هما، كم، كن، ك، نا، ني)
-4. Taa marbuta handling (ة → ت before suffixes)
-5. Match against known bare forms set (with and without ال prefix variants)
-6. 60+ hardcoded function words treated as always-known
+2. Resolve the narrowly approved, fully vocalized running-text identities
+   `أُنَاسٌ` → `نَاسٌ` and `فَقَدْ` → `قَدْ` before any lossy normalization.
+   Registration requires exactly one stored destination, that sole row must be
+   gated, and no stored exact source identity may exist; a missing, ungated,
+   duplicate, or conflicting destination fails closed rather than falling
+   through to a normalized/CAMeL guess.
+3. Diacritic stripping + tatweel removal + alef normalization (أ إ آ ٱ → ا)
+4. Clitic stripping: proclitics (و، ف، ب، ل، ك، وال، بال، فال، لل، كال) and enclitics (ه، ها، هم، هن، هما، كم، كن، ك، نا، ني)
+5. Taa marbuta handling (ة → ت before suffixes)
+6. Match against known bare forms set (with and without ال prefix variants)
+7. 60+ hardcoded function words treated as always-known
+
+Running-text callers must preserve the original token through step 2: use
+`map_tokens_to_lemmas()` for a sentence or `lookup_lemma_id(surface, lookup)`
+for one token. `lookup_lemma()` is the lower-level bare-form engine used only
+after the caller has established that no exact-surface policy applies.
 
 ## CAMeL Tools (morphology.py)
 1. Input word → `analyze_word_camel()` → list of morphological analyses
@@ -36,10 +47,45 @@ Proper names are represented as real lemmas with `word_category="proper_name"` a
 - **Created conservatively**: storage paths can pass declared names; Hindawi promotion also infers high-confidence single-token guillemet names like `«لَيْلَى»`
 
 ## CAMeL Disambiguation in Lemma Mapping
-When `lookup_lemma()` finds a match via clitic stripping but the stripped form is ambiguous (multiple possible lemmas), it calls `_camel_disambiguate()` which delegates to `find_best_db_match()` in morphology.py to pick the best DB lemma. This also serves as a last-resort fallback when no rule-based match is found. Minimum-length guard: al-prefix is not prepended to stems shorter than 3 characters (prevents false matches like ال + بت).
+After `lookup_lemma_id()` has handled the full surface, its bare-form
+`lookup_lemma()` stage calls `_camel_disambiguate()` when a clitic-stripped
+form is ambiguous. `_camel_disambiguate()` delegates to
+`find_best_db_match()` in morphology.py and also provides the ordinary
+last-resort fallback. Minimum-length guard: al-prefix is not prepended to
+stems shorter than 3 characters (prevents false matches like ال + بت).
 
 ## LLM Disambiguation for Ambiguous Mappings
-When `lookup_lemma()` encounters collisions (multiple lemmas normalizing to same key) or multiple clitic stripping candidates, it reports the alternatives via `out_alternatives` on the `TokenMapping`. Hamza-preserving bases `أن`/`إن` and compounds `بأن`, `وإن`, `وأن`, `فأن`, and `فإن` expose only the applicable `أَنْ/أَنَّ` or `إِنْ/إِنَّ` pair instead of falling through to a normalized winner. Unhamzated `ان`/`فان` fail closed, exact madda `آن` excludes normalized particle alternatives, and `بان` remains the verb. Attached-pronoun forms canonicalize compositionally to base `أَنَّ` or `إِنَّ` under the approved و/ف/ب prefixes; the original surface stays on `SentenceWord`, and legacy compound lemma rows cannot win the mapping. A stored lexical `لأنّ` identity remains authoritative for its pronoun family, exact `لِأَنْ` remains base `أَنْ`, and unsupported ب+إن forms fail closed. Contextless import/dedup and strict citation lookup use the same fail-closed identity policy; fully vocalized identities resolve exactly. At generation time, the batch verifier receives every ambiguity with the full sentence (Arabic + English) and must return an explicit contextual choice or issue. Target matching happens after exact identity, and every generation path recomputes target flags after disambiguation/correction so a changed or missing canonical target cannot be published.
+When the bare engine encounters collisions (multiple lemmas normalizing to the
+same key) or multiple clitic-stripping candidates, it reports alternatives on
+`TokenMapping`. Hamza-preserving bases `أن`/`إن` and compounds `بأن`, `وإن`,
+`وأن`, `فأن`, and `فإن` expose only the applicable `أَنْ/أَنَّ` or
+`إِنْ/إِنَّ` pair instead of falling through to a normalized winner.
+Unhamzated `ان`/`فان` fail closed, exact madda `آن` excludes normalized
+particle alternatives, and `بان` remains the verb. Attached-pronoun forms
+canonicalize compositionally to base `أَنَّ` or `إِنَّ` under the approved
+و/ف/ب prefixes; the original surface stays on `SentenceWord`, and legacy
+compound lemma rows cannot win the mapping. A stored lexical `لأنّ` identity
+remains authoritative for its pronoun family, exact `لِأَنْ` remains base
+`أَنْ`, and unsupported ب+إن forms fail closed. Contextless import/dedup and
+strict citation lookup use the same fail-closed identity policy.
+
+The separate exact-running-text alias registry maps only `أُنَاسٌ` to existing
+`نَاسٌ` and `فَقَدْ` to existing `قَدْ`, preserves the visible source token,
+and replaces rather than supplements the lossy bare target identity. It is
+enabled only when exactly one stored destination exists, that row is gated,
+and there is no stored exact-source conflict; declared-but-unresolved aliases
+remain unknown and unclassified
+through mapping, correction, proper-name creation, CAMeL rescue, Discover,
+story/book/OCR/Quran intake, analysis, and repair. Punctuation and
+NFC-equivalent spelling are accepted, but unvocalized `أناس`/`فقد` and other
+case forms do not gain an alias. `apply_corrections()` refuses any verifier
+proposal other than the resolved destination, so a later correction cannot
+overwrite the exact identity. At generation time, the batch verifier receives
+every ambiguity with the full sentence (Arabic + English) and must return an
+explicit contextual choice or issue. Target matching happens after exact
+identity, and every generation path recomputes target flags after
+disambiguation/correction so a changed or missing canonical target cannot be
+published.
 
 ## LLM Mapping Verification
 Active in production (`VERIFY_MAPPINGS_LLM=1`). After disambiguation and `map_tokens_to_lemmas()` in `material_generator.py`, `verify_and_correct_mappings_llm()` sends word-lemma pairs for contextual correctness checking (Claude Sonnet → Claude Haiku fallback, `json_schema=` for constrained decoding). Catches homograph mismatches that rule-based lookup cannot resolve (e.g., كَتَبَ "he wrote" vs كُتُب "books", أَكَلَ "he ate" vs أَكْل "food"). Returns `None` on total LLM failure — callers must discard/skip the sentence (verification failure ≠ success). Corrections applied via `apply_corrections()` — the single shared function for all 7 correction sites. Uses `correct_mapping()` internally (finds existing DB lemma only, never auto-creates). Three outcomes per correction: (1) different lemma found with compatible POS/gloss → applied, (2) no semantically compatible match → failed, (3) same compatible lemma returned → failed in generation-time correction (or treated as an overcall only in the calibrated rolling reverify path). Callers receive failed positions and decide fate (reject sentence vs null out mapping). Sentences with unfixable mappings are discarded at generation time or retired at verification time. Since 2026-05-17, `correct_mapping()` no longer accepts a same-bare candidate by Arabic form alone: the verifier proposal's English gloss/POS must plausibly match the DB lemma. This prevents missing homographs such as شال "shawl" from being "fixed" to شال "to rise" just because the bare key exists.
@@ -87,10 +133,25 @@ When a user flags a word mapping and the flag evaluator fixes it:
 `strip_tanwin_alif()` removes trailing alif that serves as the seat of fathatan (accusative indefinite marker): سعيدا→سعيد, درسا→درس. Applied in both `validate_sentence()` and `validate_sentence_multi_target()` to scaffold words AND target words, including after clitic stripping.
 
 ## Lookup Collision Handling
-`build_lemma_lookup()` uses layered construction: (1) register all lemma bare forms first, (1b) for every ى-final lemma also index a ي-final variant so clitic-stripped residues like `إِلَيْهَا` → `الي` resolve to the alef-maksura-keyed lemma `إلى`, (2) register derived forms from `forms_json`, (3) generate verb conjugations + noun inflections. Each layer uses `set_if_new`, so direct lemma bare forms always take priority over derived/variant forms (e.g., حول "around" wins over حَوْل masdar of حال "to change", and موسيقي "musical" wins over the ي-variant of موسيقى "music"). Returns a `LemmaLookupDict` (dict subclass) that tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins in the lookup. When `lookup_lemma()` hits a collision key and has the pre-normalized form (`original_bare`), it uses hamza-sensitive matching then CAMeL fallback to pick the correct lemma. Collisions are logged at INFO (count) and DEBUG (details).
+`build_lemma_lookup()` uses layered construction: (1) register all lemma bare forms first, (1b) for every ى-final lemma also index a ي-final variant so clitic-stripped residues like `إِلَيْهَا` → `الي` resolve to the alef-maksura-keyed lemma `إلى`, (2) register derived forms from `forms_json`, (3) generate verb conjugations + noun inflections. Each layer uses `set_if_new`, so direct lemma bare forms always take priority over derived/variant forms (e.g., حول "around" wins over حَوْل masdar of حال "to change", and موسيقي "musical" wins over the ي-variant of موسيقى "music"). The exact-running-text alias registry is metadata on `LemmaLookupDict`, not another normalized key: it is derived only after the full inventory establishes a unique gated destination and the absence of an exact-source identity. The dict also tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins in the ordinary lookup. When `lookup_lemma()` hits a collision key and has the pre-normalized form (`original_bare`), it uses hamza-sensitive matching then CAMeL fallback to pick the correct lemma. Collisions are logged at INFO (count) and DEBUG (details).
 
 ### Citation forms: `lookup_lemma_citation()` (2026-07-15)
-`lookup_lemma()` is tuned for running text and buys recall with two fuzzy fallbacks — single-letter clitic stripping (و ف ب ل ك + enclitics) and a greedy CAMeL last resort that scans the analyzer's unranked analysis list for any lex matching a known lemma. For an **isolated citation form** (dictionary headword submitted to `/api/discover/add`), those fallbacks are exactly wrong: a new word shaped like clitic+known-word silently resolves onto the wrong lemma (لاحظ→حَظّ, كناس→نَاس, سيجار→جَار — 18 documented cases; 16 from the CAMeL layer, 2 from clitic strips). `lookup_lemma_citation()` keeps only the high-confidence layers — function-form overrides, direct match with collision resolution, plain ال add/strip — plus stripping of the ال-bearing prefixes `CITATION_AL_PREFIXES` (وال بال فال كال لل, so بالمكتبة still resolves to مكتبة), and never consults CAMeL. It returns None for unknown citation forms, which `/add` treats as "create". Callers mapping running text must keep using `lookup_lemma()` — the CAMeL last resort is load-bearing there (tanwin accusatives, conjugations). Evidence, fix-shape scoring, and regression fixtures: `research/spec-2026-07-15-lookup-clitic-collision.md` §7 + `research/lookup-collision-findings-2026-07-15.json`. Tests: `TestLookupLemmaCitation` in `test_sentence_validator.py`.
+`lookup_lemma_id(surface, lookup)` is the running-text API; after exact-surface
+resolution it delegates ordinary tokens to `lookup_lemma()`, whose
+single-letter clitic stripping (و ف ب ل ك + enclitics) and greedy CAMeL last
+resort buy recall. For an **isolated citation form** (dictionary headword
+submitted to `/api/discover/add`), those fuzzy fallbacks are exactly wrong: a
+new word shaped like clitic+known-word silently resolves onto the wrong lemma
+(لاحظ→حَظّ, كناس→نَاس, سيجار→جَار — 18 documented cases; 16 from CAMeL, 2
+from clitic strips). `lookup_lemma_citation()` keeps only the high-confidence
+layers — exact approved identities, function-form overrides, direct match with
+collision resolution, plain ال add/strip, and stripping the ال-bearing
+`CITATION_AL_PREFIXES` (وال بال فال كال لل, so بالمكتبة still resolves to
+مكتبة) — and never consults CAMeL. It returns `None` for unknown citation
+forms, which `/add` treats as “create.” Evidence, fix-shape scoring, and
+regression fixtures: `research/spec-2026-07-15-lookup-clitic-collision.md` §7
++ `research/lookup-collision-findings-2026-07-15.json`. Tests:
+`TestLookupLemmaCitation` in `test_sentence_validator.py`.
 
 ## Uthmani-Specific Normalization (Quran Lemmatization)
 Quranic text uses Uthmani orthography which differs from standard Arabic in several ways. The lemmatization pipeline in `quran_service.py` handles:
