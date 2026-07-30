@@ -48,6 +48,64 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-30: Published-*Momo* QA provenance after the 6/7 rehearsal
+
+**Deployment and fresh preimage.** PR #242 deployed as
+`ab62535a0e84a2917f0d00c2a790ba15e75a742c`; the backend restarted cleanly and
+the live resolver returned `أُنَاسٌ → نَاسٌ` #270 and
+`فَقَدْ → قَدْ` #2054. A new online production backup—not either earlier
+rehearsal artifact—was created at
+`/opt/alif-backups/alif_momo_ch1_rehearsal_source_20260730_113602.db`
+with SHA-256
+`fe54a41f9205887540a66839d27032cfb94efe2ca89b5f6efe51ccb583ce2394`
+and `quick_check=ok`, then copied to a disposable database. The baseline had
+1,967 active sentences, 243 *Momo* rows, and zero active *Momo* rows.
+
+**Prefill gate passed.** Dry-run and plan both found exactly the seven approved
+IDs and the three immutable exclusions, with zero writes. The plan SHA-256 was
+`f41ffcc93f74e1318304be3373382484bb3bfbf3a4233d8712ab6d76b6f2b052`;
+the manifest remained
+`b43dbd00062fb6d797de2531b4895727899a54863ddddf2422e3f2dc1d522281`.
+Apply updated exactly seven parents and only Arabic, English, and
+transliteration. The rehearsal audit showed only `sentences` and
+`activity_log` changed; child mappings, activation, exclusions, vocabulary,
+learner state, reviews, and evidence remained identical.
+
+**Normal gate stopped at 6/7.** The normal dry-run selected all seven with no
+inventory/no-demand skips and activation capacity zero. The normal preparation
+then prepared `52133`, `52134`, `52136`, `52195`, `52198`, and `52199`, but
+quality-rejected `52135`; it translated zero rows, activated zero, retried
+zero, and had no mapping or target rejection. The generic reviewer incorrectly
+treated `مُومُو` as an invented name because it is “not a real Arabic name,”
+then rejected the authentic published phrase
+`فَأَسْرَعَتْ مُومُو مُؤَكِّدَةً بِقَوْلِهَا` as clunky generated prose. A
+read-only diagnostic with generic published-literature provenance judged the
+identical Arabic/English pair natural and accurate. This is a policy-context
+failure, not a reason to rerun an unchanged terminal verdict until it passes.
+
+**Audit and production boundary.** The failed rehearsal changed only
+`sentences`, `sentence_words`, and its two expected `activity_log` rows. The
+active count stayed 1,967; exclusions and all other *Momo* parents/children had
+zero symmetric diff against the fresh source copy; every other table
+fingerprint stayed fixed and integrity remained `ok`. A separate live-vs-source
+comparison found zero parent or child differences across the approved seven
+and three exclusions, and production still had no prefill/corpus event after
+ActivityLog #3890. No production data operation occurred.
+
+**Approved correction and hypothesis.** Add one fixed, versioned, prompt-only
+policy, `MOMO_PUBLISHED_ARABIC_V1`, derived only from the live row metadata
+`source=corpus`, `kind=momo_book`. It identifies the established fictional
+proper name and translated literary register but explicitly says provenance
+does not validate Alif's tashkīl or English; all genuine grammar, coherence,
+meaning, and translation errors still reject. The allowlisted key is defined
+once, unlike policy cohorts use separate provider calls and rejoin by index,
+unknown keys fail before provider use, retries retain only their row's policy,
+and pass/reject compare-and-set source/kind with Arabic/English. Active review
+and due-dense salvage use the same metadata helper. **H:** this removes the
+provenance false positive while retaining a real negative gate, so a brand-new
+copied-production rehearsal will prepare 7/7 and activate 0. Production remains
+blocked until that pre-registered result is observed.
+
 ## 2026-07-30: Approved exact-running-text aliases for *Momo* 52133
 
 **Observed rehearsal blocker.** The hash-pinned curated prefill passed all seven

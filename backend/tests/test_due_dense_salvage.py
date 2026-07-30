@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
+from sqlalchemy.orm import sessionmaker
+
 from app.models import (
     Lemma,
     Sentence,
@@ -14,6 +17,7 @@ from app.services.sentence_eligibility import (
     CORPUS_CLAIM_SENTINEL,
     CORPUS_QUALITY_REJECTED_SENTINEL,
 )
+from app.services.llm import MOMO_PUBLISHED_ARABIC_REVIEW_CONTEXT
 from scripts.update_material import (
     salvage_due_dense_inactive_sentences,
     step_reactivate_book_sentences,
@@ -71,11 +75,21 @@ def test_salvage_due_dense_reactivates_only_quality_approved(monkeypatch, db_ses
     for lemma in (l1, l2, l3):
         _active(db_session, lemma)
     sent = _sentence(db_session, 1, [l1, l2, l3])
+    sent.source = "corpus"
+    sent.kind = "momo_book"
     db_session.commit()
+    review_inputs: list[dict] = []
+
+    def approve(sentences):
+        review_inputs.extend(sentences)
+        return [
+            SimpleNamespace(natural=True, translation_correct=True)
+            for _ in sentences
+        ]
 
     monkeypatch.setattr(
         "app.services.llm.review_sentences_quality",
-        lambda _sentences: [SimpleNamespace(natural=True, translation_correct=True)],
+        approve,
     )
 
     count = salvage_due_dense_inactive_sentences(
@@ -89,6 +103,48 @@ def test_salvage_due_dense_reactivates_only_quality_approved(monkeypatch, db_ses
     assert count == 1
     db_session.refresh(sent)
     assert sent.is_active is True
+    assert review_inputs == [
+        {
+            "arabic": sent.arabic_text,
+            "english": sent.english_translation,
+            "review_context": MOMO_PUBLISHED_ARABIC_REVIEW_CONTEXT,
+        }
+    ]
+
+
+def test_due_dense_salvage_does_not_use_incomplete_approval(
+    monkeypatch,
+    db_session,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    sentence = _sentence(db_session, 1, [target_a, target_b])
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        lambda _sentences: [
+            SimpleNamespace(
+                natural=True,
+                translation_correct=True,
+                review_completed=False,
+            )
+        ],
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    assert count == 0
+    db_session.refresh(sentence)
+    assert sentence.is_active is False
 
 
 def _approve_quality(monkeypatch):
@@ -98,6 +154,118 @@ def _approve_quality(monkeypatch):
             SimpleNamespace(natural=True, translation_correct=True) for _ in sentences
         ],
     )
+
+
+@pytest.mark.parametrize(
+    ("field", "concurrent_value"),
+    [
+        ("arabic_text", "نَصٌّ مُعَدَّلٌ"),
+        ("english_translation", "Concurrently revised."),
+        ("transliteration", "naṣṣun muʿaddalun"),
+        ("source", "manual"),
+        ("kind", "concurrent_kind"),
+        ("mappings_verified_at", CORPUS_BLOCKED_SENTINEL),
+        (
+            "quality_reviewed_at",
+            datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
+        ),
+        ("quality_natural", False),
+        ("quality_translation_correct", False),
+        ("quality_reason", "concurrent quality verdict"),
+    ],
+)
+def test_due_dense_salvage_cas_preserves_concurrent_parent_mutation(
+    monkeypatch,
+    db_session,
+    field,
+    concurrent_value,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    sentence = _sentence(db_session, 1, [target_a, target_b])
+    sentence.source = "corpus"
+    sentence.kind = "momo_book"
+    db_session.commit()
+    original_value = getattr(sentence, field)
+
+    def mutate_then_approve(sentences):
+        ConcurrentSession = sessionmaker(bind=db_session.bind)
+        with ConcurrentSession() as concurrent_db:
+            concurrent_db.query(Sentence).filter(
+                Sentence.id == sentence.id
+            ).update(
+                {getattr(Sentence, field): concurrent_value},
+                synchronize_session=False,
+            )
+            concurrent_db.commit()
+        return [
+            SimpleNamespace(natural=True, translation_correct=True)
+            for _ in sentences
+        ]
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        mutate_then_approve,
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    db_session.refresh(sentence)
+    assert count == 0
+    assert sentence.is_active is False
+    assert getattr(sentence, field) != original_value
+
+
+def test_due_dense_salvage_cas_does_not_claim_concurrent_activation(
+    monkeypatch,
+    db_session,
+):
+    target_a = _lemma(db_session, 1, "كتاب")
+    target_b = _lemma(db_session, 2, "قلم")
+    for lemma in (target_a, target_b):
+        _active(db_session, lemma)
+    sentence = _sentence(db_session, 1, [target_a, target_b])
+    db_session.commit()
+
+    def activate_then_approve(sentences):
+        ConcurrentSession = sessionmaker(bind=db_session.bind)
+        with ConcurrentSession() as concurrent_db:
+            concurrent_db.query(Sentence).filter(
+                Sentence.id == sentence.id
+            ).update(
+                {Sentence.is_active: True},
+                synchronize_session=False,
+            )
+            concurrent_db.commit()
+        return [
+            SimpleNamespace(natural=True, translation_correct=True)
+            for _ in sentences
+        ]
+
+    monkeypatch.setattr(
+        "app.services.llm.review_sentences_quality",
+        activate_then_approve,
+    )
+
+    count = salvage_due_dense_inactive_sentences(
+        db=db_session,
+        target_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        known_lemma_ids={target_a.lemma_id, target_b.lemma_id},
+        budget=5,
+        dry_run=False,
+    )
+
+    db_session.refresh(sentence)
+    assert count == 0
+    assert sentence.is_active is True
 
 
 def test_single_coverage_salvaged_for_deficit_word(monkeypatch, db_session):

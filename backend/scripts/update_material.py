@@ -277,7 +277,10 @@ def salvage_due_dense_inactive_sentences(
     deficit_lemma_ids = deficit_lemma_ids or set()
     if budget <= 0 or (len(target_lemma_ids) < 2 and not deficit_lemma_ids):
         return 0
-    from app.services.llm import review_sentences_quality
+    from app.services.llm import (
+        review_sentences_quality,
+        sentence_quality_review_input,
+    )
     from app.services.sentence_validator import _is_function_word, strip_diacritics
 
     rows = (
@@ -329,17 +332,81 @@ def salvage_due_dense_inactive_sentences(
         print(f"  Due-dense inactive salvage candidates: {len(candidates)}")
         return min(len(candidates), budget)
 
+    # The provider call runs without a write lock. Snapshot every parent field
+    # that makes its verdict applicable so a concurrent edit cannot be exposed
+    # by a stale approval. The final write below is an exact compare-and-set.
+    snapshots = [
+        {
+            "sentence_id": sent.id,
+            "hits": hits,
+            "arabic_text": sent.arabic_text,
+            "english_translation": sent.english_translation,
+            "transliteration": sent.transliteration,
+            "source": sent.source,
+            "kind": sent.kind,
+            "mappings_verified_at": sent.mappings_verified_at,
+            "quality_reviewed_at": sent.quality_reviewed_at,
+            "quality_natural": sent.quality_natural,
+            "quality_translation_correct": (
+                sent.quality_translation_correct
+            ),
+            "quality_reason": sent.quality_reason,
+        }
+        for sent, hits in candidates
+    ]
+    # Close the read transaction before the slow call so a concurrent writer
+    # can commit and the later CAS observes its new state.
+    db.commit()
     reviews = review_sentences_quality([
-        {"arabic": sent.arabic_text, "english": sent.english_translation or ""}
-        for sent, _hits in candidates
+        sentence_quality_review_input(
+            arabic=snapshot["arabic_text"],
+            english=snapshot["english_translation"] or "",
+            source=snapshot["source"],
+            kind=snapshot["kind"],
+        )
+        for snapshot in snapshots
     ])
     reactivated = 0
-    for (sent, hits), review in zip(candidates, reviews):
-        if not (getattr(review, "natural", False) and getattr(review, "translation_correct", False)):
+    for snapshot, review in zip(snapshots, reviews):
+        if (
+            not getattr(review, "review_completed", True)
+            or not getattr(review, "natural", False)
+            or not getattr(review, "translation_correct", False)
+        ):
             continue
-        sent.is_active = True
+        updated = (
+            db.query(Sentence)
+            .filter(
+                Sentence.id == snapshot["sentence_id"],
+                Sentence.is_active.is_(False),
+                Sentence.arabic_text == snapshot["arabic_text"],
+                Sentence.english_translation
+                == snapshot["english_translation"],
+                Sentence.transliteration == snapshot["transliteration"],
+                Sentence.source == snapshot["source"],
+                Sentence.kind == snapshot["kind"],
+                Sentence.mappings_verified_at
+                == snapshot["mappings_verified_at"],
+                Sentence.quality_reviewed_at
+                == snapshot["quality_reviewed_at"],
+                Sentence.quality_natural == snapshot["quality_natural"],
+                Sentence.quality_translation_correct
+                == snapshot["quality_translation_correct"],
+                Sentence.quality_reason == snapshot["quality_reason"],
+            )
+            .update(
+                {Sentence.is_active: True},
+                synchronize_session=False,
+            )
+        )
+        if not updated:
+            continue
         reactivated += 1
-        print(f"    ✓ Salvaged inactive sentence {sent.id} covering {len(hits)} target words")
+        print(
+            "    ✓ Salvaged inactive sentence "
+            f"{snapshot['sentence_id']} covering "
+            f"{len(snapshot['hits'])} target words"
+        )
         if reactivated >= budget:
             break
     if reactivated:

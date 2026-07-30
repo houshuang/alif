@@ -1517,6 +1517,26 @@ def _release_claims(
     return releasable
 
 
+def _guard_expected_parent(
+    query,
+    expected_content: dict[str, str | None],
+):
+    """Pin reviewed parent inputs, including provenance when snapshotted."""
+    query = query.filter(
+        Sentence.arabic_text == expected_content["arabic"],
+        Sentence.english_translation == expected_content["english"],
+    )
+    if "source" in expected_content:
+        query = query.filter(
+            Sentence.source == expected_content["source"],
+        )
+    if "kind" in expected_content:
+        query = query.filter(
+            Sentence.kind == expected_content["kind"],
+        )
+    return query
+
+
 def _mark_retry(
     db: Session,
     sentence_ids: Iterable[int],
@@ -1550,10 +1570,11 @@ def _mark_retry(
             else None
         )
         if expected_content is not None:
-            update_query = update_query.filter(
-                Sentence.is_active.is_(False),
-                Sentence.arabic_text == expected_content["arabic"],
-                Sentence.english_translation == expected_content["english"],
+            update_query = _guard_expected_parent(
+                update_query.filter(
+                    Sentence.is_active.is_(False),
+                ),
+                expected_content,
             )
         updated = update_query.update(
             {
@@ -2023,15 +2044,13 @@ def _mark_mapping_blocked(
     # Acquire the parent write boundary before inspecting child mappings. This
     # prevents a stale terminal verifier result from stranding a mapping that
     # a non-flock writer repaired while the external call was in flight.
+    matched_query = db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.is_active.is_(False),
+        Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+    )
     matched = (
-        db.query(Sentence)
-        .filter(
-            Sentence.id == sentence_id,
-            Sentence.is_active.is_(False),
-            Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
-            Sentence.arabic_text == expected_content["arabic"],
-            Sentence.english_translation == expected_content["english"],
-        )
+        _guard_expected_parent(matched_query, expected_content)
         .update(
             {Sentence.mappings_verified_at: CORPUS_CLAIM_SENTINEL},
             synchronize_session=False,
@@ -2102,15 +2121,13 @@ def _mark_mapping_blocked(
                 Sentence.quality_reason: None,
             }
         )
+    update_query = db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.is_active.is_(False),
+        Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+    )
     updated = (
-        db.query(Sentence)
-        .filter(
-            Sentence.id == sentence_id,
-            Sentence.is_active.is_(False),
-            Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
-            Sentence.arabic_text == expected_content["arabic"],
-            Sentence.english_translation == expected_content["english"],
-        )
+        _guard_expected_parent(update_query, expected_content)
         .update(values, synchronize_session=False)
     )
     if not updated:
@@ -2154,15 +2171,13 @@ def _mark_quality_rejected(
     reason: str,
     expected_content: dict[str, str | None],
 ) -> None:
+    update_query = db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.is_active.is_(False),
+        Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
+    )
     updated = (
-        db.query(Sentence)
-        .filter(
-            Sentence.id == sentence_id,
-            Sentence.is_active.is_(False),
-            Sentence.mappings_verified_at == CORPUS_CLAIM_SENTINEL,
-            Sentence.arabic_text == expected_content["arabic"],
-            Sentence.english_translation == expected_content["english"],
-        )
+        _guard_expected_parent(update_query, expected_content)
         .update(
             {
                 Sentence.is_active: False,
@@ -2579,7 +2594,10 @@ def enrich_corpus_sentences(
     retry_blocked: bool = False,
 ) -> CorpusEnrichmentResult:
     """Run one exact-scope corpus phase: preparation or activation, never both."""
-    from app.services.llm import review_sentences_quality
+    from app.services.llm import (
+        review_sentences_quality,
+        sentence_quality_review_input,
+    )
     from app.services.sentence_validator import (
         apply_corrections,
         batch_verify_sentences,
@@ -2847,14 +2865,18 @@ def enrich_corpus_sentences(
             sentence.id: {
                 "arabic": sentence.arabic_text,
                 "english": sentence.english_translation,
+                "source": sentence.source,
+                "kind": sentence.kind,
             }
             for sentence in quality_rows
         }
         quality_inputs = [
-            {
-                "arabic": quality_snapshots[sentence.id]["arabic"],
-                "english": quality_snapshots[sentence.id]["english"] or "",
-            }
+            sentence_quality_review_input(
+                arabic=quality_snapshots[sentence.id]["arabic"],
+                english=quality_snapshots[sentence.id]["english"] or "",
+                source=quality_snapshots[sentence.id]["source"],
+                kind=quality_snapshots[sentence.id]["kind"],
+            )
             for sentence in quality_rows
         ]
         db.commit()
@@ -2902,16 +2924,16 @@ def enrich_corpus_sentences(
                     )
                     continue
                 expected_content = quality_snapshots[sentence.id]
+                update_query = db.query(Sentence).filter(
+                    Sentence.id == sentence.id,
+                    Sentence.is_active.is_(False),
+                    Sentence.mappings_verified_at
+                    == CORPUS_CLAIM_SENTINEL,
+                )
                 updated = (
-                    db.query(Sentence)
-                    .filter(
-                        Sentence.id == sentence.id,
-                        Sentence.is_active.is_(False),
-                        Sentence.mappings_verified_at
-                        == CORPUS_CLAIM_SENTINEL,
-                        Sentence.arabic_text == expected_content["arabic"],
-                        Sentence.english_translation
-                        == expected_content["english"],
+                    _guard_expected_parent(
+                        update_query,
+                        expected_content,
                     )
                     .update(
                         {
@@ -3308,16 +3330,16 @@ def enrich_corpus_sentences(
             # replacement. If a non-flock manual mutator changed the row during
             # the external calls, the compare-and-set fails and this pipeline
             # leaves both its new disposition and its mappings untouched.
+            write_query = db.query(Sentence).filter(
+                Sentence.id == sentence_id,
+                Sentence.is_active.is_(False),
+                Sentence.mappings_verified_at
+                == CORPUS_CLAIM_SENTINEL,
+            )
             claimed_for_write = (
-                db.query(Sentence)
-                .filter(
-                    Sentence.id == sentence_id,
-                    Sentence.is_active.is_(False),
-                    Sentence.mappings_verified_at
-                    == CORPUS_CLAIM_SENTINEL,
-                    Sentence.arabic_text == expected_content["arabic"],
-                    Sentence.english_translation
-                    == expected_content["english"],
+                _guard_expected_parent(
+                    write_query,
+                    expected_content,
                 )
                 .update(
                     {Sentence.mappings_verified_at: now},
