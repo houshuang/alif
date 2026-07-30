@@ -6,6 +6,28 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-07-30 — Reviewed *Momo* Chapter 1 prefill boundary
+
+- Add a fixed, independently reviewed seven-row manifest for the safe Chapter
+  1 preparation cohort, including source-preserving full tashkīl, faithful
+  English, and independently reviewed transliteration; keep the three ambiguous
+  neighboring rows explicitly excluded
+- Add a dry-run/plan/apply prefill utility that pins the manifest, plan, child
+  mappings, database path, clean deployed-main Git commit, and script bytes;
+  requires a fresh mode-0600, checksum-matched, integrity-checked online backup
+  with no SQLite sidecars and whose Alif schema, exact preimages, and static
+  inventory correspond to live; rejects inode aliases of the live database and
+  holds both the shared material lock and a SQLite writer boundary
+- Create plan files privately and exclusively without following symlinks or
+  overwriting an existing file, database, or SQLite sidecar
+- Compare-and-set only Arabic, English, and transliteration for all seven rows
+  or none, with same-transaction hash provenance and explicit invariants
+  proving no activation, QA/mapping stamps, targets, vocabulary, learner state,
+  reviews, evidence, or excluded rows changed
+- Keep linguistic QA, contextual mapping verification, target validation, and
+  final inactive preparation in the normal scoped corpus pipeline with
+  activation zero and no provider pin
+
 ## 2026-07-29 — Verifier and authentic-corpus seam hardening
 
 - Isolate mapping-verifier semantic failures to the attributable sentence row

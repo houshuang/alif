@@ -48,6 +48,47 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-30: Approved exact-seven curated *Momo* prefill
+
+**Decision.** The first source-preserving Chapter 1 preparation attempt was a
+safe no-op, and controlled provider diagnostics showed why a provider retry is
+not trustworthy for this cohort: exact layout projection protects source
+identity but cannot detect wrong gender, case, complementizer identity, or the
+pronunciation of the name `مومو`; partial tashkīl can also clear the automated
+coverage floor. The learner approved a narrower intervention for exactly seven
+already-reviewed rows: `52133`, `52195`, `52134`, `52135`, `52198`, `52199`,
+and `52136`. Rows `52194`, `52196`, and `52197` remain excluded and untouched.
+
+**Pre-registered operation.** Check in a one-purpose, dry-run-by-default
+plan/apply script whose immutable manifest contains each exact source preimage
+plus independently reviewed vocalized Arabic, faithful English, and
+version-pinned reviewed transliteration. Applying it must require the canonical
+manifest hash, the current plan hash, and the path and SHA-256 of a fresh
+integrity-checked online SQLite backup. It must hold the shared material-writer
+flock and a `BEGIN IMMEDIATE` boundary, compare all seven rows and their child
+mappings to the reviewed plan, and update only `Sentence.arabic_text`,
+`Sentence.english_translation`, and `Sentence.transliteration` in one
+transaction. Any drift aborts all seven. The vocalized Arabic must reconstruct
+exactly through the source-harakat projection and differ from the source only
+by ordinary U+064B–U+0652 marks. Planning/apply must run from a clean deployed
+`main` checkout and pin the script bytes; plan creation may not follow a
+symlink or overwrite an existing file. The backup must be a standalone
+no-sidecar Alif image—not merely any healthy SQLite file—and its schema, exact
+ten-row parent/child scope, reviewed source preimages, and static inventory
+must correspond to the live target; inode aliases of the live database are
+invalid.
+
+**Non-effects.** The prefill itself may not activate a sentence, select or
+change a target, replace `SentenceWord` rows, stamp mapping or linguistic QA,
+create vocabulary, or write learner/review/evidence state. Its same-transaction
+ActivityLog must carry the seven IDs, manifest/plan/backup hashes, code commit,
+and before/after field hashes. First rehearse plan/apply and the normal scoped
+corpus preparation on a disposable copy of a fresh production backup. Only if
+that exact rehearsal passes may production run the prefill and then the normal
+exact-seven preparation with `--corpus-activate-limit 0`. No provider override,
+blocked-row retry, activation, vocabulary backfill, or excluded-row mutation is
+authorized.
+
 ## 2026-07-29: Approved source-preserving corpus harakat projection
 
 **Observed blocker.** The authorized read-only provider diagnostic reproduced
