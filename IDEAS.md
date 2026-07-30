@@ -62,16 +62,18 @@ could strand learner state and coverage. Do not extend the 1,208-row apply:
 first decide compound-vs-base canonical policy, then census multi-prefix forms,
 migrate learner state if needed, and run a new hash-pinned repair.
 
-**Resolver deployed; provider failure diagnosed and source-projection repair
-validated locally (2026-07-29).** Canonicalize attached-pronoun
+**Resolver and source-projection repairs deployed; provider failure diagnosed
+(2026-07-30).** Canonicalize attached-pronoun
 particle forms to base `أَنَّ`/`إِنَّ` while preserving their visible surface
 for morphology evidence; keep lexical `لأنّ` as its own winner, add explicit
 hamza-preserving `فأن`/`فإن` composition, and leave unhamzated `فان` unresolved.
 The resolver/tests now apply the same fail-closed policy to running text,
-import/dedup, and strict citation lookup, with no data rewrite. Deploy it before
-preparing the exact Chapter 1 *Momo* scope with activation zero and inspecting
-every output. The legacy compound ULKs, seven target-sensitive rows, bulk
-suffix repair, and any Momo activation remain separate reviewed decisions.
+import/dedup, and strict citation lookup, with no data rewrite. It is deployed
+before preparing the exact Chapter 1 *Momo* scope with activation zero and
+inspecting every output. The legacy compound ULKs, seven target-sensitive rows,
+bulk suffix repair, and any Momo activation remain separate reviewed decisions.
+PR #240 deployed the source-projection repair as `5b5504e1`; the backend
+restarted cleanly and returned its expected local health response.
 
 The row-level Chapter 1 audit then narrowed the safe live preparation set to
 seven IDs: `52133`, `52195`, `52134`, `52135`, `52198`, `52199`, and `52136`.
@@ -98,8 +100,21 @@ and reconstruct from the source so no provider punctuation, spacing, spelling,
 digit, or tatweel is stored. An exact token checklist helps the provider retain
 nonstandard spelling, and a validated operations-only provider pin makes a
 controlled retry observable. Focused tests and the full 1,772-test backend
-suite pass. Deploy/re-audit before retrying the exact seven; activation remains
-zero and separately approval-gated.
+suite pass. The deployed repair was re-audited before the curated exact-seven
+path below; activation remains zero and separately approval-gated.
+
+**Approved curated path implemented locally (2026-07-30; production data still
+untouched at this point).** Provider splitting is unsafe here because exact
+source projection cannot detect wrong gender/case or `أَنْ` versus `أَنَّ`,
+and the 40% tashkīl floor can admit partial marking. A one-purpose exact-seven
+manifest therefore carries independently reviewed Arabic, English, and
+transliteration. Its dry-run/plan/apply utility pins every source parent and
+child mapping, the immutable manifest and Git commit, and a fresh
+integrity-checked backup. Apply can change only the three text fields for all
+seven or none under the shared lock plus `BEGIN IMMEDIATE`; the normal corpus
+pipeline still owns QA, mapping verification, target validation, and inactive
+preparation. There is no caller-supplied override, activation, new vocabulary,
+blocked-row retry, or access to the three excluded rows.
 
 Production currently has zero prepared authentic rows and zero active Book OCR
 stories, so no corpus rollback or cleanup was needed. PR #236 was deployed as
