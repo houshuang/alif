@@ -46,6 +46,18 @@ Active in production (`VERIFY_MAPPINGS_LLM=1`). After disambiguation and `map_to
 
 High-volume paths use `batch_verify_sentences()` instead of per-sentence `mapping_verification` calls. Sentence generation already verifies deterministic survivors in `batch_verification` calls. Since 2026-05-11, `update_material.py` Step A2 verifies corpus/book enrichment candidates in chunks of `ALIF_CORPUS_VERIFY_BATCH_SIZE` (default 10), and cron/warm-cache multi-target generation verifies generated candidates in chunks of `ALIF_MULTI_TARGET_VERIFY_BATCH_SIZE` (default 10). Top-level shape, cardinality, and missing/unknown/duplicate indices remain batch-fatal because row ownership is not trustworthy. Once a unique valid index is established, malformed/contradictory/unsolicited semantic content can be returned as that row's explicit invalid marker; generation and rescue skip it, while corpus preparation releases only that exact row for retry. These paths no longer launch one Claude Code session per sentence for mapping verification. Lower-volume import cleanup paths still use the single-sentence verifier where preserving path-specific failure semantics matters.
 
+Corpus diacritization also treats the external model as untrusted. The provider
+receives the exact non-diacritic content tokens and may return reformatted
+punctuation or spacing, but its sentence is not stored. The pipeline requires
+the same NFC tokens and word boundaries, aligns Arabic letters, transfers only
+ordinary U+064B–U+0652 harakat, and rebuilds the result from the original
+source. Orthographic changes (`ى`/`ي`, hamza/maddah identity, dagger alef),
+digit or embedded-Latin changes, word joining/splitting, and invalid mark
+clusters retry only that row. `ALIF_CORPUS_ENRICH_PROVIDER` can pin `openai` or
+`anthropic` for a reviewed API diagnostic/retry; unset keeps the normal
+Codex/Claude/API chain. It does not bypass any content, mapping, QA,
+compare-and-set, or activation gate.
+
 Since 2026-05-18, the runtime reviewability cutoff is the 2026-05-17 sense-aware resolver deploy (`MAPPING_VERIFICATION_MIN_AT = 2026-05-17 18:59`). `/api/review/next-sentences` does **not** run LLM verification synchronously; selected sentences must already have current stamps. Legacy rows are refreshed by warm-cache rescue/maintenance outside the response path, which avoids both a huge sweep and request-time SQLite lock contention.
 
 ## Flag-Driven Feedback Loop

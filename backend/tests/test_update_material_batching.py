@@ -46,8 +46,37 @@ def test_generate_corpus_enrichment_batch_uses_structured_batch_call(mock_genera
     kwargs = mock_generate.call_args.kwargs
     assert kwargs["json_schema"] == update_material._CORPUS_ENRICH_SCHEMA
     assert kwargs["task_type"] == "corpus_enrichment"
+    assert kwargs["model_override"] == "claude_haiku"
     assert "id=10" in kwargs["prompt"]
     assert "id=11" in kwargs["prompt"]
+    assert "exact non-diacritic content tokens" in kwargs["prompt"]
+    assert '["كتب", "الولد"]' in kwargs["prompt"]
+
+
+@patch("app.services.llm.generate_completion")
+def test_generate_corpus_enrichment_batch_honors_controlled_provider(
+    mock_generate,
+    monkeypatch,
+):
+    mock_generate.return_value = {"sentences": []}
+    monkeypatch.setenv("ALIF_CORPUS_ENRICH_PROVIDER", "anthropic")
+
+    update_material._generate_corpus_enrichment_batch(
+        [SimpleNamespace(id=10, arabic_text="كتب")]
+    )
+
+    assert mock_generate.call_args.kwargs["model_override"] == "anthropic"
+
+
+def test_generate_corpus_enrichment_batch_rejects_unknown_provider(
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_CORPUS_ENRICH_PROVIDER", "surprise")
+
+    with pytest.raises(ValueError, match="ALIF_CORPUS_ENRICH_PROVIDER"):
+        update_material._generate_corpus_enrichment_batch(
+            [SimpleNamespace(id=10, arabic_text="كتب")]
+        )
 
 
 @patch("app.services.llm.generate_completion")

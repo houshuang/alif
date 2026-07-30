@@ -21,6 +21,7 @@ from app.services.corpus_enrichment import (
     enrich_corpus_sentences,
     generate_corpus_enrichment_batch,
     has_arabic_diacritics,
+    _project_diacritics_onto_source,
     plan_corpus_activation,
     plan_corpus_enrichment,
     plan_corpus_enrichment_report,
@@ -266,6 +267,97 @@ def test_diacritic_gate_requires_substantial_vowel_coverage():
     assert not has_arabic_diacritics("كَتب الولد")
     assert not has_arabic_diacritics("كتب الولد")
     assert not has_arabic_diacritics(None)
+
+
+def test_harakat_projection_preserves_observed_momo_source_layout():
+    source = (
+        "لاحظت أنهم أناس لطاف ، فقد كانوا أنفسهم فقراء ويعرفون الحياة ."
+    )
+    proposed = (
+        "لَاحَظْتُ أَنَّهُمْ أُنَاسٌ لِطَافٌ، فَقَدْ كَانُوا "
+        "أَنْفُسَهُمْ فُقَرَاءَ وَيَعْرِفُونَ الْحَيَاةَ."
+    )
+
+    assert _project_diacritics_onto_source(source, proposed) == (
+        "لَاحَظْتُ أَنَّهُمْ أُنَاسٌ لِطَافٌ ، فَقَدْ كَانُوا "
+        "أَنْفُسَهُمْ فُقَرَاءَ وَيَعْرِفُونَ الْحَيَاةَ ."
+    )
+
+
+def test_harakat_projection_preserves_quotes_whitespace_and_newlines():
+    source = '" وتريدين  البقاء هنا ؟\nثم سكتت .'
+    proposed = "وَتُرِيدِينَ الْبَقَاءَ هُنَا؟ ثُمَّ سَكَتَتْ."
+
+    assert _project_diacritics_onto_source(source, proposed) == (
+        '" وَتُرِيدِينَ  الْبَقَاءَ هُنَا ؟\nثُمَّ سَكَتَتْ .'
+    )
+
+
+def test_harakat_projection_preserves_exact_momo_maqsura_spellings():
+    source = 'فأسرعت مومو مؤكدة بقولها : " إننى هنا في بيتى " .'
+    proposed = (
+        'فَأَسْرَعَتْ مَوْمُو مُؤَكِّدَةً بِقَوْلِهَا : " '
+        'إِنَّنِى هُنَا فِي بَيْتِى " .'
+    )
+
+    assert _project_diacritics_onto_source(source, proposed) == proposed
+
+
+def test_harakat_projection_preserves_source_tatweel_only():
+    assert _project_diacritics_onto_source(
+        "كـتب .",
+        "كَتَبَ.",
+    ) == "كَـتَبَ ."
+    assert _project_diacritics_onto_source(
+        "كتب .",
+        "كَـتَبَ.",
+    ) == "كَتَبَ ."
+
+
+def test_harakat_projection_accepts_canonical_decomposed_hamza_only():
+    decomposed_hamza = "ا\u0654\u064eن\u0651\u064e"
+
+    assert _project_diacritics_onto_source("أن", decomposed_hamza) == "أَنَّ"
+    assert _project_diacritics_onto_source("ان", decomposed_hamza) is None
+
+
+@pytest.mark.parametrize(
+    ("source", "proposed"),
+    [
+        ("إننى هنا في بيتى", "إِنَّنِي هُنَا فِي بَيْتِي"),
+        ("هذا", "ه\u0670َذَا"),
+        ("كل ما", "كُلَّمَا"),
+        ("عبد الله", "عَبْدُاللهِ"),
+        ("سنة ١٩٧٣", "سَنَةُ 1973"),
+        ("سنة ١٩٧٣", "سَنَةُ ١٩٧٤"),
+        ("Momo هنا", "MOMO هُنَا"),
+        ("مدد", "مَدَّ"),
+        ("كتب", "\u064eكَتَبَ"),
+        ("كتب", "ك\u064e\u064eتَبَ"),
+        ("كتب", "ك\u064e\u064fتَبَ"),
+        ("كتب", "ك\u0651\u0652تَبَ"),
+    ],
+)
+def test_harakat_projection_rejects_identity_and_mark_mutations(
+    source,
+    proposed,
+):
+    assert _project_diacritics_onto_source(source, proposed) is None
+
+
+def test_harakat_projection_preserves_numeric_separator_identity():
+    assert _project_diacritics_onto_source(
+        "بلغ ١،٥ درجة",
+        "بَلَغَ ١.٥ دَرَجَةً",
+    ) is None
+    assert _project_diacritics_onto_source(
+        "بلغ ١،٢ ٣،٤ درجة",
+        "بَلَغَ ١،٢،٣ ٤ دَرَجَةً",
+    ) is None
+
+
+def test_harakat_projection_merges_compatible_existing_marks():
+    assert _project_diacritics_onto_source("كَتب", "كَتَبَ") == "كَتَبَ"
 
 
 def test_duplicate_enrichment_id_is_rejected():
@@ -1033,7 +1125,7 @@ def test_diacritics_only_enrichment_preserves_existing_translation(db_session):
     _lemma(db_session, 1, "كتاب", "book")
     _knowledge(db_session, 1, state="known", due=NOW)
     sentence = _sentence(db_session, 107, lemma_ids=[1])
-    sentence.arabic_text = "كتب الولد"
+    sentence.arabic_text = "كتب الولد ."
     sentence.english_translation = "Trusted translation."
     sentence.transliteration = "stale-transliteration"
     db_session.commit()
@@ -1054,7 +1146,9 @@ def test_diacritics_only_enrichment_preserves_existing_translation(db_session):
             "app.services.corpus_enrichment.generate_corpus_enrichment_batch",
             return_value={
                 sentence.id: {
-                    "diacritized": "كَتَبَ الْوَلَدُ",
+                    # Provider compacts the full stop. The projection must add
+                    # only harakat and retain the source's exact layout.
+                    "diacritized": "كَتَبَ الْوَلَدُ.",
                     # The provider volunteered a translation despite the
                     # existing field. It must be ignored.
                     "translation": "Untrusted replacement.",
@@ -1094,11 +1188,14 @@ def test_diacritics_only_enrichment_preserves_existing_translation(db_session):
 
     db_session.refresh(sentence)
     assert result.prepared_ids == [sentence.id]
-    assert sentence.arabic_text == "كَتَبَ الْوَلَدُ"
+    assert sentence.arabic_text == "كَتَبَ الْوَلَدُ ."
     assert sentence.transliteration != "stale-transliteration"
     assert sentence.english_translation == "Trusted translation."
     assert quality_inputs == [
-        {"arabic": "كَتَبَ الْوَلَدُ", "english": "Trusted translation."}
+        {
+            "arabic": "كَتَبَ الْوَلَدُ .",
+            "english": "Trusted translation.",
+        }
     ]
 
 
