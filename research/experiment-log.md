@@ -48,6 +48,56 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-31: Proactive exact-form retrieval pilot activated
+
+**Problem and hypothesis.** Longitudinal modeling estimated a 4.8-point penalty
+when a known lemma appeared in a novel surface form and a 7.7-point verb
+penalty. Lemma-only scheduling may therefore leave a form-specific retrieval
+gap. **H:** after the first successful encounter with a meaningful Arabic form,
+one later exact-form retrieval in a different sentence improves successful
+exact-form retrieval within 14 days without reducing general word success or
+adding workload.
+
+**Primary-target correction.** The scheduler's primary label is not part of
+what the learner sees. Every content word in a reviewed sentence is therefore
+eligible to trigger and resolve an episode. Frozen-history reconstruction found
+later all-word evidence for 440/504 eligible episodes (87.3%), versus only
+43/504 (8.5%) if outcomes required a primary label; 95.0% of those all-word
+outcomes carried collateral metadata. The primary endpoint is consequently a
+successful exact-form all-word review in a different sentence within 14 days,
+with non-delivery counted as failure. Primary-only fields remain secondary for
+backward compatibility.
+
+**Randomized intervention.** With
+`ALIF_PROACTIVE_FORM_EXPERIMENT=1`, a successful first reading exposure can
+open an episode only for an unambiguous meaningful inflection, derivation,
+enclitic, or non-citation verb form with a different reviewable sentence.
+Assignment is deterministic 50/50 by review identity, canonical lemma, and
+form. Control does nothing. Treatment may reserve at most one ordinary
+already-due reading slot per session and choose the exact-form sentence. It
+does not create a card, make a word due, alter a due date/rating/credit, enlarge
+the session, operate in listening/acquisition, or bypass normal sentence
+quality and comprehension gates.
+
+**Feasibility and decision rule.** The immutable frozen replay found 504
+serviceable opportunities (3.04 per active day), balanced arms, and a 38.3%
+ordinary-scheduling exact-form ITT baseline. The first operational check is 40
+assignments, the descriptive read is 80 mature episodes, and the planned
+efficacy read is 200 mature episodes; simulation gave 82.5% power at 200 for a
+20-point absolute effect. Analyze all mature assigned episodes, cluster the
+bootstrap by canonical lemma, and never condition the main comparison on
+treatment-caused delivery. Stop and inspect on allocation imbalance,
+endpoint-yield failure, invariant breach, or a treatment drop over five points
+in next all-word success.
+
+**Activation and rollback.** The production backend was enabled on 2026-07-31.
+Rollback is data-preserving: set the flag to `0` or remove it and restart the
+backend. That stops new proactive assignments while retaining auditable
+episodes and leaving the older yellow-confusion pilot intact. The complete
+behavioral contract, telemetry, analysis command, and safeguards are in
+`docs/proactive-form-pilot.md`; rationale and frozen simulation are in
+`research/learning-policy-deployment-candidates-2026-07-31.md`.
+
 ## 2026-07-30: Published-*Momo* QA provenance and exact-seven rollout
 
 **Deployment and fresh preimage.** PR #242 deployed as

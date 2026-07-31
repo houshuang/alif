@@ -1452,6 +1452,23 @@ class TestUndoSentenceReview:
                     "any_form_outcome_rating": 3,
                     "any_form_outcome_was_confused": False,
                     "any_form_outcome_sentence_id": 123,
+                    "all_word_review_id": log.id,
+                    "all_word_reviewed_at": datetime.now(timezone.utc).isoformat(),
+                    "all_word_surface_keys": ["يفسد"],
+                    "all_word_was_exact": True,
+                    "all_word_same_trigger_context": False,
+                    "all_word_credit_type": "collateral",
+                    "all_word_outcome_rating": 3,
+                    "all_word_outcome_was_confused": False,
+                    "all_word_outcome_sentence_id": 123,
+                    "exact_all_word_review_id": log.id,
+                    "exact_all_word_reviewed_at": datetime.now(
+                        timezone.utc
+                    ).isoformat(),
+                    "exact_all_word_outcome_rating": 3,
+                    "exact_all_word_outcome_was_confused": False,
+                    "exact_all_word_credit_type": "collateral",
+                    "exact_all_word_outcome_sentence_id": 123,
                 }],
             }
         }
@@ -1465,6 +1482,10 @@ class TestUndoSentenceReview:
         assert episode["delivered_at"] is None
         assert episode["any_form_review_id"] is None
         assert episode["any_form_outcome_rating"] is None
+        assert episode["all_word_review_id"] is None
+        assert episode["all_word_outcome_rating"] is None
+        assert episode["exact_all_word_review_id"] is None
+        assert episode["exact_all_word_outcome_rating"] is None
 
     def test_undo_endpoint(self, client, db_session):
         """Test the API endpoint for undo."""

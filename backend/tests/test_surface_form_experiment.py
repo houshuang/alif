@@ -139,6 +139,117 @@ def test_yellow_fsrs_event_assigns_once_when_different_material_exists(db_sessio
     assert episodes[0]["candidate_count_at_trigger"] == 1
     assert episodes[0]["arm"] in {"control", "treatment"}
     assert alternate.id not in episodes[0]["trigger_sentence_ids"]
+    assert episodes[0]["trigger_kind"] == "yellow_confusion"
+
+
+def test_proactive_first_form_exposure_is_default_off(db_session, monkeypatch):
+    monkeypatch.delenv("ALIF_PROACTIVE_FORM_EXPERIMENT", raising=False)
+    lemma = _lemma(db_session)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        variant_stats_json={"يفسد": {"seen": 1}},
+    )
+    db_session.add(knowledge)
+    _reviewable_sentence(db_session, lemma.lemma_id)
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يُفْسِدُ"],
+        _review(db_session, lemma.lemma_id, confused=False),
+        "collateral",
+        [999],
+        datetime.now(timezone.utc),
+    )
+
+    assert _episodes(knowledge) == []
+
+
+def test_proactive_first_form_exposure_assigns_randomized_episode(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_PROACTIVE_FORM_EXPERIMENT", "1")
+    lemma = _lemma(db_session)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        # The review pipeline increments this before invoking the experiment.
+        variant_stats_json={"يُفْسِدُ": {"seen": 1}},
+    )
+    db_session.add(knowledge)
+    _reviewable_sentence(db_session, lemma.lemma_id)
+    trigger = _review(
+        db_session,
+        lemma.lemma_id,
+        confused=False,
+        identity="proactive-first-form",
+    )
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يُفْسِدُ"],
+        trigger,
+        "collateral",
+        [999],
+        datetime.now(timezone.utc),
+    )
+
+    episode = _episodes(knowledge)[0]
+    assert episode["trigger_kind"] == "successful_first_form_exposure"
+    assert episode["arm"] in {"control", "treatment"}
+    assert episode["surface_key"] == "يفسد"
+
+
+@pytest.mark.parametrize(
+    ("rating", "is_acquisition", "seen"),
+    [
+        (1, False, 1),
+        (3, True, 1),
+        (3, False, 2),
+    ],
+)
+def test_proactive_extension_excludes_red_acquisition_and_repeated_forms(
+    db_session,
+    monkeypatch,
+    rating,
+    is_acquisition,
+    seen,
+):
+    monkeypatch.setenv("ALIF_PROACTIVE_FORM_EXPERIMENT", "1")
+    lemma = _lemma(db_session)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        variant_stats_json={"يفسد": {"seen": seen}},
+    )
+    db_session.add(knowledge)
+    _reviewable_sentence(db_session, lemma.lemma_id)
+    trigger = _review(
+        db_session,
+        lemma.lemma_id,
+        confused=False,
+        acquisition=is_acquisition,
+        identity=f"excluded-{rating}-{is_acquisition}-{seen}",
+    )
+    trigger.rating = rating
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يفسد"],
+        trigger,
+        "collateral",
+        [999],
+        datetime.now(timezone.utc),
+    )
+
+    assert _episodes(knowledge) == []
 
 
 def test_open_episode_blocks_concurrent_different_surface_assignment(db_session):
@@ -159,7 +270,7 @@ def test_open_episode_blocks_concurrent_different_surface_assignment(db_session)
         [999],
         now,
     )
-    first_episode = dict(_episodes(knowledge)[0])
+    first_episode_id = _episodes(knowledge)[0]["id"]
 
     process_surface_experiment_review(
         db_session,
@@ -172,7 +283,10 @@ def test_open_episode_blocks_concurrent_different_surface_assignment(db_session)
         now + timedelta(minutes=1),
     )
 
-    assert _episodes(knowledge) == [first_episode]
+    episodes = _episodes(knowledge)
+    assert len(episodes) == 1
+    assert episodes[0]["id"] == first_episode_id
+    assert episodes[0]["all_word_outcome_rating"] == 2
 
 
 def test_matching_later_primary_review_records_first_outcome(db_session):
@@ -292,6 +406,118 @@ def test_first_next_primary_any_form_is_recorded_for_both_arms(db_session, arm):
     assert episode["any_form_outcome_rating"] == 3
     assert episode["any_form_was_exact"] is False
     assert episode["outcome_rating"] is None
+
+
+@pytest.mark.parametrize("arm", ["control", "treatment"])
+def test_first_later_all_word_review_is_recorded_for_both_arms(
+    db_session,
+    arm,
+):
+    lemma = _lemma(db_session)
+    now = datetime.now(timezone.utc)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        variant_stats_json={
+            EXACT_SURFACE_EXPERIMENT_KEY: {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": f"all-word-{arm}",
+                    "arm": arm,
+                    "surface_key": "يفسد",
+                    "trigger_review_id": 0,
+                    "trigger_sentence_ids": [999],
+                    "triggered_at": now.isoformat(),
+                    "expires_at": (now + timedelta(days=14)).isoformat(),
+                    "outcome_rating": None,
+                    "all_word_outcome_rating": None,
+                }],
+            }
+        },
+    )
+    db_session.add(knowledge)
+    later = _review(
+        db_session,
+        lemma.lemma_id,
+        confused=True,
+        identity=f"all-word-{arm}-outcome",
+    )
+    later.sentence_id = 123
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["أفسد"],
+        later,
+        "collateral",
+        [123],
+        now + timedelta(days=1),
+    )
+
+    episode = _episodes(knowledge)[0]
+    assert episode["all_word_review_id"] == later.id
+    assert episode["all_word_outcome_rating"] == 2
+    assert episode["all_word_credit_type"] == "collateral"
+    assert episode["all_word_was_exact"] is False
+    assert episode["all_word_same_trigger_context"] is False
+    assert episode.get("any_form_outcome_rating") is None
+
+
+def test_exact_collateral_review_resolves_episode_without_primary_label(
+    db_session,
+):
+    lemma = _lemma(db_session)
+    now = datetime.now(timezone.utc)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        variant_stats_json={
+            EXACT_SURFACE_EXPERIMENT_KEY: {
+                "version": "exact_surface_v1",
+                "episodes": [{
+                    "id": "exact-collateral",
+                    "arm": "control",
+                    "surface_key": "يفسد",
+                    "trigger_review_id": 0,
+                    "trigger_sentence_ids": [999],
+                    "triggered_at": now.isoformat(),
+                    "expires_at": (now + timedelta(days=14)).isoformat(),
+                    "outcome_rating": None,
+                    "exact_all_word_outcome_rating": None,
+                }],
+            }
+        },
+    )
+    db_session.add(knowledge)
+    later = _review(
+        db_session,
+        lemma.lemma_id,
+        confused=False,
+        identity="exact-collateral-outcome",
+    )
+    later.credit_type = "collateral"
+    later.sentence_id = 123
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يُفْسِدُ"],
+        later,
+        "collateral",
+        [123],
+        now + timedelta(days=1),
+    )
+
+    episode = _episodes(knowledge)[0]
+    assert episode["exact_all_word_outcome_rating"] == 3
+    assert episode["exact_all_word_credit_type"] == "collateral"
+    assert episode["outcome_rating"] is None
+    assert active_treatment_episodes(
+        {lemma.lemma_id: knowledge},
+        now + timedelta(days=1),
+    ) == {}
 
 
 def test_acquisition_yellow_and_no_material_do_not_assign(db_session):
