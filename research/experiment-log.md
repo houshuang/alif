@@ -48,6 +48,52 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-31: Context diversity is already strong; global boost and A/B deferred
+
+**Question.** Opportunity 5 asked whether deliberately varying the sentence
+around a word could improve learning rather than merely improve analytics. A
+frozen, immutable replay counted every mapped content word in every reviewed
+sentence equally; primary-target status was never an eligibility condition.
+
+**Existing treatment is already strong.** Sentence selection already includes
+`1 / (1 + sentence.times_shown)`, so less-used sentences receive a substantial
+diversity preference. Across 2,159 completed acquisition episodes, learners saw
+4.37 distinct sentences over 5.04 reviews on average. Of 1,570 episodes with at
+least two reviews, 87.65% of reviews used a distinct sentence and only 0.32%
+remained in one sentence. Among 1,424 successful cross-day acquisition
+confirmation pairs, 91.01% changed sentence. Mature-word history similarly used
+a sentence not previously seen with that lemma—including its acquisition
+history—in 85.11% of 49,123 reviews (78.87% of the most recent 5,939).
+
+**Important confound.** Alif normally changes both context and Arabic surface
+form: just 0.28% of historical cross-day confirmations combined a different
+sentence with the same normalized Arabic form. The strongest variable-context
+experiments hold the foreign word form fixed, so their causal contrast is not
+the contrast in Alif's observational history. Raw mature-word success was lower
+in new than familiar contexts (last 30 days: 86.53% vs 93.78%, −7.25
+points), but this is a descriptive selection effect and/or desirable difficulty,
+not evidence that novelty harms later retention.
+
+**Why no new A/B was activated.** A strict acquisition experiment requiring one
+same-form anchor and two comparable, semantically distinct alternatives found
+only 10 historical episodes (0.152 per active day), with ordinary scheduling
+delivering a neutral assessment in only 2/10. A mature-word micro-randomization
+could generate about 9.58 eligible assignments/day, but only 67.07% received a
+1–14-day outcome. At that throughput, approximate 80%-power requirements are
+648 episodes/82 elapsed days for an implausibly large +10-point effect, 2,720/
+299 days for +5 points, and 7,684/817 days for +3 points. It would also make
+half of assigned reviews artificially *less* diverse than current practice.
+
+**Decision and next gate.** Keep the existing diversity preference. Do not add
+a global multiplier and do not start the familiar-versus-novel trial. First use
+word-evidence protocol v2 and the seven-day exact-form pilot to separate context
+novelty from surface-form novelty prospectively. If that evidence shows the
+joint novelty is too difficult, the smallest testable intervention is a
+preference—not a blocker—for a different sentence containing the same surface
+form on second-day acquisition confirmation. Full report:
+`research/context-diversity-decision-2026-07-31.{html,md}`; pinned replay:
+`research/context-diversity-feasibility-2026-07-31.json`.
+
 ## 2026-07-31: Faster form pilot, complete token evidence, and distributed-day graduation
 
 **Form-pilot acceleration.** A frozen replay compared the original requirement
