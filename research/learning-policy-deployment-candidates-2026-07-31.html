@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alif learning-policy deployment candidates — 31 July 2026</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f1ea;
+    --surface: #fffdf8;
+    --ink: #1e2928;
+    --muted: #62706e;
+    --line: #d9d3c8;
+    --green: #237a65;
+    --green-soft: #dcefe9;
+    --gold: #b87819;
+    --gold-soft: #f6e7c9;
+    --red: #a4473f;
+    --red-soft: #f3dcda;
+    --blue: #3d6f8e;
+    --blue-soft: #dceaf2;
+    --shadow: 0 12px 35px rgb(35 44 42 / 8%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111716;
+      --surface: #19211f;
+      --ink: #edf3f0;
+      --muted: #a6b3af;
+      --line: #35423f;
+      --green: #62c0a5;
+      --green-soft: #1d4439;
+      --gold: #e4ad57;
+      --gold-soft: #4b371d;
+      --red: #e3877f;
+      --red-soft: #4a2927;
+      --blue: #80b4d1;
+      --blue-soft: #233f50;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.62 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 56px 24px 100px; }
+  header { max-width: 850px; margin-bottom: 42px; }
+  .eyebrow {
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  h1, h2, h3 { line-height: 1.16; letter-spacing: -.025em; }
+  h1 { font-size: clamp(38px, 6vw, 70px); margin: 12px 0 22px; }
+  h2 { font-size: clamp(27px, 3vw, 38px); margin: 0 0 18px; }
+  h3 { font-size: 21px; margin: 0 0 10px; }
+  p { margin: 0 0 16px; }
+  .lede { font-size: 20px; color: var(--muted); max-width: 760px; }
+  .meta { color: var(--muted); font-size: 14px; margin-top: 20px; }
+  .verdict {
+    display: grid;
+    grid-template-columns: 1.25fr .75fr;
+    gap: 24px;
+    padding: 28px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--green);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    margin: 0 0 58px;
+  }
+  .verdict strong { color: var(--green); }
+  .flag {
+    align-self: center;
+    padding: 18px;
+    background: var(--green-soft);
+    border-radius: 12px;
+    font: 600 15px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;
+  }
+  section { margin: 64px 0; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+  .stat { font-size: 36px; line-height: 1; font-weight: 750; letter-spacing: -.04em; }
+  .stat-label { color: var(--muted); margin-top: 10px; }
+  .callout {
+    margin: 24px 0;
+    padding: 20px 22px;
+    border-left: 4px solid var(--gold);
+    background: var(--gold-soft);
+    border-radius: 0 12px 12px 0;
+  }
+  .chart {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 26px;
+    box-shadow: var(--shadow);
+  }
+  .chart-title { font-weight: 700; margin-bottom: 4px; }
+  .chart-subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: minmax(155px, 1fr) 3fr 64px;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .bar-label { font-size: 14px; }
+  .track { height: 20px; background: color-mix(in srgb, var(--muted) 14%, transparent); border-radius: 6px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 6px; }
+  .bar.green { background: var(--green); }
+  .bar.blue { background: var(--blue); }
+  .bar.gold { background: var(--gold); }
+  .bar.red { background: var(--red); }
+  .bar-value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .effect-row {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) 3fr 58px;
+    align-items: center;
+    gap: 12px;
+    margin: 15px 0;
+  }
+  .effect-track { height: 22px; position: relative; }
+  .effect-track::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--muted);
+  }
+  .effect {
+    position: absolute;
+    top: 2px;
+    height: 18px;
+    border-radius: 5px;
+  }
+  .effect.positive { left: 50%; background: var(--green); }
+  .effect.negative { right: 50%; background: var(--red); }
+  .note { color: var(--muted); font-size: 14px; }
+  .pill {
+    display: inline-block;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--blue-soft);
+    color: var(--ink);
+  }
+  .decision {
+    display: grid;
+    grid-template-columns: 118px 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+  }
+  .decision:last-child { border-bottom: 1px solid var(--line); }
+  .decision-status { font-weight: 750; }
+  .go { color: var(--green); }
+  .stop { color: var(--red); }
+  .hold { color: var(--gold); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { width: 24%; }
+  td code { white-space: normal; overflow-wrap: anywhere; }
+  th { color: var(--muted); font-weight: 650; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .power-svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .power-svg text { fill: var(--muted); font: 12px ui-sans-serif, system-ui, sans-serif; }
+  .power-svg .axis, .power-svg .grid { stroke: var(--line); vector-effect: non-scaling-stroke; }
+  .power-svg .target { stroke: var(--muted); stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; }
+  .power-svg .p10 { stroke: var(--gold); }
+  .power-svg .p20 { stroke: var(--blue); }
+  .power-svg .p30 { stroke: var(--green); }
+  .power-svg polyline { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; margin-top: 12px; }
+  .swatch { display: inline-block; width: 20px; height: 3px; vertical-align: middle; margin-right: 7px; }
+  code {
+    background: color-mix(in srgb, var(--muted) 13%, transparent);
+    padding: 2px 6px;
+    border-radius: 5px;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    background: #121817;
+    color: #e6f0ec;
+    padding: 18px;
+    overflow: auto;
+    border-radius: 12px;
+    font-size: 13px;
+  }
+  pre code { white-space: pre; overflow-wrap: normal; }
+  a { color: var(--blue); }
+  ul { padding-left: 20px; }
+  li { margin: 7px 0; }
+  .sources li { margin: 12px 0; }
+  footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  @media (max-width: 760px) {
+    main { padding: 34px 16px 70px; }
+    .verdict, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .bar-row, .effect-row { grid-template-columns: 120px 1fr 52px; gap: 8px; }
+    .decision { grid-template-columns: 82px 1fr; gap: 12px; }
+    .chart { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Alif · within-learner policy research</div>
+    <h1>One experiment is ready. Two seductive fixes are not.</h1>
+    <p class="lede">The strongest actionable signal is form-specific: knowing an Arabic lemma does not guarantee retrieval of a new inflected or derived form. The safe response is a randomized exact-form pilot—not a blanket scheduler rewrite.</p>
+    <p class="meta">Frozen trajectory through 30 July 2026 · 65,951 word reviews · 20,000 Monte Carlo trials per power cell</p>
+  </header>
+
+  <div class="verdict">
+    <div>
+      <span class="pill">Default off · deployable pilot</span>
+      <h2 style="margin-top:12px">Expand exact-form randomization after successful first-form encounters</h2>
+      <p><strong>Ready for a bounded production experiment.</strong> It creates no cards, moves no due dates, changes no review credit, and uses at most one already-due reading slot per session. Control is ordinary lemma scheduling; treatment guarantees one later exact-form retrieval when serviceable.</p>
+    </div>
+    <div class="flag">ALIF_PROACTIVE_FORM_EXPERIMENT=1</div>
+  </div>
+
+  <section>
+    <h2>Why this signal rose above the rest</h2>
+    <div class="grid-2">
+      <div class="chart">
+        <div class="chart-title">Adjusted associations with later success</div>
+        <div class="chart-subtitle">Percentage-point estimates from the longitudinal analysis; unlike signs are intentionally shown around zero.</div>
+        <div class="effect-row">
+          <div class="bar-label">More distributed days</div>
+          <div class="effect-track"><div class="effect positive" style="width:23%"></div></div>
+          <div class="bar-value">+4.6</div>
+        </div>
+        <div class="effect-row">
+          <div class="bar-label">Novel surface form</div>
+          <div class="effect-track"><div class="effect negative" style="width:24%"></div></div>
+          <div class="bar-value">−4.8</div>
+        </div>
+        <div class="effect-row">
+          <div class="bar-label">Verb</div>
+          <div class="effect-track"><div class="effect negative" style="width:38.5%"></div></div>
+          <div class="bar-value">−7.7</div>
+        </div>
+        <div class="effect-row">
+          <div class="bar-label">After two-week break</div>
+          <div class="effect-track"><div class="effect negative" style="width:50%"></div></div>
+          <div class="bar-value">−10.1</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>The inference</h3>
+        <p>Spacing and break recovery matter, but Alif already has acquisition spacing gates, intro throttling, lapsed-word recovery, and a rapid-retest credit guard. The remaining gap is representational: the canonical lemma is the right scheduling unit, but it is not sufficient evidence that every meaningful form is retrievable.</p>
+        <p>The 4.8-point novel-form penalty and 7.7-point verb penalty are large enough to test. They are not causal proof that targeted form scheduling helps, which is why treatment remains randomized.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The primary-target restriction discarded almost everything</h2>
+    <div class="chart">
+      <div class="chart-title">Outcome availability in 504 reconstructed episodes</div>
+      <div class="chart-subtitle">Real chronological reviews, with prospective serviceability from the sentence pool at the frozen cutoff.</div>
+      <div class="bar-row">
+        <div class="bar-label">Later all-word review</div>
+        <div class="track"><div class="bar green" style="width:87.3%"></div></div>
+        <div class="bar-value">87.3%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Later “primary” review</div>
+        <div class="track"><div class="bar red" style="width:8.5%"></div></div>
+        <div class="bar-value">8.5%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Exact form, any word status</div>
+        <div class="track"><div class="bar blue" style="width:40.3%"></div></div>
+        <div class="bar-value">40.3%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Exact form + “primary”</div>
+        <div class="track"><div class="bar red" style="width:.6%"></div></div>
+        <div class="bar-value">0.6%</div>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>95.0% of usable later outcomes were tagged collateral.</strong> The learner saw and judged those words; a hidden scheduling label does not make them non-events. The implementation now records first-later and exact-form outcomes for every word, while preserving the old primary-only fields for compatibility.
+    </div>
+  </section>
+
+  <section>
+    <h2>There is enough opportunity to run the experiment</h2>
+    <div class="grid-3">
+      <div class="card"><div class="stat">504</div><div class="stat-label">serviceable first-form episodes reconstructed</div></div>
+      <div class="card"><div class="stat">3.04</div><div class="stat-label">assignments per active learning day</div></div>
+      <div class="card"><div class="stat">248 / 256</div><div class="stat-label">control / treatment under deterministic hashing</div></div>
+    </div>
+    <div class="grid-2" style="margin-top:24px">
+      <div class="chart">
+        <div class="chart-title">Which morphology generated opportunities?</div>
+        <div class="chart-subtitle">Counts among reconstructed assignments.</div>
+        <div class="bar-row"><div class="bar-label">Derived forms</div><div class="track"><div class="bar green" style="width:100%"></div></div><div class="bar-value">308</div></div>
+        <div class="bar-row"><div class="bar-label">Inflections</div><div class="track"><div class="bar blue" style="width:35.4%"></div></div><div class="bar-value">109</div></div>
+        <div class="bar-row"><div class="bar-label">Enclitics</div><div class="track"><div class="bar gold" style="width:16.6%"></div></div><div class="bar-value">51</div></div>
+        <div class="bar-row"><div class="bar-label">Present verbs</div><div class="track"><div class="bar red" style="width:8.8%"></div></div><div class="bar-value">27</div></div>
+        <div class="bar-row"><div class="bar-label">Other verbs</div><div class="track"><div class="bar red" style="width:2.9%"></div></div><div class="bar-value">9</div></div>
+      </div>
+      <div class="card">
+        <h3>What “serviceable” means</h3>
+        <ul>
+          <li>First successful exposure to a meaningful non-citation form.</li>
+          <li>The word is past acquisition and has no open form episode.</li>
+          <li>A different, reviewable sentence containing exactly that form exists.</li>
+          <li>The same lemma/form pair has never been assigned before.</li>
+        </ul>
+        <p class="note">Median alternate material: one sentence; mean: 1.73. Capacity uses the sentence pool at the cutoff, so this is a prospective deployment estimate—not a claim that every alternate existed historically.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the pilot can learn—and on what timescale</h2>
+    <div class="grid-2">
+      <div class="chart">
+        <div class="chart-title">Power for successful exact retrieval within 14 days</div>
+        <div class="chart-subtitle">Two-sided α=.05; 20,000 simulations per point. Non-delivery counts as failure.</div>
+        <svg class="power-svg" viewBox="0 0 520 310" role="img" aria-label="Power rises with assigned episodes and assumed effect size. At 200 assignments, a 20 point effect reaches about 82.5 percent power.">
+          <line class="grid" x1="55" y1="45" x2="490" y2="45"/>
+          <line class="target" x1="55" y1="91" x2="490" y2="91"/>
+          <line class="grid" x1="55" y1="160" x2="490" y2="160"/>
+          <line class="axis" x1="55" y1="275" x2="490" y2="275"/>
+          <line class="axis" x1="55" y1="25" x2="55" y2="275"/>
+          <text x="15" y="49">100%</text><text x="20" y="95">80%</text><text x="20" y="164">50%</text><text x="32" y="279">0%</text>
+          <text x="76" y="298">40</text><text x="188" y="298">80</text><text x="292" y="298">120</text><text x="454" y="298">200</text>
+          <polyline class="p10" points="82,253 196,236 310,224 470,199"/>
+          <polyline class="p20" points="82,217 196,160 310,122 470,86"/>
+          <polyline class="p30" points="82,161 196,76 310,44 470,27"/>
+          <circle cx="470" cy="86" r="5" fill="var(--blue)"/>
+          <text x="378" y="77" fill="var(--ink)">82.5% at N=200</text>
+        </svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--gold)"></i>+10 points</span>
+          <span><i class="swatch" style="background:var(--blue)"></i>+20 points</span>
+          <span><i class="swatch" style="background:var(--green)"></i>+30 points</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Two endpoints, two jobs</h3>
+        <p><strong>Operational primary:</strong> successful exact-form review in a different sentence within 14 days, with no delivery counted as failure. Ordinary historical scheduling achieved 38.3%. This tests whether the intervention actually creates successful form retrieval.</p>
+        <p><strong>Learning secondary:</strong> the first later all-word rating. Its reconstructed success rate is already 95.5%, so it has a hard ceiling: detecting a four-point improvement needs about 486 evaluable episodes, roughly 184 active days.</p>
+        <p><strong>Milestones:</strong> inspect balance and gross failure modes at 40; descriptive first read at 80; efficacy read at 200. Two hundred assignments should take about 66 active learning days.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Alternatives that failed the deployment gate</h2>
+    <div class="decision">
+      <div class="decision-status stop">REJECT</div>
+      <div>
+        <h3>Ignore early collateral successes in FSRS</h3>
+        <p>78.4% of eligible FSRS sentence events occurred before the card was due, and 73.2% were collateral successes, so the hypothesis looked important. But full event replay barely changed predictive quality and did not materially change end workload. A rank-preserving calibration correction is not automatically a learning intervention.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="decision-status stop">REJECT</div>
+      <div>
+        <h3>Globally boost weak forms in sentence selection</h3>
+        <p>The first replay found seven more weak forms but displaced seven other reviewable words in small sessions. That violates the all-word principle: improving one form by silently sacrificing other words is not free.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="decision-status hold">INERT</div>
+      <div>
+        <h3>Allow weak-form swaps only under strict dominance</h3>
+        <p>Requiring every due word and every reviewable content word to remain present eliminated all regressions—but also all swaps in 12 depletion-stressed requests. The current sentence pool offers too few true dominance opportunities. Safe, but not worth deploying.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How this compares with research</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Findings that agree</h3>
+        <p>Alif's +4.6-point adjusted effect for distributed days is directionally consistent with controlled vocabulary studies showing benefits from practice spread across sessions. Contextual-diversity experiments also tend to benefit recall and recognition when encounter count is held fixed.</p>
+        <p>Work on inflected-word processing finds surface-form frequency effects, supporting the idea that a lemma-level memory trace does not make every form equally accessible.</p>
+      </div>
+      <div class="card">
+        <h3>Findings that are weaker or unresolved</h3>
+        <p>Alif's adjusted context-variety estimate was only +0.6 points with an interval crossing zero—much weaker than controlled contextual-diversity experiments. That could reflect confounding with spacing, insufficiently distinct sentences, or a crude diversity metric.</p>
+        <p>No literature comparison makes the 4.8-point Arabic novel-form penalty causal. It is a strong diagnostic and experiment trigger, not a license to ship targeted scheduling without randomization.</p>
+      </div>
+    </div>
+    <ul class="sources">
+      <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8638698/">Spacing, Feedback, and Testing Boost Vocabulary Learning in a Web Application</a> — multi-session experimental vocabulary learning.</li>
+      <li><a href="https://doi.org/10.1017/S0272263116000280">Nakata (2017), within-session repeated retrieval</a> — higher delayed scores from more retrievals, but one retrieval most efficient when time is controlled.</li>
+      <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7435265/">Frances et al. (2020), contextual diversity</a> — more texts improved recall, recognition, and meaning matching with encounter count held constant.</li>
+      <li><a href="https://pubmed.ncbi.nlm.nih.gov/9259621/">Alegre &amp; Gordon, processing English inflection</a> — response times predicted by surface-form frequency.</li>
+      <li><a href="https://doi.org/10.1017/S0142716415000247">Rogers, Révész &amp; Rebuschat, incidental inflection learning</a> — adults learned morphological regularities without verbalizable rules.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Deployment contract</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Enable</h3>
+        <pre><code>ALIF_PROACTIVE_FORM_EXPERIMENT=1</code></pre>
+        <p>Restart the backend, then verify assignment events with <code>trigger_kind=successful_first_form_exposure</code>. The flag is documented in <code>backend/.env.example</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Rollback</h3>
+        <pre><code>ALIF_PROACTIVE_FORM_EXPERIMENT=0</code></pre>
+        <p>Restart. No new proactive episodes will be created. Existing episodes remain analyzable, and the original yellow-confusion pilot continues unchanged.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Stop conditions:</strong> more than one treatment slot in a session; any acquisition episode; assignment balance outside 40–60% after 40 episodes; day-14 endpoint completeness below 75%; or treatment lowering next all-word success by more than five points at a milestone.
+    </div>
+  </section>
+
+  <section>
+    <h2>Reproducibility</h2>
+    <table>
+      <tr><th>Component</th><th>Path</th></tr>
+      <tr><td>Feature</td><td><code>backend/app/services/surface_form_experiment.py</code></td></tr>
+      <tr><td>Tests</td><td><code>backend/tests/test_surface_form_experiment.py</code></td></tr>
+      <tr><td>Simulation</td><td><code>backend/scripts/simulate_proactive_form_experiment.py</code></td></tr>
+      <tr><td>Milestone analyzer</td><td><code>backend/scripts/analyze_exact_surface_experiment.py</code></td></tr>
+      <tr><td>Machine-readable output</td><td><code>artifacts/longitudinal-2026-07-30/proactive-form-experiment-simulation.json</code></td></tr>
+      <tr><td>Frozen DB SHA-256</td><td><code>f98ad15…84a</code></td></tr>
+    </table>
+    <p class="note" style="margin-top:14px">The simulator opens SQLite immutable/query-only, verifies the database hash before and after execution, reconstructs chronological opportunity and endpoint yield, and fixes the Monte Carlo seed. Power assumes independent Bernoulli episodes; production inference must cluster uncertainty by lemma.</p>
+  </section>
+
+  <footer>Prepared 31 July 2026. N=1 means the result is a policy comparison for this learner, not a population estimate.</footer>
+</main>
+</body>
+</html>

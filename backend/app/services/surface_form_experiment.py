@@ -1,15 +1,18 @@
-"""Exact-surface retrieval pilot for morphology-related yellow marks.
+"""Randomized exact-surface retrieval pilot for meaningful Arabic forms.
 
 The canonical lemma remains the scheduling unit. This experiment only chooses
 which already-due sentence represents that lemma: treatment episodes prefer the
 same non-trivial surface form in a different sentence and make it the primary
 retrieval target. It never creates a card, changes a due date, or changes the
-rating supplied by the learner.
+rating supplied by the learner. Episodes can start from a yellow-confusion
+event or, behind ``ALIF_PROACTIVE_FORM_EXPERIMENT``, a successful first
+exposure to the form.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
@@ -31,6 +34,7 @@ EXACT_SURFACE_EXPERIMENT_KEY = "__exact_surface_v1"
 EXACT_SURFACE_EXPERIMENT_VERSION = "exact_surface_v1"
 EXACT_SURFACE_EXPIRES_DAYS = 14
 EXACT_SURFACE_MAX_SLOTS_PER_SESSION = 1
+PROACTIVE_FORM_EXPERIMENT_ENV = "ALIF_PROACTIVE_FORM_EXPERIMENT"
 
 _TREATMENT = "treatment"
 _CONTROL = "control"
@@ -58,7 +62,11 @@ def _parse_dt(value: object) -> datetime | None:
 
 def _episode_is_open(episode: object, now: datetime) -> bool:
     """Return whether an episode can still receive its exact-form outcome."""
-    if not isinstance(episode, dict) or episode.get("outcome_rating") is not None:
+    if (
+        not isinstance(episode, dict)
+        or episode.get("outcome_rating") is not None
+        or episode.get("exact_all_word_outcome_rating") is not None
+    ):
         return False
     expires_at = _parse_dt(episode.get("expires_at"))
     return expires_at is not None and now <= expires_at
@@ -101,6 +109,34 @@ def deterministic_arm(
         f"{lemma_id}:{surface_key}"
     ).encode("utf-8")
     return _TREATMENT if hashlib.sha256(payload).digest()[0] & 1 else _CONTROL
+
+
+def proactive_form_experiment_enabled() -> bool:
+    """Whether successful first-form exposures may enter the randomized pilot."""
+    return os.environ.get(PROACTIVE_FORM_EXPERIMENT_ENV, "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _surface_seen_count(
+    knowledge: UserLemmaKnowledge,
+    surface_key: str,
+) -> int:
+    """Read the established human-readable stats key through normalization."""
+    stats = parse_json_column(knowledge.variant_stats_json)
+    counts = [
+        max(0, int(entry.get("seen") or 0))
+        for key, entry in stats.items()
+        if (
+            not str(key).startswith("__")
+            and isinstance(entry, dict)
+            and normalize_surface_form(str(key)) == surface_key
+        )
+    ]
+    return max(counts, default=0)
 
 
 def _canonical_member_ids(db: Session, canonical_id: int) -> set[int]:
@@ -195,7 +231,7 @@ def process_surface_experiment_review(
     sentence_ids: list[int],
     now: datetime,
 ) -> None:
-    """Resolve an old episode, then optionally assign a new yellow episode."""
+    """Resolve existing endpoints, then optionally assign a new episode."""
     if (
         lemma is None
         or review_log is None
@@ -211,6 +247,89 @@ def process_surface_experiment_review(
 
     stats, _container, episodes = _experiment_container(knowledge)
     changed = False
+
+    # Primary scheduling status is not a property of what the learner saw.
+    # Record the first later all-word review as the main ITT endpoint, whether
+    # the word happened to be the scheduler's primary target or collateral.
+    # Keep the historical primary-only endpoint below as a secondary measure.
+    for episode in episodes:
+        if (
+            episode.get("all_word_outcome_rating") is not None
+            or review_log.id <= (episode.get("trigger_review_id") or 0)
+            or review_log.is_acquisition
+        ):
+            continue
+        expires_at = _parse_dt(episode.get("expires_at"))
+        if expires_at is not None and now > expires_at:
+            continue
+        trigger_sentence_ids = set(episode.get("trigger_sentence_ids") or [])
+        episode["all_word_review_id"] = review_log.id
+        episode["all_word_reviewed_at"] = now.isoformat()
+        episode["all_word_surface_keys"] = sorted(normalized)
+        episode["all_word_was_exact"] = normalized == {
+            episode.get("surface_key")
+        }
+        episode["all_word_same_trigger_context"] = bool(
+            set(sentence_ids) & trigger_sentence_ids
+        )
+        episode["all_word_credit_type"] = credit_type
+        episode["all_word_outcome_rating"] = review_log.rating
+        episode["all_word_outcome_was_confused"] = bool(
+            review_log.was_confused
+        )
+        episode["all_word_outcome_sentence_id"] = review_log.sentence_id
+        changed = True
+        log_interaction(
+            event="exact_surface_experiment_all_word_outcome",
+            episode_id=episode.get("id"),
+            lemma_id=knowledge.lemma_id,
+            arm=episode.get("arm"),
+            rating=review_log.rating,
+            was_confused=bool(review_log.was_confused),
+            was_exact=episode["all_word_was_exact"],
+            credit_type=credit_type,
+            same_trigger_context=episode[
+                "all_word_same_trigger_context"
+            ],
+        )
+
+    # Exact-form retrieval is meaningful regardless of the scheduler's primary
+    # label. Record and resolve the first later exact-form appearance in a
+    # different sentence for an intention-to-treat "successful exact retrieval
+    # within 14 days" endpoint. Non-delivery remains a failure in that endpoint.
+    for episode in episodes:
+        if (
+            key is None
+            or episode.get("surface_key") != key
+            or episode.get("exact_all_word_outcome_rating") is not None
+            or review_log.id <= (episode.get("trigger_review_id") or 0)
+            or review_log.is_acquisition
+            or set(sentence_ids) & set(
+                episode.get("trigger_sentence_ids") or []
+            )
+        ):
+            continue
+        expires_at = _parse_dt(episode.get("expires_at"))
+        if expires_at is not None and now > expires_at:
+            continue
+        episode["exact_all_word_review_id"] = review_log.id
+        episode["exact_all_word_reviewed_at"] = now.isoformat()
+        episode["exact_all_word_outcome_rating"] = review_log.rating
+        episode["exact_all_word_outcome_was_confused"] = bool(
+            review_log.was_confused
+        )
+        episode["exact_all_word_credit_type"] = credit_type
+        episode["exact_all_word_outcome_sentence_id"] = review_log.sentence_id
+        changed = True
+        log_interaction(
+            event="exact_surface_experiment_exact_all_word_outcome",
+            episode_id=episode.get("id"),
+            lemma_id=knowledge.lemma_id,
+            arm=episode.get("arm"),
+            rating=review_log.rating,
+            was_confused=bool(review_log.was_confused),
+            credit_type=credit_type,
+        )
 
     # Intention-to-treat safety endpoint: the first later primary reading test,
     # regardless of which form the ordinary scheduler presents. Exact-form
@@ -279,9 +398,22 @@ def process_surface_experiment_review(
         )
         break
 
-    # The pilot is specifically about yellow FSRS events. Acquisition evidence
-    # and red misses retain their existing paths and cannot assign an episode.
-    if key is not None and review_log.was_confused and not review_log.is_acquisition:
+    # The original pilot starts from a yellow FSRS event. The default-off
+    # extension also enrolls a successful first exposure to a meaningful form,
+    # which is the common case behind the observed novel-form penalty. Red
+    # misses and acquisition evidence retain their existing recovery paths.
+    confusion_trigger = bool(review_log.was_confused)
+    proactive_first_exposure_trigger = (
+        proactive_form_experiment_enabled()
+        and key is not None
+        and review_log.rating >= 3
+        and _surface_seen_count(knowledge, key) == 1
+    )
+    if (
+        key is not None
+        and not review_log.is_acquisition
+        and (confusion_trigger or proactive_first_exposure_trigger)
+    ):
         morphology = eligible_surface_morphology(key, lemma)
         already_assigned = any(
             episode.get("surface_key") == key for episode in episodes
@@ -317,6 +449,11 @@ def process_surface_experiment_review(
                     "surface_display": surfaces[0],
                     "morph_category": morphology.get("category"),
                     "form_key": morphology.get("form_key"),
+                    "trigger_kind": (
+                        "yellow_confusion"
+                        if confusion_trigger
+                        else "successful_first_form_exposure"
+                    ),
                     "trigger_review_id": review_log.id,
                     "trigger_sentence_ids": list(sentence_ids),
                     "triggered_at": now.isoformat(),
@@ -336,6 +473,21 @@ def process_surface_experiment_review(
                     "any_form_outcome_rating": None,
                     "any_form_outcome_was_confused": None,
                     "any_form_outcome_sentence_id": None,
+                    "all_word_review_id": None,
+                    "all_word_reviewed_at": None,
+                    "all_word_surface_keys": None,
+                    "all_word_was_exact": None,
+                    "all_word_same_trigger_context": None,
+                    "all_word_credit_type": None,
+                    "all_word_outcome_rating": None,
+                    "all_word_outcome_was_confused": None,
+                    "all_word_outcome_sentence_id": None,
+                    "exact_all_word_review_id": None,
+                    "exact_all_word_reviewed_at": None,
+                    "exact_all_word_outcome_rating": None,
+                    "exact_all_word_outcome_was_confused": None,
+                    "exact_all_word_credit_type": None,
+                    "exact_all_word_outcome_sentence_id": None,
                 }
                 episodes.append(episode)
                 changed = True
@@ -345,6 +497,7 @@ def process_surface_experiment_review(
                     lemma_id=knowledge.lemma_id,
                     arm=arm,
                     surface_key=key,
+                    trigger_kind=episode["trigger_kind"],
                     morph_category=morphology.get("category"),
                     candidate_count=len(candidate_ids),
                 )
@@ -404,6 +557,31 @@ def undo_surface_experiment_reviews(
                 "any_form_outcome_rating",
                 "any_form_outcome_was_confused",
                 "any_form_outcome_sentence_id",
+            ):
+                episode[key] = None
+            changed = True
+        if episode.get("all_word_review_id") in review_ids:
+            for key in (
+                "all_word_review_id",
+                "all_word_reviewed_at",
+                "all_word_surface_keys",
+                "all_word_was_exact",
+                "all_word_same_trigger_context",
+                "all_word_credit_type",
+                "all_word_outcome_rating",
+                "all_word_outcome_was_confused",
+                "all_word_outcome_sentence_id",
+            ):
+                episode[key] = None
+            changed = True
+        if episode.get("exact_all_word_review_id") in review_ids:
+            for key in (
+                "exact_all_word_review_id",
+                "exact_all_word_reviewed_at",
+                "exact_all_word_outcome_rating",
+                "exact_all_word_outcome_was_confused",
+                "exact_all_word_credit_type",
+                "exact_all_word_outcome_sentence_id",
             ):
                 episode[key] = None
             changed = True
