@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "method": "context-diversity-acquisition-feasibility-v1",
+  "database": {
+    "filename": "alif.db",
+    "sha256": "f98ad15b279cdb9a4ec0fcfbbe9ddf76982aa1c6c51bf15c84ebc8d96232784a"
+  },
+  "cutoff": "2026-07-30T13:58:00+00:00",
+  "proposed_estimand": "variable minus constant acquisition cue policy on successful same-form retrieval in a previously unseen assessment sentence",
+  "eligibility": {
+    "same_normalized_surface_across_contexts": true,
+    "minimum_semantically_distinct_alternatives": 2,
+    "maximum_content_lemma_jaccard": 0.5,
+    "maximum_word_count_difference": 3,
+    "non_passage_reviewable_sentences_only": true
+  },
+  "prospective_capacity": {
+    "qualifying_completed_acquisition_episodes": 10,
+    "active_days_in_cohort_window": 66,
+    "episodes_per_active_learning_day": 0.152,
+    "median_acquisition_reviews": 4.0,
+    "p90_acquisition_reviews": 5.1,
+    "median_distinct_alternatives": 3.0,
+    "p10_distinct_alternatives": 2.0
+  },
+  "historical_neutral_assessment_proxy": {
+    "window_days_after_graduation": [
+      3,
+      30
+    ],
+    "delivered": 2,
+    "delivery_fraction": 0.2,
+    "successful": 2,
+    "successful_itt_rate": 0.2,
+    "success_rate_among_delivered": 1.0,
+    "median_delay_days": 25.49
+  },
+  "sample_size_projection": [
+    {
+      "absolute_uplift": 0.03,
+      "total_mature_episodes_for_80pct_power": 5886,
+      "active_learning_days_at_observed_rate": 38848,
+      "elapsed_days_including_assessment_window": 38878
+    },
+    {
+      "absolute_uplift": 0.05,
+      "total_mature_episodes_for_80pct_power": 2188,
+      "active_learning_days_at_observed_rate": 14441,
+      "elapsed_days_including_assessment_window": 14471
+    },
+    {
+      "absolute_uplift": 0.1,
+      "total_mature_episodes_for_80pct_power": 588,
+      "active_learning_days_at_observed_rate": 3881,
+      "elapsed_days_including_assessment_window": 3911
+    },
+    {
+      "absolute_uplift": 0.15,
+      "total_mature_episodes_for_80pct_power": 276,
+      "active_learning_days_at_observed_rate": 1822,
+      "elapsed_days_including_assessment_window": 1852
+    }
+  ],
+  "micro_randomized_alternative": {
+    "estimand": "variable versus familiar same-form context on success at the next 1-14 day non-acquisition word review",
+    "qualifying_nonoverlapping_episodes": 747,
+    "active_days_in_cohort_window": 78,
+    "episodes_per_active_learning_day": 9.577,
+    "outcome_delivered": 501,
+    "outcome_delivery_fraction": 0.6707,
+    "successful_outcomes": 491,
+    "successful_itt_rate": 0.6573,
+    "median_novel_options": 4,
+    "sample_size_projection": [
+      {
+        "absolute_uplift": 0.02,
+        "total_mature_episodes_for_80pct_power": 17424,
+        "active_learning_days_at_observed_rate": 1820,
+        "elapsed_days_including_outcome_window": 1834
+      },
+      {
+        "absolute_uplift": 0.03,
+        "total_mature_episodes_for_80pct_power": 7684,
+        "active_learning_days_at_observed_rate": 803,
+        "elapsed_days_including_outcome_window": 817
+      },
+      {
+        "absolute_uplift": 0.05,
+        "total_mature_episodes_for_80pct_power": 2720,
+        "active_learning_days_at_observed_rate": 285,
+        "elapsed_days_including_outcome_window": 299
+      },
+      {
+        "absolute_uplift": 0.1,
+        "total_mature_episodes_for_80pct_power": 648,
+        "active_learning_days_at_observed_rate": 68,
+        "elapsed_days_including_outcome_window": 82
+      }
+    ],
+    "interpretation": "The randomized review is the intervention; its immediate rating measures context dependence, while the next review is the retention endpoint."
+  },
+  "observed_context_use": {
+    "all_completed_acquisition_episodes": 2159,
+    "all_acquisition_mean_reviews": 5.04,
+    "all_acquisition_mean_distinct_sentences": 4.37,
+    "all_acquisition_single_sentence_fraction": 0.2751,
+    "repeated_acquisition_episodes": 1570,
+    "repeated_acquisition_single_sentence_fraction": 0.0032,
+    "repeated_acquisition_distinct_sentence_ratio": 0.8765,
+    "historical_distributed_confirmation_pairs": 1424,
+    "distributed_confirmation_different_sentence_fraction": 0.9101,
+    "distributed_confirmation_different_sentence_same_surface_fraction": 0.0028,
+    "mean_distinct_acquisition_sentences": 3.3,
+    "single_sentence_acquisition_fraction": 0.1
+  },
+  "observed_mature_context_policy": {
+    "all_history": {
+      "eligible_following_reviews": 49123,
+      "new_sentence_for_lemma_fraction": 0.8511,
+      "immediate_same_sentence_repeat_fraction": 0.0569,
+      "repeat_after_previous_success_fraction": 0.0541,
+      "repeat_after_previous_failure_fraction": 0.0935,
+      "new_context_success": {
+        "n": 41807,
+        "rate": 0.9233
+      },
+      "familiar_context_success": {
+        "n": 7316,
+        "rate": 0.9625
+      }
+    },
+    "last_30_days": {
+      "eligible_following_reviews": 5939,
+      "new_sentence_for_lemma_fraction": 0.7887,
+      "immediate_same_sentence_repeat_fraction": 0.1056,
+      "repeat_after_previous_success_fraction": 0.1031,
+      "repeat_after_previous_failure_fraction": 0.1266,
+      "new_context_success": {
+        "n": 4684,
+        "rate": 0.8653
+      },
+      "familiar_context_success": {
+        "n": 1255,
+        "rate": 0.9378
+      }
+    },
+    "median_distinct_sentences_per_reviewed_lemma": 12.0,
+    "p90_distinct_sentences_per_reviewed_lemma": 32.0
+  },
+  "design_recommendation": {
+    "arms": {
+      "constant": "reuse one anchor sentence during acquisition",
+      "variable": "prefer a not-yet-used semantically distinct sentence"
+    },
+    "workload_matched": true,
+    "review_timing_unchanged": true,
+    "assessment": "reserve one previously unseen same-form sentence when the graduated lemma next becomes due",
+    "activate_before_capacity_gate": false
+  },
+  "limitations": [
+    "The cutoff sentence pool is used for historical serviceability.",
+    "Historical follow-up was not experimentally reserved and therefore underestimates prospective assessment delivery.",
+    "The replay estimates capacity and power, not the treatment effect.",
+    "Context distinctness uses content-lemma overlap, not a semantic embedding."
+  ]
+}
