@@ -201,8 +201,45 @@ def test_proactive_first_form_exposure_assigns_randomized_episode(
 
     episode = _episodes(knowledge)[0]
     assert episode["trigger_kind"] == "successful_first_form_exposure"
+    assert episode["trigger_policy"] == "first_success"
+    assert episode["prior_surface_exposures"] == 0
+    assert episode["window_days"] == 7
+    assert datetime.fromisoformat(episode["expires_at"]) - datetime.fromisoformat(
+        episode["triggered_at"]
+    ) == timedelta(days=7)
     assert episode["arm"] in {"control", "treatment"}
     assert episode["surface_key"] == "يفسد"
+
+
+def test_proactive_first_success_after_prior_miss_is_eligible(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_PROACTIVE_FORM_EXPERIMENT", "1")
+    lemma = _lemma(db_session)
+    knowledge = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        # Current success is the second display but the first clean one.
+        variant_stats_json={"يفسد": {"seen": 2, "missed": 1}},
+    )
+    db_session.add(knowledge)
+    _reviewable_sentence(db_session, lemma.lemma_id)
+
+    process_surface_experiment_review(
+        db_session,
+        knowledge,
+        lemma,
+        ["يفسد"],
+        _review(db_session, lemma.lemma_id, confused=False),
+        "collateral",
+        [999],
+        datetime.now(timezone.utc),
+    )
+
+    episode = _episodes(knowledge)[0]
+    assert episode["prior_surface_exposures"] == 1
+    assert episode["trigger_policy"] == "first_success"
 
 
 @pytest.mark.parametrize(

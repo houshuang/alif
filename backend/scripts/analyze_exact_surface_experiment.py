@@ -186,13 +186,20 @@ def main() -> int:
                     all_word_rating = episode.get(
                         "any_form_outcome_rating"
                     )
-                mature = triggered_at <= (
-                    args.cutoff - timedelta(days=EXACT_SURFACE_EXPIRES_DAYS)
-                )
+                expires_at = _episode_datetime(episode.get("expires_at"))
+                if expires_at is None:
+                    expires_at = triggered_at + timedelta(
+                        days=EXACT_SURFACE_EXPIRES_DAYS
+                    )
+                mature = expires_at <= args.cutoff
                 episodes.append({
                     "lemma_id": knowledge.lemma_id,
                     "arm": arm,
                     "trigger_kind": trigger_kind,
+                    "trigger_policy": episode.get("trigger_policy") or "legacy",
+                    "window_days": int(round(
+                        (expires_at - triggered_at).total_seconds() / 86400
+                    )),
                     "triggered_at": triggered_at,
                     "mature": mature,
                     "exact_itt_success": bool(
@@ -288,11 +295,18 @@ def main() -> int:
                 episode["morph_category"] or "unknown"
                 for episode in episodes
             ).items())),
+            "trigger_policies": dict(sorted(Counter(
+                episode["trigger_policy"] for episode in episodes
+            ).items())),
+            "window_days": dict(sorted(Counter(
+                str(episode["window_days"]) for episode in episodes
+            ).items())),
         },
         "primary_exact_retrieval_itt": {
             "definition": (
                 "successful exact-form all-word review in a different "
-                "sentence within 14 days; non-delivery is failure"
+                "sentence within the episode's stored window; non-delivery "
+                "is failure"
             ),
             "mature_episodes": len(mature),
             "arms": arm_summary,
@@ -333,7 +347,7 @@ def main() -> int:
             ),
         },
         "notes": [
-            "Only episodes at least 14 days old enter the primary ITT analysis.",
+            "Only episodes past their stored expiry enter the primary ITT analysis.",
             "All-word success among observed outcomes is secondary and may be censored.",
             "The clustered bootstrap resamples canonical lemmas, not review rows.",
         ],

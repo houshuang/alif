@@ -5,6 +5,11 @@
 Production activation: **enabled 2026-07-31** with
 `ALIF_PROACTIVE_FORM_EXPERIMENT=1`.
 
+Aggressive protocol update: **2026-07-31**. New proactive episodes use the
+first successful appearance of a form (an earlier miss no longer disqualifies
+it) and mature after 7 days. Existing episodes retain their stored 14-day
+expiry, and yellow-confusion episodes continue to use 14 days.
+
 The flag expands the existing randomized exact-surface pilot. The original
 yellow-confusion trigger remains active independently of this flag. Turning the
 flag off stops only new `successful_first_form_exposure` assignments; it does
@@ -38,11 +43,13 @@ review. A proactive episode is created only if all of the following hold:
 
 1. `ALIF_PROACTIVE_FORM_EXPERIMENT` is truthy (`1`, `true`, `yes`, or `on`).
 2. The review is reading, not listening, and is not an acquisition review.
-3. The word-level rating is 3 or 4.
+3. The word-level rating is 3 or 4, and this is the form's first successful
+   review. Earlier misses or confused reviews are allowed; an earlier success
+   is not.
 4. All displayed instances credited to the canonical lemma normalize to one
    unambiguous surface form.
-5. The established surface-form counter is exactly one after this review, so
-   this was the first recorded exposure to that form.
+5. The established surface-form counters contain exactly one success after
+   subtracting misses and confused reviews from displays.
 6. The normalized form differs meaningfully from the citation form. Bare
    citation forms and pure article/conjunction/preposition prefixes are
    excluded.
@@ -59,6 +66,10 @@ identity, canonical lemma ID, and normalized form. Retrying a client request
 therefore cannot change assignment. Episode state is stored without a schema
 migration under
 `UserLemmaKnowledge.variant_stats_json["__exact_surface_v1"]`.
+
+The episode records prior form exposures and `trigger_policy=first_success`, so
+first-appearance successes can be separated from recovery after an initial
+failure.
 
 If a review is marked confused, the pre-existing `yellow_confusion` trigger can
 still assign an episode even when the proactive flag is off. Red failures do
@@ -83,7 +94,8 @@ normal candidate score and stable IDs. It reserves no more than one candidate,
 sets the tested lemma as the primary target for that sentence, and removes all
 due lemmas covered by the sentence from the remaining due set exactly as a
 normal selected sentence would. If no eligible sentence is available, nothing
-special is inserted and the episode remains open until its 14-day expiry.
+special is inserted and the episode remains open until its stored expiry: 7
+days for new proactive episodes and 14 days for yellow/legacy episodes.
 
 Control episodes never influence sentence selection. Treatment assignment is
 therefore intention-to-treat: inability to deliver is part of the measured
@@ -94,8 +106,8 @@ effect rather than a reason to remove an episode from analysis.
 Primary endpoint:
 
 > A successful word-level review (rating 3 or 4) of the exact normalized form
-> in a different sentence within 14 days. If no such review occurs, the mature
-> episode is a failure.
+> in a different sentence within the episode's stored window. If no such review
+> occurs, the mature episode is a failure.
 
 Every word credited from the sentence counts, regardless of whether the
 scheduler called it primary or collateral. This is essential: reconstructed
@@ -128,10 +140,11 @@ cd backend
 ```
 
 The analyzer opens a hash-recorded immutable/query-only database, includes only
-episodes at least 14 days old in the primary analysis, reports treatment minus
-control risk difference, Fisher's exact test, and a 95% bootstrap interval
-clustered by canonical lemma. Do not analyze only delivered episodes: delivery
-is affected by treatment and conditioning on it would bias the comparison.
+episodes past their individually stored expiry in the primary analysis,
+reports treatment minus control risk difference, Fisher's exact test, and a
+95% bootstrap interval clustered by canonical lemma. Do not analyze only
+delivered episodes: delivery is affected by treatment and conditioning on it
+would bias the comparison.
 
 Milestones:
 
@@ -140,11 +153,21 @@ Milestones:
 - 200 mature episodes: planned efficacy read for an effect around 20
   percentage points.
 
-The frozen-history simulation reconstructed 504 serviceable opportunities,
-about 3.04 per active learning day, and a 38.3% ordinary-scheduling primary
-success baseline. At that observed rate, 200 assignments take roughly 66 active
-learning days, plus maturation time. The simulation is a feasibility and power
-study, not a treatment-effect estimate.
+The original frozen-history simulation reconstructed 504 serviceable
+first-appearance opportunities, about 3.04 per active learning day. The
+aggressive replay found 597 first-success opportunities with 7-day expiry,
+about 3.60 per active day. Historical ordinary scheduling supplied a later
+all-word outcome within 7 days for 78.7% and a successful exact-form outcome in
+a different sentence for 27.3%. At that rate, 200 assignments take roughly 56
+active learning days plus 7 days of maturation, versus about 66 plus 14 under
+the original protocol. Simulated power at 200 remained 84.2% for an assumed
+20-point effect (83.8% in the final 20,000-trial run).
+
+A second treatment slot was rejected: treatment assignments average fewer than
+two per active day, normally spread across multiple sessions, while another
+reserved slot would increase displacement of other due material. The one-slot
+cap therefore remains. The simulation estimates feasibility and power, not the
+treatment effect.
 
 ## Safety checks and stopping rules
 
@@ -156,7 +179,7 @@ At each milestone verify:
 - no concurrent open episodes on one canonical lemma;
 - no repeat assignment for one lemma/form pair;
 - 40–60% treatment allocation after 40 assignments;
-- at least 75% first-later-all-word endpoint yield by day 14; and
+- at least 70% first-later-all-word endpoint yield by day 7; and
 - treatment does not lower observed next-all-word success by more than five
   percentage points.
 

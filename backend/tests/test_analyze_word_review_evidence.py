@@ -10,6 +10,7 @@ from scripts.analyze_word_review_evidence import (
 def _row(**overrides):
     values = {
         "rating": 3,
+        "protocol_version": 2,
         "client_review_id": "review-1",
         "sentence_word_id": 1,
         "canonical_lemma_id": 10,
@@ -33,6 +34,7 @@ def _as_rows(items):
         """
         CREATE TABLE evidence (
             rating INTEGER,
+            protocol_version INTEGER,
             client_review_id TEXT,
             sentence_word_id INTEGER,
             canonical_lemma_id INTEGER,
@@ -48,7 +50,7 @@ def _as_rows(items):
     for item in items:
         connection.execute(
             """
-            INSERT INTO evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             tuple(item.values()),
         )
@@ -121,9 +123,9 @@ def test_interaction_summary_reports_dropped_rows_without_changing_reviews():
     )
 
     assert summary == {
-        "review_events": 1,
-        "submitted_token_rows": 5,
-        "saved_token_rows": 4,
+        "review_events": 2,
+        "submitted_token_rows": 10,
+        "saved_token_rows": 9,
         "dropped_token_rows": 1,
-        "saved_pct_of_submitted": 80.0,
+        "saved_pct_of_submitted": 90.0,
     }

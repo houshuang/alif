@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "method": "proactive-form-opportunity-reconstruction-v1",
+  "database": {
+    "filename": "alif.db",
+    "sha256": "f98ad15b279cdb9a4ec0fcfbbe9ddf76982aa1c6c51bf15c84ebc8d96232784a"
+  },
+  "cutoff": "2026-07-30T13:58:00+00:00",
+  "trigger_policy": "first-success",
+  "expiry_days": 7,
+  "window": {
+    "first_reading_review": "2026-02-08T17:05:38.232458+00:00",
+    "last_reading_review": "2026-07-30T12:44:19.823688+00:00",
+    "active_reading_days": 166,
+    "reading_review_events_with_sentence": 62752
+  },
+  "prospective_capacity": {
+    "successful_first_form_assignments": 597,
+    "assignments_per_active_learning_day": 3.596,
+    "arm_counts": {
+      "control": 296,
+      "treatment": 301
+    },
+    "morphology_categories": {
+      "derived_form": 377,
+      "enclitic": 58,
+      "inflection": 117,
+      "verb_other": 10,
+      "verb_present": 35
+    },
+    "median_alternate_sentence_count": 1,
+    "mean_alternate_sentence_count": 1.69
+  },
+  "endpoint_yield_under_historical_ordinary_scheduling": {
+    "window_sensitivity": [
+      {
+        "days": 3,
+        "all_word_outcome_fraction": 0.6248,
+        "exact_form_outcome_fraction": 0.1843,
+        "successful_exact_form_itt_rate": 0.1742
+      },
+      {
+        "days": 5,
+        "all_word_outcome_fraction": 0.7102,
+        "exact_form_outcome_fraction": 0.2362,
+        "successful_exact_form_itt_rate": 0.2211
+      },
+      {
+        "days": 7,
+        "all_word_outcome_fraction": 0.7873,
+        "exact_form_outcome_fraction": 0.2982,
+        "successful_exact_form_itt_rate": 0.273
+      },
+      {
+        "days": 10,
+        "all_word_outcome_fraction": 0.7873,
+        "exact_form_outcome_fraction": 0.2982,
+        "successful_exact_form_itt_rate": 0.273
+      },
+      {
+        "days": 14,
+        "all_word_outcome_fraction": 0.7873,
+        "exact_form_outcome_fraction": 0.2982,
+        "successful_exact_form_itt_rate": 0.273
+      }
+    ],
+    "all_word_outcomes_within_episode_window": 470,
+    "all_word_outcome_fraction": 0.7873,
+    "all_word_success_rate": 0.9383,
+    "all_word_collateral_fraction": 0.9404,
+    "all_word_same_trigger_context_fraction": 0.0468,
+    "any_form_primary_outcomes_within_episode_window": 49,
+    "any_form_primary_outcome_fraction": 0.0821,
+    "exact_form_primary_outcomes_within_episode_window": 6,
+    "exact_form_outcome_fraction": 0.0101,
+    "any_form_primary_success_rate": 0.898,
+    "exact_form_all_word_outcomes_within_episode_window": 178,
+    "exact_form_all_word_outcome_fraction": 0.2982,
+    "successful_exact_form_all_word_itt_rate": 0.273
+  },
+  "monte_carlo": {
+    "simulations_per_cell": 20000,
+    "two_sided_alpha": 0.05,
+    "seed": 20260731,
+    "power": [
+      {
+        "total_evaluable_episodes": 50,
+        "absolute_uplift": 0.01,
+        "monte_carlo_power": 0.027
+      },
+      {
+        "total_evaluable_episodes": 50,
+        "absolute_uplift": 0.02,
+        "monte_carlo_power": 0.0274
+      },
+      {
+        "total_evaluable_episodes": 50,
+        "absolute_uplift": 0.04,
+        "monte_carlo_power": 0.0386
+      },
+      {
+        "total_evaluable_episodes": 100,
+        "absolute_uplift": 0.01,
+        "monte_carlo_power": 0.0512
+      },
+      {
+        "total_evaluable_episodes": 100,
+        "absolute_uplift": 0.02,
+        "monte_carlo_power": 0.0607
+      },
+      {
+        "total_evaluable_episodes": 100,
+        "absolute_uplift": 0.04,
+        "monte_carlo_power": 0.1415
+      },
+      {
+        "total_evaluable_episodes": 200,
+        "absolute_uplift": 0.01,
+        "monte_carlo_power": 0.0535
+      },
+      {
+        "total_evaluable_episodes": 200,
+        "absolute_uplift": 0.02,
+        "monte_carlo_power": 0.0867
+      },
+      {
+        "total_evaluable_episodes": 200,
+        "absolute_uplift": 0.04,
+        "monte_carlo_power": 0.2659
+      },
+      {
+        "total_evaluable_episodes": 400,
+        "absolute_uplift": 0.01,
+        "monte_carlo_power": 0.0698
+      },
+      {
+        "total_evaluable_episodes": 400,
+        "absolute_uplift": 0.02,
+        "monte_carlo_power": 0.1389
+      },
+      {
+        "total_evaluable_episodes": 400,
+        "absolute_uplift": 0.04,
+        "monte_carlo_power": 0.5296
+      }
+    ],
+    "sample_size_projection": [
+      {
+        "absolute_uplift": 0.01,
+        "evaluable_episodes_for_80pct_power": 16792,
+        "assignments_needed_at_reconstructed_outcome_yield": 21330,
+        "active_learning_days_at_reconstructed_rate": 5931
+      },
+      {
+        "absolute_uplift": 0.02,
+        "evaluable_episodes_for_80pct_power": 3846,
+        "assignments_needed_at_reconstructed_outcome_yield": 4886,
+        "active_learning_days_at_reconstructed_rate": 1359
+      },
+      {
+        "absolute_uplift": 0.04,
+        "evaluable_episodes_for_80pct_power": 782,
+        "assignments_needed_at_reconstructed_outcome_yield": 994,
+        "active_learning_days_at_reconstructed_rate": 277
+      }
+    ],
+    "exact_retrieval_itt_assumption_grid": [
+      {
+        "total_assigned_episodes": 40,
+        "assumed_absolute_uplift": 0.1,
+        "monte_carlo_power": 0.1075
+      },
+      {
+        "total_assigned_episodes": 40,
+        "assumed_absolute_uplift": 0.2,
+        "monte_carlo_power": 0.2576
+      },
+      {
+        "total_assigned_episodes": 40,
+        "assumed_absolute_uplift": 0.3,
+        "monte_carlo_power": 0.4732
+      },
+      {
+        "total_assigned_episodes": 80,
+        "assumed_absolute_uplift": 0.1,
+        "monte_carlo_power": 0.152
+      },
+      {
+        "total_assigned_episodes": 80,
+        "assumed_absolute_uplift": 0.2,
+        "monte_carlo_power": 0.4545
+      },
+      {
+        "total_assigned_episodes": 80,
+        "assumed_absolute_uplift": 0.3,
+        "monte_carlo_power": 0.8007
+      },
+      {
+        "total_assigned_episodes": 120,
+        "assumed_absolute_uplift": 0.1,
+        "monte_carlo_power": 0.2218
+      },
+      {
+        "total_assigned_episodes": 120,
+        "assumed_absolute_uplift": 0.2,
+        "monte_carlo_power": 0.6256
+      },
+      {
+        "total_assigned_episodes": 120,
+        "assumed_absolute_uplift": 0.3,
+        "monte_carlo_power": 0.9254
+      },
+      {
+        "total_assigned_episodes": 200,
+        "assumed_absolute_uplift": 0.1,
+        "monte_carlo_power": 0.3328
+      },
+      {
+        "total_assigned_episodes": 200,
+        "assumed_absolute_uplift": 0.2,
+        "monte_carlo_power": 0.8377
+      },
+      {
+        "total_assigned_episodes": 200,
+        "assumed_absolute_uplift": 0.3,
+        "monte_carlo_power": 0.9932
+      }
+    ]
+  },
+  "deployment_gates": {
+    "feature_flag_default_off": true,
+    "no_new_cards_or_due_date_changes": true,
+    "maximum_treatment_slots_per_session": 1,
+    "randomized_control_arm": true,
+    "intention_to_treat_endpoint_recorded": true,
+    "recommended_status": "eligible_for_time_bounded_pilot"
+  },
+  "limitations": [
+    "Historical review order is real, but alternate-sentence serviceability uses the sentence pool at the cutoff.",
+    "The reconstruction does not apply treatment, so its endpoint yield estimates ordinary-scheduler control yield.",
+    "Power cells assume independent Bernoulli outcomes; the actual analysis must use lemma-clustered uncertainty.",
+    "This estimates experiment throughput and power, not the causal benefit of exact-form retrieval."
+  ]
+}

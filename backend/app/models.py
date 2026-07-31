@@ -257,6 +257,19 @@ class WordReviewEvidence(Base):
     rating = Column(Integer, nullable=False)
     review_mode = Column(String(20), nullable=False, default="reading")
     protocol_version = Column(Integer, nullable=False)
+    is_schedulable_content = Column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+    is_function_word = Column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    is_proper_name = Column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    rating_source = Column(
+        String(30), nullable=False, default="sentence_comprehension",
+        server_default="sentence_comprehension",
+    )
 
     surface_form = Column(Text, nullable=False)
     rendered_front_form = Column(Text, nullable=False)

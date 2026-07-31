@@ -126,11 +126,28 @@ def main() -> int:
     parser.add_argument("--expected-db-sha256")
     parser.add_argument("--simulations", type=int, default=20_000)
     parser.add_argument("--seed", type=int, default=20260731)
+    parser.add_argument(
+        "--expiry-days",
+        type=int,
+        default=EXACT_SURFACE_EXPIRES_DAYS,
+        help="Episode expiry used by the opportunity reconstruction.",
+    )
+    parser.add_argument(
+        "--trigger-policy",
+        choices=("first-exposure-success", "first-success"),
+        default="first-success",
+        help=(
+            "Whether eligibility requires the form's first appearance to be "
+            "successful or merely its first successful appearance."
+        ),
+    )
     args = parser.parse_args()
     if args.output.exists():
         parser.error("output already exists")
     if args.simulations < 1:
         parser.error("simulations must be positive")
+    if args.expiry_days < 1:
+        parser.error("expiry-days must be positive")
 
     db_sha = _sha256(args.db)
     if args.expected_db_sha256 and db_sha != args.expected_db_sha256:
@@ -203,6 +220,7 @@ def main() -> int:
         )
 
         seen_forms: set[tuple[int, str]] = set()
+        successful_forms: set[tuple[int, str]] = set()
         assigned_forms: set[tuple[int, str]] = set()
         open_episode_by_lemma: dict[int, dict[str, Any]] = {}
         assignments: list[dict[str, Any]] = []
@@ -262,9 +280,17 @@ def main() -> int:
             pair = (lemma_id, surface_key)
             first_exposure = pair not in seen_forms
             seen_forms.add(pair)
-            if not first_exposure:
-                continue
+            first_success = row.rating >= 3 and pair not in successful_forms
+            if row.rating >= 3:
+                successful_forms.add(pair)
             if row.is_acquisition or row.rating < 3:
+                continue
+            if (
+                args.trigger_policy == "first-exposure-success"
+                and not first_exposure
+            ):
+                continue
+            if args.trigger_policy == "first-success" and not first_success:
                 continue
             lemma = lemma_by_id.get(lemma_id)
             morphology = eligible_surface_morphology(surface_key, lemma)
@@ -287,7 +313,7 @@ def main() -> int:
                 "arm": deterministic_arm(identity, lemma_id, surface_key),
                 "candidate_count": len(candidate_ids),
                 "expires_at": reviewed_at + timedelta(
-                    days=EXACT_SURFACE_EXPIRES_DAYS
+                    days=args.expiry_days
                 ),
                 "any_form_outcome_rating": None,
                 "any_form_outcome_at": None,
@@ -326,6 +352,43 @@ def main() -> int:
             for assignment in assignments
             if assignment["exact_all_word_outcome_rating"] is not None
         ]
+        endpoint_windows = []
+        for window_days in (3, 5, 7, 10, 14):
+            all_word_in_window = [
+                assignment
+                for assignment in assignments
+                if assignment["all_word_outcome_at"] is not None
+                and assignment["all_word_outcome_at"]
+                <= assignment["triggered_at"] + timedelta(days=window_days)
+            ]
+            exact_in_window = [
+                assignment
+                for assignment in assignments
+                if assignment["exact_all_word_outcome_at"] is not None
+                and assignment["exact_all_word_outcome_at"]
+                <= assignment["triggered_at"] + timedelta(days=window_days)
+            ]
+            endpoint_windows.append({
+                "days": window_days,
+                "all_word_outcome_fraction": round(
+                    len(all_word_in_window) / len(assignments)
+                    if assignments else 0.0,
+                    4,
+                ),
+                "exact_form_outcome_fraction": round(
+                    len(exact_in_window) / len(assignments)
+                    if assignments else 0.0,
+                    4,
+                ),
+                "successful_exact_form_itt_rate": round(
+                    sum(
+                        assignment["exact_all_word_outcome_rating"] >= 3
+                        for assignment in exact_in_window
+                    ) / len(assignments)
+                    if assignments else 0.0,
+                    4,
+                ),
+            })
         baseline_success = (
             mean(
                 assignment["all_word_outcome_rating"] >= 3
@@ -403,7 +466,8 @@ def main() -> int:
             })
 
         # Operational ITT endpoint: a successful exact-form review in a
-        # different sentence within 14 days; no exact delivery counts as zero.
+        # different sentence within the configured episode window; no exact
+        # delivery counts as zero.
         # This directly measures whether the intervention produces the intended
         # retrieval opportunity. Treatment effect sizes are an assumption grid.
         exact_control_success = (
@@ -445,6 +509,8 @@ def main() -> int:
                 "sha256": db_sha,
             },
             "cutoff": args.cutoff.isoformat(),
+            "trigger_policy": args.trigger_policy,
+            "expiry_days": args.expiry_days,
             "window": {
                 "first_reading_review": (
                     first_review_at.isoformat() if first_review_at else None
@@ -471,7 +537,8 @@ def main() -> int:
                 ),
             },
             "endpoint_yield_under_historical_ordinary_scheduling": {
-                "all_word_outcomes_within_14d": len(all_word_outcomes),
+                "window_sensitivity": endpoint_windows,
+                "all_word_outcomes_within_episode_window": len(all_word_outcomes),
                 "all_word_outcome_fraction": round(outcome_yield, 4),
                 "all_word_success_rate": round(baseline_success, 4),
                 "all_word_collateral_fraction": round(
@@ -490,13 +557,13 @@ def main() -> int:
                     if all_word_outcomes else 0.0,
                     4,
                 ),
-                "any_form_primary_outcomes_within_14d": len(any_outcomes),
+                "any_form_primary_outcomes_within_episode_window": len(any_outcomes),
                 "any_form_primary_outcome_fraction": round(
                     len(any_outcomes) / len(assignments)
                     if assignments else 0.0,
                     4,
                 ),
-                "exact_form_primary_outcomes_within_14d": len(exact_outcomes),
+                "exact_form_primary_outcomes_within_episode_window": len(exact_outcomes),
                 "exact_form_outcome_fraction": round(
                     len(exact_outcomes) / len(assignments)
                     if assignments else 0.0,
@@ -510,7 +577,7 @@ def main() -> int:
                     if any_outcomes else 0.0,
                     4,
                 ),
-                "exact_form_all_word_outcomes_within_14d": len(
+                "exact_form_all_word_outcomes_within_episode_window": len(
                     exact_all_word_outcomes
                 ),
                 "exact_form_all_word_outcome_fraction": round(

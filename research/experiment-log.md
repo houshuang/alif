@@ -48,6 +48,44 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-07-31: Faster form pilot, complete token evidence, and distributed-day graduation
+
+**Form-pilot acceleration.** A frozen replay compared the original requirement
+that the form's first appearance be successful with eligibility at the first
+successful appearance, even after an earlier miss. Assignments rose from 504
+(3.04/active day) to 582 (3.51/day); shortening proactive expiry to seven days
+released a small number of blocked lemmas and produced 597 opportunities
+(3.60/day). Historical ordinary scheduling still supplied a first later
+all-word outcome for 78.7% within seven days. Its successful exact-form ITT
+baseline was 27.3%, and 200 assignments retained 83.8% simulated power for an
+assumed 20-point treatment effect. New proactive episodes therefore use
+`trigger_policy=first_success` and a stored seven-day window. Existing and
+yellow-confusion episodes retain their 14-day timestamps. The treatment cap
+stays one/session: fewer than two treatment assignments arise per active day on
+average, while a second slot would increase displacement of due material.
+
+**Every displayed token is now observable.** Word-evidence protocol v2 submits
+all mapped reading tokens, including function words and proper names. These
+rows are explicitly `is_schedulable_content=false`, normally have no linked
+ReviewLog, and retain `rating_source=sentence_comprehension`; they do not gain
+SRS credit or become cards. Exact rendering, tashkīl visibility/reveals,
+toggles, sentence-word identity, and token role are immutable. Authoritative
+backend validation remains non-blocking and protocol-v1 clients remain valid.
+This closes the exposure-measurement gap without reversing the decision not to
+schedule function words.
+
+**Distinct-day policy.** The adjusted longitudinal estimate for an additional
+distributed day was +4.6 points (95% interval +2.0 to +7.4), while current
+early tiers could graduate on same-day accessibility. Frozen replay found 43
+same-day early graduations across 22 active days (1.96/day; peak historical
+pending proxy 19). With `ALIF_DISTRIBUTED_DAY_GRADUATION=1`, first-day early
+graduation is held in Box 2 until next day; a second-day success with at least
+two correct reviews and 80% acquisition accuracy graduates immediately as
+`distributed_confirmation`. Failures retain normal rules and the ≥3-day
+elapsed tier remains valid. Rollback is one flag and restart. Full contracts:
+`docs/proactive-form-pilot.md`, `docs/token-presentation-evidence.md`, and
+`docs/distributed-day-graduation.md`.
+
 ## 2026-07-31: Proactive exact-form retrieval pilot activated
 
 **Problem and hypothesis.** Longitudinal modeling estimated a 4.8-point penalty

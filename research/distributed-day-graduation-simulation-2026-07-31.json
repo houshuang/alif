@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "method": "distributed-day-graduation-workload-replay-v1",
+  "database": {
+    "filename": "alif.db",
+    "sha256": "f98ad15b279cdb9a4ec0fcfbbe9ddf76982aa1c6c51bf15c84ebc8d96232784a"
+  },
+  "cutoff": "2026-07-30T13:58:00+00:00",
+  "observed_policy_start": "2026-07-26T13:36:14.850289+00:00",
+  "candidate_cohort_start": "2026-07-09T11:59:15.832191+00:00",
+  "counterfactual_candidates": {
+    "same_day_early_graduations": 43,
+    "by_reason": {
+      "first_correct": 33,
+      "perfect_accuracy": 10
+    },
+    "active_days_in_observed_policy_window": 22,
+    "mean_deferred_confirmations_per_active_day": 1.955,
+    "maximum_on_one_day": 16,
+    "peak_pending_using_observed_followup": 19
+  },
+  "observed_later_success_proxy": {
+    "resolved_on_later_day": 39,
+    "unresolved_by_cutoff": 4,
+    "resolved_fraction": 0.907,
+    "median_calendar_days": 3.269,
+    "mean_calendar_days": 4.785,
+    "within_2_days_fraction": 0.3488,
+    "within_7_days_fraction": 0.6977
+  },
+  "proposed_policy": {
+    "first_day_success": "remain acquiring; Box 2 due next day",
+    "second_day_success": "graduate immediately as distributed_confirmation",
+    "maximum_intended_added_successes_per_word": 1,
+    "feature_flag": "ALIF_DISTRIBUTED_DAY_GRADUATION"
+  },
+  "limitations": [
+    "The replay covers only reviews with explicit graduation-reason telemetry.",
+    "Observed later reviews occurred under the old FSRS policy; an acquiring confirmation should usually be delivered sooner.",
+    "This estimates workload and deliverability, not the causal retention effect."
+  ]
+}

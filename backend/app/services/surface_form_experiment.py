@@ -5,8 +5,8 @@ which already-due sentence represents that lemma: treatment episodes prefer the
 same non-trivial surface form in a different sentence and make it the primary
 retrieval target. It never creates a card, changes a due date, or changes the
 rating supplied by the learner. Episodes can start from a yellow-confusion
-event or, behind ``ALIF_PROACTIVE_FORM_EXPERIMENT``, a successful first
-exposure to the form.
+event or, behind ``ALIF_PROACTIVE_FORM_EXPERIMENT``, the first successful
+review of the form.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ from app.services.sentence_eligibility import reviewable_sentence_clauses
 EXACT_SURFACE_EXPERIMENT_KEY = "__exact_surface_v1"
 EXACT_SURFACE_EXPERIMENT_VERSION = "exact_surface_v1"
 EXACT_SURFACE_EXPIRES_DAYS = 14
+PROACTIVE_EXACT_SURFACE_EXPIRES_DAYS = 7
 EXACT_SURFACE_MAX_SLOTS_PER_SESSION = 1
 PROACTIVE_FORM_EXPERIMENT_ENV = "ALIF_PROACTIVE_FORM_EXPERIMENT"
 
@@ -112,7 +113,7 @@ def deterministic_arm(
 
 
 def proactive_form_experiment_enabled() -> bool:
-    """Whether successful first-form exposures may enter the randomized pilot."""
+    """Whether first successful form reviews may enter the randomized pilot."""
     return os.environ.get(PROACTIVE_FORM_EXPERIMENT_ENV, "0").strip().lower() in {
         "1",
         "true",
@@ -129,6 +130,33 @@ def _surface_seen_count(
     stats = parse_json_column(knowledge.variant_stats_json)
     counts = [
         max(0, int(entry.get("seen") or 0))
+        for key, entry in stats.items()
+        if (
+            not str(key).startswith("__")
+            and isinstance(entry, dict)
+            and normalize_surface_form(str(key)) == surface_key
+        )
+    ]
+    return max(counts, default=0)
+
+
+def _surface_success_count(
+    knowledge: UserLemmaKnowledge,
+    surface_key: str,
+) -> int:
+    """Return successful displays, including success after an early miss.
+
+    Historical form stats predate an explicit ``correct`` counter. A display
+    is successful exactly when it was neither missed nor marked confused.
+    """
+    stats = parse_json_column(knowledge.variant_stats_json)
+    counts = [
+        max(
+            0,
+            int(entry.get("seen") or 0)
+            - int(entry.get("missed") or 0)
+            - int(entry.get("confused") or 0),
+        )
         for key, entry in stats.items()
         if (
             not str(key).startswith("__")
@@ -296,7 +324,7 @@ def process_surface_experiment_review(
     # Exact-form retrieval is meaningful regardless of the scheduler's primary
     # label. Record and resolve the first later exact-form appearance in a
     # different sentence for an intention-to-treat "successful exact retrieval
-    # within 14 days" endpoint. Non-delivery remains a failure in that endpoint.
+    # within the episode window" endpoint. Non-delivery remains a failure.
     for episode in episodes:
         if (
             key is None
@@ -399,20 +427,20 @@ def process_surface_experiment_review(
         break
 
     # The original pilot starts from a yellow FSRS event. The default-off
-    # extension also enrolls a successful first exposure to a meaningful form,
+    # extension also enrolls the first successful review of a meaningful form,
     # which is the common case behind the observed novel-form penalty. Red
     # misses and acquisition evidence retain their existing recovery paths.
     confusion_trigger = bool(review_log.was_confused)
-    proactive_first_exposure_trigger = (
+    proactive_first_success_trigger = (
         proactive_form_experiment_enabled()
         and key is not None
         and review_log.rating >= 3
-        and _surface_seen_count(knowledge, key) == 1
+        and _surface_success_count(knowledge, key) == 1
     )
     if (
         key is not None
         and not review_log.is_acquisition
-        and (confusion_trigger or proactive_first_exposure_trigger)
+        and (confusion_trigger or proactive_first_success_trigger)
     ):
         morphology = eligible_surface_morphology(key, lemma)
         already_assigned = any(
@@ -443,6 +471,13 @@ def process_surface_experiment_review(
                 digest = hashlib.sha256(
                     f"{identity}:{knowledge.lemma_id}:{key}".encode("utf-8")
                 ).hexdigest()[:16]
+                proactive = not confusion_trigger
+                expiry_days = (
+                    PROACTIVE_EXACT_SURFACE_EXPIRES_DAYS
+                    if proactive
+                    else EXACT_SURFACE_EXPIRES_DAYS
+                )
+                seen_count = _surface_seen_count(knowledge, key)
                 episode = {
                     "id": digest,
                     "surface_key": key,
@@ -454,12 +489,19 @@ def process_surface_experiment_review(
                         if confusion_trigger
                         else "successful_first_form_exposure"
                     ),
+                    "trigger_policy": (
+                        "yellow_confusion"
+                        if confusion_trigger
+                        else "first_success"
+                    ),
+                    "prior_surface_exposures": max(0, seen_count - 1),
+                    "window_days": expiry_days,
                     "trigger_review_id": review_log.id,
                     "trigger_sentence_ids": list(sentence_ids),
                     "triggered_at": now.isoformat(),
                     "arm": arm,
                     "candidate_count_at_trigger": len(candidate_ids),
-                    "expires_at": (now + timedelta(days=EXACT_SURFACE_EXPIRES_DAYS)).isoformat(),
+                    "expires_at": (now + timedelta(days=expiry_days)).isoformat(),
                     "delivered_at": None,
                     "outcome_review_id": None,
                     "outcome_rating": None,

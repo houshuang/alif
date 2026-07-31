@@ -129,6 +129,99 @@ def test_tier0_first_correct_graduates(db_session):
     assert ulk.fsrs_card_json is not None
 
 
+def test_distributed_day_policy_defers_first_correct(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_DISTRIBUTED_DAY_GRADUATION", "1")
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    result = submit_acquisition_review(
+        db_session,
+        lemma.lemma_id,
+        rating_int=3,
+    )
+
+    assert result["graduated"] is False
+    assert result["new_state"] == "acquiring"
+    assert result["acquisition_box"] == 2
+    log = db_session.query(ReviewLog).order_by(ReviewLog.id.desc()).first()
+    assert log.fsrs_log_json["early_graduation_blocked"] is True
+    assert log.fsrs_log_json["distributed_days_confirmed"] is False
+
+
+def test_distributed_day_policy_graduates_on_second_day_success(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setenv("ALIF_DISTRIBUTED_DAY_GRADUATION", "1")
+    lemma = _create_lemma(db_session)
+    ulk = start_acquisition(db_session, lemma.lemma_id)
+    ulk.times_seen = 1
+    ulk.times_correct = 1
+    ulk.acquisition_box = 2
+    ulk.acquisition_next_due = datetime.now(timezone.utc) - timedelta(hours=1)
+    _add_review_on_date(
+        db_session,
+        lemma.lemma_id,
+        (datetime.now(timezone.utc) - timedelta(days=1)).date(),
+    )
+
+    result = submit_acquisition_review(
+        db_session,
+        lemma.lemma_id,
+        rating_int=3,
+    )
+
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
+    log = db_session.query(ReviewLog).order_by(ReviewLog.id.desc()).first()
+    assert log.fsrs_log_json["graduation_reason"] == "distributed_confirmation"
+    assert log.fsrs_log_json["distributed_days_confirmed"] is True
+
+
+def test_distributed_day_policy_requires_successes_on_distinct_days(
+    db_session,
+    monkeypatch,
+):
+    """An earlier failure alone cannot turn same-day successes into spacing."""
+    monkeypatch.setenv("ALIF_DISTRIBUTED_DAY_GRADUATION", "1")
+    lemma = _create_lemma(db_session)
+    ulk = start_acquisition(db_session, lemma.lemma_id)
+    ulk.times_seen = 5
+    ulk.times_correct = 4
+    ulk.acquisition_box = 2
+    ulk.acquisition_next_due = datetime.now(timezone.utc) - timedelta(hours=1)
+
+    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    db_session.add(ReviewLog(
+        lemma_id=lemma.lemma_id,
+        rating=1,
+        reviewed_at=yesterday,
+        is_acquisition=True,
+    ))
+    for minute in range(4):
+        db_session.add(ReviewLog(
+            lemma_id=lemma.lemma_id,
+            rating=3,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(minutes=minute + 1),
+            is_acquisition=True,
+        ))
+    db_session.flush()
+
+    result = submit_acquisition_review(
+        db_session,
+        lemma.lemma_id,
+        rating_int=3,
+    )
+
+    assert result["graduated"] is False
+    log = db_session.query(ReviewLog).order_by(ReviewLog.id.desc()).first()
+    assert log.fsrs_log_json["distributed_days_confirmed"] is False
+    assert log.fsrs_log_json["early_graduation_blocked"] is True
+
+
 def test_tier0_blocked_when_intro_just_shown(db_session):
     """First correct review within FAST_GRAD_INTRO_GAP of intro card stays in box 1.
 

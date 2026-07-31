@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only audit of prospective token-level form/tashkeel evidence.
 
-This script describes protocol-v1 capture and outcomes. It deliberately does
+This script describes protocol-v1/v2 capture and outcomes. It deliberately does
 not recommend a scheduling change: tashkeel fading is assigned to stronger
 words, while reveal toggles and cause chips are learner-selected.
 """
@@ -126,13 +126,32 @@ def summarize_rows(
         for row in rows
         if (parsed := _parse_datetime(row["created_at"])) is not None
     ]
+    protocol_counts = Counter(
+        int(row["protocol_version"])
+        for row in rows
+        if "protocol_version" in row.keys()
+    )
+    schedulable = [
+        row for row in rows
+        if "is_schedulable_content" not in row.keys()
+        or bool(row["is_schedulable_content"])
+    ]
+    inert = [
+        row for row in rows
+        if "is_schedulable_content" in row.keys()
+        and not bool(row["is_schedulable_content"])
+    ]
     result = {
-        "protocol_version": 1,
+        "protocol_versions": dict(sorted(protocol_counts.items())),
         "capture_window": {
             "first_created_at": min(created).isoformat() if created else None,
             "last_created_at": max(created).isoformat() if created else None,
         },
         "all_tokens": summarize_group(rows),
+        "token_role": {
+            "schedulable_content": summarize_group(schedulable),
+            "exposure_only_function_or_name": summarize_group(inert),
+        },
         "initial_render": {
             "vocalized": summarize_group(vocalized),
             "unvocalized": summarize_group(unvocalized),
@@ -189,7 +208,7 @@ def summarize_interactions(
     for event in events:
         if (
             event.get("event") != "sentence_review"
-            or event.get("word_evidence_protocol_version") != 1
+            or event.get("word_evidence_protocol_version") not in (1, 2)
         ):
             continue
         timestamp = _parse_datetime(event.get("ts"))
@@ -251,7 +270,7 @@ def analyze(
                 "word_review_evidence table is absent; deploy migration first"
             )
 
-        clauses = ["e.protocol_version = 1"]
+        clauses = ["e.protocol_version IN (1, 2)"]
         parameters: list[str] = []
         if since:
             clauses.append("e.created_at >= ?")
