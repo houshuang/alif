@@ -98,6 +98,38 @@ describe("tashkeel review evidence", () => {
     });
   });
 
+  it("records function words and proper names as exposure-only tokens", () => {
+    const inertWords: SentenceWordMeta[] = [
+      {
+        ...words[0],
+        sentence_word_id: 12,
+        lemma_id: 102,
+        surface_form: "فِي",
+        is_function_word: true,
+      },
+      {
+        ...words[0],
+        sentence_word_id: 13,
+        lemma_id: 103,
+        surface_form: "مُومُو",
+        is_function_word: false,
+        is_proper_name: true,
+      },
+    ];
+    const evidence = buildWordReviewEvidence({
+      words: inertWords,
+      signal: "understood",
+      missedIndices: new Set(),
+      confusedIndices: new Set(),
+      failureCausesByIndex: {},
+      tashkeel: EMPTY_TASHKEEL_INTERACTION,
+      answerRevealed: false,
+    });
+
+    expect(evidence.map((row) => row.sentence_word_id)).toEqual([12, 13]);
+    expect(evidence.every((row) => row.rating === 3)).toBe(true);
+  });
+
   it("records a front reveal even if the learner toggles vowels off again", () => {
     const forced = toggleTashkeelInteraction(
       EMPTY_TASHKEEL_INTERACTION,

@@ -343,6 +343,61 @@ class TestConfused:
 
 
 class TestWordReviewEvidence:
+    def test_protocol_v2_persists_function_and_proper_name_presentations(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتب", "books")
+        function = _seed_word(db_session, 2, "في", "in", with_card=False)
+        function.function_word_override = True
+        name = _seed_word(db_session, 3, "مومو", "Momo", with_card=False)
+        name.word_category = "proper_name"
+        _seed_sentence(
+            db_session,
+            1,
+            "كتب في مومو",
+            "books in Momo",
+            target_lemma_id=1,
+            word_ids=[1, 2, 3],
+        )
+        sentence_words = (
+            db_session.query(SentenceWord)
+            .order_by(SentenceWord.position)
+            .all()
+        )
+        for row, surface in zip(sentence_words, ("كُتُب", "فِي", "مُومُو")):
+            row.surface_form = surface
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="evidence-all-token-v2",
+            word_evidence_protocol_version=2,
+            word_review_evidence=[_evidence(row) for row in sentence_words],
+        )
+
+        assert result["word_evidence_saved"] == 3
+        assert [row["lemma_id"] for row in result["word_results"]] == [1]
+        rows = (
+            db_session.query(WordReviewEvidence)
+            .order_by(WordReviewEvidence.position)
+            .all()
+        )
+        assert [row.is_schedulable_content for row in rows] == [True, False, False]
+        assert [row.is_function_word for row in rows] == [False, True, False]
+        assert [row.is_proper_name for row in rows] == [False, False, True]
+        assert [row.rating_source for row in rows] == [
+            "sentence_comprehension",
+            "sentence_comprehension",
+            "sentence_comprehension",
+        ]
+        assert rows[0].review_log_id is not None
+        assert rows[1].review_log_id is None
+        assert rows[2].review_log_id is None
+
     def test_persists_exact_token_tashkeel_and_optional_causes(self, db_session):
         _seed_word(db_session, 1, "كتب", "books")
         _seed_word(db_session, 2, "قلم", "pen")

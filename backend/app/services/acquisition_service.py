@@ -9,8 +9,10 @@ Box 1→2 is "encoding" — allowed within a single session for initial repetiti
 except when the review is still inside the intro-card working-memory window.
 Box 2→3 and 3→graduation enforce real inter-session spacing (sleep consolidation).
 
-Graduation is tiered (2026-03-03):
-  - First correct review (times_seen was 0, rating >= 3) → instant graduation
+Graduation is tiered (2026-03-03), with a feature-flagged distributed-day guard:
+  - First correct review (times_seen was 0, rating >= 3) → graduate immediately
+    with the guard off; otherwise advance to Box 2 for next-day confirmation
+  - Distributed confirmation: a second-day success at >=80% accuracy → graduate
   - Elapsed-interval (Tier E): correct review after >= 3 days real gap → any box
   - Perfect accuracy (100%) + 3+ reviews → graduate from any box
   - High accuracy (≥80%) + 4+ reviews + box ≥ 2 → graduate
@@ -20,9 +22,12 @@ Graduation is tiered (2026-03-03):
 2026-03-03: Added tiered graduation — first-correct instant grad + relaxed criteria.
 2026-07-08: Added Tier E (elapsed-interval) — a long real retention interval is
             direct proof of consolidation the fixed Leitner intervals discarded.
+2026-07-31: Added the distributed-day guard to replace same-day early graduation
+            with one confirmation on a later UTC day.
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -74,6 +79,8 @@ RETEST_CREDIT_GAP = timedelta(minutes=30)
 # Version 2 adds the rating>=3 graduation success gate and prospective evidence
 # fields; older rows are intentionally left unstamped rather than backfilled.
 ACQUISITION_GRADUATION_POLICY_VERSION = 2
+DISTRIBUTED_DAY_GRADUATION_POLICY_VERSION = 1
+DISTRIBUTED_DAY_GRADUATION_ENV = "ALIF_DISTRIBUTED_DAY_GRADUATION"
 # First explicit boundary for the FSRS card created at graduation. Version 1
 # aligns root-boost Easy intervals with the production 95% retention policy.
 FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION = 1
@@ -110,16 +117,28 @@ def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
     return timedelta(0) <= gap < FAST_GRAD_INTRO_GAP
 
 
-def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
-    """Check if acquisition reviews for a word span at least N distinct UTC calendar days."""
-    reviews = (
-        db.query(ReviewLog.reviewed_at)
-        .filter(
-            ReviewLog.lemma_id == lemma_id,
-            ReviewLog.is_acquisition == True,  # noqa: E712
-        )
-        .all()
+def distributed_day_graduation_enabled() -> bool:
+    """Whether early graduation requires a success on a second UTC day."""
+    return os.environ.get(
+        DISTRIBUTED_DAY_GRADUATION_ENV, "0"
+    ).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _reviews_span_calendar_days(
+    db: Session,
+    lemma_id: int,
+    min_days: int,
+    include_at: datetime | None = None,
+    successful_only: bool = False,
+) -> bool:
+    """Check whether acquisition evidence spans N distinct UTC calendar days."""
+    query = db.query(ReviewLog.reviewed_at).filter(
+        ReviewLog.lemma_id == lemma_id,
+        ReviewLog.is_acquisition == True,  # noqa: E712
     )
+    if successful_only:
+        query = query.filter(ReviewLog.rating >= 3)
+    reviews = query.all()
     dates = set()
     for (reviewed_at,) in reviews:
         if reviewed_at:
@@ -127,6 +146,11 @@ def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bo
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             dates.add(dt.date())
+    if include_at is not None:
+        current = include_at
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        dates.add(current.astimezone(timezone.utc).date())
     return len(dates) >= min_days
 
 
@@ -652,6 +676,19 @@ def submit_acquisition_review(
     old_last_reviewed = ulk.last_reviewed  # captured before the update below (Tier E elapsed)
     recent_intro = _intro_shown_recently(ulk, now)
     retest_gate = _quiz_retest_after_failure(db, lemma_id, now, review_mode, rating_int)
+    distributed_day_policy = distributed_day_graduation_enabled()
+    distributed_days_confirmed = (
+        _reviews_span_calendar_days(
+            db,
+            lemma_id,
+            GRADUATION_MIN_CALENDAR_DAYS,
+            include_at=now,
+            successful_only=True,
+        )
+        if distributed_day_policy and rating_int >= 3
+        else False
+    )
+    early_graduation_blocked = False
 
     # Update review counts. A guarded re-test success (retest_gate) is pure
     # re-encoding: it enters neither the graduation numerator NOR denominator.
@@ -689,8 +726,11 @@ def submit_acquisition_review(
     grad_reason: Optional[str] = None
     if old_times_seen == 0 and rating_int >= 3:
         if not recent_intro and not retest_gate:
-            graduated = True
-            grad_reason = "first_correct"
+            if distributed_day_policy and not distributed_days_confirmed:
+                early_graduation_blocked = True
+            else:
+                graduated = True
+                grad_reason = "first_correct"
 
     # Box advancement logic
     # Box 1→2: allowed for encoding unless this is intro-card working memory
@@ -783,16 +823,36 @@ def submit_acquisition_review(
                 and elapsed_since_last >= ELAPSED_GRADUATION_MIN_INTERVAL):
             graduated = True
             grad_reason = "elapsed_interval"
+        # Distributed-day policy: once a word has two successful acquisition
+        # reviews on different UTC days, the second-day success is direct
+        # consolidation evidence. Graduate immediately rather than forcing the
+        # learner through an otherwise redundant third box review.
+        elif (
+            distributed_day_policy
+            and distributed_days_confirmed
+            and not recent_intro
+            and not retest_gate
+            and new_times_correct >= 2
+            and accuracy >= 0.80
+        ):
+            graduated = True
+            grad_reason = "distributed_confirmation"
         # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box.
         # The intro-card gap blocks this too; otherwise three immediate
         # same-session correct answers could still graduate on working memory.
         elif not recent_intro and not retest_gate and accuracy >= 1.0 and new_times_seen >= 3:
-            graduated = True
-            grad_reason = "perfect_accuracy"
+            if distributed_day_policy and not distributed_days_confirmed:
+                early_graduation_blocked = True
+            else:
+                graduated = True
+                grad_reason = "perfect_accuracy"
         # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
         elif not recent_intro and not retest_gate and accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
-            graduated = True
-            grad_reason = "high_accuracy"
+            if distributed_day_policy and not distributed_days_confirmed:
+                early_graduation_blocked = True
+            else:
+                graduated = True
+                grad_reason = "high_accuracy"
         # Tier 3: Standard (existing criteria) — requires due for spacing
         elif is_due and (ulk.acquisition_box >= 3
               and new_times_seen >= GRADUATION_MIN_REVIEWS
@@ -832,6 +892,13 @@ def submit_acquisition_review(
             "post_times_correct": ulk.times_correct,
             "pre_knowledge_state": old_knowledge_state,
             "graduation_policy_version": ACQUISITION_GRADUATION_POLICY_VERSION,
+            "distributed_day_policy_version": (
+                DISTRIBUTED_DAY_GRADUATION_POLICY_VERSION
+                if distributed_day_policy else None
+            ),
+            "distributed_day_policy_enabled": distributed_day_policy,
+            "distributed_days_confirmed": distributed_days_confirmed,
+            "early_graduation_blocked": early_graduation_blocked,
             "graduation_fsrs_initialization": graduation_fsrs_initialization,
             "is_due_at_review": is_due,
             "elapsed_since_last_seconds": (

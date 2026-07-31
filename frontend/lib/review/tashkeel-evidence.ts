@@ -5,7 +5,7 @@ import {
   WordReviewEvidenceIn,
 } from "../types";
 
-export const WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 1;
+export const WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 2;
 
 export interface TashkeelCardInteraction {
   frontOverride: boolean;
@@ -106,8 +106,6 @@ export function buildWordReviewEvidence({
     if (
       word.sentence_word_id == null
       || word.lemma_id == null
-      || word.is_function_word
-      || word.is_proper_name
     ) {
       return;
     }

@@ -39,7 +39,8 @@ from app.services.surface_form_experiment import (
 
 logger = logging.getLogger(__name__)
 
-WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 1
+WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 2
+_SUPPORTED_WORD_REVIEW_EVIDENCE_PROTOCOLS = {1, 2}
 _WORD_FAILURE_CAUSES = {
     "retrieval_lapse",
     "mixed_up",
@@ -599,7 +600,7 @@ def _persist_word_review_evidence(
     if not client_review_id:
         logger.warning("Dropping word review evidence without client_review_id")
         return 0
-    if protocol_version != WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION:
+    if protocol_version not in _SUPPORTED_WORD_REVIEW_EVIDENCE_PROTOCOLS:
         logger.warning(
             "Dropping word review evidence with unsupported protocol version %r",
             protocol_version,
@@ -630,9 +631,15 @@ def _persist_word_review_evidence(
             sw is None
             or sw.sentence_id not in allowed_sentence_ids
             or sw.lemma_id is None
-            or sw.lemma_id in function_word_lemma_ids
-            or sw.lemma_id in proper_name_lemma_ids
         ):
+            continue
+        is_function_word = sw.lemma_id in function_word_lemma_ids
+        is_proper_name = sw.lemma_id in proper_name_lemma_ids
+        is_schedulable_content = not is_function_word and not is_proper_name
+        # Protocol 1 clients deliberately omitted inert tokens. Do not broaden
+        # a stale client's contract if it submits an unexpected row; protocol
+        # 2 is the explicit all-token presentation ledger.
+        if protocol_version == 1 and not is_schedulable_content:
             continue
 
         surface_form = evidence.get("surface_form")
@@ -655,6 +662,12 @@ def _persist_word_review_evidence(
         )
         marked_confused = (
             sw.lemma_id in confused_set or effective_lemma_id in confused_set
+        )
+        rating_source = (
+            "token_mark"
+            if comprehension_signal == "partial"
+            and (marked_missed or marked_confused)
+            else "sentence_comprehension"
         )
         if comprehension_signal == "no_idea":
             valid_rating = rating == 1
@@ -744,7 +757,11 @@ def _persist_word_review_evidence(
             canonical_lemma_id=effective_lemma_id,
             rating=rating,
             review_mode=review_mode,
-            protocol_version=WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION,
+            protocol_version=protocol_version,
+            is_schedulable_content=is_schedulable_content,
+            is_function_word=is_function_word,
+            is_proper_name=is_proper_name,
+            rating_source=rating_source,
             surface_form=surface_form,
             rendered_front_form=rendered_front_form,
             default_show_tashkeel=default_show,
