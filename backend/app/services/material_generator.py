@@ -104,11 +104,15 @@ MAINTENANCE_PASSAGE_MIN_DUE_TARGETS = 6
 MAINTENANCE_PASSAGE_MIN_STABILITY_DAYS = 7.0
 # Roughly how many due comfortable words one passage exercises in flow. The
 # per-window cap scales with supply / this.
-MAINTENANCE_PASSAGE_DUE_PER_PASSAGE = 8
+MAINTENANCE_PASSAGE_DUE_PER_PASSAGE = 6
 # Floor preserves the prior cap whenever a viable pool exists; ceiling bounds LLM
 # spend per window.
 MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR = 2
-MAINTENANCE_PASSAGE_MAX_RECENT_CEILING = 8
+MAINTENANCE_PASSAGE_MAX_RECENT_CEILING = 12
+# One app open used to create at most one passage, which made a quality change
+# impossible to evaluate quickly. Fill a bounded slice of the current deficit
+# per warm-cache run; the 12-hour cap remains the global cost/concurrency brake.
+MAINTENANCE_PASSAGE_MAX_PER_WARM_RUN = 3
 
 
 def _maintenance_passage_window_cap(high_stability_due: int) -> int:
@@ -2341,11 +2345,25 @@ def _warm_sentence_cache_impl(
         if should_generate_passage:
             from app.services.passage_generator import generate_and_store_maintenance_passage
 
-            generate_and_store_maintenance_passage(
-                sentence_count=4,
-                model_override=llm_model,
+            generation_budget = min(
+                MAINTENANCE_PASSAGE_MAX_PER_WARM_RUN,
+                max(0, window_cap - recent_count),
             )
-            stats["maintenance_passages"] += 1
+            for passage_index in range(generation_budget):
+                try:
+                    generate_and_store_maintenance_passage(
+                        sentence_count=4,
+                        model_override=llm_model,
+                    )
+                    stats["maintenance_passages"] += 1
+                except Exception:
+                    logger.warning(
+                        "Warm cache %s: maintenance passage %d/%d failed",
+                        run_label,
+                        passage_index + 1,
+                        generation_budget,
+                        exc_info=True,
+                    )
     except Exception:
         logger.warning("Warm cache: maintenance passage generation skipped", exc_info=True)
     logger.info("Warm cache %s: phase 3e maintenance passage check done", run_label)

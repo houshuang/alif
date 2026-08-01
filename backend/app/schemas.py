@@ -500,6 +500,7 @@ class SentenceReviewItem(BaseModel):
     primary_gloss_en: str
     words: list[SentenceWordMeta]
     passage_sentences: list[PassageSentenceOut] = []
+    passage_metadata: dict | None = None
     grammar_features: list[str] = []
     selection_info: dict | None = None
 

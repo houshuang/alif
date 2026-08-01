@@ -696,7 +696,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           lemma_id: item.primary_lemma_id,
           card_index: cardIndex,
           total_cards: total,
-          detail: sentenceIds ? { sentence_ids: sentenceIds } : undefined,
+          detail: sentenceIds ? {
+            sentence_ids: sentenceIds,
+            ...(item.passage_metadata ?? {}),
+          } : undefined,
         });
       }
     } else if (slot.type === "verse") {

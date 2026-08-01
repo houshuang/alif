@@ -326,6 +326,17 @@ export interface PassageSentence {
   end_index: number;
 }
 
+export interface PassageExperimentMetadata {
+  story_id?: number | null;
+  experiment_version?: string | null;
+  narrative_mode?: string | null;
+  morphology_focus?: boolean | null;
+  morphology_target_lemma_id?: number | null;
+  target_lemma_ids?: number[];
+  target_occurrence_counts?: Record<string, number>;
+  target_surface_form_counts?: Record<string, number>;
+}
+
 export interface WordLookupResult {
   lemma_id: number;
   lemma_ar: string;
@@ -366,6 +377,7 @@ export interface SentenceReviewItem {
   sentence_id: number | null;
   sentence_ids?: number[];
   passage_sentences?: PassageSentence[];
+  passage_metadata?: PassageExperimentMetadata | null;
   arabic_text: string;
   english_translation: string;
   transliteration: string | null;

@@ -153,6 +153,8 @@ def _is_claude_cli_quota_error(message: str) -> bool:
     quota_markers = (
         "out of extra usage",
         "usage limit",
+        "weekly limit",
+        "hit your weekly",
         "rate limit",
         "too many requests",
         "quota",

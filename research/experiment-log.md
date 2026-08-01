@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-01: Embedded short stories v2 — coverage-aware, varied, morphology-rich
+
+**Prompt.** The sentence-reading UI's maintenance passages work as a format,
+but generation had collapsed into the same old-house/empty-now pathos and a
+small set of easy concrete targets. The request was to use many more short
+stories, group a large due vocabulary intelligently, generate natural
+repetition, exercise contrasting verb forms, and collect enough evidence in a
+few days. This does not alter the separate Story UI.
+
+**Baseline.** A production online-backup snapshot contained 192 maintenance
+passages but only 136 unique target lemmas. Ten targets occupied 26.5% of all
+target slots; “rat” appeared in nine passages. Of 478 comfortable due content
+lemmas, 123 were verbs. “Old” appeared in 41.1% of passages, 18.8% ended with
+“now,” only 32.5% of target slots repeated, and only 22.4% showed varied
+surfaces. Full design and pinned snapshot hash:
+`research/maintenance-short-story-v2-2026-08-01.md`.
+
+**Change.** `passage_generator.py` now ranks up to 96 due candidates by recent
+passage coverage debt before story suitability/overdue pressure/frequency;
+rotates among 24 least-recently-used compositional shapes; supplies the prior 24
+stories as negative creative context; makes the agent compare coherent 2–4
+word clusters; requires selected-target repetition; and gives eight shapes a
+resolved-mapping-checked verb morphology contrast. Stock endings and
+near-remakes fail deterministically. Target metadata is recomputed from exact
+resolved mappings, closing the old gap where a string-found target could remain
+after mapping changed identity.
+
+**Aggressive delivery.** Warm cache may fill three passages/run and 12/12h
+(supply-scaled); reading sessions of at least 12 sentence slots may reserve two
+distinct-due story cards. Acquisition remains single-sentence and passages
+still require three due maintenance lemmas. New `passage_metadata` flows into
+`card_shown`; `analyze_short_story_experiment.py --days 3` reports supply,
+shape/target concentration, repetition/form delivery, card volume, clean
+ms/word, comprehension, and target ratings. Delayed retention is explicitly
+not claimed from the three-day readout.
+
+**Rollback.** Restore the former 1/run, 8/12h, and one-card reservation. Stored
+v2 stories remain valid gated maintenance material and can be archived without
+rewriting learning history.
 
 ## 2026-07-31: Context diversity is already strong; global boost and A/B deferred
 

@@ -110,6 +110,7 @@ PASSAGE_MAX_SENTENCES = 5
 PASSAGE_MIN_DUE_WORDS = 3
 PASSAGE_PREFERRED_DUE_WORDS = 4
 PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
+PASSAGE_MAX_CARDS_PER_SESSION = 2
 LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 
 
@@ -803,10 +804,11 @@ def _group_maintenance_passages(
     return groups
 
 
-def _best_generated_passage_seed(
+def _best_generated_passage_seeds(
     candidates: list[SentenceCandidate],
     knowledge_by_id: dict[int, UserLemmaKnowledge],
-) -> list[SentenceCandidate]:
+    max_groups: int = PASSAGE_MAX_CARDS_PER_SESSION,
+) -> list[list[SentenceCandidate]]:
     groups: dict[int, list[SentenceCandidate]] = {}
     for candidate in candidates:
         story_id = getattr(candidate.sentence, "story_id", None)
@@ -824,7 +826,26 @@ def _best_generated_passage_seed(
     if not viable:
         return []
     viable.sort(key=_maintenance_passage_sort_key, reverse=True)
-    return viable[0]
+    selected: list[list[SentenceCandidate]] = []
+    covered_due_ids: set[int] = set()
+    for group in viable:
+        group_due_ids = _candidate_group_due_ids(group)
+        if selected and not (group_due_ids - covered_due_ids):
+            continue
+        selected.append(group)
+        covered_due_ids |= group_due_ids
+        if len(selected) >= max(0, max_groups):
+            break
+    return selected
+
+
+def _best_generated_passage_seed(
+    candidates: list[SentenceCandidate],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> list[SentenceCandidate]:
+    """Backward-compatible single best group for diagnostics and older tests."""
+    groups = _best_generated_passage_seeds(candidates, knowledge_by_id, max_groups=1)
+    return groups[0] if groups else []
 
 
 _GRAMMAR_ABBREV = {
@@ -2071,19 +2092,30 @@ def build_session(
                 session_scaffold_counts[word.lemma_id] = session_scaffold_counts.get(word.lemma_id, 0) + 1
 
     if mode == "reading":
-        passage_seed = _best_generated_passage_seed(candidates, knowledge_by_id)
-        for cand in passage_seed:
-            if len(selected) >= limit:
+        max_passage_cards = PASSAGE_MAX_CARDS_PER_SESSION if limit >= 12 else 1
+        passage_seeds = _best_generated_passage_seeds(
+            candidates,
+            knowledge_by_id,
+            max_groups=max_passage_cards,
+        )
+        for passage_index, passage_seed in enumerate(passage_seeds, start=1):
+            if len(selected) + len(passage_seed) > limit:
                 break
-            cand.selection_reason = "generated_passage_seed"
-            cand.selection_order = len(selected) + 1
-            selected.append(cand)
-            remaining_due -= cand.due_words_covered
-            if cand in candidates:
-                candidates.remove(cand)
-            for w in cand.words_meta:
-                if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
-                    session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
+            for cand in passage_seed:
+                cand.selection_reason = "generated_passage_seed"
+                cand.selection_order = len(selected) + 1
+                cand.score_components = dict(cand.score_components)
+                cand.score_components.update({
+                    "passage_seed_index": passage_index,
+                    "passage_experiment_aggressive": True,
+                })
+                selected.append(cand)
+                remaining_due -= cand.due_words_covered
+                if cand in candidates:
+                    candidates.remove(cand)
+                for w in cand.words_meta:
+                    if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
+                        session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
 
     priority_due_ids = sorted(
         due_lemma_ids,
@@ -2671,6 +2703,13 @@ def build_session(
             primary_lid = next(iter(due_ids))
         primary_lemma = lemma_map.get(primary_lid)
         due_per_sentence = len(due_ids) / max(1, len(group))
+        story = getattr(group[0].sentence, "story", None)
+        passage_metadata = parse_json_column(
+            getattr(story, "metadata_json", None),
+            default={},
+        )
+        if not isinstance(passage_metadata, dict):
+            passage_metadata = {}
 
         return {
             "sentence_id": sentence_ids[0],
@@ -2685,6 +2724,16 @@ def build_session(
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
             "words": words,
             "passage_sentences": passage_sentences,
+            "passage_metadata": {
+                "story_id": getattr(story, "id", None),
+                "experiment_version": passage_metadata.get("experiment_version"),
+                "narrative_mode": passage_metadata.get("narrative_mode"),
+                "morphology_focus": passage_metadata.get("morphology_focus"),
+                "morphology_target_lemma_id": passage_metadata.get("morphology_target_lemma_id"),
+                "target_lemma_ids": passage_metadata.get("target_lemma_ids") or [],
+                "target_occurrence_counts": passage_metadata.get("target_occurrence_counts") or {},
+                "target_surface_form_counts": passage_metadata.get("target_surface_form_counts") or {},
+            },
             "grammar_features": sorted(grammar_features),
             "selection_info": {
                 "reason": "maintenance_passage",

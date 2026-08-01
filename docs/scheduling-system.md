@@ -1945,6 +1945,7 @@ Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence
 | `PASSAGE_MIN_DUE_WORDS` | 3 | Min distinct due lemmas a passage group must cover to be viable — a passage card must earn its extra reading cost with enough due reviews |
 | `PASSAGE_PREFERRED_DUE_WORDS` | 4 | Sort threshold in `_maintenance_passage_sort_key`: groups at or above this due-word count rank first |
 | `PASSAGE_REVIEW_STATES` | {`known`, `learning`, `lapsed`} | Only FSRS maintenance words in these states are eligible for bundled passage cards (`_is_maintenance_passage_candidate`) |
+| `PASSAGE_MAX_CARDS_PER_SESSION` | 2 | Aggressive v2 experiment ceiling for reserved passage cards in reading sessions with at least 12 sentence slots; shorter sessions reserve at most one |
 
 **Viability gate** (`_is_viable_maintenance_passage_group`): a group is viable iff it has ≥ `PASSAGE_MIN_SENTENCES` sentences, covers ≥ `PASSAGE_MIN_DUE_WORDS` distinct due lemmas, has at least one due-covering member, and *every* due-covering member is a maintenance-passage candidate (all its due lemmas in `PASSAGE_REVIEW_STATES`).
 
@@ -1955,11 +1956,12 @@ Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence
 | `MAINTENANCE_PASSAGE_RECENT_WINDOW` | 12h | Rolling window over which generated passages are counted |
 | `MAINTENANCE_PASSAGE_MIN_STABILITY_DAYS` | 7.0 | "Comfortable": only due words with FSRS stability ≥ this count toward supply (matches the experiment-design threshold; the band passages serve best per the 2026-06-03 efficacy re-run) |
 | `MAINTENANCE_PASSAGE_MIN_DUE_TARGETS` | 6 | Floor pool size; below it the cap is 0 (can't build a cohesive passage without word-salad) |
-| `MAINTENANCE_PASSAGE_DUE_PER_PASSAGE` | 8 | ~one passage allowed per this many due comfortable words |
+| `MAINTENANCE_PASSAGE_DUE_PER_PASSAGE` | 6 | ~one passage allowed per this many due comfortable words during the aggressive v2 experiment |
 | `MAINTENANCE_PASSAGE_MAX_RECENT_FLOOR` | 2 | Cap never drops below the prior flat value when a viable pool exists |
-| `MAINTENANCE_PASSAGE_MAX_RECENT_CEILING` | 8 | Upper bound on passages/window (LLM-spend safety) |
+| `MAINTENANCE_PASSAGE_MAX_RECENT_CEILING` | 12 | Upper bound on passages/window (LLM-spend safety) |
+| `MAINTENANCE_PASSAGE_MAX_PER_WARM_RUN` | 3 | Bounded deficit fill per background warm-cache run, so the experiment accumulates enough material within days |
 
-Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_due // DUE_PER_PASSAGE, FLOOR, CEILING)`. Cohesion ("words that work naturally together") is enforced downstream by `passage_generator.py` (picks 1–3 cohesive due targets, rejects word-salad, sets a `cohesive` flag), so the gate only governs *supply*. Rationale + efficacy data: `research/analysis-2026-06-03-passage-efficacy.md`.
+Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_due // DUE_PER_PASSAGE, FLOOR, CEILING)`. In v2 (`clustered_short_stories_v2`), `passage_generator.py` ranks a wide pool by passage-coverage debt, rotates 24 story shapes, selects 2–4 semantically connected due targets, requires natural target repetition, and verifies planned verb-form contrast against resolved token mappings. The previous 24 passages are negative creative context; deterministic gates reject stock empty-house endings and near-remakes. Rationale, baseline, fast readout, and rollback: `research/maintenance-short-story-v2-2026-08-01.md`. Prior efficacy: `research/analysis-2026-06-03-passage-efficacy.md`.
 
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 

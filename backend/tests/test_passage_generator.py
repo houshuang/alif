@@ -5,14 +5,18 @@ from types import SimpleNamespace
 
 from app.models import Lemma, Sentence, StoryWord, UserLemmaKnowledge
 from app.services.passage_generator import (
+    PASSAGE_EXPERIMENT_VERSION,
     PassageGenerationError,
+    _assert_not_recent_plot_echo,
     _eligible_passage_words,
     _rank_targets_for_passage,
+    _select_narrative_mode,
     generate_maintenance_passage_agentic,
     store_maintenance_passage,
 )
 from app.services.sentence_selector import (
     SentenceCandidate,
+    _best_generated_passage_seeds,
     _group_maintenance_passages,
 )
 
@@ -240,11 +244,12 @@ def test_store_maintenance_passage_rejects_forced_target_packing(db_session):
         _seed_lemma(db_session, 2, "وَلَد", "ولد", "boy"),
         _seed_lemma(db_session, 3, "بَيْت", "بيت", "house"),
         _seed_lemma(db_session, 4, "قَلَم", "قلم", "pen"),
+        _seed_lemma(db_session, 5, "بَاب", "باب", "door"),
     ]
     db_session.commit()
     target_words = [
         {"lemma_id": w.lemma_id, "arabic": w.lemma_ar, "english": w.gloss_en, "pos": w.pos}
-        for w in words[:3]
+        for w in words[:5]
     ]
     eligible_words = [
         {"lemma_id": w.lemma_id, "arabic": w.lemma_ar, "english": w.gloss_en, "pos": w.pos}
@@ -257,7 +262,7 @@ def test_store_maintenance_passage_rejects_forced_target_packing(db_session):
         "sentences": [
             {"arabic": "كِتَابٌ فِي بَيْتٍ.", "english": "A book is in a house."},
             {"arabic": "وَلَدٌ فِي بَيْتٍ.", "english": "A boy is in a house."},
-            {"arabic": "قَلَمٌ فِي بَيْتٍ.", "english": "A pen is in a house."},
+            {"arabic": "قَلَمٌ عِنْدَ بَابِ بَيْتٍ.", "english": "A pen is by a house door."},
         ],
     }
 
@@ -351,6 +356,28 @@ def test_group_maintenance_passages_requires_three_due_words():
     assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3]]
 
 
+def test_passage_seed_selector_can_reserve_two_distinct_due_groups():
+    knowledge = {
+        lemma_id: SimpleNamespace(knowledge_state="known")
+        for lemma_id in range(1, 7)
+    }
+    candidates = [
+        _candidate(1, "passage", 10, {1}),
+        _candidate(2, "passage", 10, {2}),
+        _candidate(3, "passage", 10, {3}),
+        _candidate(4, "passage", 20, {4}),
+        _candidate(5, "passage", 20, {5}),
+        _candidate(6, "passage", 20, {6}),
+    ]
+
+    groups = _best_generated_passage_seeds(candidates, knowledge, max_groups=2)
+
+    assert [[c.sentence_id for c in group] for group in groups] == [
+        [4, 5, 6],
+        [1, 2, 3],
+    ]
+
+
 def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
     captured = {}
 
@@ -363,7 +390,12 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
             "title_ar": "ذِكْرَى",
             "title_en": "A memory",
             "style_tag": "nostalgic",
+            "narrative_mode": "shared_action",
             "premise": "A boy remembers a book in a small house.",
+            "target_plan": "The action links the people and the book.",
+            "ending_kind": "recognition",
+            "morphology_focus": True,
+            "morphology_target_lemma_id": 1,
             "selected_target_lemma_ids": [1, 3, 5],
             "sentences": [
                 {"arabic": "كِتَابٌ فِي بَيْتٍ.", "english": "A book in a house."},
@@ -392,6 +424,11 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
         style="nostalgic",
         sentence_count=3,
         feedback="Rejected because: disconnected examples",
+        narrative_mode={
+            "id": "shared_action",
+            "instruction": "Let several actors perform the same action.",
+            "morphology_focus": True,
+        },
     )
 
     assert result["selected_target_lemma_ids"] == [1, 3, 5]
@@ -400,6 +437,8 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
     assert "Do not maximize target count" in captured["prompt"]
     assert "premise" in captured["prompt"]
     assert "Previous rejected draft/editor feedback" in captured["prompt"]
+    assert "Recent passage titles" in captured["prompt"]
+    assert result["narrative_mode"] == "shared_action"
 
 
 def test_rank_targets_for_passage_prefers_story_suitable_words():
@@ -413,3 +452,94 @@ def test_rank_targets_for_passage_prefers_story_suitable_words():
     ranked = _rank_targets_for_passage(words)
 
     assert [w["lemma_id"] for w in ranked][:2] == [3, 4]
+
+
+def test_rank_targets_prefers_unused_before_repeating_story_friendly_word():
+    words = [
+        {
+            "lemma_id": 1,
+            "arabic": "جُرَذ",
+            "english": "rat",
+            "pos": "noun",
+            "passage_uses_7d": 3,
+            "passage_uses_30d": 9,
+        },
+        {
+            "lemma_id": 2,
+            "arabic": "رِسَالَة",
+            "english": "letter",
+            "pos": "noun",
+            "passage_uses_7d": 0,
+            "passage_uses_30d": 0,
+        },
+    ]
+
+    assert _rank_targets_for_passage(words)[0]["lemma_id"] == 2
+
+
+def test_narrative_mode_rotation_chooses_an_unused_shape(monkeypatch):
+    monkeypatch.setattr("app.services.passage_generator.random.choice", lambda modes: modes[0])
+    recent = [
+        {"narrative_mode": "shared_action"},
+        {"narrative_mode": "tiny_mystery"},
+    ]
+
+    chosen = _select_narrative_mode(recent)
+
+    assert chosen["id"] not in {"shared_action", "tiny_mystery"}
+
+
+def test_recent_plot_gate_rejects_stock_empty_house_ending():
+    try:
+        _assert_not_recent_plot_echo(
+            "He returned after years. But the house is empty now.",
+            [],
+        )
+    except PassageGenerationError as exc:
+        assert "stock" in str(exc)
+    else:
+        raise AssertionError("Expected stock pathos ending to be rejected")
+
+
+def test_v2_store_requires_repeated_selected_target(db_session):
+    words = [
+        _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),
+        _seed_lemma(db_session, 2, "وَلَد", "ولد", "boy"),
+        _seed_lemma(db_session, 3, "بَيْت", "بيت", "house"),
+    ]
+    db_session.commit()
+    eligible = [
+        {"lemma_id": word.lemma_id, "arabic": word.lemma_ar, "english": word.gloss_en, "pos": word.pos}
+        for word in words
+    ]
+    generated = {
+        "title_ar": "نَصٌّ",
+        "title_en": "Text",
+        "style_tag": "wry",
+        "narrative_mode": "dialogue_turn",
+        "premise": "A boy finds a book in a house.",
+        "target_plan": "Two concrete objects share one scene.",
+        "ending_kind": "reply",
+        "morphology_focus": False,
+        "morphology_target_lemma_id": None,
+        "selected_target_lemma_ids": [1, 2],
+        "sentences": [
+            {"arabic": "كِتَابٌ فِي بَيْتٍ.", "english": "A book is in a house."},
+            {"arabic": "وَلَدٌ فِي بَيْتٍ.", "english": "A boy is in a house."},
+            {"arabic": "بَيْتٌ.", "english": "The house."},
+        ],
+    }
+
+    try:
+        store_maintenance_passage(
+            db_session,
+            generated,
+            target_words=eligible[:2],
+            eligible_words=eligible,
+            quality_gate=False,
+            experiment_version=PASSAGE_EXPERIMENT_VERSION,
+        )
+    except PassageGenerationError as exc:
+        assert "repeat a selected target" in str(exc)
+    else:
+        raise AssertionError("Expected v2 passage without target repetition to be rejected")
