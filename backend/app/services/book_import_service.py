@@ -643,6 +643,7 @@ def import_processed_book(
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
     curated_ids: list[int] = []
+    curated_surface_map: dict[str, tuple[int, str, str | None]] = {}
     for entry in curated_lexicon or []:
         lemma_ar = (entry.get("lemma_ar") or "").strip()
         gloss_en = (entry.get("gloss_en") or "").strip()
@@ -679,9 +680,32 @@ def import_processed_book(
             surface_norm = _story_word_bare(surface)
             if surface_norm:
                 lemma_lookup[surface_norm] = lemma_id
+                curated_surface_map[surface_norm] = (
+                    lemma_id,
+                    gloss_en,
+                    entry.get("name_type"),
+                )
 
     knowledge_map = _build_knowledge_map(db)
     _create_story_words(db, story, body_ar, lemma_lookup, knowledge_map)
+    # A curated surface is an explicit, page-specific editorial decision. Apply
+    # it directly when the general lookup layer declines a cliticized, fused,
+    # or fictional form; strict imports must not fall through to morphology.
+    for word in story.words:
+        if word.lemma_id is not None:
+            continue
+        curated = curated_surface_map.get(_story_word_bare(word.surface_form))
+        if curated is None:
+            continue
+        lemma_id, gloss_en, name_type = curated
+        word.lemma_id = lemma_id
+        word.gloss_en = gloss_en
+        word.is_known_at_creation = bool(
+            name_type or knowledge_map.get(lemma_id) in ("learning", "known")
+        )
+        if name_type:
+            word.is_function_word = True
+            word.name_type = name_type
 
     # _create_story_words uses exactly this punctuation-aware segmentation. Build
     # a matching sentence-index → page map, retaining multiple sentences per
