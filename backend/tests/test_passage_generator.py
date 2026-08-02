@@ -17,6 +17,7 @@ from app.services.passage_generator import (
     generate_and_store_maintenance_passage,
     generate_maintenance_passage_agentic,
     plan_maintenance_target_groups,
+    plan_due_maintenance_target_groups,
     store_maintenance_passage,
 )
 from app.services.sentence_selector import (
@@ -94,6 +95,39 @@ def test_codex_target_planner_requires_verb_in_morphology_group(monkeypatch):
         assert "inflectable verb" in str(exc)
     else:
         raise AssertionError("Expected morphology group without a verb to be rejected")
+
+
+def test_due_target_planner_retries_rejected_batch_plans(monkeypatch):
+    fake_db = SimpleNamespace(close=lambda: None)
+    monkeypatch.setattr("app.services.passage_generator.SessionLocal", lambda: fake_db)
+    monkeypatch.setattr(
+        "app.services.passage_generator._due_maintenance_targets",
+        lambda db, limit: [{"lemma_id": 1}],
+    )
+    monkeypatch.setattr(
+        "app.services.passage_generator._recent_passage_history",
+        lambda db: [],
+    )
+    outcomes = iter([
+        PassageGenerationError("reused target"),
+        PassageGenerationError("missing verb"),
+        [{"target_lemma_ids": [1, 2, 3], "scene_hint": "scene"}],
+    ])
+
+    def fake_plan(*args, **kwargs):
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(
+        "app.services.passage_generator.plan_maintenance_target_groups",
+        fake_plan,
+    )
+
+    result = plan_due_maintenance_target_groups(1)
+
+    assert result[0]["target_lemma_ids"] == [1, 2, 3]
 
 
 def _seed_lemma(db, lemma_id, arabic, bare, gloss, state="known", box=None):

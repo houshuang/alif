@@ -1166,10 +1166,19 @@ def plan_due_maintenance_target_groups(group_count: int) -> list[dict[str, Any]]
         for index in range(group_count)
         if (recognized_count + index) % 3 == 2
     }
-    return plan_maintenance_target_groups(
-        targets,
-        group_count,
-        morphology_group_indexes=morphology_indexes,
+    last_error: PassageGenerationError | None = None
+    for attempt in range(1, 5):
+        try:
+            return plan_maintenance_target_groups(
+                targets,
+                group_count,
+                morphology_group_indexes=morphology_indexes,
+            )
+        except PassageGenerationError as exc:
+            last_error = exc
+            logger.warning("Target-group planning attempt %d rejected: %s", attempt, exc)
+    raise PassageGenerationError(
+        f"Target-group planning failed after 4 attempts: {last_error}"
     )
 
 
