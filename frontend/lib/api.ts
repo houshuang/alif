@@ -12,6 +12,7 @@ import {
   StoryListItem,
   StoryDetail,
   BookPageDetail,
+  BookPageCompleteResult,
   StoryLookupResult,
   WordLookupResult,
   DiscoverWord,
@@ -687,6 +688,25 @@ export async function getStoryDetail(id: number): Promise<StoryDetail> {
 
 export async function getBookPageDetail(storyId: number, page: number): Promise<BookPageDetail> {
   return fetchApi<BookPageDetail>(`/api/stories/${storyId}/pages/${page}`);
+}
+
+export async function completeBookPage(
+  storyId: number,
+  page: number,
+  lookedUpLemmaIds: number[],
+  readingTimeMs?: number,
+): Promise<BookPageCompleteResult> {
+  return fetchApi<BookPageCompleteResult>(
+    `/api/stories/${storyId}/pages/${page}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        looked_up_lemma_ids: lookedUpLemmaIds,
+        reading_time_ms: readingTimeMs ?? null,
+        client_review_id: `book:${storyId}:page:${page}`,
+      }),
+    },
+  );
 }
 
 export async function generateStory(opts?: {

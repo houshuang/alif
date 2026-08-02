@@ -115,7 +115,7 @@ export default function BookImportScreen() {
 
       // Navigate to story reader after brief delay
       setTimeout(() => {
-        router.push(`/story/${storyDetail.id}`);
+        router.replace(`/book-page?storyId=${storyDetail.id}&page=1`);
       }, 1500);
     } catch (e: any) {
       setPhase("error");

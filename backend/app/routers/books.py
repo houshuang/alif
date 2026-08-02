@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas import StoryDetailOut
-from app.services.book_import_service import import_book
+from app.schemas import ProcessedBookImportIn, StoryDetailOut
+from app.services.book_import_service import import_book, import_processed_book
 from app.services.story_service import get_story_detail
 
 logger = logging.getLogger(__name__)
@@ -74,4 +74,26 @@ async def import_book_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    return get_story_detail(db, story.id)
+
+
+@router.post("/import-processed", response_model=StoryDetailOut)
+def import_processed_book_endpoint(
+    body: ProcessedBookImportIn,
+    db: Session = Depends(get_db),
+):
+    """Import cleaned, page-aligned Arabic/English from Bookifier or scripts.
+
+    This endpoint performs no OCR or translation and creates no learning state.
+    """
+    try:
+        story, _ = import_processed_book(
+            db,
+            title_ar=body.title_ar,
+            title_en=body.title_en,
+            author=body.author,
+            pages=[page.model_dump() for page in body.pages],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return get_story_detail(db, story.id)

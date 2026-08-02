@@ -18,7 +18,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 
 from app.models import (
     FrequencyCoreEntry,
@@ -195,6 +195,13 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
             except (TypeError, ValueError):
                 metadata = {}
         curriculum_role = metadata.get("curriculum_role") if isinstance(metadata, dict) else None
+        # Book imports are passive reading material. They must never enter the
+        # automatic curriculum merely because the story is active; a lookup in
+        # the book reader creates learner state explicitly instead.
+        if source == "book_ocr" and not (
+            isinstance(metadata, dict) and metadata.get("reader_learning_opt_in") is True
+        ):
+            continue
         is_primary = source == "imported" and curriculum_role == "primary"
 
         # Explicit primary membership wins when a word occurs in several active
@@ -218,7 +225,7 @@ def _book_page_numbers(db: Session) -> dict[int, dict]:
     Resolves variant lemma IDs to their canonical forms.
     """
     rows = (
-        db.query(StoryWord.lemma_id, StoryWord.page_number, Story.id)
+        db.query(StoryWord.lemma_id, StoryWord.page_number, Story.id, Story.metadata_json)
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -229,11 +236,20 @@ def _book_page_numbers(db: Session) -> dict[int, dict]:
         )
         .all()
     )
+    def _learning_opted_in(metadata) -> bool:
+        if isinstance(metadata, str):
+            try:
+                metadata = _json.loads(metadata)
+            except (TypeError, ValueError):
+                return False
+        return isinstance(metadata, dict) and metadata.get("reader_learning_opt_in") is True
+
+    rows = [row for row in rows if _learning_opted_in(row[3])]
     raw_ids = {r[0] for r in rows}
     canon_map = _resolve_to_canonical(db, raw_ids)
 
     result: dict[int, dict] = {}
-    for lemma_id, page, story_id in rows:
+    for lemma_id, page, story_id, _metadata_json in rows:
         effective_id = canon_map.get(lemma_id, lemma_id)
         if effective_id not in result or page < result[effective_id]["page"]:
             result[effective_id] = {"page": page, "story_id": story_id}
@@ -462,6 +478,10 @@ def select_next_words(
         .filter(
             Lemma.canonical_lemma_id.is_(None),
             Lemma.gates_completed_at.isnot(None),
+            # New lexical rows from imported books stay inert until the reader
+            # explicitly looks them up. Existing lemmas keep their old source
+            # during import and therefore remain eligible on their own merits.
+            or_(Lemma.source.is_(None), Lemma.source != "book"),
             Lemma.lemma_id.notin_(exclude_ids) if exclude_ids else True,
             Lemma.lemma_id.notin_(exclude) if exclude else True,
         )

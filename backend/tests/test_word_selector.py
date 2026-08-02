@@ -356,6 +356,72 @@ class TestSelectNextWords:
         imported = next(w for w in result if w["lemma_id"] == imported_word.lemma_id)
         assert imported["score_breakdown"]["priority_bonus"] == 10.0
 
+    def test_book_import_word_is_not_automatic_curriculum(self, db_session):
+        """A library book stays inert until its reader records page evidence."""
+        from app.models import Story, StoryWord
+
+        book_word = _create_lemma(db_session, "مرفأ", "harbor", freq=12000)
+        book_word.source = "book"
+        story = Story(
+            body_ar="مرفأ",
+            source="book_ocr",
+            status="active",
+            title_en="Passive Book",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id,
+            position=0,
+            page_number=1,
+            surface_form="مرفأ",
+            lemma_id=book_word.lemma_id,
+            is_function_word=False,
+            is_known_at_creation=False,
+        ))
+        db_session.commit()
+
+        assert select_next_words(db_session, count=3) == []
+
+    def test_book_membership_does_not_reactivate_suspended_word(self, db_session):
+        from app.models import Story, StoryWord
+
+        word = _create_lemma(db_session, "غريب", "strange", freq=None)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=word.lemma_id,
+            knowledge_state="suspended",
+            source="study",
+            leech_suspended_at=datetime.now(timezone.utc),
+        ))
+        story = Story(
+            body_ar="غريب",
+            source="book_ocr",
+            status="active",
+            title_en="Passive Book",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id,
+            position=0,
+            page_number=1,
+            surface_form="غريب",
+            lemma_id=word.lemma_id,
+            is_function_word=False,
+            is_known_at_creation=False,
+        ))
+        db_session.commit()
+
+        assert select_next_words(db_session, count=3) == []
+        db_session.refresh(db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=word.lemma_id
+        ).one())
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=word.lemma_id
+        ).one().knowledge_state == "suspended"
+
     def test_generated_story_word_stays_deprioritized(self, db_session):
         # Auto-generated stories keep the weak +10 tier — they must not surface
         # obscure vocab ahead of common words.

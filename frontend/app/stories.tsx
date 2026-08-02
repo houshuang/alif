@@ -281,6 +281,8 @@ export default function StoriesScreen() {
     const completed: StoryListItem[] = [];
     const archived: StoryListItem[] = [];
     for (const s of stories) {
+      // Long-form books use the page-first library and reader.
+      if (s.source === "book_ocr") continue;
       if (s.archived_at) { archived.push(s); continue; }
       if (s.status === "completed") completed.push(s);
       else if (s.status === "suspended") suspended.push(s);
@@ -575,10 +577,10 @@ export default function StoriesScreen() {
         </Pressable>
         <Pressable
           style={[styles.actionBtn, styles.bookBtn]}
-          onPress={() => router.push("/book-import")}
+          onPress={() => router.push("/books")}
         >
           <Ionicons name="book-outline" size={18} color="#fff" />
-          <Text style={styles.actionBtnText}>Book</Text>
+          <Text style={styles.actionBtnText}>Library</Text>
         </Pressable>
       </View>
 

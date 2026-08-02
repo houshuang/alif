@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
+from app.models import Lemma, Sentence, SentenceWord, Story
 from app.services.interaction_logger import log_interaction
 from app.services.llm import AllProvidersFailed, generate_completion
 from app.services.morphology import get_word_features
@@ -36,6 +36,8 @@ from app.services.story_service import (
     _recalculate_story_counts,
     _build_knowledge_map,
     _get_all_lemmas,
+    _split_story_sentences,
+    _story_word_bare,
 )
 from app.services.transliteration import transliterate_arabic
 
@@ -524,49 +526,24 @@ def import_book(
     # Import unknown words (creates Lemma entries + runs quality gates internally)
     new_ids = _import_unknown_words(db, story, lemma_lookup)
 
-    # Create encountered ULK records for book words that don't have one yet.
-    # Redirect variants to their canonical so we never create a variant-scoped ULK.
-    from app.services.canonical_resolution import resolve_canonical_lemma_id
-    raw_book_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
-    book_lemma_ids = {resolve_canonical_lemma_id(db, lid) for lid in raw_book_lemma_ids}
-    existing_ulk_ids = set()
-    if book_lemma_ids:
-        existing_ulk_ids = {
-            r[0] for r in db.query(UserLemmaKnowledge.lemma_id)
-            .filter(UserLemmaKnowledge.lemma_id.in_(book_lemma_ids))
-            .all()
-        }
-    encountered_count = 0
-    for lid in book_lemma_ids - existing_ulk_ids:
-        db.add(UserLemmaKnowledge(
-            lemma_id=lid,
-            knowledge_state="encountered",
-            source="book",
-            total_encounters=1,
-        ))
-        encountered_count += 1
-    if encountered_count:
-        db.flush()
-        logger.info(f"Created {encountered_count} encountered ULK records (source=book)")
-
-    # Update Lemma.source and source_story_id for pre-existing lemmas now in the book.
-    # Book wins over lower-priority sources (wiktionary, avp_a1, story_import, etc.)
-    _BOOK_OVERRIDES = {None, "wiktionary", "avp_a1", "story_import", "auto_intro"}
+    # Deliberately do not create UserLemmaKnowledge rows here. A book import
+    # populates the library and lexicon only; learner state starts changing
+    # only when the reader actually completes a page. This boundary matters
+    # for large novels: merely making
+    # a text available must never enqueue hundreds of words for study.
+    # Only lemmas created by this import receive book provenance. Rewriting
+    # provenance on existing vocabulary makes importing a book silently change
+    # the global curriculum; existing lexical rows must remain exactly as they
+    # were before the book was added.
     source_updated = 0
-    if book_lemma_ids:
-        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(book_lemma_ids)).all():
-            changed = False
-            if lemma.source in _BOOK_OVERRIDES:
-                lemma.source = "book"
-                changed = True
-            if not lemma.source_story_id:
-                lemma.source_story_id = story.id
-                changed = True
-            if changed:
-                source_updated += 1
+    if new_ids:
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(new_ids)).all():
+            lemma.source = "book"
+            lemma.source_story_id = story.id
+            source_updated += 1
     if source_updated:
         db.flush()
-        logger.info(f"Updated {source_updated} lemmas: source→book, source_story_id→{story.id}")
+        logger.info(f"Tagged {source_updated} new book lemmas for story {story.id}")
 
     # Recalculate readiness
     _recalculate_story_counts(db, story)
@@ -598,4 +575,169 @@ def import_book(
         metadata=metadata,
     )
 
+    return story, new_ids
+
+
+def import_processed_book(
+    db: Session,
+    *,
+    title_ar: str,
+    title_en: str | None,
+    author: str | None,
+    pages: list[dict],
+    book_metadata: dict | None = None,
+    curated_lexicon: list[dict] | None = None,
+    strict_lexicon: bool = False,
+) -> tuple[Story, list[int]]:
+    """Import an already cleaned bilingual artifact without OCR/translation.
+
+    This is the bridge for Bookifier outputs.  ``pages`` is deliberately a
+    small stable interchange shape (Arabic plus optional English), so each
+    source pipeline can adapt its own cache/manifests without teaching Alif
+    about every historical artifact format.  Like photo import, this creates
+    no UserLemmaKnowledge rows.
+    """
+    normalized_pages = [
+        {
+            "arabic": (page.get("arabic") or "").strip(),
+            "english": (page.get("english") or "").strip() or None,
+            "source_page_number": page.get("source_page_number"),
+            "pdf_page_number": page.get("pdf_page_number"),
+        }
+        for page in pages
+        if (page.get("arabic") or "").strip()
+    ]
+    if not normalized_pages:
+        raise ValueError("At least one non-empty Arabic page is required")
+
+    body_ar = "\n".join(page["arabic"] for page in normalized_pages)
+    body_en = "\n\n".join(
+        page["english"] for page in normalized_pages if page["english"]
+    ) or None
+    story = Story(
+        title_ar=title_ar,
+        title_en=title_en,
+        body_ar=body_ar,
+        body_en=body_en,
+        source="book_ocr",
+        # Keep a partially staged import out of the library while lexical
+        # analysis runs without a write lock.
+        status="generating",
+        page_count=len(normalized_pages),
+        metadata_json={
+            "author": author,
+            **(book_metadata or {}),
+            "processed_pages": {
+                str(index): {
+                    "english": page["english"],
+                    "source_page_number": page["source_page_number"],
+                    "pdf_page_number": page["pdf_page_number"],
+                }
+                for index, page in enumerate(normalized_pages, start=1)
+            },
+        },
+    )
+    db.add(story)
+    db.flush()
+
+    all_lemmas = _get_all_lemmas(db)
+    lemma_lookup = build_lemma_lookup(all_lemmas)
+    curated_ids: list[int] = []
+    for entry in curated_lexicon or []:
+        lemma_ar = (entry.get("lemma_ar") or "").strip()
+        gloss_en = (entry.get("gloss_en") or "").strip()
+        surfaces = [
+            surface.strip()
+            for surface in (entry.get("surfaces") or [])
+            if isinstance(surface, str) and surface.strip()
+        ]
+        if not lemma_ar or not gloss_en or not surfaces:
+            raise ValueError(
+                "Every curated lexicon entry needs lemma_ar, gloss_en, and surfaces"
+            )
+        lemma_bare = strip_diacritics(lemma_ar)
+        lemma_norm = normalize_alef(lemma_bare)
+        lemma_id = lemma_lookup.get(lemma_norm)
+        if lemma_id is None:
+            lemma = Lemma(
+                lemma_ar=lemma_ar,
+                lemma_ar_bare=lemma_bare,
+                pos=entry.get("pos"),
+                gloss_en=gloss_en,
+                source="book",
+                source_story_id=story.id,
+                word_category=(
+                    "proper_name" if entry.get("name_type") else None
+                ),
+            )
+            db.add(lemma)
+            db.flush()
+            lemma_id = lemma.lemma_id
+            curated_ids.append(lemma_id)
+            lemma_lookup[lemma_norm] = lemma_id
+        for surface in surfaces:
+            surface_norm = _story_word_bare(surface)
+            if surface_norm:
+                lemma_lookup[surface_norm] = lemma_id
+
+    knowledge_map = _build_knowledge_map(db)
+    _create_story_words(db, story, body_ar, lemma_lookup, knowledge_map)
+
+    # _create_story_words uses exactly this punctuation-aware segmentation. Build
+    # a matching sentence-index → page map, retaining multiple sentences per
+    # reader page.
+    sentence_pages: list[int] = []
+    for page_number, page in enumerate(normalized_pages, start=1):
+        parts = _split_story_sentences(page["arabic"])
+        sentence_pages.extend([page_number] * len(parts))
+    for word in story.words:
+        if 0 <= (word.sentence_index or 0) < len(sentence_pages):
+            word.page_number = sentence_pages[word.sentence_index or 0]
+
+    if strict_lexicon:
+        unmapped = sorted({
+            _story_word_bare(word.surface_form)
+            for word in story.words
+            if word.lemma_id is None
+            and not word.is_function_word
+            and _story_word_bare(word.surface_form)
+        })
+        if unmapped:
+            raise ValueError(
+                "Strict processed-book import has unmapped Arabic forms: "
+                + ", ".join(unmapped)
+            )
+        _recalculate_story_counts(db, story)
+        story.status = "active"
+        db.commit()
+        db.refresh(story)
+        new_ids = curated_ids
+    else:
+        # Persist the inert book and release SQLite's write lock before the
+        # enrichment pipeline makes any external calls. The generating status
+        # is hidden from the reader library until the second stage succeeds.
+        db.commit()
+        db.refresh(story)
+
+        try:
+            new_ids = curated_ids + _import_unknown_words(db, story, lemma_lookup)
+            _recalculate_story_counts(db, story)
+            story.status = "active"
+            db.commit()
+            db.refresh(story)
+        except Exception:
+            db.rollback()
+            failed_story = db.get(Story, story.id)
+            if failed_story is not None:
+                failed_story.status = "failed"
+                db.commit()
+            raise
+
+    log_interaction(
+        event="processed_book_imported",
+        story_id=story.id,
+        page_count=story.page_count,
+        total_words=story.total_words,
+        new_lemmas=len(new_ids),
+    )
     return story, new_ids

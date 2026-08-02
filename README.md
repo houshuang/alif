@@ -19,6 +19,7 @@ A personal Arabic (MSA/fusha) learning app focused on reading and listening comp
 - **Podcast generation**: Personalized audio episodes built from your FSRS vocabulary state. Six formats: sentence drill, story breakdown, comprehensible input, root explorer, word spotlight, story retelling. Segments stitched via pydub/ffmpeg with per-segment caching.
 - **Learn mode**: Introduces new words with info-dense cards: forms tables, root/pattern chips, etymology, memory hooks, example sentences. Rescue cards re-teach stuck words (≥4 reviews, <50% accuracy).
 - **Story mode**: Generate micro-fiction in 4 formats (standard, long, breakdown, arabic_explanation) with your known vocabulary, or import any Arabic text. Tap-to-lookup reader with FSRS credit on completion. Story audio with voice rotation, archive system, passive `times_heard` tracking. Auto-generate cron keeps ≥3 active stories.
+- **Slow book reader**: Keep novels and processed bilingual texts in a separate page-first library. Importing/opening is learning-state neutral; completing a page records untouched content as understood and schedules words you looked up. Full English translation stays one tap away while reading.
 - **Textbook scanner**: OCR Arabic pages via Gemini Vision, extract words, add them to your vocabulary. Batch processing with crash recovery.
 - **Grammar tracking**: 49 grammar features across 8 tiers, with LLM-generated lessons.
 - **Arabic NLP pipeline**: 7-stage sentence generation pipeline with 3-pass lemma lookup, clitic stripping, CAMeL Tools morphological analysis, root extraction, LLM mapping verification/correction, and LLM-confirmed variant detection with multi-hop chain resolution.
@@ -75,6 +76,28 @@ python3 -m venv .venv
 ```
 
 Then run the frontend separately (`cd frontend && npm install && npx expo start`).
+
+### Importing processed bilingual books
+
+Bookifier caches and Alif `bookify_arabic.py` JSON can be imported without
+re-running OCR or translation:
+
+```bash
+cd backend
+.venv/bin/python scripts/import_reader_book.py \
+  data/kalila_dove.json
+
+# A title-less Bookifier translation cache needs explicit metadata:
+.venv/bin/python scripts/import_reader_book.py \
+  ../../bookifier/bilingual/cache/rijal_abu_qays.v3.json \
+  --title-ar "رجال في الشمس — أبو قيس" \
+  --title-en "Men in the Sun — Abu Qays"
+```
+
+The importer may extend the lexical catalog, but it creates no
+`UserLemmaKnowledge` rows and imported books do not enter the automatic curriculum. Reader lookup
+drafts survive navigation/restarts; learner state changes only when a page is
+explicitly completed.
 
 ### Connecting Frontend to Backend
 

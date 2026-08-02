@@ -465,6 +465,7 @@ def start_acquisition(
     due_immediately: bool = False,
     enforce_daily_cap: bool = True,
     episode_kind: str = ACQUISITION_EPISODE_NEW,
+    restart_known: bool = False,
 ) -> UserLemmaKnowledge:
     """Start the acquisition process for a word.
 
@@ -508,9 +509,10 @@ def start_acquisition(
         .first()
     )
 
-    # Don't demote a known/learning canonical back to acquiring just because a
-    # variant collateral path landed here. Return the existing row unchanged.
-    if ulk and ulk.knowledge_state in ("known", "learning"):
+    # Don't normally demote a known/learning canonical back to acquiring just
+    # because a collateral path landed here.  Explicit reader evidence can opt
+    # into restarting a presumed-known, cardless word via ``restart_known``.
+    if ulk and ulk.knowledge_state in ("known", "learning") and not restart_known:
         return ulk
 
     # Already acquiring — nothing to do, return as-is (not a new intro).

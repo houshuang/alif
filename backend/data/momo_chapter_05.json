@@ -1,0 +1,63 @@
+{
+  "title_ar": "مومو — الفصل الخامس",
+  "title_en": "Momo — Chapter Five",
+  "author": "Michael Ende",
+  "chapter_number": 5,
+  "chapter_title_ar": "حكايات من أجل الكثيرين وحكايات من أجل شخص واحد",
+  "chapter_title_en": "Stories for Many and Stories for One",
+  "strict_lexicon": true,
+  "lexicon": [
+    {"surfaces": ["أوجستينا"], "lemma_ar": "أُوجُسْتِينَا", "gloss_en": "Augustina", "pos": "proper_noun", "name_type": "personal"},
+    {"surfaces": ["إعاقتها"], "lemma_ar": "إِعَاقَة", "gloss_en": "hindrance; obstruction", "pos": "noun"},
+    {"surfaces": ["الإمبراطورة", "للإمبراطورة"], "lemma_ar": "إِمْبِرَاطُورَة", "gloss_en": "empress", "pos": "noun"},
+    {"surfaces": ["الإمبراطورى"], "lemma_ar": "إِمْبِرَاطُورِيّ", "gloss_en": "imperial", "pos": "adjective"},
+    {"surfaces": ["الاستغناء"], "lemma_ar": "اِسْتِغْنَاء", "gloss_en": "doing without; dispensing with", "pos": "noun"},
+    {"surfaces": ["التهامه"], "lemma_ar": "اِلْتِهَام", "gloss_en": "devouring", "pos": "noun"},
+    {"surfaces": ["التهكم"], "lemma_ar": "تَهَكُّم", "gloss_en": "mockery; sarcasm", "pos": "noun"},
+    {"surfaces": ["الحساء", "حساء"], "lemma_ar": "حَسَاء", "gloss_en": "soup", "pos": "noun"},
+    {"surfaces": ["المبجلين"], "lemma_ar": "مُبَجَّل", "gloss_en": "honored; venerable", "pos": "adjective"},
+    {"surfaces": ["بزحزحتها"], "lemma_ar": "زَحْزَحَة", "gloss_en": "moving; shifting", "pos": "noun"},
+    {"surfaces": ["تزحلق"], "lemma_ar": "تَزَحْلَقَ", "gloss_en": "to slip", "pos": "verb"},
+    {"surfaces": ["تستكفى"], "lemma_ar": "اِسْتَكْفَى", "gloss_en": "to have enough", "pos": "verb"},
+    {"surfaces": ["تنضب"], "lemma_ar": "نَضَبَ", "gloss_en": "to run dry; be exhausted", "pos": "verb"},
+    {"surfaces": ["خبث"], "lemma_ar": "خُبْث", "gloss_en": "malice; slyness", "pos": "noun"},
+    {"surfaces": ["شترابتسيا"], "lemma_ar": "شْتَرَابِتْسِيَا", "gloss_en": "Strapatsia", "pos": "proper_noun", "name_type": "personal"},
+    {"surfaces": ["صغر"], "lemma_ar": "صَغُرَ", "gloss_en": "to become small", "pos": "verb"},
+    {"surfaces": ["ضحلة"], "lemma_ar": "ضَحْل", "gloss_en": "shallow", "pos": "adjective"},
+    {"surfaces": ["فولاذ"], "lemma_ar": "فُولَاذ", "gloss_en": "steel", "pos": "noun"},
+    {"surfaces": ["كساكسوتراكسولس"], "lemma_ar": "كْسَاكْسُوتْرَاكْسُولُس", "gloss_en": "Xaxotraxolus", "pos": "proper_noun", "name_type": "personal"},
+    {"surfaces": ["لجيجي"], "lemma_ar": "جِيجِي", "gloss_en": "Gigi", "pos": "proper_noun", "name_type": "personal"},
+    {"surfaces": ["للتسيترن"], "lemma_ar": "تْسِيتَرْن", "gloss_en": "Tsittern", "pos": "proper_noun", "name_type": "place"},
+    {"surfaces": ["مزين"], "lemma_ar": "مُزَيَّن", "gloss_en": "adorned; decorated", "pos": "adjective"},
+    {"surfaces": ["منفوشة"], "lemma_ar": "مَنْفُوش", "gloss_en": "tousled; fluffy", "pos": "adjective"},
+    {"surfaces": ["مولعًا"], "lemma_ar": "مُولَع", "gloss_en": "fond of; passionate about", "pos": "adjective"},
+    {"surfaces": ["هزمت"], "lemma_ar": "هَزَمَ", "gloss_en": "to defeat", "pos": "verb"},
+    {"surfaces": ["والتساجن"], "lemma_ar": "تْسَاجَن", "gloss_en": "Tsagen", "pos": "proper_noun", "name_type": "place"},
+    {"surfaces": ["يزدهر"], "lemma_ar": "اِزْدَهَرَ", "gloss_en": "to flourish; blossom", "pos": "verb"}
+  ],
+  "source": {
+    "file": "momo_ar_michael_ende.pdf",
+    "sha256": "3529f1508aba4d73a43ea824286aeef553ad2f3e8c09ddd3a1aafab65764e629",
+    "page_numbering": "Printed page number; PDF page is printed page + 1"
+  },
+  "pages": [
+    {
+      "source_page_number": 67,
+      "pdf_page_number": 68,
+      "arabic": "الفصل الخامس\n\nحكايات من أجل الكثيرين\nوحكايات من أجل شخص واحد\n\nشيئًا فشيئًا أصبحت مومو شخصًا لا يمكن الاستغناء عنه بالنسبة لجيجي المرشد السياحي، لقد تملكت منه، إذا ما استطعنا قول هذا على شخص صغير السن خفيف الروح لا يهدأ فى مكان مثله، تملك منه حب عميق لتلك الفتاة الصغيرة منفوشة الشعر، وكان بوده لو يشدها معه إلى كل مكان يذهب إليه، وكان مولعًا - كما نعرف - بحكاية القصص، وقد حدث تغير لديه فى هذه النقطة بالذات، وهذا ما شعر به هو نفسه بوضوح شديد؛ فقد كانت حكايات فيما مضى أحيانًا ضحلة بعض الشيء، ولم يكن يخطر على باله شيء ذو قيمة، وكان يكرر بعض الأشياء أو يرجع إلى فيلم من الأفلام التى رآها أو قصة فى جريدة قرأها؛ فلنقل إن حكاياته كانت تسير على الأقدام، ولكن فجأة نبتت لها أجنحة منذ أن عرف مومو، وخاصة عندما تكون مومو موجودة تستمع إليه فإن خياله يزدهر كما فى مروج الربيع فيتزاحم حوله الأطفال والكبار. لقد استطاع حينئذ أن يحكى قصصًا تمتد إلى أيام وأسابيع فى حلقات عديدة، وخواطر لا تنضب، وبالمناسبة فإنه كان يستمع إلى",
+      "english": "CHAPTER FIVE\n\nSTORIES FOR MANY\nAND STORIES FOR ONE\n\nLittle by little, Momo became someone Gigi the tour guide could no longer do without. He had developed - if one can say this of such a young, light-hearted person who could never stay in one place - a deep affection for the little girl with the tousled hair, and he wished he could take her along wherever he went. As we know, he loved telling stories, and in this particular respect something had changed in him, something he himself felt very clearly. In the past his stories had sometimes been rather shallow; nothing worthwhile would occur to him, and he would repeat things or fall back on a film he had seen or a story he had read in a newspaper. Let us say that his stories had walked on foot. But suddenly, after he met Momo, they grew wings. Especially when Momo was there listening to him, his imagination blossomed like a spring meadow, and children and grown-ups crowded around him. He could now tell stories that went on for days and weeks, in countless installments, and his ideas never ran dry. Incidentally, he listened to"
+    },
+    {
+      "source_page_number": 68,
+      "pdf_page_number": 69,
+      "arabic": "نفسه بشوق كذلك؛ لأنه لم يكن يعرف إلى أى مدى سيقوده خياله، وعندما أتى سياح مرة أخرى يريدون مشاهدة المسرح الدائرى (وكانت مومو تجلس بعيدة قليلاً على السلالم الحجرية)، بدأ كلامه كما يلى: \"حضرات السيدات والسادة المبجلين! فكما هو أكيد معلوم لديكم، أن الإمبراطورة شترابتسيا أوجستينا قد قامت بحروب لا تعد ولا تحصى لتدافع عن مملكتها ضد الهجمات المستمرة للتسيترن والتساجن(*).\n\nوعندما هزمت هذه الأقوام مرة أخرى كان الغضب قد تملكها من هذه المضايقات التى لا تنتهى لدرجة أنها هددت بإبادة هؤلاء المهاجمين جميعًا صغيرًا وكبيرًا إذا لم يتنازل لها ملكهم كساكسوتراكسولس عن سمكته ذهبية اللون على سبيل العقاب.\n\nفقد كانت، سيداتى وسادتى، السمكات ذهبية اللون فى ذلك الوقت غير معروفة لدينا هنا فى البلاد، وكانت الإمبراطورة شترابتسيا قد علمت من أحد السياح أن ذلك الملك كساكسوتراكسولس يمتلك سمكة صغيرة، والتى عندما يكتمل نموها ستتحول إلى ذهب خالص، وأرادت الإمبراطورة حينئذ أن تمتلك هذا الشيء النادر بأى شكل، وضحك الملك كساكسوتراكسولس فى خبث، فسمكته الذهبية التى كان بالفعل يمتلكها، خبأها تحت سريره، وبدلاً منها أمر بإحضار حوت صغير فى طبق حساء مزين بالجواهر للإمبراطورة، صحيح أن الإمبراطورة فوجئت قليلاً من حجم الحيوان، لأنها كانت تتخيل السمكة الذهبية أصغر من ذلك، ولكن - هكذا قالت فى سرها - كلما كانت أكبر كلما\n\n(*) هذه أسماء من خيال المؤلف اشتقها من فعلين بمعنى يرتعد ويتردد = Zittern, Zagen بقصد التهكم والسخرية (المترجم).",
+      "english": "his own stories with equal anticipation, because he never knew how far his imagination would carry him. When another group of tourists came to see the round amphitheatre (Momo was sitting a little way off on the stone steps), he began as follows: \"Most honored ladies and gentlemen! As you surely know, Empress Strapatsia Augustina fought countless wars to defend her realm against the unending attacks of the Tsittern and Tsagen(*).\n\nWhen these peoples were defeated once again, she had become so enraged by their never-ending harassment that she threatened to exterminate every one of the invaders, young and old, unless their king, Xaxotraxolus, surrendered his golden-colored fish to her as a punishment.\n\nFor at that time, ladies and gentlemen, golden-colored fish were unknown here in our country. Empress Strapatsia had learned from a tourist that King Xaxotraxolus owned a little fish which would turn into solid gold when fully grown. The empress was determined to possess this rare object, whatever the cost. King Xaxotraxolus laughed slyly. He hid the golden fish he actually owned beneath his bed, and instead ordered that a small whale be presented to the empress in a jeweled soup plate. It is true that the empress was slightly surprised by the animal's size, since she had imagined the golden fish to be smaller; but, she said to herself, the bigger it was, the\n\n(*) The author invented these names from two German verbs meaning \"to tremble\" and \"to waver\" - Zittern and Zagen - for comic and satirical effect. (Translator.)"
+    },
+    {
+      "source_page_number": 69,
+      "pdf_page_number": 70,
+      "arabic": "كان أفضل، حيث إن السمكة سوف تعطى ذهبًا أكثر، ولكن هذه السمكة الذهبية لم تلمع بلون ذهبى ولو بالقدر الضئيل، وهذا ما بعث فيها القلق، ولكن رسول الملك كساكسوتراكسولس أبان لها أن السمكة ستتحول إلى ذهب فقط عندما يكتمل نموها، وليس قبل ذلك، ولذلك فإنه من الضرورى والحتمى عدم إعاقتها عن النمو، واقتنعت الإمبراطورة شترابتسيا بذلك، ونمت السمكة الصغيرة يومًا بعد يوم، وكانت تستهلك كميات هائلة من الطعام، ولكن الإمبراطورة شترابتسيا لم تكن فقيرة، وحصلت السمكة على كل ما استطاعت التهامه وأصبحت بدينة وسمينة، وسرعان ما صغر عليها طبق الحساء، وقالت الإمبراطورة شترابتسيا: \"كلما كانت أكبر، كلما كان أفضل\"، وأمرت بنقلها إلى حوض استحمامها، ولكن بعد ذلك بقليل لم يعد حوض الاستحمام أيضًا يناسب حجمها، وكبرت ثم كبرت، وعندئذ نقلت إلى حوض السباحة الإمبراطورى، وكان هذا النقل في حد ذاته معقدًا، حيث إن السمكة كانت تزن حينئذ وزن الثور، وقد تزحلق أحد العبيد الذين كانوا مكلفين بزحزحتها فأمرت الإمبراطورة على فور بإلقائه للسباع، لأن السمكة كانت تعنى بالنسبة لها كل شيء، وكل يوم كانت تجلس لساعات طويلة على حافة حوض السباحة وتشاهدها وهى تنمو، ولم تكن تفكر في شيء غير الذهب الكثير، لأنها كانت - كما هو معلوم - تعيش حياة غاية في الترف ولذلك لم تكن تستطيع أن تستكفى من الذهب أبدًا، وكانت تتمتم مرارًا وتكرارًا:\n\n\"كلما كانت أكبر كلما كان أفضل\"، وأعلنت هذه الجملة مبدأً عامًا وكتبت بأحرف من فولاذ على جميع مبانى الدولة.",
+      "english": "better, because the fish would yield more gold. But this golden fish did not shine with a golden color in the slightest, and that worried her. King Xaxotraxolus's envoy explained that the fish would turn to gold only when it had finished growing, not before, so it was absolutely essential not to hinder its growth. Empress Strapatsia was convinced. The little fish grew day after day and consumed enormous quantities of food, but the empress was not poor, and the fish received everything it could devour. It became fat and plump, and soon the soup plate was too small for it. \"The bigger, the better,\" said Empress Strapatsia, and she ordered it moved to her bathtub. Before long, the bathtub too could no longer contain it. It grew and grew, until it was transferred to the imperial swimming pool. This move was complicated in itself, for by then the fish weighed as much as an ox. One of the slaves assigned to shift it slipped, and the empress at once ordered him thrown to the wild beasts, because the fish meant everything to her. Every day she sat for hours at the edge of the pool, watching it grow. She thought of nothing but all that gold, for - as everyone knows - she lived in the utmost luxury and so could never have enough gold. Over and over she muttered:\n\n\"The bigger, the better.\" She proclaimed this sentence a universal principle and had it written in letters of steel on every government building."
+    }
+  ]
+}

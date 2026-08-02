@@ -6,6 +6,8 @@ and managing story completion with FSRS credit.
 """
 
 import random
+import re
+import threading
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -54,6 +56,21 @@ MAX_STORY_ATTEMPTS = 1
 MAX_CORRECTION_ROUNDS = 3
 TERMINAL_STORY_STATUSES = {"completed"}
 HIDDEN_STORY_STATUSES = {"deleted", "failed"}
+
+# FastAPI runs synchronous endpoints in a thread pool. A fast double tap, a
+# mobile retry whose first response was lost, or two open clients can otherwise
+# race between reading the page receipt and committing its review rows. The
+# review rows have unique idempotency keys, but that only turns the race into a
+# 500. Serialize each page's evidence transaction so every waiter observes the
+# committed receipt and returns a clean duplicate response.
+_BOOK_PAGE_LOCKS_GUARD = threading.Lock()
+_BOOK_PAGE_LOCKS: dict[tuple[int, int], threading.Lock] = {}
+
+
+def _book_page_completion_lock(story_id: int, page_number: int) -> threading.Lock:
+    key = (story_id, page_number)
+    with _BOOK_PAGE_LOCKS_GUARD:
+        return _BOOK_PAGE_LOCKS.setdefault(key, threading.Lock())
 
 STORY_SYSTEM_PROMPT = f"""\
 You are a brilliant Arabic storyteller — think Borges writing flash fiction with a \
@@ -148,10 +165,26 @@ def _tokenize_story_display(text: str) -> list[tuple[str, str]]:
         clean = strip_diacritics(raw_token)
         clean = strip_tatweel(clean)
         clean = ARABIC_PUNCTUATION.sub("", clean)
-        if not clean.strip():
+        if not clean.strip() or not re.search(r"[\u0600-\u06ff]", clean):
             continue
         results.append((raw_token, clean))
     return results
+
+
+def _story_word_bare(surface_form: str) -> str:
+    """Canonical punctuation-free form for one stored reader token."""
+    clean = ARABIC_PUNCTUATION.sub("", strip_tatweel(strip_diacritics(surface_form)))
+    clean = re.sub(r"[^\u0600-\u06ff]", "", clean)
+    return normalize_alef(clean.strip())
+
+
+def _split_story_sentences(text: str) -> list[str]:
+    """Split running Arabic while retaining terminal punctuation for display."""
+    return [
+        match.group(0).strip()
+        for match in re.finditer(r"[^.\n!?؟]+(?:[.!?؟]+|(?=\n)|$)", text)
+        if match.group(0).strip()
+    ]
 
 
 def _create_story_words(
@@ -170,9 +203,7 @@ def _create_story_words(
 
     Returns (total_words, known_count, function_word_count).
     """
-    import re
-    raw_parts = re.split(r"[.\n]", body_ar)
-    sentences = [s.strip() for s in raw_parts if s.strip()]
+    sentences = _split_story_sentences(body_ar)
     position = 0
     total = 0
     known = 0
@@ -352,7 +383,7 @@ def _import_unknown_words(
             continue
         if sw.lemma_id is not None or sw.is_function_word:
             continue
-        bare = normalize_alef(strip_diacritics(sw.surface_form))
+        bare = _story_word_bare(sw.surface_form)
         if bare in seen_bares or len(bare) < 2 or not _WORD_CHAR.search(bare):
             continue
         seen_bares.add(bare)
@@ -411,13 +442,19 @@ def _import_unknown_words(
 
     # CAMeL morphological analysis — resolve to existing lemmas where possible
     word_analyses: list[dict] = []
+    ordered_story_words = sorted(story.words, key=lambda item: item.position)
+    story_word_index = {
+        item.position: index for index, item in enumerate(ordered_story_words)
+    }
     # Deferred StoryWord updates for words resolved to existing lemmas.
     # Collected here, applied in Phase 3 to avoid dirtying the session early.
 
     for sw in unknown_words:
         # Normalize Quranic orthography before CAMeL analysis:
         # alef wasla (ٱ) → regular alef (ا), small/superscript marks
-        surface_normalized = sw.surface_form.replace("\u0671", "\u0627")
+        surface_normalized = ARABIC_PUNCTUATION.sub("", sw.surface_form).replace(
+            "\u0671", "\u0627"
+        )
         features = get_word_features(surface_normalized)
         lex_bare = strip_diacritics(features.get("lex", surface_normalized))
         lex_norm = normalize_alef(lex_bare)
@@ -431,6 +468,13 @@ def _import_unknown_words(
             resolved_updates.append((sw, existing_id, None, False))
             resolved_lemma_ids.add(existing_id)
             continue
+        token_index = story_word_index.get(sw.position, 0)
+        context_start = max(0, token_index - 4)
+        context_end = min(len(ordered_story_words), token_index + 5)
+        context = " ".join(
+            item.surface_form
+            for item in ordered_story_words[context_start:context_end]
+        )
         word_analyses.append({
             "story_word": sw,
             "surface": sw.surface_form,
@@ -439,6 +483,7 @@ def _import_unknown_words(
             "lex_norm": lex_norm,
             "root": features.get("root"),
             "pos": features.get("pos", "UNK"),
+            "context": context,
         })
 
     # Batch-load glosses for all resolved lemmas (avoids N+1 queries later)
@@ -481,53 +526,92 @@ def _import_unknown_words(
 
     # Step 2a: LLM batch translation — use lex (base form) not surface form
     gloss_map: dict[str, dict] = {}
-    try:
-        # Build word list from CAMeL lex forms for better dictionary glosses
-        words_for_llm = []
-        for a in word_analyses:
-            words_for_llm.append(f"{a['lex']} ({a['surface']})" if a['lex'] != a['surface'] else a['surface'])
-        words_list = "، ".join(words_for_llm)
+    translation_batch_size = 12
+    for batch_start in range(0, len(word_analyses), translation_batch_size):
+        batch = word_analyses[batch_start:batch_start + translation_batch_size]
+        try:
+            # Build word list from CAMeL lex forms for better dictionary glosses.
+            words_for_llm = []
+            for index, analysis in enumerate(batch, start=1):
+                words_for_llm.append(
+                    f"{index}. surface={analysis['surface']} | "
+                    f"candidate_lemma={analysis['lex']} | "
+                    f"context={analysis['context']}"
+                )
+            words_list = "\n".join(words_for_llm)
 
-        result = generate_completion(
-            prompt=f"""Given these Arabic words (base/dictionary forms), provide dictionary-form English glosses, part of speech, and whether the word is a proper name.
+            result = generate_completion(
+                prompt=f"""Given these Arabic words (base/dictionary forms), provide dictionary-form English glosses, part of speech, and whether the word is a proper name.
 
-Words: {words_list}
+Items: {words_list}
 
 IMPORTANT: Give dictionary-form glosses, NOT conjugated translations:
 - Verbs: use infinitive ("to write", "to wake up"), NOT ("she wrote", "he woke up")
 - Nouns: use bare singular ("book", "school"), NOT ("his books", "the schools")
 - Adjectives: use base form ("big", "beautiful"), NOT ("bigger", "the big one")
 
-Respond with JSON array: [{{"arabic": "the base form word", "english": "dictionary gloss", "pos": "noun/verb/adj/adv/prep/conj", "name_type": null or "personal" or "place"}}]
+Return exactly one result for every numbered item, in the same order. Use the
+context to repair an inflected, cliticized, fused, or imperfect candidate.
+Never refuse the whole batch because one item is uncertain: give the safest
+contextual dictionary lemma and gloss for that item.
+
+Respond with JSON: {{"words": [{{"index": 1, "arabic": "the corrected base-form lemma", "english": "dictionary gloss", "pos": "noun/verb/adj/adv/prep/conj", "name_type": null or "personal" or "place"}}]}}
 
 Set name_type to "personal" for personal names (people, characters), "place" for place names (cities, countries, landmarks), or null for regular vocabulary words.""",
-            system_prompt="You translate Arabic words to English. Give concise, dictionary-form glosses (1-3 words). For verbs use infinitive ('to X'). For proper names, provide the transliterated name. Respond with JSON only.",
-            json_mode=True,
-            task_type="story_word_import",
-        )
+                system_prompt="You translate Arabic words to English. Give concise, dictionary-form glosses (1-3 words). For verbs use infinitive ('to X'). For proper names, provide the transliterated name. Respond with JSON only.",
+                json_mode=True,
+                model_override="openai",
+                task_type="story_word_import",
+            )
 
-        # Result may be a list or a dict with a list inside
-        items = result if isinstance(result, list) else result.get("words", result.get("translations", []))
-        if isinstance(items, list):
+            # Result may be a list or a dict with a list inside. Treat an
+            # explicit model error as a failed batch, never as an empty success.
+            if isinstance(result, list):
+                items = result
+            elif isinstance(result, dict):
+                if result.get("error"):
+                    raise ValueError(str(result["error"]))
+                items = next(
+                    (
+                        result[key]
+                        for key in ("words", "translations", "items", "results", "entries")
+                        if isinstance(result.get(key), list)
+                    ),
+                    [],
+                )
+            else:
+                items = []
+            if not items:
+                raise ValueError("word translation returned no entries")
+
             for idx, item in enumerate(items):
-                arabic = item.get("arabic", "")
-                bare = normalize_alef(strip_diacritics(arabic))
+                if not isinstance(item, dict):
+                    continue
+                arabic = item.get("arabic") or item.get("word") or item.get("lemma") or ""
+                bare = _story_word_bare(arabic)
                 gloss_data = {
-                    "english": item.get("english", ""),
-                    "pos": item.get("pos"),
+                    "english": item.get("english") or item.get("gloss_en") or item.get("gloss") or "",
+                    "pos": item.get("pos") or item.get("part_of_speech"),
                     "name_type": item.get("name_type"),
                 }
-                gloss_map[bare] = gloss_data
-                # Positional fallback: also key by the surface/lex forms we sent
-                if idx < len(word_analyses):
-                    a = word_analyses[idx]
-                    surface_bare = normalize_alef(strip_diacritics(a["story_word"].surface_form))
-                    if surface_bare not in gloss_map:
-                        gloss_map[surface_bare] = gloss_data
-                    if a["lex_norm"] not in gloss_map:
-                        gloss_map[a["lex_norm"]] = gloss_data
-    except (AllProvidersFailed, Exception) as e:
-        logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
+                if bare:
+                    gloss_map[bare] = gloss_data
+                # Positional fallback is batch-relative and makes harmless
+                # spelling/diacritic variations in model output non-fatal.
+                if idx < len(batch):
+                    analysis = batch[idx]
+                    surface_bare = _story_word_bare(
+                        analysis["story_word"].surface_form
+                    )
+                    gloss_map.setdefault(surface_bare, gloss_data)
+                    gloss_map.setdefault(analysis["lex_norm"], gloss_data)
+        except (AllProvidersFailed, Exception) as e:
+            logger.warning(
+                "LLM translation batch %d failed for story %d: %s",
+                batch_start // translation_batch_size + 1,
+                story.id,
+                e,
+            )
 
     # Step 2b: Quality gate — filter out junk + classify (names, sounds)
     _category_by_bare: dict[str, str] = {}
@@ -536,7 +620,7 @@ Set name_type to "personal" for personal names (people, characters), "place" for
             from app.services.import_quality import classify_lemmas
             lemma_dicts = [
                 {"arabic": a["lex_bare"], "english": gloss_map.get(
-                    normalize_alef(strip_diacritics(a["story_word"].surface_form)), {}
+                    _story_word_bare(a["story_word"].surface_form), {}
                 ).get("english", "")}
                 for a in word_analyses
             ]
@@ -589,7 +673,7 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         sw = analysis["story_word"]
 
         # Get gloss from LLM — skip creating lemma if translation missing
-        surface_bare = normalize_alef(strip_diacritics(sw.surface_form))
+        surface_bare = _story_word_bare(sw.surface_form)
         gloss_data = gloss_map.get(surface_bare, gloss_map.get(lex_norm, {}))
         english = gloss_data.get("english", "").strip()
         pos = gloss_data.get("pos") or analysis["pos"]
@@ -614,7 +698,7 @@ Set name_type to "personal" for personal names (people, characters), "place" for
             for other_sw in story.words:
                 if other_sw.id == sw.id:
                     continue
-                other_bare = normalize_alef(strip_diacritics(other_sw.surface_form))
+                other_bare = _story_word_bare(other_sw.surface_form)
                 if other_bare == surface_bare and other_sw.lemma_id is None:
                     other_sw.is_function_word = True
                     other_sw.name_type = name_type
@@ -674,7 +758,7 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         for other_sw in story.words:
             if other_sw.lemma_id is not None:
                 continue
-            other_bare = normalize_alef(strip_diacritics(other_sw.surface_form))
+            other_bare = _story_word_bare(other_sw.surface_form)
             if other_bare == surface_bare or other_bare == lex_norm:
                 other_sw.lemma_id = new_lemma.lemma_id
                 other_sw.gloss_en = english
@@ -1507,7 +1591,9 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
 
     # Map story_id -> created_at for distinguishing pre-existing vs new
     story_created: dict[int, datetime] = {}
+    book_rows: dict[int, Story] = {}
     for s in db.query(Story).filter(Story.id.in_(book_ids)).all():
+        book_rows[s.id] = s
         if s.created_at:
             story_created[s.id] = s.created_at
 
@@ -1595,12 +1681,31 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
                 new_total += 1  # not started yet
         story_word_stats[sid] = {"new_total": new_total, "new_learning": new_learning}
 
-    return {sid: {
-        "sentence_count": sent_stats.get(sid, {}).get("total"),
-        "sentences_seen": sent_stats.get(sid, {}).get("seen"),
-        "page_readiness": page_readiness.get(sid),
-        **(story_word_stats.get(sid, {})),
-    } for sid in book_ids}
+    result = {}
+    for sid in book_ids:
+        story = book_rows.get(sid)
+        reader_meta = ((story.metadata_json or {}).get("book_reader") or {}) if story else {}
+        page_records = reader_meta.get("pages") or {}
+        completed_pages = sorted(
+            int(page) for page, receipt in page_records.items()
+            if isinstance(receipt, dict) and receipt.get("completed_at")
+        )
+        completed_set = set(completed_pages)
+        page_count = (story.page_count or 1) if story else 1
+        next_unread_page = next(
+            (page for page in range(1, page_count + 1) if page not in completed_set),
+            page_count,
+        )
+        result[sid] = {
+            "sentence_count": sent_stats.get(sid, {}).get("total"),
+            "sentences_seen": sent_stats.get(sid, {}).get("seen"),
+            "page_readiness": page_readiness.get(sid),
+            "pages_read": len(completed_pages),
+            "last_read_page": completed_pages[-1] if completed_pages else None,
+            "next_unread_page": next_unread_page,
+            **(story_word_stats.get(sid, {})),
+        }
+    return result
 
 
 def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
@@ -1611,27 +1716,45 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
     if story.source != "book_ocr":
         raise ValueError(f"Story {story_id} is not a book import")
 
-    # Words on this page (unique lemmas, non-function)
+    if page_number < 1 or page_number > (story.page_count or 1):
+        raise ValueError(f"Page {page_number} is outside this book")
+
+    # Every displayed token on the page.  Importantly, fetching a page is
+    # read-only: no vocabulary state is created until complete_book_page.
     page_words = (
         db.query(StoryWord)
         .filter(
             StoryWord.story_id == story_id,
             StoryWord.page_number == page_number,
-            StoryWord.is_function_word == False,
-            StoryWord.lemma_id.isnot(None),
         )
+        .order_by(StoryWord.position)
         .all()
     )
+
+    from app.services.canonical_resolution import resolve_canonical_via_map
+
+    raw_lemma_ids = {sw.lemma_id for sw in page_words if sw.lemma_id is not None}
+    canonical_by_id = {
+        lemma_id: canonical_id
+        for lemma_id, canonical_id in db.query(
+            Lemma.lemma_id, Lemma.canonical_lemma_id
+        ).filter(Lemma.canonical_lemma_id.isnot(None)).all()
+    }
+    effective_by_raw = {
+        lemma_id: resolve_canonical_via_map(lemma_id, canonical_by_id)
+        for lemma_id in raw_lemma_ids
+    }
 
     seen_lemmas: set[int] = set()
     unique_words: list[StoryWord] = []
     for sw in page_words:
-        if sw.lemma_id not in seen_lemmas:
-            seen_lemmas.add(sw.lemma_id)
+        effective_id = effective_by_raw.get(sw.lemma_id) if sw.lemma_id is not None else None
+        if effective_id is not None and not sw.is_function_word and effective_id not in seen_lemmas:
+            seen_lemmas.add(effective_id)
             unique_words.append(sw)
 
     # Batch fetch lemma + ULK info
-    lemma_ids = list(seen_lemmas)
+    lemma_ids = list(raw_lemma_ids | seen_lemmas)
     lemmas_by_id: dict[int, Lemma] = {}
     if lemma_ids:
         for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all():
@@ -1669,10 +1792,11 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
     new_learning = 0
     words_out = []
     for sw in unique_words:
-        lem = lemmas_by_id.get(sw.lemma_id)
-        state = knowledge_map.get(sw.lemma_id)
+        effective_id = effective_by_raw.get(sw.lemma_id, sw.lemma_id)
+        lem = lemmas_by_id.get(effective_id) or lemmas_by_id.get(sw.lemma_id)
+        state = knowledge_map.get(effective_id)
         # Was this word already being studied before the book was imported?
-        fr = first_review.get(sw.lemma_id)
+        fr = first_review.get(effective_id)
         was_known_before = (
             fr is not None
             and import_time is not None
@@ -1680,7 +1804,7 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         )
         # Fallback: word not created by this book AND encountered many times
         if not was_known_before and lem and lem.source_story_id != story_id:
-            if enc_counts.get(sw.lemma_id, 0) >= 5:
+            if enc_counts.get(effective_id, 0) >= 5:
                 was_known_before = True
         is_new = not was_known_before
         if was_known_before:
@@ -1690,12 +1814,35 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         else:
             new_not_started += 1
         words_out.append({
-            "lemma_id": sw.lemma_id,
+            "lemma_id": effective_id,
             "arabic": lem.lemma_ar_bare if lem else sw.surface_form,
             "gloss_en": sw.gloss_en or (lem.gloss_en if lem else None),
             "transliteration": lem.transliteration_ala_lc if lem else None,
             "knowledge_state": state,
             "is_new": is_new,
+        })
+
+    tokens_out = []
+    for sw in page_words:
+        effective_id = effective_by_raw.get(sw.lemma_id) if sw.lemma_id else None
+        lemma = (
+            lemmas_by_id.get(effective_id) or lemmas_by_id.get(sw.lemma_id)
+            if sw.lemma_id else None
+        )
+        is_proper_name = bool(
+            sw.name_type in ("personal", "place")
+            or (lemma and lemma.word_category == "proper_name")
+        )
+        tokens_out.append({
+            "position": sw.position,
+            "sentence_index": sw.sentence_index,
+            "surface_form": sw.surface_form,
+            "lemma_id": effective_id,
+            "gloss_en": sw.gloss_en or (lemma.gloss_en if lemma else None),
+            "knowledge_state": knowledge_map.get(effective_id) if effective_id else None,
+            "is_function_word": bool(sw.is_function_word),
+            "is_proper_name": is_proper_name,
+            "is_schedulable": bool(effective_id and not sw.is_function_word and not is_proper_name),
         })
 
     # Sentences on this page
@@ -1719,15 +1866,296 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         for s in page_sentences
     ]
 
+    english_translation = "\n\n".join(
+        s.english_translation.strip()
+        for s in page_sentences
+        if s.english_translation and s.english_translation.strip()
+    ) or None
+    processed_page = ((story.metadata_json or {}).get("processed_pages") or {}).get(
+        str(page_number)
+    ) or {}
+    if english_translation is None:
+        english_translation = processed_page.get("english")
+
+    reader_meta = (story.metadata_json or {}).get("book_reader") or {}
+    page_receipt = (reader_meta.get("pages") or {}).get(str(page_number)) or {}
+
     return {
         "story_id": story_id,
         "page_number": page_number,
+        "source_page_number": processed_page.get("source_page_number"),
+        "pdf_page_number": processed_page.get("pdf_page_number"),
+        "page_count": story.page_count or 1,
+        "story_title_ar": story.title_ar,
         "story_title_en": story.title_en,
+        "english_translation": english_translation,
+        "completed": bool(page_receipt.get("completed_at")),
+        "looked_up_lemma_ids": page_receipt.get("looked_up_lemma_ids") or [],
         "known_count": known_at_import,
         "new_not_started": new_not_started,
         "new_learning": new_learning,
+        "tokens": tokens_out,
         "words": words_out,
         "sentences": sentences_out,
+    }
+
+
+def complete_book_page(
+    db: Session,
+    story_id: int,
+    page_number: int,
+    looked_up_lemma_ids: list[int],
+    *,
+    reading_time_ms: int | None = None,
+    client_review_id: str | None = None,
+) -> dict:
+    """Serialize and commit one page of reader evidence exactly once."""
+    with _book_page_completion_lock(story_id, page_number):
+        return _complete_book_page(
+            db,
+            story_id,
+            page_number,
+            looked_up_lemma_ids,
+            reading_time_ms=reading_time_ms,
+            client_review_id=client_review_id,
+        )
+
+
+def _complete_book_page(
+    db: Session,
+    story_id: int,
+    page_number: int,
+    looked_up_lemma_ids: list[int],
+    *,
+    reading_time_ms: int | None = None,
+    client_review_id: str | None = None,
+) -> dict:
+    """Commit one page of reader evidence exactly once.
+
+    Importing or opening a book remains inert.  On page completion, untouched
+    content lemmas are treated as understood; words the learner looked up are
+    scheduled immediately (or receive an Again review if already scheduled).
+    Function words and proper names stay lookup-only.
+    """
+    from app.services.acquisition_service import (
+        start_acquisition,
+        submit_acquisition_review,
+    )
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story or story.source != "book_ocr":
+        raise ValueError(f"Story {story_id} is not a book import")
+    if page_number < 1 or page_number > (story.page_count or 1):
+        raise ValueError(f"Page {page_number} is outside this book")
+
+    metadata = dict(story.metadata_json or {})
+    reader_meta = dict(metadata.get("book_reader") or {})
+    page_receipts = dict(reader_meta.get("pages") or {})
+    receipt_key = str(page_number)
+    previous = page_receipts.get(receipt_key)
+    is_update = bool(isinstance(previous, dict) and previous.get("completed_at"))
+
+    page_words = (
+        db.query(StoryWord)
+        .filter(
+            StoryWord.story_id == story_id,
+            StoryWord.page_number == page_number,
+            StoryWord.lemma_id.isnot(None),
+        )
+        .order_by(StoryWord.position)
+        .all()
+    )
+    raw_ids = {sw.lemma_id for sw in page_words if sw.lemma_id is not None}
+    lemmas = {
+        lemma.lemma_id: lemma
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(raw_ids)).all()
+    } if raw_ids else {}
+
+    content_ids: set[int] = set()
+    for sw in page_words:
+        lemma = lemmas.get(sw.lemma_id)
+        is_proper = bool(
+            sw.name_type in ("personal", "place")
+            or (lemma and lemma.word_category == "proper_name")
+        )
+        if sw.is_function_word or is_proper:
+            continue
+        content_ids.add(resolve_canonical_lemma_id(db, sw.lemma_id))
+
+    looked_up = {
+        resolve_canonical_lemma_id(db, lemma_id)
+        for lemma_id in looked_up_lemma_ids
+    } & content_ids
+    previous_lookups = set((previous or {}).get("looked_up_lemma_ids") or [])
+    new_lookups = looked_up - previous_lookups
+    if is_update and not new_lookups:
+        previous_counts = (previous or {}).get("counts") or {}
+        return {
+            "story_id": story_id,
+            "page_number": page_number,
+            "newly_known": previous_counts.get("newly_known", 0),
+            "scheduled": previous_counts.get("scheduled", 0),
+            "reviewed_good": previous_counts.get("reviewed_good", 0),
+            "reviewed_again": previous_counts.get("reviewed_again", 0),
+            "skipped": previous_counts.get("skipped", 0),
+            "duplicate": True,
+        }
+    ulks = {
+        ulk.lemma_id: ulk
+        for ulk in db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id.in_(content_ids))
+        .all()
+    } if content_ids else {}
+
+    counts = {
+        "newly_known": 0,
+        "scheduled": 0,
+        "reviewed_good": 0,
+        "reviewed_again": 0,
+        "skipped": 0,
+    }
+    review_prefix = client_review_id or f"book:{story_id}:page:{page_number}"
+    now = datetime.now(timezone.utc)
+
+    for lemma_id in sorted(content_ids):
+        ulk = ulks.get(lemma_id)
+        was_looked_up = lemma_id in (new_lookups if is_update else looked_up)
+
+        # A revisit only contributes newly discovered gaps. The original green
+        # sweep is never replayed.
+        if is_update and not was_looked_up:
+            continue
+
+        if ulk and ulk.knowledge_state == "suspended":
+            counts["skipped"] += 1
+            continue
+
+        if was_looked_up:
+            if ulk is None or ulk.knowledge_state in ("encountered", "new"):
+                ulk = start_acquisition(
+                    db,
+                    lemma_id,
+                    source="book",
+                    due_immediately=True,
+                    enforce_daily_cap=False,
+                )
+                ulks[lemma_id] = ulk
+                counts["scheduled"] += 1
+            elif ulk.knowledge_state == "acquiring":
+                submit_acquisition_review(
+                    db,
+                    lemma_id,
+                    1,
+                    review_mode="reading",
+                    comprehension_signal="book_lookup",
+                    client_review_id=f"{review_prefix}:again:{lemma_id}",
+                    commit=False,
+                )
+                counts["reviewed_again"] += 1
+            elif ulk.fsrs_card_json is not None:
+                submit_review(
+                    db,
+                    lemma_id=lemma_id,
+                    rating_int=1,
+                    review_mode="reading",
+                    comprehension_signal="book_lookup",
+                    client_review_id=f"{review_prefix}:again:{lemma_id}",
+                    commit=False,
+                )
+                counts["reviewed_again"] += 1
+            else:
+                # A page sweep may previously have presumed this word known.
+                # Explicit lookup evidence is stronger, so restart acquisition.
+                ulk = start_acquisition(
+                    db,
+                    lemma_id,
+                    source="book",
+                    due_immediately=True,
+                    enforce_daily_cap=False,
+                    restart_known=True,
+                )
+                ulks[lemma_id] = ulk
+                counts["scheduled"] += 1
+            continue
+
+        if ulk is None:
+            ulk = UserLemmaKnowledge(
+                lemma_id=lemma_id,
+                knowledge_state="known",
+                introduced_at=now,
+                source="book",
+                total_encounters=1,
+                times_seen=1,
+                times_correct=1,
+            )
+            db.add(ulk)
+            ulks[lemma_id] = ulk
+            counts["newly_known"] += 1
+        elif ulk.knowledge_state == "encountered":
+            ulk.knowledge_state = "known"
+            ulk.total_encounters = (ulk.total_encounters or 0) + 1
+            ulk.times_seen = (ulk.times_seen or 0) + 1
+            ulk.times_correct = (ulk.times_correct or 0) + 1
+            counts["newly_known"] += 1
+        elif ulk.knowledge_state == "acquiring":
+            submit_acquisition_review(
+                db,
+                lemma_id,
+                3,
+                review_mode="reading",
+                comprehension_signal="book_understood",
+                client_review_id=f"{review_prefix}:good:{lemma_id}",
+                commit=False,
+            )
+            counts["reviewed_good"] += 1
+        elif ulk.fsrs_card_json is not None:
+            submit_review(
+                db,
+                lemma_id=lemma_id,
+                rating_int=3,
+                review_mode="reading",
+                comprehension_signal="book_understood",
+                client_review_id=f"{review_prefix}:good:{lemma_id}",
+                commit=False,
+            )
+            counts["reviewed_good"] += 1
+        else:
+            ulk.total_encounters = (ulk.total_encounters or 0) + 1
+            ulk.times_seen = (ulk.times_seen or 0) + 1
+            ulk.times_correct = (ulk.times_correct or 0) + 1
+
+    previous_counts = (previous or {}).get("counts") or {}
+    stored_counts = {
+        key: previous_counts.get(key, 0) + value
+        for key, value in counts.items()
+    }
+    page_receipts[receipt_key] = {
+        "completed_at": now.isoformat(),
+        "looked_up_lemma_ids": sorted(previous_lookups | looked_up),
+        "reading_time_ms": reading_time_ms,
+        "client_review_id": client_review_id,
+        "counts": stored_counts,
+    }
+    reader_meta["pages"] = page_receipts
+    reader_meta["last_page"] = page_number
+    metadata["book_reader"] = reader_meta
+    story.metadata_json = metadata
+    db.commit()
+
+    log_interaction(
+        event="book_page_completed",
+        story_id=story_id,
+        page_number=page_number,
+        looked_up_count=len(looked_up),
+        reading_time_ms=reading_time_ms,
+        **counts,
+    )
+    return {
+        "story_id": story_id,
+        "page_number": page_number,
+        **counts,
+        "duplicate": False,
     }
 
 

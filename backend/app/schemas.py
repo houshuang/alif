@@ -838,15 +838,64 @@ class BookPageSentenceOut(BaseModel):
     seen: bool = False
 
 
+class BookPageTokenOut(BaseModel):
+    position: int
+    sentence_index: int | None = None
+    surface_form: str
+    lemma_id: int | None = None
+    gloss_en: str | None = None
+    knowledge_state: str | None = None
+    is_function_word: bool = False
+    is_proper_name: bool = False
+    is_schedulable: bool = False
+
+
 class BookPageDetailOut(BaseModel):
     story_id: int
     page_number: int
+    source_page_number: int | None = None
+    pdf_page_number: int | None = None
+    page_count: int = 1
+    story_title_ar: str | None = None
     story_title_en: str | None = None
+    english_translation: str | None = None
+    completed: bool = False
+    looked_up_lemma_ids: list[int] = Field(default_factory=list)
     known_count: int = 0
     new_not_started: int = 0
     new_learning: int = 0
-    words: list[BookPageWordOut] = []
-    sentences: list[BookPageSentenceOut] = []
+    tokens: list[BookPageTokenOut] = Field(default_factory=list)
+    words: list[BookPageWordOut] = Field(default_factory=list)
+    sentences: list[BookPageSentenceOut] = Field(default_factory=list)
+
+
+class BookPageCompleteIn(BaseModel):
+    looked_up_lemma_ids: list[int] = Field(default_factory=list)
+    reading_time_ms: int | None = None
+    client_review_id: str | None = None
+
+
+class BookPageCompleteOut(BaseModel):
+    story_id: int
+    page_number: int
+    newly_known: int = 0
+    scheduled: int = 0
+    reviewed_good: int = 0
+    reviewed_again: int = 0
+    skipped: int = 0
+    duplicate: bool = False
+
+
+class ProcessedBookPageIn(BaseModel):
+    arabic: str
+    english: str | None = None
+
+
+class ProcessedBookImportIn(BaseModel):
+    title_ar: str
+    title_en: str | None = None
+    author: str | None = None
+    pages: list[ProcessedBookPageIn]
 
 
 class StoryOut(BaseModel):
@@ -868,6 +917,9 @@ class StoryOut(BaseModel):
     page_readiness: list[PageReadiness] | None = None
     new_total: int | None = None
     new_learning: int | None = None
+    pages_read: int | None = None
+    last_read_page: int | None = None
+    next_unread_page: int | None = None
     created_at: str
     estimated_days_to_ready: int | None = None
     model_config = {"from_attributes": True}

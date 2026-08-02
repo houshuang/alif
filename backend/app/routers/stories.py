@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models import Story
 from app.schemas import (
+    BookPageCompleteIn,
+    BookPageCompleteOut,
     BookPageDetailOut,
     PretestWordOut,
     StoryCompleteIn,
@@ -24,6 +26,7 @@ from app.schemas import (
 )
 from app.services.story_service import (
     archive_story,
+    complete_book_page,
     complete_story,
     delete_story,
     generate_story,
@@ -156,6 +159,29 @@ def list_stories(db: Session = Depends(get_db)):
 def get_page_detail(story_id: int, page_number: int, db: Session = Depends(get_db)):
     try:
         return get_book_page_detail(db, story_id, page_number)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post(
+    "/{story_id}/pages/{page_number}/complete",
+    response_model=BookPageCompleteOut,
+)
+def complete_page(
+    story_id: int,
+    page_number: int,
+    body: BookPageCompleteIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        return complete_book_page(
+            db,
+            story_id,
+            page_number,
+            body.looked_up_lemma_ids,
+            reading_time_ms=body.reading_time_ms,
+            client_review_id=body.client_review_id,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

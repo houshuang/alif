@@ -946,6 +946,9 @@ export interface StoryListItem {
   page_readiness?: PageReadiness[] | null;
   new_total?: number;
   new_learning?: number;
+  pages_read?: number | null;
+  last_read_page?: number | null;
+  next_unread_page?: number | null;
   created_at: string;
   estimated_days_to_ready?: number | null;
 }
@@ -986,15 +989,46 @@ export interface BookPageSentence {
   seen: boolean;
 }
 
+export interface BookPageToken {
+  position: number;
+  sentence_index: number | null;
+  surface_form: string;
+  lemma_id: number | null;
+  gloss_en: string | null;
+  knowledge_state: string | null;
+  is_function_word: boolean;
+  is_proper_name: boolean;
+  is_schedulable: boolean;
+}
+
 export interface BookPageDetail {
   story_id: number;
   page_number: number;
+  source_page_number: number | null;
+  pdf_page_number: number | null;
+  page_count: number;
+  story_title_ar: string | null;
   story_title_en: string | null;
+  english_translation: string | null;
+  completed: boolean;
+  looked_up_lemma_ids: number[];
   known_count: number;
   new_not_started: number;
   new_learning: number;
+  tokens: BookPageToken[];
   words: BookPageWord[];
   sentences: BookPageSentence[];
+}
+
+export interface BookPageCompleteResult {
+  story_id: number;
+  page_number: number;
+  newly_known: number;
+  scheduled: number;
+  reviewed_good: number;
+  reviewed_again: number;
+  skipped: number;
+  duplicate: boolean;
 }
 
 export interface StoryLookupResult {

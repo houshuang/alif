@@ -1,11 +1,12 @@
 """Tests for book import service."""
 
 from unittest.mock import MagicMock, patch
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import pytest
 
-from app.models import Lemma, Root, Sentence, SentenceWord, Story, StoryWord, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, Sentence, SentenceWord, Story, StoryWord, UserLemmaKnowledge
 
 
 _root_cache: dict[str, int] = {}
@@ -380,6 +381,13 @@ class TestImportBookEndToEnd:
         story_words = db_session.query(StoryWord).filter_by(story_id=story.id).all()
         assert len(story_words) > 0
 
+        # Importing a book populates lexical/story data only. The garden word
+        # has no learner row until a page is actually completed in the reader.
+        garden = db_session.query(Lemma).filter_by(lemma_ar_bare="حديقة").one()
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=garden.lemma_id
+        ).first() is None
+
     @patch("app.services.book_import_service.extract_cover_metadata")
     @patch("app.services.book_import_service.ocr_pages_parallel")
     @pytest.mark.slow
@@ -424,3 +432,267 @@ class TestBookSentenceSourceBonus:
         assert book_bonus == 1.3
         assert llm_bonus == 1.0
         assert book_bonus > llm_bonus
+
+
+class TestBookReaderPageEvidence:
+    def _book(self, db):
+        understood = _create_lemma(db, "كِتَاب", "كتاب", "book", root_str="ك.ت.ب")
+        looked_up = _create_lemma(db, "نَادِر", "نادر", "rare", root_str="ن.د.ر")
+        person = Lemma(
+            lemma_ar="سَلِيم",
+            lemma_ar_bare="سليم",
+            gloss_en="Salim",
+            pos="noun_prop",
+        )
+        db.add(person)
+        db.flush()
+        story = Story(
+            title_ar="كِتَابُ الاِخْتِبَار",
+            title_en="Test Book",
+            body_ar="كِتَاب نَادِر سَلِيم",
+            source="book_ocr",
+            status="active",
+            page_count=1,
+        )
+        db.add(story)
+        db.flush()
+        db.add_all([
+            StoryWord(story_id=story.id, position=0, page_number=1,
+                      surface_form="كِتَاب", lemma_id=understood.lemma_id),
+            StoryWord(story_id=story.id, position=1, page_number=1,
+                      surface_form="نَادِر", lemma_id=looked_up.lemma_id),
+            StoryWord(story_id=story.id, position=2, page_number=1,
+                      surface_form="سَلِيم", lemma_id=person.lemma_id,
+                      name_type="personal"),
+        ])
+        db.commit()
+        return story, understood, looked_up, person
+
+    def test_opening_page_is_read_only(self, db_session):
+        story, *_ = self._book(db_session)
+        from app.services.story_service import get_book_page_detail
+
+        detail = get_book_page_detail(db_session, story.id, 1)
+
+        assert [token["surface_form"] for token in detail["tokens"]] == [
+            "كِتَاب", "نَادِر", "سَلِيم",
+        ]
+        assert detail["completed"] is False
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    def test_page_tokens_and_receipts_use_canonical_lemma_ids(self, db_session):
+        canonical = _create_lemma(db_session, "قَرَأَ", "قرأ", "to read", root_str="ق.ر.أ")
+        variant = _create_lemma(db_session, "يَقْرَأُ", "يقرأ", "he reads", root_str="ق.ر.أ")
+        variant.canonical_lemma_id = canonical.lemma_id
+        story = Story(
+            title_ar="قِرَاءَة",
+            body_ar="يَقْرَأُ",
+            source="book_ocr",
+            status="active",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id,
+            position=0,
+            page_number=1,
+            surface_form="يَقْرَأُ",
+            lemma_id=variant.lemma_id,
+        ))
+        db_session.commit()
+
+        from app.services.story_service import complete_book_page, get_book_page_detail
+
+        detail = get_book_page_detail(db_session, story.id, 1)
+        assert detail["tokens"][0]["lemma_id"] == canonical.lemma_id
+
+        complete_book_page(db_session, story.id, 1, [canonical.lemma_id])
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=canonical.lemma_id
+        ).one().knowledge_state == "acquiring"
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=variant.lemma_id
+        ).first() is None
+
+    def test_page_completion_maps_known_and_schedules_lookups(self, db_session):
+        story, understood, looked_up, person = self._book(db_session)
+        from app.services.story_service import complete_book_page
+
+        result = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            [looked_up.lemma_id, person.lemma_id],
+            client_review_id=f"book:{story.id}:page:1",
+        )
+
+        known_state = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=understood.lemma_id
+        ).one()
+        lookup_state = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=looked_up.lemma_id
+        ).one()
+        assert known_state.knowledge_state == "known"
+        assert known_state.fsrs_card_json is None
+        assert lookup_state.knowledge_state == "acquiring"
+        assert lookup_state.acquisition_box == 1
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=person.lemma_id
+        ).first() is None
+        assert result["newly_known"] == 1
+        assert result["scheduled"] == 1
+
+        replay = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            [looked_up.lemma_id],
+            client_review_id=f"book:{story.id}:page:1",
+        )
+        assert replay["duplicate"] is True
+        assert lookup_state.acquisition_box == 1
+
+        # A later revisit can discover a new gap without replaying the page's
+        # original green sweep. The previously presumed-known word is restarted.
+        update = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            [looked_up.lemma_id, understood.lemma_id],
+            client_review_id=f"book:{story.id}:page:1",
+        )
+        db_session.refresh(known_state)
+        assert update["duplicate"] is False
+        assert update["scheduled"] == 1
+        assert known_state.knowledge_state == "acquiring"
+
+    def test_concurrent_page_completion_is_cleanly_idempotent(self, db_session):
+        story, _understood, looked_up, _person = self._book(db_session)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=looked_up.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_started_at=datetime.now(timezone.utc),
+            acquisition_next_due=datetime.now(timezone.utc),
+            source="study",
+        ))
+        db_session.commit()
+        story_id = story.id
+        looked_up_id = looked_up.lemma_id
+
+        from app.database import SessionLocal
+        from app.services.story_service import complete_book_page
+
+        def complete_once():
+            session = SessionLocal()
+            try:
+                return complete_book_page(
+                    session,
+                    story_id,
+                    1,
+                    [looked_up_id],
+                    client_review_id=f"book:{story_id}:page:1",
+                )
+            finally:
+                session.close()
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _index: complete_once(), range(8)))
+
+        db_session.expire_all()
+        assert sum(not result["duplicate"] for result in results) == 1
+        assert sum(result["duplicate"] for result in results) == 7
+        assert db_session.query(ReviewLog).filter_by(
+            client_review_id=f"book:{story_id}:page:1:again:{looked_up_id}"
+        ).count() == 1
+
+
+class TestProcessedBookImport:
+    def test_story_tokenizer_ignores_latin_text_in_translator_note(self):
+        from app.services.story_service import _tokenize_story_display
+
+        assert _tokenize_story_display(
+            "فعلان بمعنى يرتعد = Zittern, Zagen (المترجم)."
+        ) == [
+            ("فعلان", "فعلان"),
+            ("بمعنى", "بمعنى"),
+            ("يرتعد", "يرتعد"),
+            ("(المترجم).", "المترجم"),
+        ]
+
+    @patch("app.services.story_service.generate_completion")
+    def test_bilingual_pages_import_without_learning_state(self, mock_generate, db_session):
+        # No unresolved words need an LLM result in this fixture.
+        mock_generate.return_value = []
+        book = _create_lemma(db_session, "كِتَاب", "كتاب", "book", root_str="ك.ت.ب")
+        db_session.commit()
+        from app.services.book_import_service import import_processed_book
+        from app.services.story_service import get_book_page_detail
+
+        story, _ = import_processed_book(
+            db_session,
+            title_ar="رِوَايَة",
+            title_en="A Novel",
+            author="Author",
+            pages=[
+                {"arabic": "كِتَاب كِتَاب", "english": "A book."},
+                {
+                    "arabic": "كِتَاب.",
+                    "english": "The book.",
+                    "source_page_number": 68,
+                    "pdf_page_number": 69,
+                },
+            ],
+        )
+
+        assert story.page_count == 2
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=book.lemma_id
+        ).first() is None
+        page = get_book_page_detail(db_session, story.id, 2)
+        assert page["english_translation"] == "The book."
+        assert page["source_page_number"] == 68
+        assert page["pdf_page_number"] == 69
+        assert [token["surface_form"] for token in page["tokens"]] == ["كِتَاب."]
+
+    @patch("app.services.story_service.generate_completion")
+    def test_strict_curated_lexicon_maps_without_automatic_enrichment(
+        self, mock_generate, db_session
+    ):
+        from app.services.book_import_service import import_processed_book
+        from app.models import StoryWord
+
+        story, new_ids = import_processed_book(
+            db_session,
+            title_ar="فصل",
+            title_en="Chapter",
+            author="Author",
+            pages=[{"arabic": "غَرِيبٌ جِيجِي.", "english": "A strange Gigi."}],
+            curated_lexicon=[
+                {
+                    "surfaces": ["غَرِيبٌ"],
+                    "lemma_ar": "غَرِيب",
+                    "gloss_en": "strange",
+                    "pos": "adjective",
+                },
+                {
+                    "surfaces": ["جِيجِي"],
+                    "lemma_ar": "جِيجِي",
+                    "gloss_en": "Gigi",
+                    "pos": "proper_noun",
+                    "name_type": "personal",
+                },
+            ],
+            strict_lexicon=True,
+        )
+
+        assert story.status == "active"
+        assert len(new_ids) == 2
+        assert mock_generate.call_count == 0
+        words = db_session.query(StoryWord).filter_by(story_id=story.id).all()
+        assert all(word.lemma_id is not None for word in words)
+        assert words[1].name_type == "personal"
+        assert db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id.in_(new_ids)
+        ).count() == 0

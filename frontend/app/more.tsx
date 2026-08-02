@@ -167,6 +167,11 @@ export default function MoreScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.sectionHeader}>Tools</Text>
       <NavRow
+        icon="library-outline"
+        label="Book Library"
+        onPress={() => router.push("/books")}
+      />
+      <NavRow
         icon="headset-outline"
         label="Listening"
         onPress={() => router.push("/listening")}
