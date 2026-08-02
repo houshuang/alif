@@ -169,6 +169,42 @@ class CodexCLIError(RuntimeError):
     pass
 
 
+def _run_codex_command(*, cmd: list[str], runner, timeout: int):
+    """Run Codex, retrying without its Linux sandbox only when bwrap is absent.
+
+    The production host is already a dedicated application VM but does not
+    ship bubblewrap. Keep read-only sandboxing everywhere it is available; the
+    narrowly detected fallback avoids silently weakening unrelated failures.
+    """
+    def invoke(command: list[str]):
+        try:
+            return runner(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=_codex_env(),
+            )
+        except TypeError:
+            return runner(command, capture_output=True, text=True, timeout=timeout)
+
+    proc = invoke(cmd)
+    stderr_lower = (proc.stderr or "").lower()
+    missing_linux_sandbox = (
+        proc.returncode != 0
+        and (
+            "could not find bubblewrap" in stderr_lower
+            or "bubblewrap (bwrap) not found" in stderr_lower
+        )
+    )
+    if missing_linux_sandbox:
+        fallback_cmd = list(cmd)
+        sandbox_index = fallback_cmd.index("--sandbox") + 1
+        fallback_cmd[sandbox_index] = "danger-full-access"
+        proc = invoke(fallback_cmd)
+    return proc
+
+
 def generate_via_codex_cli(
     *,
     prompt: str,
@@ -233,12 +269,7 @@ def generate_via_codex_cli(
             full_prompt,
         ]
         try:
-            proc = runner(
-                cmd, capture_output=True, text=True, timeout=timeout, env=_codex_env(),
-            )
-        except TypeError:
-            # Some test fakes don't accept env kwarg.
-            proc = runner(cmd, capture_output=True, text=True, timeout=timeout)
+            proc = _run_codex_command(cmd=cmd, runner=runner, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             raise CodexCLIError(f"codex CLI timed out after {timeout}s") from exc
         except (FileNotFoundError, OSError) as exc:
@@ -295,11 +326,7 @@ def _generate_via_codex_cli_text(
             full_prompt,
         ]
         try:
-            proc = runner(
-                cmd, capture_output=True, text=True, timeout=timeout, env=_codex_env(),
-            )
-        except TypeError:
-            proc = runner(cmd, capture_output=True, text=True, timeout=timeout)
+            proc = _run_codex_command(cmd=cmd, runner=runner, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             raise CodexCLIError(f"codex CLI timed out after {timeout}s") from exc
         except (FileNotFoundError, OSError) as exc:

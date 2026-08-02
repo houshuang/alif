@@ -11,6 +11,7 @@ Plan / A/B background:
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,7 +19,11 @@ import pytest
 import app.services.llm as llm_module
 from app.services.llm import AllProvidersFailed, LLMError, generate_completion
 import app.services.codex_cli as codex_module
-from app.services.codex_cli import CodexCLIError, strict_response_schema
+from app.services.codex_cli import (
+    CodexCLIError,
+    _run_codex_command,
+    strict_response_schema,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -235,6 +240,48 @@ def test_codex_non_quota_error_does_not_cooldown():
 
 
 # ─── strict_response_schema (Alif → Codex schema shape) ────────────────────
+
+
+def test_codex_retries_without_sandbox_only_when_bubblewrap_is_missing():
+    calls = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr="warning: Codex could not find bubblewrap on PATH",
+            )
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    result = _run_codex_command(
+        cmd=["codex", "exec", "--sandbox", "read-only", "prompt"],
+        runner=fake_runner,
+        timeout=30,
+    )
+
+    assert result.returncode == 0
+    assert len(calls) == 2
+    assert calls[0][calls[0].index("--sandbox") + 1] == "read-only"
+    assert calls[1][calls[1].index("--sandbox") + 1] == "danger-full-access"
+
+
+def test_codex_does_not_weaken_sandbox_for_generic_failures():
+    calls = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=1, stdout="", stderr="authentication failed")
+
+    result = _run_codex_command(
+        cmd=["codex", "exec", "--sandbox", "read-only", "prompt"],
+        runner=fake_runner,
+        timeout=30,
+    )
+
+    assert result.returncode == 1
+    assert len(calls) == 1
 
 
 def test_strict_response_schema_marks_all_properties_required():
