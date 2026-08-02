@@ -13,6 +13,7 @@ import json
 from typing import Any
 
 from app.database import SessionLocal
+from app.models import Story
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
     _due_maintenance_targets,
@@ -54,10 +55,11 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "خَلْفَ بَابٍ مُغْلَقٍ، رَتَّلَتِ امْرَأَتَانِ الْبَيْتَ "
-                    "الْأَخِيرَ بِصَوْتٍ آخَرَ، وَلَمْ يَرَهُمَا الْجُمْهُورُ."
+                    "بَيْتًا مِنَ الْقَصِيدَةِ بِصَوْتٍ آخَرَ، وَلَمْ يَرَهُمَا "
+                    "الْجُمْهُورُ."
                 ),
                 "english": (
-                    "Behind a closed door, two women recited the final verse in "
+                    "Behind a closed door, two women recited a verse from the poem in "
                     "another voice, and the audience did not see them."
                 ),
             },
@@ -152,8 +154,8 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             "an approaching train to pull him back."
         ),
         "target_plan": (
-            "The falcon drops the feathers, the platform fixes the danger in space, "
-            "and all three targets recur through the rescue."
+            "The falcon causes the falling feathers, the platform locates the danger, "
+            "and the targets recur as the worker prevents the near miss."
         ),
         "ending_kind": "safe return",
         "morphology_focus": False,
@@ -172,32 +174,36 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "طَارَ الصَّقْرُ، وَسَقَطَ مِنْهُ رِيشٌ تَحْتَ الرَّصِيفِ، "
+                    "طَارَ الصَّقْرُ، وَسَقَطَ مِنْهُ رِيشٌ قُرْبَ الرَّصِيفِ، "
                     "فَنَزَلَ الرَّجُلُ مِنَ الرَّصِيفِ لِيَجْمَعَهُ."
                 ),
                 "english": (
-                    "The falcon flew away, and feathers fell from it below the platform, "
+                    "The falcon flew away, and feathers fell from it near the platform, "
                     "so the man climbed down from the platform to gather them."
                 ),
             },
             {
                 "arabic": (
                     "رَآهُ عَامِلُ الْمَحَطَّةِ، فَرَفَعَ عَلَمًا أَحْمَرَ، "
-                    "فَوَقَفَ الْقِطَارُ قَبْلَ دُخُولِ الْمَحَطَّةِ."
+                    "فَوَقَفَ الْقِطَارُ قَبْلَ دُخُولِ الْمَحَطَّةِ، وَبَقِيَ "
+                    "الرِّيشُ فِي مَكَانِهِ."
                 ),
                 "english": (
                     "A station worker saw him and raised a red flag, and the train "
-                    "stopped before entering the station."
+                    "stopped before entering the station, and the feathers remained "
+                    "where they were."
                 ),
             },
             {
                 "arabic": (
-                    "سَحَبَ الْعَامِلُ الرَّجُلَ إِلَى الرَّصِيفِ؛ وَعِنْدَمَا "
-                    "دَخَلَ الْقِطَارُ الْمَحَطَّةَ، طَارَ الرِّيشُ."
+                    "سَحَبَ الْعَامِلُ الرَّجُلَ إِلَى الرَّصِيفِ، ثُمَّ أَشَارَ "
+                    "إِلَى الْقِطَارِ؛ وَعِنْدَمَا دَخَلَ الْقِطَارُ الْمَحَطَّةَ، "
+                    "طَارَ الرِّيشُ مَعَ هَوَائِهِ."
                 ),
                 "english": (
-                    "The worker pulled the man back onto the platform; when the train "
-                    "entered the station, the feathers flew away."
+                    "The worker pulled the man back onto the platform, then signaled "
+                    "the train; when it entered the station, the feathers flew away "
+                    "in its wake."
                 ),
             },
         ],
@@ -208,6 +214,7 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
 def seed() -> dict[str, Any]:
     db = SessionLocal()
     created: list[dict[str, Any]] = []
+    existing: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     try:
         eligible = _eligible_passage_words(db)
@@ -216,6 +223,21 @@ def seed() -> dict[str, Any]:
         eligible_by_id = {int(word["lemma_id"]): word for word in eligible}
 
         for candidate in CANDIDATES:
+            existing_story = (
+                db.query(Story)
+                .filter(
+                    Story.format_type == "maintenance_passage",
+                    Story.title_en == candidate["title_en"],
+                )
+                .order_by(Story.id.desc())
+                .first()
+            )
+            if existing_story is not None:
+                existing.append({
+                    "story_id": existing_story.id,
+                    "title_en": existing_story.title_en,
+                })
+                continue
             target_ids = [int(item) for item in candidate["selected_target_lemma_ids"]]
             missing_due = [lemma_id for lemma_id in target_ids if lemma_id not in due_by_id]
             if missing_due:
@@ -259,8 +281,9 @@ def seed() -> dict[str, Any]:
     return {
         "requested": len(CANDIDATES),
         "created": created,
+        "existing": existing,
         "failures": failures,
-        "complete": len(created) == len(CANDIDATES),
+        "complete": len(created) + len(existing) == len(CANDIDATES),
     }
 
 
