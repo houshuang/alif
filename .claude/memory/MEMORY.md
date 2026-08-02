@@ -3,21 +3,17 @@
 Index of durable memories — one line per file in this directory, grouped by intent. **Always-loaded project rules live in `CLAUDE.md`, not here.** Orientation at start of work: `docs/scheduling-system.md` (word lifecycle + all constants), `research/README.md` (research read-order), `research/experiment-log.md` (append-only lab notebook, newest-first), `IDEAS.md` (master idea list). North-star metric: genuinely-known words growing week over week.
 
 ## Working process & preferences (how to work)
-- [Calculation before simulation](feedback_calculation_before_simulation.md) — lead with the back-of-envelope projection; offer targeted sims only for its shakiest inputs. User pushed back twice on hours-long sweeps (2026-07-14).
 - [PR self-review & merge without asking](feedback_pr_self_review_merge.md) — own the full PR lifecycle; self-review IS the gate; never pause for merge approval. Deploy is a separate decision.
 - [Check prior work before pipeline fixes](feedback_check_prior_work_first.md) — for long-iterated areas: `git log -3mo` + grep IDEAS/scripts-catalog/experiment-log + `ls scripts/` BEFORE drafting. CLAUDE.md Rule #14.
 - [Verify before recommending](feedback_verify_before_recommending.md) — check crontab before "you should run X"; check denominator symmetry before quoting a ratio.
-- [Understand the system before concluding from metrics](feedback_understand_system_before_concluding.md) — read the service that emits the events before headline claims; stock before flow; reconcile with the user's felt experience at event level. (2026-06-10 "north-star collapse" misread; direct user feedback.)
 - [Ask before changing design decisions](feedback_ask_before_changing.md) — don't alter intentional architecture (e.g. API-vs-CLI for chat speed) without asking first.
 - [Prefer in-session work over `claude -p`](feedback_in_session_vs_cli_subprocess.md) — for transforms I can do directly (vocalize/translate/align/classify), write the output myself; don't delegate to a subprocess.
 - [Don't trust bg-task exit 0 alone](feedback_bg_task_exit_code_misleading.md) — tail the output even on "passing" notifications.
 - [Prefer focused sessions](feedback_focused_sessions.md) — multi-feature sessions repeatedly blow the context window; split 4+-part tasks.
-- [Parallel sessions share the checkout](feedback_parallel_sessions_shared_checkout.md) — another session's `git checkout main` can silently move HEAD off your feature branch; verify `git branch --show-current` in the same command as every commit/push.
 - [DB query gotchas](feedback_db_queries.md) — read `docs/data-model.md` before ad-hoc scripts; key table/column name traps.
 - [gh CLI / Go-binary TLS error in sandbox](feedback_gh_sandbox_tls.md) — `OSStatus -26276` = sandbox blocking trustd; retry with `dangerouslyDisableSandbox: true`.
 
 ## Deploy & ops (how to ship safely)
-- [macOS sim/compute perf gotchas](reference_macos_sim_perf_gotchas.md) — background shells run darwinbg/niced (E-cores); SQLite cache must exceed DB size; `sample <pid>` before theorizing; launchctl for session-surviving jobs.
 - [Always deploy from main](feedback_always_deploy_from_main.md) — verify server branch + HEAD commit + the actual effect, not just `systemctl is-active`.
 - [Frontend deploy needs Metro cache cleared](feedback_expo_metro_cache_deploy.md) — a bare `restart alif-expo` serves a stale bundle; `rm -rf /tmp/metro-* …` first.
 - [Don't scp files into the server working tree](feedback_no_scp_to_server_workdir.md) — untracked files block `git pull`, then restart runs stale code silently.
@@ -28,7 +24,6 @@ Index of durable memories — one line per file in this directory, grouped by in
 
 ## Alif — learning-engine rules & gotchas
 - [Target & collateral words are equal](feedback_target_collateral_equal.md) — no distinction for credit, learning, or intro cards. Repeated user feedback.
-- ["New word I already know" = warm root sibling, not a bug](feedback_warm_sibling_intro_by_design.md) — verb vs masdar are separate lemmas; check `root_id` + per-lemma `total_encounters` before assuming the `sentence_selector.py:2146` bookkeeping bug. By design; user left as-is 2026-06-05.
 - [System-wide caps belong at the chokepoint](feedback_intro_cap_chokepoint.md) — put caps inside `start_acquisition()`, not in one caller that others bypass.
 - [Intro-card overload (fixed)](feedback_intro_card_overload.md) — interleave intros among sentences, dynamic cap; never front-load.
 - [Never weaken the same_lemma gate](feedback_dont_weaken_same_lemma_gate.md) — intentional hardening (8+ commits); I keep trying to "fix" it. It is not broken.
@@ -40,7 +35,6 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Confusion-capture feature live](feedback_cluster_detection_limit.md) — `confusion_captures` table + picker (PR #167); analysis after ≥50 captures.
 
 ## Alif — Arabic NLP gotchas
-- [Display headword must be citation form](feedback_display_headword_citation_form.md) — `lemma_ar` (card display) needs no ال + singular; scans leak surface forms (الْكَهْف, آثَار). Guard in `finalize_new_lemmas` strips al- safely; plurals logged for review. Caught 2026-06-13.
 - [CAMeL MLE feminine ة → 3ms_poss misread](feedback_camel_mle_fem_ta_marbuta_misread.md) — any LLM gate over CAMeL MLE output must warn about this; 22/33 false "valid" canonicals.
 - [Quran dagger-alef (U+0670) strip-order bug](feedback_quran_dagger_alef_normalization.md) — normalize before stripping or خَٰلِدُونَ collapses to the name Khaldūn. PR #186.
 - [Text→lemma mapping: reuse the hardened path](feedback_text_to_lemma_hardened_path.md) — for any Arabic-text→lemma scan use `build_comprehensive_lemma_lookup`+`lookup_lemma` and classify by the RESOLVED lemma's `word_category`/`_is_function_word`, never surface-only. Ref impl: `scripts/reading_readiness.py`. (Surface-only fw check leaked بعضهم→بعض; caught 2026-06-03.)
@@ -66,7 +60,6 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Bookify Arabic](project_bookify_arabic.md) — reading-aid PDF tool; Kalila dove chapter shipped; `introduce` subcommand imports top-N to Alif.
 - [Spanish Pilot](project_spanish_pilot.md) — standalone Norwegian-Spanish UX prototype; separate SQLite/systemd/port 3100; NO English in UI.
 - [Hindawi corpus import](project_corpus_import.md) — 10,781 sentences from 166 children's books; sentence-only; on-demand translation via cron step A2.
-- [Bookifier ↔ discover glossary](project_bookifier_discover_glossary.md) — Bookifier uses /api/discover as a glossary service (include_oov + selection=distinctive); dialect/vulgar words addable with register/dialect persisted. PRs #199/#200. Bulk adds: add-batch = straight-to-Box-1 route; bare-form homograph trap fixed by sense gate PR #219 (2026-07-21) — always send gloss+pos, check sense_rerouted_from.
 
 ## Done / archived (low recurrence)
 - [Box-1 starvation bug (fixed)](project_box1_starvation_bug.md) — NEVER_REVIEWED_BOOST (5.0x) in `sentence_selector.py`.
@@ -78,7 +71,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Learner review 2026-04-05](project_learner_review_2026_04_05.md) — 1,279 FSRS words, 91.3% retention; pipeline deficit + textbook backlog-gate finding.
 - [Voice cloning & TTS](project_voice_cloning.md) — PVC/IVC voice IDs, ظ/ض issue, PVC multi-step API.
 - [Podcast system](project_podcast_system.md) — passive listening, 6 format variants, segment caching.
-- [iOS EAS build gotchas](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads, icon source HTMLs, CgBI PNGs fine, Apple PLA blocks. Since 2026-07-15 iOS = standalone preview build + expo-updates OTA (flow in CLAUDE.md).
+- [iOS EAS dev-build gotchas](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads, icon source HTMLs, CgBI PNGs fine, Apple PLA blocks.
 
 ## Reference
 - [User's Arabic learning goal](user_arabic_learning_goal.md) — classical-literature breadth (Quran, commentaries, medieval poetry), not just MSA. The product's north-star intention.

@@ -1,11 +1,8 @@
 ---
 name: reference_deployment_gotchas
-description: "Non-obvious deploy/LLM gotchas — valid model IDs, alembic on fresh DB, .env key names, TTS model"
-metadata: 
-  node_type: memory
+description: Non-obvious deploy/LLM gotchas — valid model IDs, alembic on fresh DB, .env key names, TTS model
+metadata:
   type: reference
-  originSessionId: 8328a0e8-2be9-44ef-9f97-381311ce4ea0
-  modified: 2026-07-21T06:19:26.615Z
 ---
 
 Deploy and LLM-config gotchas that aren't obvious from the code. (Deploy *procedure* lives in CLAUDE.md § Deployment; this is the gotcha layer.)
@@ -22,9 +19,3 @@ Deploy and LLM-config gotchas that aren't obvious from the code. (Deploy *proced
 **TTS**: `eleven_multilingual_v2`, learner-tuned pauses (stability 0.85, similarity 0.75). SQLite `busy_timeout` 30s; `warm_sentence_cache` has a threading-lock concurrency guard; chat + story-detail commits are best-effort to survive lock contention.
 
 **Frontend deploy** needs the Metro cache cleared, not just `systemctl restart alif-expo` — see [[feedback_expo_metro_cache_deploy]].
-
-**Backend service env comes from `/opt/alif/.env`, NOT `/opt/alif/backend/.env`** (systemd `EnvironmentFile=/opt/alif/.env`, discovered 2026-07-20). Flags appended to `backend/.env` are invisible to the running service (pydantic settings reads it, but `os.getenv()` paths don't). Verify env took effect via `tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value alif-backend)/environ`.
-
-**Codex CLI on prod runs as root and had NO auth in `/root/.codex`** — every backend/cron codex call silently failed over to Claude CLI (Rule-13 masking) until 2026-07-20, when `ALIF_CODEX_HOME=/opt/alif/.codex` was added to `/opt/alif/.env` (the shim's `_codex_env()` honors it). If codex output quality looks like Claude, check this first.
-
-**`pkill -f <script>` over ssh kills the ssh session itself** when the pattern appears in the remote command line — kill by PID instead.
