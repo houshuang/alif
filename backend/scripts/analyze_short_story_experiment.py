@@ -63,6 +63,36 @@ def _median(values: list[float]) -> float | None:
     return round(statistics.median(values), 2) if values else None
 
 
+def _currently_due_story_lemmas(
+    conn: sqlite3.Connection,
+    story_id: int,
+    now: datetime,
+) -> set[int]:
+    rows = conn.execute(
+        """
+        SELECT DISTINCT sw.lemma_id, u.knowledge_state, u.fsrs_card_json
+        FROM sentences se
+        JOIN sentence_words sw ON sw.sentence_id = se.id
+        JOIN user_lemma_knowledge u ON u.lemma_id = sw.lemma_id
+        WHERE se.story_id = ? AND se.is_active = 1
+          AND u.knowledge_state IN ('known', 'learning', 'lapsed')
+        """,
+        (story_id,),
+    ).fetchall()
+    due_ids: set[int] = set()
+    for row in rows:
+        try:
+            card = json.loads(row["fsrs_card_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(card, dict):
+            continue
+        due_at = _parse_ts(card.get("due"))
+        if due_at and due_at <= now:
+            due_ids.add(int(row["lemma_id"]))
+    return due_ids
+
+
 def analyze(db_path: Path, log_dir: Path, days: int) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days)
@@ -72,7 +102,7 @@ def analyze(db_path: Path, log_dir: Path, days: int) -> dict[str, Any]:
 
     story_rows = conn.execute(
         """
-        SELECT id, created_at, metadata_json
+        SELECT id, created_at, status, metadata_json
         FROM stories
         WHERE format_type = 'maintenance_passage'
         ORDER BY created_at
@@ -98,7 +128,20 @@ def analyze(db_path: Path, log_dir: Path, days: int) -> dict[str, Any]:
         if not sentence_ids:
             continue
         metadata["created_at"] = created_at
+        metadata["status"] = row["status"]
         metadata["sentence_ids"] = sentence_ids
+        active_sentence_count = int(conn.execute(
+            "SELECT COUNT(*) FROM sentences WHERE story_id=? AND is_active=1",
+            (row["id"],),
+        ).fetchone()[0])
+        due_ids = _currently_due_story_lemmas(conn, int(row["id"]), now)
+        metadata["active_sentence_count"] = active_sentence_count
+        metadata["currently_due_lemma_count"] = len(due_ids)
+        metadata["selectable_now"] = (
+            row["status"] == "active"
+            and active_sentence_count >= 3
+            and len(due_ids) >= 3
+        )
         experiment_stories[int(row["id"])] = metadata
         first_sentence_to_story[sentence_ids[0]] = int(row["id"])
         all_sentence_to_story.update({sentence_id: int(row["id"]) for sentence_id in sentence_ids})
@@ -108,10 +151,15 @@ def analyze(db_path: Path, log_dir: Path, days: int) -> dict[str, Any]:
             sentence_ids,
         ).fetchone()[0])
 
-    recent_stories = {
+    recent_stories_all = {
         story_id: metadata
         for story_id, metadata in experiment_stories.items()
         if metadata.get("created_at") and metadata["created_at"] >= cutoff
+    }
+    recent_stories = {
+        story_id: metadata
+        for story_id, metadata in recent_stories_all.items()
+        if metadata.get("status") == "active"
     }
     modes = Counter()
     target_counts = Counter()
@@ -226,6 +274,11 @@ def analyze(db_path: Path, log_dir: Path, days: int) -> dict[str, Any]:
         "cutoff": cutoff.isoformat(),
         "supply": {
             "stories_created": len(recent_stories),
+            "stories_quarantined": len(recent_stories_all) - len(recent_stories),
+            "stories_selectable_now": sum(
+                bool(metadata.get("selectable_now"))
+                for metadata in recent_stories.values()
+            ),
             "narrative_modes": dict(sorted(modes.items())),
             "unique_target_lemmas": len(target_counts),
             "target_slots": target_slots,
@@ -269,6 +322,8 @@ def main() -> None:
     print(
         "Supply: "
         f"{supply['stories_created']} stories, "
+        f"{supply['stories_selectable_now']} selectable now, "
+        f"{supply['stories_quarantined']} quarantined, "
         f"{len(supply['narrative_modes'])} modes, "
         f"{supply['unique_target_lemmas']} unique targets / {supply['target_slots']} slots"
     )

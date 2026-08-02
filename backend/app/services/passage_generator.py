@@ -9,6 +9,8 @@ without a new table.
 from __future__ import annotations
 
 import json
+import logging
+import os
 import random
 import tempfile
 from collections import Counter
@@ -25,8 +27,6 @@ from app.services.llm import (
     ARABIC_STYLE_RULES,
     DIFFICULTY_STYLE_GUIDE,
     format_known_words_by_pos,
-    generate_completion,
-    review_sentences_quality,
 )
 from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.sentence_validator import (
@@ -46,11 +46,25 @@ from app.services.story_service import _create_story_words
 from app.services.transliteration import transliterate_arabic
 
 
+logger = logging.getLogger(__name__)
+
+
 PASSAGE_EXPERIMENT_VERSION = "clustered_short_stories_v2"
+PASSAGE_QUALITY_GATE_VERSION = "codex_editor_v2"
+PASSAGE_CODEX_MODEL = os.environ.get("ALIF_PASSAGE_CODEX_MODEL", "gpt-5.6-sol")
+PASSAGE_CODEX_REASONING_EFFORT = os.environ.get(
+    "ALIF_PASSAGE_CODEX_REASONING_EFFORT",
+    "medium",
+)
+PASSAGE_CODEX_EDITOR_REASONING_EFFORT = os.environ.get(
+    "ALIF_PASSAGE_CODEX_EDITOR_REASONING_EFFORT",
+    "high",
+)
 PASSAGE_TARGET_POOL_SIZE = 96
 PASSAGE_PROMPT_VOCAB_SIZE = 320
-PASSAGE_MIN_TARGETS_USED = 2
-PASSAGE_MAX_TARGETS_USED = 4
+PASSAGE_MIN_TARGETS_USED = 3
+PASSAGE_MAX_TARGETS_USED = 3
+PASSAGE_MIN_TARGET_STABILITY_DAYS = 7.0
 PASSAGE_RECENT_CONTEXT_LIMIT = 24
 PASSAGE_TARGET_HISTORY_WINDOW = timedelta(days=30)
 
@@ -354,7 +368,6 @@ PASSAGE_AGENT_SCHEMA = {
             "type": "array",
             "minItems": PASSAGE_MIN_TARGETS_USED,
             "maxItems": PASSAGE_MAX_TARGETS_USED,
-            "uniqueItems": True,
             "items": {"type": "integer"},
         },
         "sentences": {
@@ -402,6 +415,13 @@ PASSAGE_QUALITY_SCHEMA = {
         "repetition_natural": {"type": "boolean"},
         "avoids_stock_ending": {"type": "boolean"},
         "morphology_correct": {"type": "boolean"},
+        "arabic_natural_and_correct": {"type": "boolean"},
+        "narrative_causality_complete": {"type": "boolean"},
+        "premise_matches_text": {"type": "boolean"},
+        "target_senses_natural": {"type": "boolean"},
+        "adult_readable_reward": {"type": "boolean"},
+        "ending_earned": {"type": "boolean"},
+        "avoids_patronizing_cliche": {"type": "boolean"},
         "reason": {"type": "string"},
     },
     "required": [
@@ -413,13 +433,44 @@ PASSAGE_QUALITY_SCHEMA = {
         "repetition_natural",
         "avoids_stock_ending",
         "morphology_correct",
+        "arabic_natural_and_correct",
+        "narrative_causality_complete",
+        "premise_matches_text",
+        "target_senses_natural",
+        "adult_readable_reward",
+        "ending_earned",
+        "avoids_patronizing_cliche",
         "reason",
     ],
 }
 
 
+PASSAGE_TARGET_GROUP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "groups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "target_lemma_ids": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "minItems": 3,
+                        "maxItems": 3,
+                    },
+                    "scene_hint": {"type": "string"},
+                },
+                "required": ["target_lemma_ids", "scene_hint"],
+            },
+        },
+    },
+    "required": ["groups"],
+}
+
+
 PASSAGE_AGENT_SYSTEM_PROMPT = f"""\
-You are a brilliant Arabic (MSA / fusha) miniaturist using tools: think Borges
+You are a brilliant Arabic (MSA / fusha) miniaturist: think Borges
 flash fiction with a very limited palette. The constraint is the creative
 challenge. Your job is to turn a pool of due review words into ONE cohesive
 miniature text.
@@ -441,7 +492,7 @@ Passage craft:
   matter; if the sentences could be shuffled, the passage has failed.
 - The last sentence matters most. Land a small ending: a turn, a joke, a
   bittersweet observation, a useful final fact, or quiet closure.
-- Choose 2-4 target words from the candidate pool that belong together through
+- Choose exactly 3 target words from the candidate pool that belong together through
   an actor-action-object relation, a shared real situation, a causal chain, or
   a precise topic. Prefer three. Never select a group merely because its glosses
   are vaguely emotional or all share the same broad domain.
@@ -468,6 +519,12 @@ Passage craft:
   combine random objects for surreal effect unless the whole passage clearly
   earns that effect.
 - Every sentence should answer why the next sentence follows.
+- Put every necessary causal step on the page. If an object changes hands, the
+  reader must see how the later owner received it; do not hide the decisive
+  handoff between sentences.
+- The premise and target plan must match the draft exactly. Do not call a new
+  object old, change who performed an action, or claim a consequence the Arabic
+  never states.
 - Do not default to an old house, absent grandparent, empty room/garden, lonely
   animal, generic man/boy, or "only the memory remains" ending. These motifs are
   not forbidden forever, but recent_passages.json makes them especially costly
@@ -475,6 +532,9 @@ Passage craft:
 - Do not end by attaching "now", "but", "still remains", "in the heart", or
   "was empty" to manufacture pathos. Earn the final sentence through action,
   discovery, dialogue, consequence, or a concrete image.
+- Do not use poverty, disability, illness, childhood, or bereavement as an
+  automatic emotional shortcut. In particular, "a poor boy is happy" is not a
+  payoff. Give characters agency and end on a specific action or observation.
 - Use target words only when they fit naturally; never force a bizarre list.
 - If a sentence is almost good but contains one bad word, revise that word
   surgically instead of restarting the whole passage.
@@ -486,15 +546,15 @@ Vocabulary constraint:
 - Full tashkeel on all Arabic words with correct i'rab.
 - Include Arabic punctuation.
 
-Tool workflow:
-1. Read targets.json, vocab_prompt.txt, and recent_passages.json.
+Planning workflow:
+1. Read the supplied target, vocabulary, and recent-passage blocks completely.
 2. Read the assigned narrative shape. It is a compositional constraint, not a
    plot template: invent new actors, setting, stakes, and ending within it.
 3. In scratch only, make several possible target clusters/premises. Reject any
    premise that would become disconnected examples, an inventory, or a forced
    parade of due words.
-4. Pick the single best premise around 2-4 mutually useful targets. Prefer a
-   three-word cluster. Coverage debt and recent passage use are in targets.json;
+4. Pick the single best premise around exactly 3 mutually useful targets.
+   Coverage debt and recent passage use are in targets.json;
    avoid recently overused targets when a coherent alternative exists.
 5. If morphology_focus is true, choose one verb target with reliable forms_json
    and make it recur in at least three grammatically contrasting forms (for
@@ -502,11 +562,9 @@ Tool workflow:
    must belong to the same lemma and make narrative sense. Do not use كَانَ as
    the morphology target.
 6. Draft the full passage from that premise.
-7. Validate each sentence with validator.py using a selected target bare form if
-   one appears there; otherwise use any repeated support-word bare form that
-   appears in that sentence. The app will still run its own full validation.
-8. On unknown_words, replace those words with allowed vocabulary and re-run the
-   validator. Preserve the passage when editing; do not collapse into examples.
+7. Audit every Arabic content token against the supplied vocabulary before
+   returning. Replace unknown words while preserving the passage. The app will
+   independently validate every token and reject the whole draft on a miss.
 
 Return JSON only. Explain the chosen semantic grouping briefly in target_plan,
 name the kind of payoff in ending_kind, and include the premise."""
@@ -556,21 +614,29 @@ def _recent_passage_history(
 def _select_narrative_mode(
     recent_passages: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Choose among the least-used recent shapes; do not create a fixed cycle."""
+    """Choose a least-used shape with one morphology story in every three."""
+    recognized = [
+        item for item in recent_passages
+        if item.get("narrative_mode") in PASSAGE_NARRATIVE_MODE_IDS
+    ]
     counts = Counter(
         item.get("narrative_mode")
-        for item in recent_passages
-        if item.get("narrative_mode") in PASSAGE_NARRATIVE_MODE_IDS
+        for item in recognized
     )
+    require_morphology = len(recognized) % 3 == 2
+    candidate_modes = [
+        mode for mode in PASSAGE_NARRATIVE_MODES
+        if bool(mode.get("morphology_focus")) is require_morphology
+    ]
     minimum = min(
-        (counts.get(mode["id"], 0) for mode in PASSAGE_NARRATIVE_MODES),
+        (counts.get(mode["id"], 0) for mode in candidate_modes),
         default=0,
     )
     least_used = [
-        mode for mode in PASSAGE_NARRATIVE_MODES
+        mode for mode in candidate_modes
         if counts.get(mode["id"], 0) == minimum
     ]
-    return dict(random.choice(least_used or list(PASSAGE_NARRATIVE_MODES)))
+    return dict(random.choice(least_used or candidate_modes))
 
 
 def _target_usage_history(
@@ -623,6 +689,11 @@ _STOCK_ENDING_PATTERNS = (
     "is no longer with us",
     "but the house is empty",
     "but the garden is empty",
+    "and he is happy",
+    "and she is happy",
+    "and they are happy",
+    "everyone was happy",
+    "everyone is happy",
 )
 
 _SIMILARITY_STOPWORDS = {
@@ -656,7 +727,10 @@ def _assert_not_recent_plot_echo(
     """Reject the two observed collapse modes: stock pathos and near-remakes."""
     lowered = " ".join(generated_body_en.lower().split())
     if any(pattern in lowered for pattern in _STOCK_ENDING_PATTERNS):
-        raise PassageGenerationError("Passage uses a stock empty/remaining-memory ending")
+        raise PassageGenerationError("Passage uses a stock or generic emotional ending")
+
+    if "poor boy" in lowered and "happy" in lowered:
+        raise PassageGenerationError("Passage uses poverty as a generic emotional shortcut")
 
     tired_motifs = sum(
         marker in lowered
@@ -798,6 +872,8 @@ def _due_maintenance_targets(
         if due and due <= now:
             card = parse_json_column(ulk.fsrs_card_json, default={})
             stability = float(card.get("stability") or 0.0) if isinstance(card, dict) else 0.0
+            if stability < PASSAGE_MIN_TARGET_STABILITY_DAYS:
+                continue
             usage = target_usage.get(lemma.lemma_id, {})
             last_at = usage.get("last_at")
             days_since = (
@@ -922,12 +998,6 @@ def _rank_targets_for_passage(words: list[dict[str, Any]]) -> list[dict[str, Any
     )
 
 
-def _agent_model_name(model_override: str) -> str:
-    if model_override in ("opus", "claude_opus"):
-        return "opus"
-    return "sonnet"
-
-
 def _agent_rows(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -970,11 +1040,141 @@ def _agent_targets(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _generate_agent_api_fallback(
-    kwargs: dict[str, Any],
-    cli_error: Exception | str,
+def _generate_codex_json(
+    *,
+    prompt: str,
+    system_prompt: str,
+    json_schema: dict[str, Any],
+    timeout: int,
+    reasoning_effort: str = PASSAGE_CODEX_REASONING_EFFORT,
 ) -> dict[str, Any]:
-    """Schema-guided fallback with the agent files inlined into the prompt."""
+    """Codex-only structured generation; never falls through to Anthropic."""
+    from app.services.codex_cli import CodexCLIError, generate_via_codex_cli
+
+    try:
+        return generate_via_codex_cli(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            json_mode=True,
+            json_schema=json_schema,
+            timeout=timeout,
+            model=PASSAGE_CODEX_MODEL,
+            reasoning_effort=reasoning_effort,
+        )
+    except CodexCLIError as exc:
+        raise PassageGenerationError(f"Codex passage call failed: {exc}") from exc
+
+
+def plan_maintenance_target_groups(
+    target_pool: list[dict[str, Any]],
+    group_count: int,
+    morphology_group_indexes: set[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Use one bounded Codex planning pass to make disjoint, storyable triples."""
+    group_count = max(1, int(group_count))
+    morphology_group_indexes = set(morphology_group_indexes or set())
+    ranked = _rank_targets_for_passage(target_pool)[:PASSAGE_TARGET_POOL_SIZE]
+    if len(ranked) < group_count * PASSAGE_MIN_TARGETS_USED:
+        raise PassageGenerationError(
+            f"Need {group_count * PASSAGE_MIN_TARGETS_USED} due targets to plan "
+            f"{group_count} stories; found {len(ranked)}"
+        )
+
+    schema = json.loads(json.dumps(PASSAGE_TARGET_GROUP_SCHEMA))
+    schema["properties"]["groups"]["minItems"] = group_count
+    schema["properties"]["groups"]["maxItems"] = group_count
+    result = _generate_codex_json(
+        prompt=f"""Group due Arabic vocabulary into exactly {group_count} disjoint triples.
+
+Each triple will become one four-sentence adult mini-story. Choose words that
+can participate in one concrete scene, causal chain, factual observation, or
+actor-action-object relationship. Do not group words merely because they are
+all abstract, emotional, or in the same broad category. Prefer overdue and
+underused words when they are storyable, but coherence outranks schedule
+precision. Use every lemma ID at most once. Vary the proposed scenes across the
+batch. The scene hint is an English craft note, not story prose.
+Groups {sorted(morphology_group_indexes) or 'none'} are morphology-focus groups.
+Each numbered morphology group MUST include at least one true verb whose
+forms_json supplies reliable contrasting person/number forms. Place that verb
+where repeating its inflections will make narrative sense.
+
+DUE TARGET POOL:
+{json.dumps(_agent_targets(ranked), ensure_ascii=False, indent=2)}
+
+Return exactly {group_count} groups of exactly three IDs.""",
+        system_prompt=(
+            "You are a meticulous curriculum editor planning coherent Arabic "
+            "microfiction from spaced-repetition vocabulary."
+        ),
+        json_schema=schema,
+        timeout=300,
+        reasoning_effort=PASSAGE_CODEX_REASONING_EFFORT,
+    )
+    groups = result.get("groups") if isinstance(result, dict) else None
+    if not isinstance(groups, list) or len(groups) != group_count:
+        raise PassageGenerationError("Codex target planner returned the wrong group count")
+
+    pool_ids = {int(word["lemma_id"]) for word in ranked}
+    used: set[int] = set()
+    planned: list[dict[str, Any]] = []
+    ranked_by_id = {int(word["lemma_id"]): word for word in ranked}
+    for group_index, group in enumerate(groups, start=1):
+        raw_ids = group.get("target_lemma_ids") if isinstance(group, dict) else None
+        try:
+            ids = [int(lemma_id) for lemma_id in raw_ids]
+        except (TypeError, ValueError):
+            raise PassageGenerationError("Codex target planner returned invalid IDs")
+        if len(ids) != PASSAGE_MIN_TARGETS_USED or len(set(ids)) != len(ids):
+            raise PassageGenerationError("Every planned target group must contain 3 unique IDs")
+        if any(lemma_id not in pool_ids for lemma_id in ids):
+            raise PassageGenerationError("Codex target planner selected an ID outside the due pool")
+        if used.intersection(ids):
+            raise PassageGenerationError("Codex target planner reused a target across stories")
+        if group_index in morphology_group_indexes:
+            has_inflectable_verb = any(
+                "verb" in str(ranked_by_id[lemma_id].get("pos") or "").lower()
+                and isinstance(ranked_by_id[lemma_id].get("forms_json"), dict)
+                and len(ranked_by_id[lemma_id]["forms_json"]) >= 3
+                for lemma_id in ids
+            )
+            if not has_inflectable_verb:
+                raise PassageGenerationError(
+                    f"Planned morphology group {group_index} has no inflectable verb"
+                )
+        used.update(ids)
+        planned.append({
+            "target_lemma_ids": ids,
+            "scene_hint": str(group.get("scene_hint") or "").strip(),
+        })
+    return planned
+
+
+def plan_due_maintenance_target_groups(group_count: int) -> list[dict[str, Any]]:
+    """Load the current due pool without holding a DB session during Codex work."""
+    db = SessionLocal()
+    try:
+        targets = _due_maintenance_targets(db, limit=PASSAGE_TARGET_POOL_SIZE)
+        recent = _recent_passage_history(db)
+    finally:
+        db.close()
+    recognized_count = sum(
+        item.get("narrative_mode") in PASSAGE_NARRATIVE_MODE_IDS
+        for item in recent
+    )
+    morphology_indexes = {
+        index + 1
+        for index in range(group_count)
+        if (recognized_count + index) % 3 == 2
+    }
+    return plan_maintenance_target_groups(
+        targets,
+        group_count,
+        morphology_group_indexes=morphology_indexes,
+    )
+
+
+def _generate_agent_with_tools(**kwargs) -> dict[str, Any]:
+    """Run Codex with all generation inputs inlined for a deterministic sandbox."""
     work_dir = Path(kwargs["work_dir"])
     targets_text = (work_dir / "targets.json").read_text(encoding="utf-8")
     vocab_text = (work_dir / "vocab_prompt.txt").read_text(encoding="utf-8")
@@ -984,9 +1184,10 @@ def _generate_agent_api_fallback(
         if recent_path.exists()
         else "[]"
     )
-    fallback_prompt = f"""{kwargs['prompt']}
+    codex_prompt = f"""{kwargs['prompt']}
 
-Tool access is unavailable. Here are the referenced file contents.
+All authoritative inputs are inlined below. Do not search the web or use any
+vocabulary that is absent from these blocks.
 
 TARGETS.JSON:
 {targets_text}
@@ -1004,55 +1205,13 @@ application will independently validate every token.
 
 EXACT OUTPUT JSON SCHEMA:
 {json.dumps(kwargs['json_schema'], ensure_ascii=False, indent=2)}"""
-    try:
-        return generate_completion(
-            prompt=fallback_prompt,
-            system_prompt=kwargs["system_prompt"],
-            json_schema=kwargs["json_schema"],
-            temperature=0.45,
-            timeout=kwargs.get("timeout", 300),
-            model_override="openai",
-            task_type="maintenance_passage_api_fallback",
-        )
-    except Exception as fallback_exc:
-        raise RuntimeError(
-            f"Claude tool session failed ({cli_error}); API fallback failed "
-            f"({fallback_exc})"
-        ) from fallback_exc
-
-
-def _generate_agent_with_tools(**kwargs) -> dict[str, Any]:
-    from limbic.cerebellum.claude_cli import ClaudeCLIError, generate as _limbic_generate
-    from app.services.llm import (
-        claude_cli_temporarily_disabled,
-        mark_claude_cli_unavailable_from_error,
+    return _generate_codex_json(
+        prompt=codex_prompt,
+        system_prompt=kwargs["system_prompt"],
+        json_schema=kwargs["json_schema"],
+        timeout=kwargs.get("timeout", 600),
+        reasoning_effort=PASSAGE_CODEX_REASONING_EFFORT,
     )
-
-    # Tool use improves vocabulary compliance, but a spent Claude Max quota
-    # must not starve an overnight batch. All fallback drafts still traverse
-    # every local validator and quality gate before storage.
-    if claude_cli_temporarily_disabled():
-        return _generate_agent_api_fallback(kwargs, "Claude CLI quota cooldown")
-
-    try:
-        result, _meta = _limbic_generate(
-            prompt=kwargs["prompt"],
-            project="alif",
-            purpose="maintenance_passage_agentic",
-            system=kwargs["system_prompt"],
-            schema=kwargs["json_schema"],
-            model=kwargs.get("model", "sonnet"),
-            tools=kwargs.get("tools", "Read,Bash"),
-            allowed_tools="Bash Read",
-            max_budget=kwargs.get("max_budget_usd", 0.60),
-            work_dir=kwargs["work_dir"],
-            dangerously_skip_permissions=False,
-            timeout=kwargs.get("timeout", 300),
-        )
-    except ClaudeCLIError as exc:
-        mark_claude_cli_unavailable_from_error(exc)
-        return _generate_agent_api_fallback(kwargs, exc)
-    return result
 
 
 def generate_maintenance_passage_agentic(
@@ -1060,16 +1219,16 @@ def generate_maintenance_passage_agentic(
     known_words: list[dict[str, Any]],
     style: str | None = None,
     sentence_count: int = 4,
-    model_override: str = "claude_sonnet",
+    model_override: str = "codex",
     feedback: str | None = None,
     recent_passages: list[dict[str, Any]] | None = None,
     narrative_mode: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Use a tool-enabled Sonnet session to choose and validate a cohesive passage."""
+    """Use Codex to choose and draft a cohesive, vocabulary-bounded passage."""
     if not target_pool:
         raise PassageGenerationError("No maintenance targets available")
 
-    from app.services.sentence_self_correct import _write_batch_files, _write_validator_script
+    from app.services.sentence_self_correct import _write_batch_files
 
     style = style if style in PASSAGE_STYLES else random.choice(PASSAGE_STYLES)
     sentence_count = max(3, min(5, sentence_count))
@@ -1086,7 +1245,6 @@ def generate_maintenance_passage_agentic(
             _agent_targets(target_pool),
             prompt_sample_size=PASSAGE_PROMPT_VOCAB_SIZE,
         )
-        _write_validator_script(work_dir)
         recent_path = Path(work_dir) / "recent_passages.json"
         recent_path.write_text(
             json.dumps(recent_passages, ensure_ascii=False, indent=2),
@@ -1095,12 +1253,10 @@ def generate_maintenance_passage_agentic(
 
         prompt = f"""Create one cohesive {sentence_count}-sentence maintenance passage.
 
-Files:
-- Candidate due/review target pool: {work_dir}/targets.json
-- Supporting learner vocabulary: {work_dir}/vocab_prompt.txt
-- Recent passage titles, openings, endings, modes, and targets to avoid echoing:
-  {recent_path}
-- Validator: python3 {work_dir}/validator.py "<arabic sentence>" "<target_bare>"
+Inputs (inlined below this instruction by the caller):
+- Candidate due/review target pool from targets.json
+- Supporting learner vocabulary from vocab_prompt.txt
+- Recent passage titles, openings, endings, modes, and targets to avoid echoing
 
 Style target: {style}
 Assigned narrative shape: {mode_id}
@@ -1110,15 +1266,20 @@ Morphology focus required: {str(morphology_focus).lower()}
 Selection rules:
 - Read the full target pool before drafting. It is ordered by recent passage
   coverage debt, story suitability, overdue pressure, and frequency—not random.
-- Compare at least five possible 2-4 word clusters in scratch. Pick words that
+- Compare at least five possible 3-word clusters in scratch. Pick words that
   can occupy different roles in one causal scene (actor/action/object/result),
   not merely words sharing a broad theme.
-- Prefer three selected targets. Two is acceptable for an unusually strong
-  premise; four is acceptable only when every word belongs naturally.
+- Return exactly three selected targets: two cannot earn a passage card, while
+  four too often turns a strong miniature into a forced vocabulary parade.
 - Make one selected target recur at least twice. Repetition must change or
   deepen its role rather than copy a clause.
 - The ending should reframe or complete the scene gently; it should not exist
   merely to introduce another due word.
+- Keep every causal link explicit. If an object or message reaches a new person,
+  show the handoff instead of jumping to an unexplained later owner.
+- Make premise and target_plan factually identical to the final text.
+- Reject "poor child/person becomes happy" and similar patronizing shortcuts;
+  pathos must come from a particular choice, action, or image.
 - Do not maximize target count at the cost of coherence. Target coverage has no
   value if the result reads like examples.
 - Every selected target must appear in the final Arabic. Connector sentences
@@ -1179,10 +1340,7 @@ Return exactly {sentence_count} sentence objects. Include:
             system_prompt=PASSAGE_AGENT_SYSTEM_PROMPT,
             json_schema=PASSAGE_AGENT_SCHEMA,
             work_dir=work_dir,
-            model=_agent_model_name(model_override),
-            tools="Read,Bash",
-            max_budget_usd=0.60,
-            timeout=300,
+            timeout=600,
         )
 
     if not isinstance(result, dict):
@@ -1199,7 +1357,7 @@ def generate_maintenance_passage_draft(
     known_words: list[dict[str, Any]],
     style: str | None = None,
     sentence_count: int = 4,
-    model_override: str = "claude_sonnet",
+    model_override: str = "codex",
 ) -> dict[str, Any]:
     if not target_words:
         raise PassageGenerationError("No maintenance targets available")
@@ -1229,14 +1387,12 @@ Rules:
 - No drills, no grammar talk, no learner instructions.
 - Return exactly {sentence_count} sentence objects."""
 
-    result = generate_completion(
+    result = _generate_codex_json(
         prompt=prompt,
         system_prompt=PASSAGE_SYSTEM_PROMPT,
         json_schema=PASSAGE_SCHEMA,
-        temperature=0.35,
         timeout=180,
-        model_override=model_override,
-        task_type="maintenance_passage_gen",
+        reasoning_effort=PASSAGE_CODEX_REASONING_EFFORT,
     )
     if not isinstance(result, dict):
         raise PassageGenerationError("Passage generation returned non-object JSON")
@@ -1247,14 +1403,19 @@ def _review_passage_cohesion(
     validated: list[dict[str, Any]],
     *,
     generated: dict[str, Any] | None = None,
-) -> None:
+    target_words: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Reject passage-shaped bundles that read like unrelated examples."""
     passage = "\n".join(
         f"{idx + 1}. AR: {item['arabic']}\n   EN: {item['english']}"
         for idx, item in enumerate(validated)
     )
     generated = generated or {}
-    result = generate_completion(
+    target_context = "\n".join(
+        f"- lemma {word['lemma_id']}: {word['arabic']} = {word.get('english') or ''}"
+        for word in (target_words or [])
+    )
+    result = _generate_codex_json(
         prompt=f"""Review this Arabic learner passage as a passage, not as separate sentences.
 
 Reject it if the sentences are merely disconnected examples, if there is no
@@ -1265,9 +1426,21 @@ Assigned narrative mode: {generated.get('narrative_mode') or 'legacy'}
 Stated target plan: {generated.get('target_plan') or ''}
 Morphology focus: {bool(generated.get('morphology_focus'))}
 Morphology target lemma ID: {generated.get('morphology_target_lemma_id')}
+Selected target meanings:
+{target_context or '- unavailable (legacy passage)'}
 
 Also reject generic filler prose, mechanical target repetition, a stock
 empty-house/remaining-memory ending, or incorrect person/number/tense changes.
+Reject any sentence that is unnatural or grammatically wrong in MSA, lacks
+required diacritics, or is not faithfully translated line by line.
+
+Act as an adversarial acquiring editor, not a supportive teacher. Trace every
+cause, ownership change, and pronoun. Reject if the ending depends on an event
+the text skipped; if premise/plan contradicts the Arabic or English; if a target
+has the wrong role or sense; if the final beat merely says someone is happy;
+or if poverty, childhood, illness, disability, or loss substitutes for a real
+story. A grammatically correct vocabulary exercise is not enough. Set every
+boolean true only if you would publish this exact miniature for an adult.
 
 Passage:
 {passage}
@@ -1278,10 +1451,8 @@ Return JSON with strict booleans.""",
             "rewarding short passages. Fail lists of unrelated example sentences."
         ),
         json_schema=PASSAGE_QUALITY_SCHEMA,
-        temperature=0,
-        timeout=120,
-        model_override="claude_haiku",
-        task_type="maintenance_passage_quality",
+        timeout=300,
+        reasoning_effort=PASSAGE_CODEX_EDITOR_REASONING_EFFORT,
     )
     if not isinstance(result, dict):
         raise PassageGenerationError("Passage quality review returned non-object JSON")
@@ -1295,12 +1466,20 @@ Return JSON with strict booleans.""",
             "repetition_natural",
             "avoids_stock_ending",
             "morphology_correct",
+            "arabic_natural_and_correct",
+            "narrative_causality_complete",
+            "premise_matches_text",
+            "target_senses_natural",
+            "adult_readable_reward",
+            "ending_earned",
+            "avoids_patronizing_cliche",
         )
         if result.get(key) is not True
     ]
     if failed:
         reason = result.get("reason") or ", ".join(failed)
         raise PassageGenerationError(f"Passage failed cohesion review: {reason}")
+    return result
 
 
 def _assert_passage_has_lexical_anchor(validated: list[dict[str, Any]]) -> None:
@@ -1309,7 +1488,7 @@ def _assert_passage_has_lexical_anchor(validated: list[dict[str, Any]]) -> None:
     For learner micro-passages, requiring one repeated content lemma is a
     useful constraint rather than an aesthetic compromise: it gives the passage
     a visible anchor and forces generation away from three unrelated sentences.
-    The stricter style prompt tells Sonnet to satisfy this naturally.
+    The stricter style prompt tells the writer to satisfy this naturally.
     """
     sentence_sets: list[set[int]] = []
     for item in validated:
@@ -1501,7 +1680,7 @@ def store_maintenance_passage(
             <= len(declared_target_ids)
             <= PASSAGE_MAX_TARGETS_USED
         ):
-            raise PassageGenerationError("Passage must declare 2-4 selected target words")
+            raise PassageGenerationError("Passage must declare exactly 3 selected target words")
         missing_targets = declared_target_ids - target_ids_used
         if missing_targets:
             raise PassageGenerationError(
@@ -1536,17 +1715,13 @@ def store_maintenance_passage(
     if experiment_version:
         _assert_not_recent_plot_echo(body_en, recent_passages or [])
 
+    passage_quality_review: dict[str, Any] = {}
     if quality_gate:
-        quality = review_sentences_quality([
-            {"arabic": item["arabic"], "english": item["english"]}
-            for item in validated
-        ])
-        for item, review in zip(validated, quality):
-            if not review.natural or not review.translation_correct:
-                raise PassageGenerationError(
-                    f"Passage sentence failed quality review: {review.reason}"
-                )
-        _review_passage_cohesion(validated, generated=generated)
+        passage_quality_review = _review_passage_cohesion(
+            validated,
+            generated=generated,
+            target_words=target_words,
+        ) or {}
 
     story = Story(
         title_ar=str(generated.get("title_ar") or "نَصٌّ قَصِيرٌ"),
@@ -1560,6 +1735,8 @@ def store_maintenance_passage(
         format_type="maintenance_passage",
         metadata_json={
             "experiment_version": experiment_version,
+            "quality_gate_version": PASSAGE_QUALITY_GATE_VERSION,
+            "quality_review": passage_quality_review,
             "style_tag": generated.get("style_tag"),
             "narrative_mode": generated.get("narrative_mode"),
             "premise": generated.get("premise"),
@@ -1575,6 +1752,11 @@ def store_maintenance_passage(
             "target_surface_form_counts": {
                 str(lemma_id): len(target_surface_forms.get(lemma_id, set()))
                 for lemma_id in sorted(target_ids_used)
+            },
+            "target_stability_days": {
+                str(int(word["lemma_id"])): word.get("stability_days")
+                for word in target_words
+                if word.get("stability_days") is not None
             },
             "sentence_count": len(validated),
             "proper_names": sorted(proper_name_norms),
@@ -1627,8 +1809,8 @@ def generate_and_store_maintenance_passage(
     target_lemma_ids: list[int] | None = None,
     style: str | None = None,
     sentence_count: int = 4,
-    model_override: str = "claude_sonnet",
-    max_generation_attempts: int = 3,
+    model_override: str = "codex",
+    max_generation_attempts: int = 4,
     experiment_version: str = PASSAGE_EXPERIMENT_VERSION,
 ) -> Story:
     """Generate, validate, and store one maintenance passage.
@@ -1641,7 +1823,23 @@ def generate_and_store_maintenance_passage(
         eligible_words = _eligible_passage_words(db)
         if target_lemma_ids:
             target_set = set(target_lemma_ids)
-            targets = [w for w in eligible_words if w["lemma_id"] in target_set]
+            due_by_id = {
+                int(word["lemma_id"]): word
+                for word in _due_maintenance_targets(db, limit=10_000)
+            }
+            if target_set.difference(due_by_id):
+                raise PassageGenerationError(
+                    "One or more explicitly planned targets are no longer due and stable"
+                )
+            targets = [
+                {**word, **due_by_id.get(int(word["lemma_id"]), {})}
+                for word in eligible_words
+                if word["lemma_id"] in target_set
+            ]
+            if len(targets) != len(target_set):
+                raise PassageGenerationError(
+                    "One or more explicitly planned targets are no longer eligible"
+                )
         else:
             targets = _due_maintenance_targets(db, limit=PASSAGE_TARGET_POOL_SIZE)
         if not targets:
@@ -1653,22 +1851,16 @@ def generate_and_store_maintenance_passage(
         db.close()
 
     last_error: Exception | None = None
+    attempt_errors: list[str] = []
     rejection_feedback: str | None = None
     for _attempt in range(max(1, max_generation_attempts)):
-        attempt_model = model_override
-        if (
-            _attempt == max(1, max_generation_attempts) - 1
-            and model_override not in ("opus", "claude_opus")
-        ):
-            attempt_model = "opus"
-
         try:
             draft = generate_maintenance_passage_agentic(
                 target_pool=targets,
                 known_words=prompt_vocab,
                 style=style,
                 sentence_count=sentence_count,
-                model_override=attempt_model,
+                model_override="codex",
                 feedback=rejection_feedback,
                 recent_passages=recent_passages,
                 narrative_mode=narrative_mode,
@@ -1687,15 +1879,17 @@ def generate_and_store_maintenance_passage(
                 <= len(selected_targets)
                 <= PASSAGE_MAX_TARGETS_USED
             ):
-                raise PassageGenerationError("Draft must select 2-4 due targets")
+                raise PassageGenerationError("Draft must select exactly 3 due targets")
         except Exception as exc:
             last_error = exc
+            attempt_errors.append(f"attempt {_attempt + 1} planning: {exc}")
+            logger.warning("Passage attempt %d planning rejected: %s", _attempt + 1, exc)
             rejection_feedback = f"Generation/planning failed because: {exc}"
             continue
 
         db = SessionLocal()
         try:
-            return store_maintenance_passage(
+            story = store_maintenance_passage(
                 db,
                 draft,
                 target_words=selected_targets,
@@ -1704,9 +1898,17 @@ def generate_and_store_maintenance_passage(
                 experiment_version=experiment_version,
                 recent_passages=recent_passages,
             )
+            # SQLAlchemy expires attributes on commit. Material generation never
+            # read the return value, so the detached object bug remained hidden
+            # until the batch seeder tried to report its first success.
+            db.refresh(story)
+            db.expunge(story)
+            return story
         except PassageGenerationError as exc:
             db.rollback()
             last_error = exc
+            attempt_errors.append(f"attempt {_attempt + 1} validation: {exc}")
+            logger.warning("Passage attempt %d validation rejected: %s", _attempt + 1, exc)
             draft_lines = " | ".join(
                 str(s.get("arabic") or "").strip()
                 for s in (draft.get("sentences") or [])
@@ -1723,5 +1925,8 @@ def generate_and_store_maintenance_passage(
             db.close()
 
     raise PassageGenerationError(
-        f"Passage generation failed after retries: {last_error}"
+        "Passage generation failed after retries: "
+        + " | ".join(attempt_errors[-3:])
+        if attempt_errors
+        else f"Passage generation failed after retries: {last_error}"
     )

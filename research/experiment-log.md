@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-02: Short-story v2 seed correction — lifecycle, deliverability, independent taste gate
+
+**Failure.** The scheduled six-story seed committed one story, then its report
+accessed an expired ORM object after `generate_and_store_maintenance_passage()`
+closed the session. The batch stopped at 1/6. The passage itself revealed two
+separate escaped assumptions: v2 permitted two due targets while delivery
+required three, and the passage editor accepted an unexplained handoff plus a
+generic poor-child/happiness ending. Background warming later created two more
+old-gate v2 stories. None of the three was shown, so no learning history was
+contaminated.
+
+**Correction.** Refresh and expunge the returned `Story` before closing its
+session; partial seeds now exit non-zero. Automatic v2 targets must be due,
+stable for at least seven days, and number exactly three, matching the selector
+floor without the coherence cost observed from a fourth forced concept.
+Every third accepted story is morphology-focused. Deterministic gates reject
+generic emotional shortcuts, while an independent Codex `gpt-5.6-sol` acquiring editor must
+approve causal completeness, premise fidelity, target senses, adult readability,
+and an earned ending. Drafting and editing are Codex-only with no Anthropic
+fallback. A Codex batch planner partitions the ranked due pool into disjoint,
+storyable triples before drafting; schedule pressure ranks candidates, while
+coherence chooses each group. Medium-effort drafting keeps seeding bounded and
+the smaller adversarial edit retains high effort. Its full verdict and target
+stabilities are stored for audit. The
+analyzer separates active/selectable supply from quarantined rows.
+
+**Fast decision.** Before exposure, require six selectable stories, six modes,
+≥15 unique targets, two verified morphology stories, clean mappings, and manual
+bilingual review. At 24h, any app use with zero v2 cards is a delivery failure.
+At 72h and ≥10 reviews, continue only if story speed is ≤1.5× concurrent
+sentence ms/word, comprehension is within 20 points, and selected-target
+ratings ≥3 are at least 70%. Content defects trigger immediate quarantine;
+seven-day retention remains confirmatory. Full protocol:
+`research/maintenance-short-story-v2-2026-08-01.md`.
 
 ## 2026-08-01: Embedded short stories v2 — coverage-aware, varied, morphology-rich
 

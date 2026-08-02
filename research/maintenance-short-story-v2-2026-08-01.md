@@ -37,7 +37,8 @@ basic passage-card UI.
 
 1. **Wide, ranked pool.** Offer the agent up to 96 due candidates, ranked first
    by passage-coverage debt, then story suitability, capped overdue pressure,
-   and frequency. The agent must compare several coherent 2–4 word clusters.
+   and frequency. Automatic targets must have stability ≥7 days. The agent must
+   compare several coherent three-word clusters.
 2. **Twenty-four rotating story shapes.** Select among the least recently used
    compositional shapes: mystery, bargain, role reversal, failed plan, message,
    parallel lives, chain reaction, useful-fact arc, and others. Shapes prescribe
@@ -45,10 +46,15 @@ basic passage-card UI.
 3. **Negative creative context.** Give the writer the previous 24 titles,
    openings, endings, targets, and shapes. Deterministically reject stock
    empty-house/remaining-memory endings and near-remakes.
-4. **Planned repetition.** Every generated story must use 2–4 selected due
+4. **Planned repetition.** Every generated story must use exactly three selected due
    targets and repeat at least one. Morphology shapes require one verb lemma in
    contrasting person/number/tense surfaces; resolved token mappings, not model
-   claims, enforce the contrast.
+   claims, enforce the contrast. The mode scheduler guarantees one morphology
+   passage in every three accepted passages.
+   A one-pass Codex batch planner first partitions the ranked due pool into
+   disjoint, semantically coherent triples. Scheduling pressure ranks the pool;
+   story coherence decides each triple, so 80 due words do not become arbitrary
+   groups of three.
 5. **Identity-safe storage.** Recompute target coverage after the surface-aware
    mapper. A target that disappears during mapping cannot remain in metadata.
 6. **Aggressive delivery.** Generate at most three stories per warm-cache run,
@@ -56,6 +62,32 @@ basic passage-card UI.
    two passage cards in reading sessions of at least 12 sentence slots. Passage
    cards remain restricted to FSRS maintenance states and still need three due
    lemmas, so fragile acquisition reviews remain individual sentences.
+7. **Codex-only generation and editorial gate.** After deterministic vocabulary,
+   mapping, target, repetition, and anti-copy checks, an independent Codex
+   `gpt-5.6-sol` editor must
+   approve causal completeness, premise consistency, target senses, adult
+   readability, an earned ending, and avoidance of patronizing pathos. The
+   complete verdict is retained in story metadata for audit.
+
+## 2026-08-02 seed incident and correction
+
+The first scheduled six-story seed committed one passage and then crashed while
+reporting it: SQLAlchemy had expired the returned `Story` on commit and the
+generator closed its session before the seeder read `metadata_json`. The one
+passage also exposed a policy mismatch—two selected due targets were legal to
+generate but three were required for delivery—and an editorial false positive
+with an unexplained ownership handoff and generic poverty/happiness ending.
+
+The correction refreshes and expunges returned stories before session close,
+makes partial batches exit non-zero, aligns generation at exactly three due
+targets (a fourth degraded coherence), restricts targets to the same ≥7-day comfortable band used for supply,
+adds deterministic generic-payoff rejection, and replaces the agreeable Haiku
+passage check with the independent adversarial Codex editor described above.
+Both drafting and editing are Codex-only with no Anthropic fallback. Drafting
+uses medium reasoning for bounded throughput; the smaller adversarial editorial
+decision retains high reasoning. The bad
+passage is quarantined by deactivating its sentence rows; it remains available
+for forensic comparison but cannot enter a session.
 
 ## Measurement
 
@@ -76,6 +108,30 @@ The 1–3 day decision surface is:
 - cards/unique stories actually shown;
 - idle-filtered milliseconds per Arabic word;
 - whole-card “understood” rate and selected-target rating success.
+
+### Rapid decision thresholds
+
+**Before exposure:** require six active and currently selectable seeded stories,
+six distinct narrative modes, at least 15 unique targets, at least two verified
+morphology stories, 100% complete mappings, and a manual read of every Arabic
+and English line. Any material logic, sense, or translation error is a release
+blocker rather than an outcome metric.
+
+**After 24 hours:** confirm at least one v2 card was shown. If the app was used
+but no v2 card appeared, treat that as a delivery defect. Review every captured
+`card_shown` payload for experiment metadata and inspect any `no_idea` response.
+
+**After 72 hours:** use directionally useful rather than significance claims.
+Require at least ten v2 reviews before comparing outcomes. Continue if median
+idle-filtered ms/word is no more than 1.5× concurrent single-sentence review,
+whole-card understood rate is within 20 percentage points of sentences, and
+selected-target ratings ≥3 reach at least 70%. Roll back delivery volume if any
+threshold fails, or immediately quarantine a story after a content defect.
+
+**After 7+ days:** compare next-review success and FSRS stability change for
+the targeted lemmas against matched legacy-passage and sentence-only reviews,
+stratified by prior stability. This is confirmatory and does not delay the
+three-day quality/delivery decision.
 
 This experiment cannot establish delayed retention in three days. The later
 endpoint remains stability change and next-review success, stratified by prior

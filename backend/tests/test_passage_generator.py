@@ -6,19 +6,94 @@ from types import SimpleNamespace
 from app.models import Lemma, Sentence, StoryWord, UserLemmaKnowledge
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
+    PASSAGE_MIN_TARGETS_USED,
     PassageGenerationError,
     _assert_not_recent_plot_echo,
+    _due_maintenance_targets,
     _eligible_passage_words,
     _rank_targets_for_passage,
+    _review_passage_cohesion,
     _select_narrative_mode,
+    generate_and_store_maintenance_passage,
     generate_maintenance_passage_agentic,
+    plan_maintenance_target_groups,
     store_maintenance_passage,
 )
 from app.services.sentence_selector import (
+    PASSAGE_MIN_DUE_WORDS,
     SentenceCandidate,
     _best_generated_passage_seeds,
     _group_maintenance_passages,
 )
+
+
+def test_generated_target_floor_matches_passage_delivery_floor():
+    assert PASSAGE_MIN_TARGETS_USED >= PASSAGE_MIN_DUE_WORDS
+
+
+def test_codex_target_planner_returns_disjoint_storyable_groups(monkeypatch):
+    pool = [
+        {"lemma_id": i, "arabic": f"كَلِمَة{i}", "english": f"word {i}", "pos": "noun"}
+        for i in range(1, 7)
+    ]
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        lambda **kwargs: {
+            "groups": [
+                {"target_lemma_ids": [1, 2, 3], "scene_hint": "one scene"},
+                {"target_lemma_ids": [4, 5, 6], "scene_hint": "another scene"},
+            ]
+        },
+    )
+
+    groups = plan_maintenance_target_groups(pool, 2)
+
+    assert [group["target_lemma_ids"] for group in groups] == [[1, 2, 3], [4, 5, 6]]
+
+
+def test_codex_target_planner_rejects_cross_story_reuse(monkeypatch):
+    pool = [
+        {"lemma_id": i, "arabic": f"كَلِمَة{i}", "english": f"word {i}", "pos": "noun"}
+        for i in range(1, 7)
+    ]
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        lambda **kwargs: {
+            "groups": [
+                {"target_lemma_ids": [1, 2, 3], "scene_hint": "one scene"},
+                {"target_lemma_ids": [3, 4, 5], "scene_hint": "another scene"},
+            ]
+        },
+    )
+
+    try:
+        plan_maintenance_target_groups(pool, 2)
+    except PassageGenerationError as exc:
+        assert "reused" in str(exc)
+    else:
+        raise AssertionError("Expected cross-story target reuse to be rejected")
+
+
+def test_codex_target_planner_requires_verb_in_morphology_group(monkeypatch):
+    pool = [
+        {"lemma_id": i, "arabic": f"كَلِمَة{i}", "english": f"word {i}", "pos": "noun"}
+        for i in range(1, 4)
+    ]
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        lambda **kwargs: {
+            "groups": [
+                {"target_lemma_ids": [1, 2, 3], "scene_hint": "one scene"},
+            ]
+        },
+    )
+
+    try:
+        plan_maintenance_target_groups(pool, 1, morphology_group_indexes={1})
+    except PassageGenerationError as exc:
+        assert "inflectable verb" in str(exc)
+    else:
+        raise AssertionError("Expected morphology group without a verb to be rejected")
 
 
 def _seed_lemma(db, lemma_id, arabic, bare, gloss, state="known", box=None):
@@ -385,7 +460,6 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
         work_dir = Path(kwargs["work_dir"])
         captured["targets"] = json.loads((work_dir / "targets.json").read_text())
         captured["prompt"] = kwargs["prompt"]
-        captured["model"] = kwargs["model"]
         return {
             "title_ar": "ذِكْرَى",
             "title_en": "A memory",
@@ -433,7 +507,7 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
 
     assert result["selected_target_lemma_ids"] == [1, 3, 5]
     assert len(captured["targets"]) == 8
-    assert captured["model"] == "sonnet"
+    assert "model" not in captured
     assert "Do not maximize target count" in captured["prompt"]
     assert "premise" in captured["prompt"]
     assert "Previous rejected draft/editor feedback" in captured["prompt"]
@@ -489,6 +563,25 @@ def test_narrative_mode_rotation_chooses_an_unused_shape(monkeypatch):
     assert chosen["id"] not in {"shared_action", "tiny_mystery"}
 
 
+def test_narrative_mode_rotation_guarantees_every_third_story_uses_morphology(
+    monkeypatch,
+):
+    monkeypatch.setattr("app.services.passage_generator.random.choice", lambda modes: modes[0])
+
+    third = _select_narrative_mode([
+        {"narrative_mode": "tiny_mystery"},
+        {"narrative_mode": "object_journey"},
+    ])
+    fourth = _select_narrative_mode([
+        {"narrative_mode": "tiny_mystery"},
+        {"narrative_mode": "object_journey"},
+        {"narrative_mode": "shared_action"},
+    ])
+
+    assert third["morphology_focus"] is True
+    assert fourth["morphology_focus"] is False
+
+
 def test_recent_plot_gate_rejects_stock_empty_house_ending():
     try:
         _assert_not_recent_plot_echo(
@@ -501,11 +594,90 @@ def test_recent_plot_gate_rejects_stock_empty_house_ending():
         raise AssertionError("Expected stock pathos ending to be rejected")
 
 
+def test_recent_plot_gate_rejects_generic_poverty_happiness_payoff():
+    try:
+        _assert_not_recent_plot_echo(
+            "A man gave away one slipper. Today a poor boy wears it, and he is happy.",
+            [],
+        )
+    except PassageGenerationError as exc:
+        assert "generic emotional ending" in str(exc) or "poverty" in str(exc)
+    else:
+        raise AssertionError("Expected patronizing generic payoff to be rejected")
+
+
+def test_independent_editor_rejects_incomplete_narrative_logic(monkeypatch):
+    captured = {}
+
+    def fake_review(**kwargs):
+        captured.update(kwargs)
+        result = {
+            key: True
+            for key in kwargs["json_schema"]["required"]
+            if key != "reason"
+        }
+        result["narrative_causality_complete"] = False
+        result["reason"] = "The final owner receives the object off-page."
+        return result
+
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        fake_review,
+    )
+
+    try:
+        _review_passage_cohesion(
+            [{
+                "arabic": "أَعْطَى الخُفَّ لِرَجُلٍ.",
+                "english": "He gave the slipper to a man.",
+            }, {
+                "arabic": "لَبِسَ الطِّفْلُ الخُفَّ.",
+                "english": "The child wore the slipper.",
+            }, {
+                "arabic": "مَشَى الطِّفْلُ.",
+                "english": "The child walked.",
+            }],
+            generated={"premise": "A slipper changes owners."},
+            target_words=[{
+                "lemma_id": 1,
+                "arabic": "خُفّ",
+                "english": "slipper",
+            }],
+        )
+    except PassageGenerationError as exc:
+        assert "final owner" in str(exc)
+    else:
+        raise AssertionError("Expected incomplete causal chain to be rejected")
+
+    assert captured["reasoning_effort"] == "high"
+    assert "Selected target meanings" in captured["prompt"]
+
+
+def test_due_targets_require_comfortable_stability(db_session):
+    low = _seed_lemma(db_session, 1, "خُفّ", "خف", "slipper")
+    high = _seed_lemma(db_session, 2, "كِتَاب", "كتاب", "book")
+    due = "2026-01-01T00:00:00+00:00"
+    for lemma, stability in ((low, 5.2), (high, 7.0)):
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=lemma.lemma_id,
+        ).one()
+        knowledge.fsrs_card_json = {
+            "due": due,
+            "stability": stability,
+        }
+    db_session.commit()
+
+    targets = _due_maintenance_targets(db_session)
+
+    assert [target["lemma_id"] for target in targets] == [2]
+
+
 def test_v2_store_requires_repeated_selected_target(db_session):
     words = [
         _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),
         _seed_lemma(db_session, 2, "وَلَد", "ولد", "boy"),
         _seed_lemma(db_session, 3, "بَيْت", "بيت", "house"),
+        _seed_lemma(db_session, 4, "مَدْرَسَة", "مدرسة", "school"),
     ]
     db_session.commit()
     eligible = [
@@ -518,15 +690,15 @@ def test_v2_store_requires_repeated_selected_target(db_session):
         "style_tag": "wry",
         "narrative_mode": "dialogue_turn",
         "premise": "A boy finds a book in a house.",
-        "target_plan": "Two concrete objects share one scene.",
+        "target_plan": "Three concrete targets share one setting.",
         "ending_kind": "reply",
         "morphology_focus": False,
         "morphology_target_lemma_id": None,
-        "selected_target_lemma_ids": [1, 2],
+        "selected_target_lemma_ids": [1, 2, 3],
         "sentences": [
-            {"arabic": "كِتَابٌ فِي بَيْتٍ.", "english": "A book is in a house."},
-            {"arabic": "وَلَدٌ فِي بَيْتٍ.", "english": "A boy is in a house."},
-            {"arabic": "بَيْتٌ.", "english": "The house."},
+            {"arabic": "كِتَابٌ فِي مَدْرَسَةٍ.", "english": "A book is in a school."},
+            {"arabic": "وَلَدٌ فِي مَدْرَسَةٍ.", "english": "A boy is in a school."},
+            {"arabic": "بَيْتٌ فِي مَدْرَسَةٍ.", "english": "A house is in a school."},
         ],
     }
 
@@ -534,7 +706,7 @@ def test_v2_store_requires_repeated_selected_target(db_session):
         store_maintenance_passage(
             db_session,
             generated,
-            target_words=eligible[:2],
+            target_words=eligible[:3],
             eligible_words=eligible,
             quality_gate=False,
             experiment_version=PASSAGE_EXPERIMENT_VERSION,
@@ -543,3 +715,61 @@ def test_v2_store_requires_repeated_selected_target(db_session):
         assert "repeat a selected target" in str(exc)
     else:
         raise AssertionError("Expected v2 passage without target repetition to be rejected")
+
+
+def test_generated_story_return_value_survives_closed_session(db_session, monkeypatch):
+    words = [
+        _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),
+        _seed_lemma(db_session, 2, "وَلَد", "ولد", "boy"),
+        _seed_lemma(db_session, 3, "بَيْت", "بيت", "house"),
+    ]
+    for word in words:
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=word.lemma_id,
+        ).one()
+        knowledge.fsrs_card_json = {
+            "due": "2026-01-01T00:00:00+00:00",
+            "stability": 9.0,
+        }
+    db_session.commit()
+
+    draft = {
+        "title_ar": "الكِتَابُ العَائِدُ",
+        "title_en": "The Returning Book",
+        "style_tag": "wry",
+        "narrative_mode": "object_journey",
+        "premise": "A boy carries a book between home and school.",
+        "target_plan": "Boy, book, and house form one concrete scene.",
+        "ending_kind": "return",
+        "morphology_focus": False,
+        "morphology_target_lemma_id": None,
+        "selected_target_lemma_ids": [1, 2, 3],
+        "sentences": [
+            {"arabic": "كِتَابٌ فِي بَيْتٍ.", "english": "A book is in a house."},
+            {"arabic": "وَلَدٌ فِي بَيْتٍ.", "english": "A boy is in a house."},
+            {"arabic": "وَلَدٌ مَعَ كِتَابٍ.", "english": "A boy is with a book."},
+        ],
+    }
+    monkeypatch.setattr(
+        "app.services.passage_generator.generate_maintenance_passage_agentic",
+        lambda **kwargs: draft,
+    )
+    monkeypatch.setattr(
+        "app.services.passage_generator._review_passage_cohesion",
+        lambda *args, **kwargs: None,
+    )
+
+    story = generate_and_store_maintenance_passage(
+        target_lemma_ids=[word.lemma_id for word in words],
+        max_generation_attempts=1,
+    )
+
+    assert story.id is not None
+    assert story.title_en == "The Returning Book"
+    assert story.metadata_json["target_lemma_ids"] == [1, 2, 3]
+    assert story.metadata_json["target_stability_days"] == {
+        "1": 9.0,
+        "2": 9.0,
+        "3": 9.0,
+    }
+    assert db_session.query(StoryWord).filter_by(story_id=story.id).count() > 0

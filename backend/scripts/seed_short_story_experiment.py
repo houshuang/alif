@@ -14,15 +14,31 @@ from typing import Any
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
     generate_and_store_maintenance_passage,
+    plan_due_maintenance_target_groups,
 )
 
 
 def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
     created: list[dict[str, Any]] = []
     failures: list[str] = []
-    for _index in range(count):
+    try:
+        planned_groups = plan_due_maintenance_target_groups(count)
+    except Exception as exc:
+        return {
+            "experiment_version": PASSAGE_EXPERIMENT_VERSION,
+            "requested": count,
+            "planned_groups": [],
+            "created": [],
+            "created_count": 0,
+            "failed_count": count,
+            "complete": False,
+            "failures": [f"target planner: {type(exc).__name__}: {exc}"],
+        }
+
+    for group in planned_groups:
         try:
             story = generate_and_store_maintenance_passage(
+                target_lemma_ids=group["target_lemma_ids"],
                 sentence_count=4,
                 max_generation_attempts=attempts_per_story,
             )
@@ -40,9 +56,11 @@ def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
     return {
         "experiment_version": PASSAGE_EXPERIMENT_VERSION,
         "requested": count,
+        "planned_groups": planned_groups,
         "created": created,
         "created_count": len(created),
         "failed_count": len(failures),
+        "complete": len(created) == count,
         "failures": failures,
     }
 
@@ -50,13 +68,13 @@ def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, default=6)
-    parser.add_argument("--attempts-per-story", type=int, default=3)
+    parser.add_argument("--attempts-per-story", type=int, default=4)
     args = parser.parse_args()
     count = max(1, min(args.count, 12))
-    attempts = max(1, min(args.attempts_per_story, 4))
+    attempts = max(1, min(args.attempts_per_story, 6))
     result = seed(count, attempts)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result["created_count"] else 1
+    return 0 if result["complete"] else 1
 
 
 if __name__ == "__main__":
