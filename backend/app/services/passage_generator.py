@@ -1141,12 +1141,28 @@ Return exactly {group_count} groups of exactly three IDs.""",
         })
 
     def has_inflectable_verb(group: dict[str, Any]) -> bool:
-        return any(
-            "verb" in str(ranked_by_id[lemma_id].get("pos") or "").lower()
-            and isinstance(ranked_by_id[lemma_id].get("forms_json"), dict)
-            and len(ranked_by_id[lemma_id]["forms_json"]) >= 3
-            for lemma_id in group["target_lemma_ids"]
-        )
+        for lemma_id in group["target_lemma_ids"]:
+            word = ranked_by_id[lemma_id]
+            forms = word.get("forms_json")
+            if not isinstance(forms, dict) or len(forms) < 3:
+                continue
+            verb_form_keys = {
+                "verb_form",
+                "past_3fs",
+                "past_3p",
+                "past_1s",
+                "past_3fp",
+                "present_3fp",
+                "present_3mp",
+                "imperative",
+            }
+            has_verbal_paradigm = len(verb_form_keys.intersection(forms)) >= 2
+            if (
+                "verb" in str(word.get("pos") or "").lower()
+                or has_verbal_paradigm
+            ):
+                return True
+        return False
 
     # A planner can make several excellent, coherent triples yet place the
     # verb-bearing one in the wrong numbered slot. Reorder whole groups rather

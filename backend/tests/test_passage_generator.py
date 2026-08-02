@@ -128,6 +128,36 @@ def test_codex_target_planner_moves_coherent_verb_group_to_morphology_slot(monke
     assert groups[0]["scene_hint"] == "a discovery"
 
 
+def test_codex_target_planner_accepts_legacy_mislabeled_verbal_paradigm(monkeypatch):
+    pool = [
+        {
+            "lemma_id": 1,
+            "arabic": "مَسَحَ",
+            "english": "to wipe",
+            "pos": "noun",
+            "forms_json": {
+                "past_3fs": "مَسَحَتْ",
+                "past_3p": "مَسَحُوا",
+                "past_1s": "مَسَحْتُ",
+            },
+        },
+        {"lemma_id": 2, "arabic": "صُورَة", "english": "picture", "pos": "noun"},
+        {"lemma_id": 3, "arabic": "غُبَار", "english": "dust", "pos": "noun"},
+    ]
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        lambda **kwargs: {
+            "groups": [
+                {"target_lemma_ids": [1, 2, 3], "scene_hint": "cleaning a picture"},
+            ]
+        },
+    )
+
+    groups = plan_maintenance_target_groups(pool, 1, morphology_group_indexes={1})
+
+    assert groups[0]["target_lemma_ids"] == [1, 2, 3]
+
+
 def test_due_target_planner_retries_rejected_batch_plans(monkeypatch):
     fake_db = SimpleNamespace(close=lambda: None)
     monkeypatch.setattr("app.services.passage_generator.SessionLocal", lambda: fake_db)
