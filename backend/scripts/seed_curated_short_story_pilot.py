@@ -43,11 +43,11 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         "sentences": [
             {
                 "arabic": (
-                    "فِي غُرْفَةٍ صَغِيرَةٍ، جَلَسَ رَجُلٌ بِجَانِبِ رَبَابَةٍ "
+                    "فِي غُرْفَةٍ صَغِيرَةٍ، جَلَسَ عَازِفٌ بِجَانِبِ رَبَابَةٍ "
                     "صَامِتَةٍ، وَرَتَّلَ قَصِيدَةً بِنَبْرَةٍ هَادِئَةٍ."
                 ),
                 "english": (
-                    "In a small room, a man sat beside a silent rababa and recited "
+                    "In a small room, a player sat beside a silent rababa and recited "
                     "a poem in a calm tone."
                 ),
             },
@@ -63,21 +63,22 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "عِنْدَمَا فَتَحَ الرَّجُلُ الْبَابَ، رَتَّلُوا الْبَيْتَ "
-                    "نَفْسَهُ مَعًا، فَتَغَيَّرَتِ النَّبْرَةُ."
+                    "عِنْدَمَا فَتَحَ الْعَازِفُ الْبَابَ، رَتَّلُوا الْبَيْتَ "
+                    "نَفْسَهُ مَعًا، فَاخْتَلَفَتِ النَّبْرَاتُ."
                 ),
                 "english": (
-                    "When the man opened the door, they recited the same verse "
-                    "together, and the tone changed."
+                    "When the player opened the door, they recited the same verse "
+                    "together, and the tones conflicted."
                 ),
             },
             {
                 "arabic": (
-                    "ضَحِكَ عَازِفُ الرَّبَابَةِ وَقَالَ: «الْآنَ فَقَطْ "
-                    "تَحْتَاجُونَ إِلَيَّ»."
+                    "عَزَفَ الرَّجُلُ عَلَى الرَّبَابَةِ، فَاتَّبَعُوا نَبْرَتَهَا "
+                    "وَأَكْمَلُوا الْقَصِيدَةَ مَعًا."
                 ),
                 "english": (
-                    "The rababa player laughed and said, “Only now do you need me.”"
+                    "The man played the rababa, so they followed its tone and finished "
+                    "the poem together."
                 ),
             },
         ],
@@ -109,12 +110,12 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "فَتَحَتْ حَقِيبَتَهَا، فَوَجَدَتْ مِقْلَمَتَيْنِ سَوْدَاوَيْنِ؛ "
+                    "فَتَحَتْ حَقِيبَتَهَا، فَوَجَدَتْ مِقْلَمَتَيْنِ؛ "
                     "فِي إِحْدَاهُمَا مِمْحَاةٌ جَدِيدَةٌ، وَفِي الْأُخْرَى "
                     "مِفْتَاحٌ صَغِيرٌ."
                 ),
                 "english": (
-                    "She opened her bag and found two black pencil cases; one contained "
+                    "She opened her bag and found two pencil cases; one contained "
                     "a new eraser, and the other contained a small key."
                 ),
             },
@@ -171,31 +172,34 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "رَأَى طِفْلٌ رِيشًا سَقَطَ مِنَ الصَّقْرِ عِنْدَ نِهَايَةِ "
-                    "الرَّصِيفِ، فَخَطَا نَحْوَهُ."
+                    "الرَّصِيفِ، فَخَطَا نَحْوَ حَدِّ الرَّصِيفِ."
                 ),
                 "english": (
                     "A child saw feathers that had fallen from the falcon at the end "
-                    "of the platform, so he stepped toward them."
+                    "of the platform, so he stepped toward the platform’s edge."
                 ),
             },
             {
                 "arabic": (
-                    "رَفَعَ عَامِلُ الْمَحَطَّةِ عَلَمًا أَحْمَرَ، فَوَقَفَ "
+                    "رَآهُ عَامِلُ الْمَحَطَّةِ، فَرَفَعَ عَلَمًا أَحْمَرَ، "
+                    "فَوَقَفَ "
                     "الْقِطَارُ قَبْلَ الرَّصِيفِ."
                 ),
                 "english": (
-                    "A station worker raised a red flag, and the train stopped before "
-                    "the platform."
+                    "A station worker saw him and raised a red flag, and the train "
+                    "stopped before the platform."
                 ),
             },
             {
                 "arabic": (
-                    "طَارَ الصَّقْرُ، وَجَمَعَ الْعَامِلُ الرِّيشَ، ثُمَّ وَضَعَهُ "
-                    "فِي يَدِ الطِّفْلِ بَعْدَ أَنْ عَادَ إِلَى الْمُسَافِرِينَ."
+                    "أَمْسَكَ الْعَامِلُ بِيَدِ الطِّفْلِ وَأَعَادَهُ إِلَى "
+                    "الْمُسَافِرِينَ؛ ثُمَّ جَمَعَ الرِّيشَ مِنَ الرَّصِيفِ "
+                    "وَوَضَعَهُ فِي يَدِ الطِّفْلِ بَعْدَ أَنْ طَارَ الصَّقْرُ."
                 ),
                 "english": (
-                    "The falcon flew away, and the worker gathered the feathers, then "
-                    "put them in the child’s hand after he returned to the travelers."
+                    "The worker took the child by the hand and returned him to the "
+                    "travelers; then he gathered the feathers from the platform and "
+                    "put them in the child’s hand after the falcon flew away."
                 ),
             },
         ],
