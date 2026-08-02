@@ -1118,7 +1118,7 @@ Return exactly {group_count} groups of exactly three IDs.""",
     used: set[int] = set()
     planned: list[dict[str, Any]] = []
     ranked_by_id = {int(word["lemma_id"]): word for word in ranked}
-    for group_index, group in enumerate(groups, start=1):
+    for group in groups:
         raw_ids = group.get("target_lemma_ids") if isinstance(group, dict) else None
         try:
             ids = [int(lemma_id) for lemma_id in raw_ids]
@@ -1130,22 +1130,48 @@ Return exactly {group_count} groups of exactly three IDs.""",
             raise PassageGenerationError("Codex target planner selected an ID outside the due pool")
         if used.intersection(ids):
             raise PassageGenerationError("Codex target planner reused a target across stories")
-        if group_index in morphology_group_indexes:
-            has_inflectable_verb = any(
-                "verb" in str(ranked_by_id[lemma_id].get("pos") or "").lower()
-                and isinstance(ranked_by_id[lemma_id].get("forms_json"), dict)
-                and len(ranked_by_id[lemma_id]["forms_json"]) >= 3
-                for lemma_id in ids
-            )
-            if not has_inflectable_verb:
-                raise PassageGenerationError(
-                    f"Planned morphology group {group_index} has no inflectable verb"
-                )
         used.update(ids)
         planned.append({
             "target_lemma_ids": ids,
             "scene_hint": str(group.get("scene_hint") or "").strip(),
         })
+
+    def has_inflectable_verb(group: dict[str, Any]) -> bool:
+        return any(
+            "verb" in str(ranked_by_id[lemma_id].get("pos") or "").lower()
+            and isinstance(ranked_by_id[lemma_id].get("forms_json"), dict)
+            and len(ranked_by_id[lemma_id]["forms_json"]) >= 3
+            for lemma_id in group["target_lemma_ids"]
+        )
+
+    # A planner can make several excellent, coherent triples yet place the
+    # verb-bearing one in the wrong numbered slot. Reorder whole groups rather
+    # than discarding that work or moving individual words between scenes.
+    morphology_positions = {
+        index - 1
+        for index in morphology_group_indexes
+        if 1 <= index <= len(planned)
+    }
+    for required_position in sorted(morphology_positions):
+        if has_inflectable_verb(planned[required_position]):
+            continue
+        donor_position = next(
+            (
+                position
+                for position, candidate in enumerate(planned)
+                if position not in morphology_positions
+                and has_inflectable_verb(candidate)
+            ),
+            None,
+        )
+        if donor_position is None:
+            raise PassageGenerationError(
+                f"Planned morphology group {required_position + 1} has no inflectable verb"
+            )
+        planned[required_position], planned[donor_position] = (
+            planned[donor_position],
+            planned[required_position],
+        )
     return planned
 
 
@@ -1232,6 +1258,7 @@ def generate_maintenance_passage_agentic(
     feedback: str | None = None,
     recent_passages: list[dict[str, Any]] | None = None,
     narrative_mode: dict[str, Any] | None = None,
+    scene_hint: str | None = None,
 ) -> dict[str, Any]:
     """Use Codex to choose and draft a cohesive, vocabulary-bounded passage."""
     if not target_pool:
@@ -1271,6 +1298,14 @@ Style target: {style}
 Assigned narrative shape: {mode_id}
 Shape instruction: {narrative_mode['instruction']}
 Morphology focus required: {str(morphology_focus).lower()}
+Batch scene hint: {scene_hint.strip() if scene_hint and scene_hint.strip() else '(none)'}
+
+The batch scene hint is the curriculum planner's concrete starting premise.
+Preserve its central relationship when it is coherent. You may correct a
+factual conflict or improve the payoff, but do not silently replace it with an
+unrelated stock scene. Revisions after rejection must keep using the hint as
+their anchor unless the rejection feedback identifies the hint itself as the
+problem.
 
 Selection rules:
 - Read the full target pool before drafting. It is ordered by recent passage
@@ -1816,6 +1851,7 @@ def store_maintenance_passage(
 
 def generate_and_store_maintenance_passage(
     target_lemma_ids: list[int] | None = None,
+    scene_hint: str | None = None,
     style: str | None = None,
     sentence_count: int = 4,
     model_override: str = "codex",
@@ -1873,6 +1909,7 @@ def generate_and_store_maintenance_passage(
                 feedback=rejection_feedback,
                 recent_passages=recent_passages,
                 narrative_mode=narrative_mode,
+                scene_hint=scene_hint,
             )
             selected_ids = {
                 int(lemma_id)

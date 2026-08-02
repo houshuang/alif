@@ -16,8 +16,10 @@ def _story(story_id: int):
 
 def test_seed_continues_after_failure_and_marks_partial_batch_incomplete(monkeypatch):
     outcomes = iter([_story(10), RuntimeError("rejected"), _story(11)])
+    generated_calls = []
 
     def fake_generate(**kwargs):
+        generated_calls.append(kwargs)
         outcome = next(outcomes)
         if isinstance(outcome, Exception):
             raise outcome
@@ -39,6 +41,7 @@ def test_seed_continues_after_failure_and_marks_partial_batch_incomplete(monkeyp
     assert result["failed_count"] == 1
     assert result["complete"] is False
     assert [item["story_id"] for item in result["created"]] == [10, 11]
+    assert [call["scene_hint"] for call in generated_calls] == ["scene"] * 3
 
 
 def test_seed_marks_full_batch_complete(monkeypatch):

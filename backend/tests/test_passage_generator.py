@@ -97,6 +97,37 @@ def test_codex_target_planner_requires_verb_in_morphology_group(monkeypatch):
         raise AssertionError("Expected morphology group without a verb to be rejected")
 
 
+def test_codex_target_planner_moves_coherent_verb_group_to_morphology_slot(monkeypatch):
+    pool = [
+        {
+            "lemma_id": i,
+            "arabic": f"كَلِمَة{i}",
+            "english": f"word {i}",
+            "pos": "verb" if i == 1 else "noun",
+            "forms_json": {"he": "a", "she": "b", "they": "c"} if i == 1 else None,
+        }
+        for i in range(1, 10)
+    ]
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        lambda **kwargs: {
+            "groups": [
+                {"target_lemma_ids": [1, 2, 3], "scene_hint": "shared work"},
+                {"target_lemma_ids": [4, 5, 6], "scene_hint": "a message"},
+                {"target_lemma_ids": [7, 8, 9], "scene_hint": "a discovery"},
+            ]
+        },
+    )
+
+    groups = plan_maintenance_target_groups(pool, 3, morphology_group_indexes={3})
+
+    assert groups[2] == {
+        "target_lemma_ids": [1, 2, 3],
+        "scene_hint": "shared work",
+    }
+    assert groups[0]["scene_hint"] == "a discovery"
+
+
 def test_due_target_planner_retries_rejected_batch_plans(monkeypatch):
     fake_db = SimpleNamespace(close=lambda: None)
     monkeypatch.setattr("app.services.passage_generator.SessionLocal", lambda: fake_db)
@@ -532,6 +563,7 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
         style="nostalgic",
         sentence_count=3,
         feedback="Rejected because: disconnected examples",
+        scene_hint="A family deciphers a note left inside a borrowed coat.",
         narrative_mode={
             "id": "shared_action",
             "instruction": "Let several actors perform the same action.",
@@ -546,6 +578,8 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
     assert "premise" in captured["prompt"]
     assert "Previous rejected draft/editor feedback" in captured["prompt"]
     assert "Recent passage titles" in captured["prompt"]
+    assert "A family deciphers a note left inside a borrowed coat." in captured["prompt"]
+    assert "do not silently replace it" in captured["prompt"]
     assert result["narrative_mode"] == "shared_action"
 
 

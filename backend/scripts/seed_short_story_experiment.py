@@ -39,6 +39,7 @@ def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
         try:
             story = generate_and_store_maintenance_passage(
                 target_lemma_ids=group["target_lemma_ids"],
+                scene_hint=group.get("scene_hint"),
                 sentence_count=4,
                 max_generation_attempts=attempts_per_story,
             )
