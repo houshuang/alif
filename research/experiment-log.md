@@ -83,6 +83,27 @@ ratings ≥3 are at least 70%. Content defects trigger immediate quarantine;
 seven-day retention remains confirmatory. Full protocol:
 `research/maintenance-short-story-v2-2026-08-01.md`.
 
+**2026-08-02 production pilot.** The first three old-gate stories (IDs 231–233)
+had zero exposures and were quarantined with all sentence rows inactive. A
+recoverable pre-quarantine database backup is stored on the server. Three
+Codex-editor-v2 stories are active and selectable: *The Visa* (dialogue), *The
+Second Note* (message/context), and *The Late Instruction* (shared action).
+They cover nine distinct due targets; the latter naturally varies مَسَحَ across
+masculine singular, feminine singular, plural, and plural prohibition. This is
+the delivery pilot, not the full six-story content cohort: zero cards after app
+use is actionable immediately, while content/retention thresholds wait for the
+planned six-story supply and at least ten reviews.
+
+The shared `/opt/alif/.codex` ChatGPT credential was refreshed for both Alif and
+Hvaskjer, the server CLI was upgraded from 0.133.0 to 0.146.0, and real
+structured calls passed through both applications. A matched Luna experiment
+ran two target triples at high and xhigh. High produced six rejected drafts and
+zero accepted stories in about ten minutes; xhigh produced no acceptance before
+being stopped after 15+ minutes. The adversarial editor caught real Arabic and
+causal defects, but Luna did not improve acceptance or wall time for this
+vocabulary-constrained workload. Keep Sol for shipping; revisit Luna only with
+better premise-first planning, not brute-force thread volume.
+
 ## 2026-08-01: Embedded short stories v2 — coverage-aware, varied, morphology-rich
 
 **Prompt.** The sentence-reading UI's maintenance passages work as a format,
