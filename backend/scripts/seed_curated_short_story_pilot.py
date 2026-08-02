@@ -53,21 +53,21 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "خَلْفَ السِّتَارِ، رَتَّلَتِ امْرَأَتَانِ الْبَيْتَ "
+                    "خَلْفَ بَابٍ مُغْلَقٍ، رَتَّلَتِ امْرَأَتَانِ الْبَيْتَ "
                     "الْأَخِيرَ بِنَبْرَةٍ أُخْرَى، وَلَمْ يَرَهُمَا الْجُمْهُورُ."
                 ),
                 "english": (
-                    "Behind the curtain, two women recited the final verse in "
+                    "Behind a closed door, two women recited the final verse in "
                     "another tone, and the audience did not see them."
                 ),
             },
             {
                 "arabic": (
-                    "عِنْدَمَا رَفَعَ الرَّجُلُ السِّتَارَ، رَتَّلُوا الْبَيْتَ "
+                    "عِنْدَمَا فَتَحَ الرَّجُلُ الْبَابَ، رَتَّلُوا الْبَيْتَ "
                     "نَفْسَهُ مَعًا، فَتَغَيَّرَتِ النَّبْرَةُ."
                 ),
                 "english": (
-                    "When the man lifted the curtain, they recited the same verse "
+                    "When the man opened the door, they recited the same verse "
                     "together, and the tone changed."
                 ),
             },
@@ -83,58 +83,59 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "title_ar": "الْفِلْمُ الْأَسْوَدُ",
-        "title_en": "The Black Film",
+        "title_ar": "الْمِقْلَمَةُ السَّوْدَاءُ",
+        "title_en": "The Black Pencil Case",
         "style_tag": "wry",
         "narrative_mode": "message_with_context",
-        "premise": "A producer mistakes a deliberately black film for a broken file.",
+        "premise": "A daughter uses the contents to identify two identical pencil cases.",
         "target_plan": (
-            "The email delivers the film and slogan, and the reply supplies the "
-            "missing context for the black screen."
+            "The email starts the search, the eraser distinguishes the cases, and "
+            "the father's reply identifies the owner."
         ),
-        "ending_kind": "literal explanation",
+        "ending_kind": "wry identification",
         "morphology_focus": False,
         "morphology_target_lemma_id": None,
-        "selected_target_lemma_ids": [311, 1079, 1220],
+        "selected_target_lemma_ids": [311, 2212, 2214],
         "sentences": [
             {
                 "arabic": (
-                    "تَلَقَّى مُنْتِجٌ إِيمِيلًا فِيهِ فِلْمٌ قَصِيرٌ وَشِعَارٌ: "
-                    "«لَا تَنْتَظِرِ الضَّوْءَ»."
+                    "قَرَأَتْ فَتَاةٌ إِيمِيلًا مِنْ أَبِيهَا يَسْأَلُ عَنْ "
+                    "مِقْلَمَةٍ سَوْدَاءَ."
                 ),
                 "english": (
-                    "A producer received an email containing a short film and a "
-                    "slogan: “Do not wait for the light.”"
+                    "A young woman read an email from her father asking about a black "
+                    "pencil case."
                 ),
             },
             {
                 "arabic": (
-                    "فَتَحَ الْفِلْمَ، فَبَقِيَتِ الشَّاشَةُ سَوْدَاءَ مِنَ "
-                    "الْبِدَايَةِ إِلَى النِّهَايَةِ."
+                    "فَتَحَتْ حَقِيبَتَهَا، فَوَجَدَتْ مِقْلَمَتَيْنِ سَوْدَاوَيْنِ؛ "
+                    "فِي إِحْدَاهُمَا مِمْحَاةٌ جَدِيدَةٌ، وَفِي الْأُخْرَى "
+                    "مِفْتَاحٌ صَغِيرٌ."
                 ),
                 "english": (
-                    "He opened the film, and the screen remained black from beginning "
-                    "to end."
+                    "She opened her bag and found two black pencil cases; one contained "
+                    "a new eraser, and the other contained a small key."
                 ),
             },
             {
                 "arabic": (
-                    "كَتَبَ فِي إِيمِيلٍ جَدِيدٍ: «الشِّعَارُ جَيِّدٌ، وَلَكِنَّ "
-                    "الْفِلْمَ بِلَا صُورَةٍ»."
+                    "أَرْسَلَتْ إِيمِيلًا فِيهِ صُورَةٌ لَهُمَا، وَسَأَلَتْ: "
+                    "«أَيَّتُهُمَا مِقْلَمَتُكَ؟»"
                 ),
                 "english": (
-                    "He wrote in a new email, “The slogan is good, but the film has "
-                    "no picture.”"
+                    "She sent an email with a picture of them and asked, “Which one is "
+                    "your pencil case?”"
                 ),
             },
             {
                 "arabic": (
-                    "أَجَابَ الْمُخْرِجُ: «هَذَا هُوَ الْفِلْمُ؛ إِنَّهُ فِلْمٌ "
-                    "عَنِ الظَّلَامِ»."
+                    "أَجَابَ الْأَبُ: «الَّتِي فِيهَا الْمِفْتَاحُ؛ أَمَّا "
+                    "الْمِمْحَاةُ فَلِمَنْ يُضَيِّعُ أَقْلَامَهُ دَائِمًا»."
                 ),
                 "english": (
-                    "The director replied, “This is the film; it is a film about "
-                    "darkness.”"
+                    "Her father replied, “The one with the key; the eraser belongs to "
+                    "the person who is always losing her pencils.”"
                 ),
             },
         ],
@@ -160,21 +161,21 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "وَقَفَ الْمُسَافِرُونَ عَلَى رَصِيفِ الْمَحَطَّةِ، وَحَطَّ "
-                    "صَقْرٌ قُرْبَ السِّكَّةِ."
+                    "صَقْرٌ عِنْدَ نِهَايَةِ الرَّصِيفِ."
                 ),
                 "english": (
                     "The travelers stood on the station platform, and a falcon "
-                    "landed near the track."
+                    "landed at the end of the platform."
                 ),
             },
             {
                 "arabic": (
-                    "رَأَى طِفْلٌ رِيشًا سَقَطَ مِنَ الصَّقْرِ عَلَى الرَّصِيفِ، "
-                    "فَخَطَا نَحْوَهُ."
+                    "رَأَى طِفْلٌ رِيشًا سَقَطَ مِنَ الصَّقْرِ عِنْدَ نِهَايَةِ "
+                    "الرَّصِيفِ، فَخَطَا نَحْوَهُ."
                 ),
                 "english": (
-                    "A child saw feathers that had fallen from the falcon onto the "
-                    "platform, so he stepped toward them."
+                    "A child saw feathers that had fallen from the falcon at the end "
+                    "of the platform, so he stepped toward them."
                 ),
             },
             {
@@ -190,11 +191,11 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "طَارَ الصَّقْرُ، وَجَمَعَ الْعَامِلُ الرِّيشَ، ثُمَّ وَضَعَهُ "
-                    "فِي يَدِ الطِّفْلِ بَعْدَ أَنْ ابْتَعَدَ عَنِ السِّكَّةِ."
+                    "فِي يَدِ الطِّفْلِ بَعْدَ أَنْ عَادَ إِلَى الْمُسَافِرِينَ."
                 ),
                 "english": (
                     "The falcon flew away, and the worker gathered the feathers, then "
-                    "put them in the child’s hand after he moved away from the track."
+                    "put them in the child’s hand after he returned to the travelers."
                 ),
             },
         ],
