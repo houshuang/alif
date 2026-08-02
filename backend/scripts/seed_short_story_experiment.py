@@ -18,13 +18,20 @@ from app.services.passage_generator import (
 )
 
 
-def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
+def seed(
+    count: int,
+    attempts_per_story: int,
+    initial_excluded_lemma_ids: set[int] | None = None,
+) -> dict[str, Any]:
     created: list[dict[str, Any]] = []
     failures: list[str] = []
-    excluded_lemma_ids: set[int] = set()
+    excluded_lemma_ids = set(initial_excluded_lemma_ids or set())
     candidate_budget = max(count, min(12, count * 2))
     try:
-        planned_groups = plan_due_maintenance_target_groups(count)
+        planned_groups = plan_due_maintenance_target_groups(
+            count,
+            excluded_lemma_ids=excluded_lemma_ids,
+        )
     except Exception as exc:
         return {
             "experiment_version": PASSAGE_EXPERIMENT_VERSION,
@@ -105,10 +112,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, default=6)
     parser.add_argument("--attempts-per-story", type=int, default=4)
+    parser.add_argument(
+        "--exclude-lemma-id",
+        type=int,
+        action="append",
+        default=[],
+        help="Skip a target rejected by an earlier bounded run (repeatable).",
+    )
     args = parser.parse_args()
     count = max(1, min(args.count, 12))
     attempts = max(1, min(args.attempts_per_story, 6))
-    result = seed(count, attempts)
+    result = seed(count, attempts, set(args.exclude_lemma_id))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["complete"] else 1
 

@@ -72,6 +72,30 @@ def test_seed_marks_full_batch_complete(monkeypatch):
     assert result["failed_count"] == 0
 
 
+def test_seed_forwards_initial_exclusions_to_first_plan(monkeypatch):
+    captured = {}
+
+    def fake_plan(count, excluded_lemma_ids=None):
+        captured["excluded"] = set(excluded_lemma_ids or set())
+        return [{"target_lemma_ids": [1, 2, 3], "scene_hint": "scene"}]
+
+    monkeypatch.setattr(seeder, "plan_due_maintenance_target_groups", fake_plan)
+    monkeypatch.setattr(
+        seeder,
+        "generate_and_store_maintenance_passage",
+        lambda **kwargs: _story(30),
+    )
+
+    result = seeder.seed(
+        count=1,
+        attempts_per_story=1,
+        initial_excluded_lemma_ids={7, 8, 9},
+    )
+
+    assert result["complete"] is True
+    assert captured["excluded"] == {7, 8, 9}
+
+
 def test_seed_stops_after_bounded_fresh_candidate_budget(monkeypatch):
     monkeypatch.setattr(
         seeder,
@@ -103,7 +127,9 @@ def test_seed_fails_closed_when_target_planning_fails(monkeypatch):
     monkeypatch.setattr(
         seeder,
         "plan_due_maintenance_target_groups",
-        lambda count: (_ for _ in ()).throw(RuntimeError("planner unavailable")),
+        lambda count, excluded_lemma_ids=None: (_ for _ in ()).throw(
+            RuntimeError("planner unavailable")
+        ),
     )
 
     result = seeder.seed(count=3, attempts_per_story=1)

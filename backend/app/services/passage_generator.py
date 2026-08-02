@@ -61,7 +61,11 @@ PASSAGE_CODEX_EDITOR_REASONING_EFFORT = os.environ.get(
     "high",
 )
 PASSAGE_TARGET_POOL_SIZE = 96
-PASSAGE_PROMPT_VOCAB_SIZE = 320
+# The learner now has a large enough stable vocabulary that the old 320-word
+# sample routinely omitted ordinary scene glue (resident, alarm, staff, job),
+# forcing the writer into grammatical but bizarre paraphrases. This remains a
+# bounded subset, while giving Codex enough natural alternatives for prose.
+PASSAGE_PROMPT_VOCAB_SIZE = 1200
 PASSAGE_MIN_TARGETS_USED = 3
 PASSAGE_MAX_TARGETS_USED = 3
 PASSAGE_MIN_TARGET_STABILITY_DAYS = 7.0
@@ -1314,6 +1318,10 @@ factual conflict or improve the payoff, but do not silently replace it with an
 unrelated stock scene. Revisions after rejection must keep using the hint as
 their anchor unless the rejection feedback identifies the hint itself as the
 problem.
+If one incidental object or role from the hint is absent from the supplied
+vocabulary, replace that detail with a simple causal equivalent that is
+available. Never use a strained synonym, an unidentified authority figure, or
+an unexplained sound merely to imitate the unavailable word.
 
 Selection rules:
 - Read the full target pool before drafting. It is ordered by recent passage

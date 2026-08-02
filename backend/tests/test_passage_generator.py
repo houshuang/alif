@@ -608,6 +608,7 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
     assert "Recent passage titles" in captured["prompt"]
     assert "A family deciphers a note left inside a borrowed coat." in captured["prompt"]
     assert "do not silently replace it" in captured["prompt"]
+    assert "replace that detail with a simple causal equivalent" in captured["prompt"]
     assert result["narrative_mode"] == "shared_action"
 
 
