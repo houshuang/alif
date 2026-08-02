@@ -54,7 +54,7 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "خَلْفَ بَابٍ مُغْلَقٍ، رَتَّلَتِ امْرَأَتَانِ الْبَيْتَ "
+                    "خَلْفَ بَابٍ مُغْلَقٍ، رَتَّلَتِ امْرَأَتَانِ "
                     "بَيْتًا مِنَ الْقَصِيدَةِ بِصَوْتٍ آخَرَ، وَلَمْ يَرَهُمَا "
                     "الْجُمْهُورُ."
                 ),
@@ -197,13 +197,14 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "سَحَبَ الْعَامِلُ الرَّجُلَ إِلَى الرَّصِيفِ، ثُمَّ أَشَارَ "
-                    "إِلَى الْقِطَارِ؛ وَعِنْدَمَا دَخَلَ الْقِطَارُ الْمَحَطَّةَ، "
-                    "طَارَ الرِّيشُ مَعَ هَوَائِهِ."
+                    "لِسَائِقِ الْقِطَارِ بِالدُّخُولِ؛ وَعِنْدَمَا دَخَلَ "
+                    "الْقِطَارُ الْمَحَطَّةَ، طَارَ الرِّيشُ فِي تَيَّارِ "
+                    "الْهَوَاءِ خَلْفَهُ."
                 ),
                 "english": (
                     "The worker pulled the man back onto the platform, then signaled "
-                    "the train; when it entered the station, the feathers flew away "
-                    "in its wake."
+                    "the train driver to enter; when the train entered the station, "
+                    "the feathers flew in the current of air behind it."
                 ),
             },
         ],
