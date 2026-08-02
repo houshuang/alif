@@ -54,11 +54,11 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             {
                 "arabic": (
                     "خَلْفَ بَابٍ مُغْلَقٍ، رَتَّلَتِ امْرَأَتَانِ الْبَيْتَ "
-                    "الْأَخِيرَ بِنَبْرَةٍ أُخْرَى، وَلَمْ يَرَهُمَا الْجُمْهُورُ."
+                    "الْأَخِيرَ بِصَوْتٍ آخَرَ، وَلَمْ يَرَهُمَا الْجُمْهُورُ."
                 ),
                 "english": (
                     "Behind a closed door, two women recited the final verse in "
-                    "another tone, and the audience did not see them."
+                    "another voice, and the audience did not see them."
                 ),
             },
             {
@@ -68,16 +68,16 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
                 ),
                 "english": (
                     "When the player opened the door, they recited the same verse "
-                    "together, and the tones conflicted."
+                    "together, and the tones differed."
                 ),
             },
             {
                 "arabic": (
-                    "عَزَفَ الرَّجُلُ عَلَى الرَّبَابَةِ، فَاتَّبَعُوا نَبْرَتَهَا "
+                    "عَزَفَ الرَّجُلُ عَلَى الرَّبَابَةِ، فَاتَّبَعُوا صَوْتَهَا "
                     "وَأَكْمَلُوا الْقَصِيدَةَ مَعًا."
                 ),
                 "english": (
-                    "The man played the rababa, so they followed its tone and finished "
+                    "The man played the rababa, so they followed its sound and finished "
                     "the poem together."
                 ),
             },
@@ -88,7 +88,7 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         "title_en": "The Black Pencil Case",
         "style_tag": "wry",
         "narrative_mode": "message_with_context",
-        "premise": "A daughter uses the contents to identify two identical pencil cases.",
+        "premise": "An engineer uses the contents to distinguish her case from her painter father's.",
         "target_plan": (
             "The email starts the search, the eraser distinguishes the cases, and "
             "the father's reply identifies the owner."
@@ -100,12 +100,13 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         "sentences": [
             {
                 "arabic": (
-                    "قَرَأَتْ فَتَاةٌ إِيمِيلًا مِنْ أَبِيهَا يَسْأَلُ عَنْ "
+                    "قَرَأَتْ مُهَنْدِسَةٌ إِيمِيلًا مِنْ أَبِيهَا الرَّسَّامِ "
+                    "يَسْأَلُ عَنْ "
                     "مِقْلَمَةٍ سَوْدَاءَ."
                 ),
                 "english": (
-                    "A young woman read an email from her father asking about a black "
-                    "pencil case."
+                    "An engineer read an email from her painter father asking about a "
+                    "black pencil case."
                 ),
             },
             {
@@ -131,12 +132,12 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
             },
             {
                 "arabic": (
-                    "أَجَابَ الْأَبُ: «الَّتِي فِيهَا الْمِفْتَاحُ؛ أَمَّا "
-                    "الْمِمْحَاةُ فَلِمَنْ يُضَيِّعُ أَقْلَامَهُ دَائِمًا»."
+                    "أَجَابَ الْأَبُ: «الَّتِي فِيهَا الْمِمْحَاةُ لِي؛ أَمَّا "
+                    "الْمِفْتَاحُ فَهُوَ مِفْتَاحُ مَكْتَبِكِ»."
                 ),
                 "english": (
-                    "Her father replied, “The one with the key; the eraser belongs to "
-                    "the person who is always losing her pencils.”"
+                    "Her father replied, “The one with the eraser is mine; the key is "
+                    "the key to your office.”"
                 ),
             },
         ],
@@ -147,8 +148,8 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         "style_tag": "suspenseful",
         "narrative_mode": "near_miss",
         "premise": (
-            "A child follows fallen feathers toward the track, and a station worker "
-            "stops the train before returning them safely."
+            "A passenger climbs down for fallen feathers, and a station worker stops "
+            "an approaching train to pull him back."
         ),
         "target_plan": (
             "The falcon drops the feathers, the platform fixes the danger in space, "
@@ -161,45 +162,42 @@ CANDIDATES: tuple[dict[str, Any], ...] = (
         "sentences": [
             {
                 "arabic": (
-                    "وَقَفَ الْمُسَافِرُونَ عَلَى رَصِيفِ الْمَحَطَّةِ، وَحَطَّ "
-                    "صَقْرٌ عِنْدَ نِهَايَةِ الرَّصِيفِ."
+                    "وَقَفَ رَجُلٌ عَلَى رَصِيفِ الْمَحَطَّةِ، وَظَهَرَ قِطَارٌ "
+                    "فِي الْبُعْدِ، وَحَطَّ صَقْرٌ عَلَى الرَّصِيفِ."
                 ),
                 "english": (
-                    "The travelers stood on the station platform, and a falcon "
-                    "landed at the end of the platform."
+                    "A man stood on the station platform, a train appeared in the "
+                    "distance, and a falcon landed on the platform."
                 ),
             },
             {
                 "arabic": (
-                    "رَأَى طِفْلٌ رِيشًا سَقَطَ مِنَ الصَّقْرِ عِنْدَ نِهَايَةِ "
-                    "الرَّصِيفِ، فَخَطَا نَحْوَ حَدِّ الرَّصِيفِ."
+                    "طَارَ الصَّقْرُ، وَسَقَطَ مِنْهُ رِيشٌ تَحْتَ الرَّصِيفِ، "
+                    "فَنَزَلَ الرَّجُلُ مِنَ الرَّصِيفِ لِيَجْمَعَهُ."
                 ),
                 "english": (
-                    "A child saw feathers that had fallen from the falcon at the end "
-                    "of the platform, so he stepped toward the platform’s edge."
+                    "The falcon flew away, and feathers fell from it below the platform, "
+                    "so the man climbed down from the platform to gather them."
                 ),
             },
             {
                 "arabic": (
                     "رَآهُ عَامِلُ الْمَحَطَّةِ، فَرَفَعَ عَلَمًا أَحْمَرَ، "
-                    "فَوَقَفَ "
-                    "الْقِطَارُ قَبْلَ الرَّصِيفِ."
+                    "فَوَقَفَ الْقِطَارُ قَبْلَ دُخُولِ الْمَحَطَّةِ."
                 ),
                 "english": (
                     "A station worker saw him and raised a red flag, and the train "
-                    "stopped before the platform."
+                    "stopped before entering the station."
                 ),
             },
             {
                 "arabic": (
-                    "أَمْسَكَ الْعَامِلُ بِيَدِ الطِّفْلِ وَأَعَادَهُ إِلَى "
-                    "الْمُسَافِرِينَ؛ ثُمَّ جَمَعَ الرِّيشَ مِنَ الرَّصِيفِ "
-                    "وَوَضَعَهُ فِي يَدِ الطِّفْلِ بَعْدَ أَنْ طَارَ الصَّقْرُ."
+                    "سَحَبَ الْعَامِلُ الرَّجُلَ إِلَى الرَّصِيفِ؛ وَعِنْدَمَا "
+                    "دَخَلَ الْقِطَارُ الْمَحَطَّةَ، طَارَ الرِّيشُ."
                 ),
                 "english": (
-                    "The worker took the child by the hand and returned him to the "
-                    "travelers; then he gathered the feathers from the platform and "
-                    "put them in the child’s hand after the falcon flew away."
+                    "The worker pulled the man back onto the platform; when the train "
+                    "entered the station, the feathers flew away."
                 ),
             },
         ],
