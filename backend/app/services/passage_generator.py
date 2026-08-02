@@ -1175,11 +1175,19 @@ Return exactly {group_count} groups of exactly three IDs.""",
     return planned
 
 
-def plan_due_maintenance_target_groups(group_count: int) -> list[dict[str, Any]]:
+def plan_due_maintenance_target_groups(
+    group_count: int,
+    excluded_lemma_ids: set[int] | None = None,
+) -> list[dict[str, Any]]:
     """Load the current due pool without holding a DB session during Codex work."""
+    excluded_lemma_ids = set(excluded_lemma_ids or set())
     db = SessionLocal()
     try:
-        targets = _due_maintenance_targets(db, limit=PASSAGE_TARGET_POOL_SIZE)
+        targets = [
+            target
+            for target in _due_maintenance_targets(db, limit=PASSAGE_TARGET_POOL_SIZE)
+            if int(target["lemma_id"]) not in excluded_lemma_ids
+        ]
         recent = _recent_passage_history(db)
     finally:
         db.close()

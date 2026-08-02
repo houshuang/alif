@@ -161,6 +161,34 @@ def test_due_target_planner_retries_rejected_batch_plans(monkeypatch):
     assert result[0]["target_lemma_ids"] == [1, 2, 3]
 
 
+def test_due_target_planner_removes_excluded_ids_before_codex_planning(monkeypatch):
+    fake_db = SimpleNamespace(close=lambda: None)
+    monkeypatch.setattr("app.services.passage_generator.SessionLocal", lambda: fake_db)
+    monkeypatch.setattr(
+        "app.services.passage_generator._due_maintenance_targets",
+        lambda db, limit: [{"lemma_id": i} for i in range(1, 7)],
+    )
+    monkeypatch.setattr(
+        "app.services.passage_generator._recent_passage_history",
+        lambda db: [],
+    )
+    captured = {}
+
+    def fake_plan(targets, group_count, morphology_group_indexes):
+        captured["ids"] = [target["lemma_id"] for target in targets]
+        return [{"target_lemma_ids": [4, 5, 6], "scene_hint": "fresh scene"}]
+
+    monkeypatch.setattr(
+        "app.services.passage_generator.plan_maintenance_target_groups",
+        fake_plan,
+    )
+
+    result = plan_due_maintenance_target_groups(1, excluded_lemma_ids={1, 2, 3})
+
+    assert captured["ids"] == [4, 5, 6]
+    assert result[0]["scene_hint"] == "fresh scene"
+
+
 def _seed_lemma(db, lemma_id, arabic, bare, gloss, state="known", box=None):
     lemma = Lemma(
         lemma_id=lemma_id,

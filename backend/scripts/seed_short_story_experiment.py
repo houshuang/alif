@@ -21,6 +21,8 @@ from app.services.passage_generator import (
 def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
     created: list[dict[str, Any]] = []
     failures: list[str] = []
+    excluded_lemma_ids: set[int] = set()
+    candidate_budget = max(count, min(12, count * 2))
     try:
         planned_groups = plan_due_maintenance_target_groups(count)
     except Exception as exc:
@@ -35,7 +37,16 @@ def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
             "failures": [f"target planner: {type(exc).__name__}: {exc}"],
         }
 
-    for group in planned_groups:
+    candidate_index = 0
+    while candidate_index < len(planned_groups) and len(created) < count:
+        group = planned_groups[candidate_index]
+        candidate_index += 1
+        group_ids = {int(lemma_id) for lemma_id in group["target_lemma_ids"]}
+        print(
+            f"Trying story candidate {candidate_index}/{candidate_budget}: "
+            f"targets={sorted(group_ids)} scene={group.get('scene_hint') or '(none)'}",
+            flush=True,
+        )
         try:
             story = generate_and_store_maintenance_passage(
                 target_lemma_ids=group["target_lemma_ids"],
@@ -45,14 +56,38 @@ def seed(count: int, attempts_per_story: int) -> dict[str, Any]:
             )
         except Exception as exc:  # Keep the bounded batch moving after rejection.
             failures.append(f"{type(exc).__name__}: {exc}")
-            continue
-        metadata = story.metadata_json if isinstance(story.metadata_json, dict) else {}
-        created.append({
-            "story_id": story.id,
-            "title_en": story.title_en,
-            "narrative_mode": metadata.get("narrative_mode"),
-            "target_lemma_ids": metadata.get("target_lemma_ids") or [],
-        })
+        else:
+            metadata = story.metadata_json if isinstance(story.metadata_json, dict) else {}
+            created.append({
+                "story_id": story.id,
+                "title_en": story.title_en,
+                "narrative_mode": metadata.get("narrative_mode"),
+                "target_lemma_ids": metadata.get("target_lemma_ids") or [],
+            })
+            print(
+                f"Accepted story {story.id}: {story.title_en}",
+                flush=True,
+            )
+        excluded_lemma_ids.update(group_ids)
+
+        if (
+            candidate_index == len(planned_groups)
+            and len(created) < count
+            and len(planned_groups) < candidate_budget
+        ):
+            replacement_count = min(
+                count - len(created),
+                candidate_budget - len(planned_groups),
+            )
+            try:
+                replacements = plan_due_maintenance_target_groups(
+                    replacement_count,
+                    excluded_lemma_ids=excluded_lemma_ids,
+                )
+            except Exception as exc:
+                failures.append(f"replacement target planner: {type(exc).__name__}: {exc}")
+                break
+            planned_groups.extend(replacements)
 
     return {
         "experiment_version": PASSAGE_EXPERIMENT_VERSION,
