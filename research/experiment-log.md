@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-02: Short-story v2 cohort completion — planner continuity, fresh retries, six-story launch
+
+**Live-run findings.** The batch planner already returned an English scene hint,
+but the drafting call discarded it, so retries rebuilt unrelated stock scenes.
+Morphology planning also rejected coherent batches when a verb-bearing triple
+landed outside the numbered morphology slot, and legacy verbs such as مَسَحَ,
+دَخَّنَ, and طَرَدَ were mislabeled `pos=noun` despite complete verbal
+paradigms. Finally, a failed triple consumed all of its retries and the fixed
+batch never replaced it; restarted jobs rediscovered the same doomed clinical
+and winnowing groups. The 320-word prompt sample also omitted ordinary scene
+glue and induced strained substitutes such as a “screaming lamp.”
+
+**Correction.** Scene hints now survive through every draft and editor retry.
+Whole coherent groups are swapped into morphology positions, and actual
+past/present/person keys are authoritative evidence for a verb when legacy POS
+is wrong. A bounded 2× candidate budget replans replacements after excluding
+every attempted target ID; CLI exclusions allow a stopped run to resume without
+repeating known failures. The writer now sees 1,200 stable support lemmas and is
+explicitly allowed to replace an unavailable incidental prop with a simple
+causal equivalent. The seeder logs candidate IDs/scenes and remains fail-closed.
+Sol-high improved causal planning but was much slower and did not clear the
+Arabic editor more often; keep Sol-medium drafting plus the Sol-high independent
+editor. The earlier Luna high/xhigh conclusion is unchanged.
+
+**Cohort completion.** Three editor-guided candidates then used the exact
+production vocabulary, mapping, morphology, translation, anti-echo, and
+adversarial cohesion gates; the script is idempotent and cannot duplicate an
+accepted title. The active cohort is now six selectable stories (IDs 234–239),
+four modes, 18 distinct due targets in 18 slots, 83.3% of target slots repeated,
+72.2% with varied surfaces, and two of two morphology stories delivering a
+verified contrast. The three quarantined old-gate stories remain inactive and
+all six launch stories have four active sentence rows. No v2 card had been
+shown at launch, so this is a clean prospective experiment. The first live
+audit then observed one sentence from story 235: `partial` comprehension, two
+of three scheduled targets rated 3, one target rated 1, and one support word
+explicitly marked unknown. This confirms selector delivery and token-level
+evidence capture; `n=1` is deliberately not treated as a content verdict.
+
+**Fast evaluation.** Delivery is checked after the next app session: any normal
+use with zero v2 cards is a selector defect. Over the first 72 hours, inspect
+after every five cards and make the content decision at ten: median clean story
+ms/word must be no more than 1.5× concurrent sentence reading, comprehension
+must stay within 20 percentage points, and at least 70% of selected-target
+ratings must be ≥3. Quarantine any story immediately on a translation,
+causality, or unnatural-Arabic report; do not wait for aggregate significance.
+At day seven, compare target recall with concurrently reviewed sentence targets
+as confirmation rather than delaying the 72-hour ship/adjust decision.
 
 ## 2026-08-02: Short-story v2 seed correction — lifecycle, deliverability, independent taste gate
 
