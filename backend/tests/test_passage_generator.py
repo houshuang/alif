@@ -7,6 +7,7 @@ from app.models import Lemma, Sentence, StoryWord, UserLemmaKnowledge
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
     PASSAGE_MIN_TARGETS_USED,
+    PASSAGE_TARGET_POOL_SIZE,
     PassageGenerationError,
     _assert_not_recent_plot_echo,
     _due_maintenance_targets,
@@ -255,6 +256,56 @@ def test_due_target_planner_removes_excluded_ids_before_codex_planning(monkeypat
 
     assert captured["ids"] == [4, 5, 6]
     assert result[0]["scene_hint"] == "fresh scene"
+
+
+def test_due_target_planner_injects_lower_ranked_verb_for_morphology(monkeypatch):
+    fake_db = SimpleNamespace(close=lambda: None)
+    monkeypatch.setattr("app.services.passage_generator.SessionLocal", lambda: fake_db)
+    pool = [
+        {"lemma_id": i, "pos": "noun", "forms_json": None}
+        for i in range(1, 101)
+    ] + [{
+        "lemma_id": 101,
+        "pos": "noun",
+        "forms_json": {
+            "past_3fs": "a",
+            "past_3p": "b",
+            "present_3mp": "c",
+        },
+    }]
+    monkeypatch.setattr(
+        "app.services.passage_generator._due_maintenance_targets",
+        lambda db, limit: pool,
+    )
+    monkeypatch.setattr(
+        "app.services.passage_generator._recent_passage_history",
+        lambda db: [
+            {"narrative_mode": "tiny_mystery"},
+            {"narrative_mode": "near_miss"},
+        ],
+    )
+    monkeypatch.setattr(
+        "app.services.passage_generator._rank_targets_for_passage",
+        lambda targets: list(targets),
+    )
+    captured = {}
+
+    def fake_plan(targets, group_count, morphology_group_indexes):
+        captured["ids"] = [target["lemma_id"] for target in targets]
+        captured["morphology"] = morphology_group_indexes
+        return [{"target_lemma_ids": [1, 2, 101], "scene_hint": "verb scene"}]
+
+    monkeypatch.setattr(
+        "app.services.passage_generator.plan_maintenance_target_groups",
+        fake_plan,
+    )
+
+    result = plan_due_maintenance_target_groups(1)
+
+    assert len(captured["ids"]) == PASSAGE_TARGET_POOL_SIZE
+    assert 101 in captured["ids"]
+    assert captured["morphology"] == {1}
+    assert result[0]["target_lemma_ids"] == [1, 2, 101]
 
 
 def _seed_lemma(db, lemma_id, arabic, bare, gloss, state="known", box=None):

@@ -87,7 +87,11 @@ failed closed on an unnatural clinical morphology group and persisted its three
 IDs correctly, but its replacement planner ignored the morphology constraint
 four times when there was only one group and therefore no verb-bearing donor
 group to swap. Morphology planning now supplies an explicit deterministic list
-of validated inflectable-verb IDs that every such group must draw from.
+of validated inflectable-verb IDs that every such group must draw from. A
+follow-up live preflight showed 130 eligible verbs existed but schedule ranking
+placed the first non-cooled verb at rank 235, outside the 96-word planning
+window. The planner now scans the full due pool and injects the best lower-ranked
+eligible verb into that bounded window whenever a morphology slot needs one.
 
 **Cap and validation.** The opportunistic warm-cache path remains as the fast
 path, but its recent-supply count now ignores failed stories and stories with
@@ -100,7 +104,7 @@ minimum. Before candidate checkpoints, the full backend suite passed 1,962
 tests with nine slow tests intentionally deselected. After checkpoints, 1,963
 passed and one unrelated randomized FSRS interval assertion exceeded its hard
 four-day bound; that exact test passed immediately in isolation. The final
-focused story/controller/material set passed 57 tests.
+focused story/controller/material set passed 58 tests.
 
 ## 2026-08-02: Short-story v2 cohort completion — planner continuity, fresh retries, six-story launch
 

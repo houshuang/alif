@@ -71,6 +71,16 @@ PASSAGE_MAX_TARGETS_USED = 3
 PASSAGE_MIN_TARGET_STABILITY_DAYS = 7.0
 PASSAGE_RECENT_CONTEXT_LIMIT = 24
 PASSAGE_TARGET_HISTORY_WINDOW = timedelta(days=30)
+PASSAGE_VERB_FORM_KEYS = {
+    "verb_form",
+    "past_3fs",
+    "past_3p",
+    "past_1s",
+    "past_3fp",
+    "present_3fp",
+    "present_3mp",
+    "imperative",
+}
 
 PASSAGE_STYLES = (
     "beautiful",
@@ -86,6 +96,14 @@ PASSAGE_STYLES = (
     "reflective",
     "adventurous",
 )
+
+
+def _is_inflectable_verb_target(word: dict[str, Any]) -> bool:
+    forms = word.get("forms_json")
+    if not isinstance(forms, dict) or len(forms) < 3:
+        return False
+    has_verbal_paradigm = len(PASSAGE_VERB_FORM_KEYS.intersection(forms)) >= 2
+    return "verb" in str(word.get("pos") or "").lower() or has_verbal_paradigm
 
 
 # These are story shapes, not fill-in-the-blank plots. The least recently used
@@ -1084,28 +1102,10 @@ def plan_maintenance_target_groups(
             f"{group_count} stories; found {len(ranked)}"
         )
 
-    verb_form_keys = {
-        "verb_form",
-        "past_3fs",
-        "past_3p",
-        "past_1s",
-        "past_3fp",
-        "present_3fp",
-        "present_3mp",
-        "imperative",
-    }
-
-    def word_has_inflectable_verb(word: dict[str, Any]) -> bool:
-        forms = word.get("forms_json")
-        if not isinstance(forms, dict) or len(forms) < 3:
-            return False
-        has_verbal_paradigm = len(verb_form_keys.intersection(forms)) >= 2
-        return "verb" in str(word.get("pos") or "").lower() or has_verbal_paradigm
-
     morphology_verb_ids = [
         int(word["lemma_id"])
         for word in ranked
-        if word_has_inflectable_verb(word)
+        if _is_inflectable_verb_target(word)
     ]
     if morphology_group_indexes and len(morphology_verb_ids) < len(morphology_group_indexes):
         raise PassageGenerationError(
@@ -1178,7 +1178,7 @@ Return exactly {group_count} groups of exactly three IDs.""",
     def has_inflectable_verb(group: dict[str, Any]) -> bool:
         for lemma_id in group["target_lemma_ids"]:
             word = ranked_by_id[lemma_id]
-            if word_has_inflectable_verb(word):
+            if _is_inflectable_verb_target(word):
                 return True
         return False
 
@@ -1221,9 +1221,9 @@ def plan_due_maintenance_target_groups(
     excluded_lemma_ids = set(excluded_lemma_ids or set())
     db = SessionLocal()
     try:
-        targets = [
+        all_targets = [
             target
-            for target in _due_maintenance_targets(db, limit=PASSAGE_TARGET_POOL_SIZE)
+            for target in _due_maintenance_targets(db, limit=10_000)
             if int(target["lemma_id"]) not in excluded_lemma_ids
         ]
         recent = _recent_passage_history(db)
@@ -1238,6 +1238,34 @@ def plan_due_maintenance_target_groups(
         for index in range(group_count)
         if (recognized_count + index) % 3 == 2
     }
+    ranked_targets = _rank_targets_for_passage(all_targets)
+    targets = ranked_targets[:PASSAGE_TARGET_POOL_SIZE]
+    # Schedule ranking can push every due verb below the bounded 96-word prose
+    # pool. A morphology slot must still see a real verb; inject the best-ranked
+    # lower verb(s) while preserving the pool size and all normal ranking for
+    # the other 95 targets.
+    required_verbs = len(morphology_indexes)
+    present_verbs = sum(_is_inflectable_verb_target(word) for word in targets)
+    if present_verbs < required_verbs:
+        target_ids = {int(word["lemma_id"]) for word in targets}
+        donors = [
+            word
+            for word in ranked_targets[PASSAGE_TARGET_POOL_SIZE:]
+            if int(word["lemma_id"]) not in target_ids
+            and _is_inflectable_verb_target(word)
+        ]
+        for donor in donors[: required_verbs - present_verbs]:
+            replacement_index = next(
+                (
+                    index
+                    for index in range(len(targets) - 1, -1, -1)
+                    if not _is_inflectable_verb_target(targets[index])
+                ),
+                None,
+            )
+            if replacement_index is None:
+                break
+            targets[replacement_index] = donor
     last_error: PassageGenerationError | None = None
     for attempt in range(1, 5):
         try:
