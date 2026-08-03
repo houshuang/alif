@@ -48,14 +48,14 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
-## 2026-08-03: Processed-book mapping verification fails closed; Momo Chapter 5 three-page repair rehearsed
+## 2026-08-03: Processed-book mapping verification fails closed; Momo Chapter 5 repaired in production
 
 **Root cause and scope.** Processed bilingual imports trusted the first normalized
 bare-form lookup winner for every existing lemma. The curated lexicon was applied
 only when a token remained unmapped, so an existing homograph defeated an explicit
 editorial mapping (`مَلَك` angel stole `مَلِك` king). Only newly created StoryWord
 mappings were subsequently verified, in Arabic-only position chunks. A complete
-three-page review of reader-only Story #240 found 93 exact token preimages needing
+three-page review of reader-only Story #240 found 94 exact token preimages needing
 inspection, 83 mapping targets, and 13 contextual gloss overrides. This includes
 the earlier page-68 candidates plus missed errors such as `الفصل` showing only
 “classroom,” `فلنقل`→transport, `الأقدام`→precede, `بالفعل`→verb, `سرها`→delight,
@@ -85,8 +85,22 @@ The second full rehearsal passed the same finalize, shape, variant, morphology,
 etymology, root, grammar, example, and stamp pipeline: 47 new canonical lemmas,
 zero variants, 52 stamps including repaired entries, 81 changed token mappings,
 zero learner rows, `PRAGMA quick_check=ok`, and post-repair Story counts 181/259
-known (77.5%). Production apply remains contingent on a fresh backup and this same
-post-apply verifier.
+known (77.5%).
+
+**Production result and hardened postcheck.** Production was backed up to
+`/opt/alif-backups/alif_pre_momo_ch5_mapping_repair_20260803_153738.db`
+(SHA-256 `abfce68600d22eaf5899ae8c20b764ed28d3c73281a785184df5fbdbf602d9e3`),
+then produced the same 81 mapping changes and 47 canonical enriched identities.
+The independent verifier now revalidates the backup bytes and exact token and
+metadata preimages; all nine metadata postimages; all 94 reviewed surfaces, 83
+mapping targets, and 13 contextual glosses in both the database and reader payload;
+English and passage coverage across all three pages; zero learner-state creation
+before/after reading; the durable audit record; and SQLite quick-check. The live
+postcheck passed with 611/611 reader tokens and 6/7/7 passages.
+Before correcting the historical audit count from 93 to 94, a separate
+post-repair snapshot was retained at
+`/opt/alif-backups/alif_post_momo_ch5_repair_pre_audit_fix_20260803_160300.db`
+(SHA-256 `87f35f5326dc0332cfaae2bd1a53f760ef3f9832e4236bcf711ece9c64be7889`).
 
 ## 2026-08-03: Momo page 68 — gentlemen mapping corrected; contextual residue inventoried
 
