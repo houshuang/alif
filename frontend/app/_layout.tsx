@@ -328,7 +328,11 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="books" options={{ href: null, title: "Book Library" }} />
         <Tabs.Screen
           name="book-page"
-          options={{ href: null, title: "Book Page", tabBarStyle: { display: "none" } }}
+          options={{
+            href: null,
+            title: "Book Page",
+            tabBarStyle: { backgroundColor: "#F3E8D2", borderTopColor: "#D8C4A2" },
+          }}
         />
         <Tabs.Screen name="review-lab" options={{ href: null, title: "Review Lab" }} />
         <Tabs.Screen name="root/[id]" options={{ href: null, title: "Root Detail" }} />

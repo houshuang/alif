@@ -16,12 +16,14 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getStories, generateStory, getStoryDetail, importStory, deleteStory, suspendStory, archiveStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { clearStoryLookups } from "../lib/offline-store";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
+import { ACTIVE_BOOK_READER_KEY, parseActiveBookReader } from "../lib/book-reader";
 
 type StoryLength = "short" | "medium" | "long";
 type StoryFormat = "standard" | "long" | "breakdown" | "arabic_explanation";
@@ -65,8 +67,22 @@ export default function StoriesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadStories();
-    }, [])
+      let cancelled = false;
+      AsyncStorage.getItem(ACTIVE_BOOK_READER_KEY)
+        .then((raw) => {
+          if (cancelled) return;
+          const activeReader = parseActiveBookReader(raw);
+          if (activeReader?.active) {
+            router.replace(`/book-page?storyId=${activeReader.storyId}&page=${activeReader.pageNumber}`);
+            return;
+          }
+          loadStories();
+        })
+        .catch(() => {
+          if (!cancelled) loadStories();
+        });
+      return () => { cancelled = true; };
+    }, [router])
   );
 
   async function loadStories() {

@@ -10,14 +10,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 
 import { completeBookPassage, getBookPageDetail, lookupReviewWord } from "../lib/api";
 import {
+  ACTIVE_BOOK_READER_KEY,
   BookPassageDraft,
   BookReaderMode,
   BookReaderPolicy,
   bookPassageDraftKey,
   bookReaderLocationKey,
+  bookReaderModeKey,
   countGuidedLearningWords,
   parseBookPassageDraft,
   parseBookReaderLocation,
@@ -36,7 +39,7 @@ const MUTED = "#766956";
 const RULE = "#D8C4A2";
 const ACCENT = "#8B4A2B";
 const UNKNOWN = "#A33E32";
-const MODE_KEY = "@alif:book-reader:mode";
+const LEGACY_MODE_KEY = "@alif:book-reader:mode";
 const SPAN_KEY = "@alif:book-reader:span";
 const POLICY_KEY = "@alif:book-reader:policy";
 
@@ -89,7 +92,17 @@ export default function BookPageScreen() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState(false);
   const lookupRequest = useRef(0);
+  const modeRequest = useRef(0);
   const passageStartedAt = useRef(Date.now());
+
+  const leaveReader = useCallback(async () => {
+    await AsyncStorage.setItem(ACTIVE_BOOK_READER_KEY, JSON.stringify({
+      storyId,
+      pageNumber,
+      active: false,
+    })).catch(() => {});
+    router.replace("/books");
+  }, [pageNumber, router, storyId]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -98,12 +111,12 @@ export default function BookPageScreen() {
       headerTintColor: INK,
       headerShadowVisible: false,
       headerLeft: () => (
-        <Pressable onPress={() => router.replace("/books")} style={styles.headerButton}>
+        <Pressable onPress={leaveReader} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="Exit book reader">
           <Ionicons name="chevron-back" size={24} color={INK} />
         </Pressable>
       ),
     });
-  }, [data?.story_title_ar, data?.story_title_en, navigation, router]);
+  }, [data?.story_title_ar, data?.story_title_en, navigation, leaveReader]);
 
   const loadPage = useCallback(async (preferredSentenceIndex?: number, preferredTokenPosition?: number) => {
     if (!Number.isFinite(storyId) || !Number.isFinite(pageNumber)) {
@@ -116,13 +129,22 @@ export default function BookPageScreen() {
     setSelectedToken(null);
     setLookup(null);
     try {
-      const [next, rawLocation, savedMode, savedSpan, savedPolicy] = await Promise.all([
+      const [next, rawLocation, savedSpan, savedPolicy, legacyMode] = await Promise.all([
         getBookPageDetail(storyId, pageNumber),
         AsyncStorage.getItem(bookReaderLocationKey(storyId)).catch(() => null),
-        AsyncStorage.getItem(MODE_KEY).catch(() => null),
         AsyncStorage.getItem(SPAN_KEY).catch(() => null),
         AsyncStorage.getItem(POLICY_KEY).catch(() => null),
+        AsyncStorage.getItem(LEGACY_MODE_KEY).catch(() => null),
       ]);
+      const resolvedPolicy: BookReaderPolicy = savedPolicy === "guided" ? "guided" : "clean";
+      const savedMode = await AsyncStorage.getItem(bookReaderModeKey(resolvedPolicy)).catch(() => null);
+      const resolvedMode: BookReaderMode = savedMode === "arabic" || savedMode === "both"
+        ? savedMode
+        : resolvedPolicy === "guided"
+          ? "arabic"
+          : legacyMode === "arabic" || legacyMode === "both"
+            ? legacyMode
+            : "both";
       const localLocation = parseBookReaderLocation(rawLocation);
       const desiredIndex = preferredSentenceIndex
         ?? (params.atEnd === "1" ? next.passages.at(-1)?.sentence_index : undefined)
@@ -143,10 +165,10 @@ export default function BookPageScreen() {
       );
       setData(next);
       setOffset(desiredOffset);
-      if (savedMode === "arabic" || savedMode === "both") setMode(savedMode);
+      setMode(resolvedMode);
+      setPolicy(resolvedPolicy);
       if (savedSpan === "2") setSpan(2);
       else if (savedSpan === "1") setSpan(1);
-      if (savedPolicy === "guided" || savedPolicy === "clean") setPolicy(savedPolicy);
       passageStartedAt.current = Date.now();
     } catch (error) {
       console.error("Failed to load book passage", error);
@@ -160,6 +182,15 @@ export default function BookPageScreen() {
   useEffect(() => {
     loadPage();
   }, [loadPage]);
+
+  useEffect(() => {
+    if (!data) return;
+    AsyncStorage.setItem(ACTIVE_BOOK_READER_KEY, JSON.stringify({
+      storyId: data.story_id,
+      pageNumber: data.page_number,
+      active: true,
+    })).catch(() => {});
+  }, [data]);
 
   const visiblePassages = useMemo(
     () => data?.passages.slice(offset, offset + span) ?? [],
@@ -228,8 +259,9 @@ export default function BookPageScreen() {
   }, [data, offset]);
 
   function updateMode(next: BookReaderMode) {
+    modeRequest.current += 1;
     setMode(next);
-    AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
+    AsyncStorage.setItem(bookReaderModeKey(policy), next).catch(() => {});
   }
 
   function updateSpan(next: 1 | 2) {
@@ -238,7 +270,17 @@ export default function BookPageScreen() {
   }
 
   function updatePolicy(next: BookReaderPolicy) {
+    const requestId = ++modeRequest.current;
     setPolicy(next);
+    const fallback: BookReaderMode = next === "guided" ? "arabic" : "both";
+    setMode(fallback);
+    AsyncStorage.getItem(bookReaderModeKey(next))
+      .then((saved) => {
+        if (requestId === modeRequest.current && (saved === "arabic" || saved === "both")) {
+          setMode(saved);
+        }
+      })
+      .catch(() => {});
     AsyncStorage.setItem(POLICY_KEY, next).catch(() => {});
   }
 
@@ -372,7 +414,14 @@ export default function BookPageScreen() {
       } else if (data.page_number < data.page_count) {
         router.replace(`/book-page?storyId=${storyId}&page=${data.page_number + 1}`);
       } else {
-        await AsyncStorage.removeItem(bookReaderLocationKey(data.story_id)).catch(() => {});
+        await Promise.all([
+          AsyncStorage.removeItem(bookReaderLocationKey(data.story_id)).catch(() => {}),
+          AsyncStorage.setItem(ACTIVE_BOOK_READER_KEY, JSON.stringify({
+            storyId: data.story_id,
+            pageNumber: data.page_number,
+            active: false,
+          })).catch(() => {}),
+        ]);
         router.replace("/books");
       }
     } catch (error) {
@@ -384,17 +433,18 @@ export default function BookPageScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={ACCENT} /></View>;
+    return <View style={styles.center}><StatusBar style="dark" /><ActivityIndicator size="large" color={ACCENT} /></View>;
   }
 
   if (!data || visiblePassages.length === 0) {
     return (
       <View style={styles.center}>
+        <StatusBar style="dark" />
         <Ionicons name={loadError ? "cloud-offline-outline" : "book-outline"} size={36} color={MUTED} />
         <Text style={styles.errorTitle}>{loadError ? "Couldn’t open this passage" : "Nothing to read here"}</Text>
         <Text style={styles.errorCopy}>Your location and word marks are still saved.</Text>
         {loadError && <Pressable style={styles.primarySmall} onPress={() => loadPage()}><Text style={styles.primarySmallText}>Try again</Text></Pressable>}
-        <Pressable style={styles.textButton} onPress={() => router.replace("/books")}><Text style={styles.textButtonLabel}>Back to library</Text></Pressable>
+        <Pressable style={styles.textButton} onPress={leaveReader}><Text style={styles.textButtonLabel}>Back to library</Text></Pressable>
       </View>
     );
   }
@@ -423,59 +473,80 @@ export default function BookPageScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
       <View style={styles.toolbar}>
-        <View>
-          <Text style={styles.pageKicker}>
-            {data.source_page_number != null ? `PRINTED PAGE ${data.source_page_number}` : `PAGE ${data.page_number}`}
-          </Text>
-          <Text style={styles.locationLabel}>{data.page_number} / {data.page_count}</Text>
-        </View>
+        <Text style={styles.locationLabel}>
+          {data.source_page_number != null ? data.source_page_number : data.page_number}
+          <Text style={styles.locationTotal}> · {data.page_number}/{data.page_count}</Text>
+        </Text>
         <View style={styles.controls}>
-          <View style={styles.segmented} accessibilityLabel="Reading language">
-            <Pressable style={[styles.segment, mode === "arabic" && styles.segmentActive]} onPress={() => updateMode("arabic")}>
-              <Text style={[styles.segmentText, mode === "arabic" && styles.segmentTextActive]}>Arabic</Text>
-            </Pressable>
-            <Pressable style={[styles.segment, mode === "both" && styles.segmentActive]} onPress={() => updateMode("both")}>
-              <Text style={[styles.segmentText, mode === "both" && styles.segmentTextActive]}>Both</Text>
-            </Pressable>
-          </View>
-          <View style={styles.segmented} accessibilityLabel="Passage length">
-            <Pressable style={[styles.segmentNarrow, span === 1 && styles.segmentActive]} onPress={() => updateSpan(1)}>
-              <Text style={[styles.segmentText, span === 1 && styles.segmentTextActive]}>1</Text>
-            </Pressable>
-            <Pressable style={[styles.segmentNarrow, span === 2 && styles.segmentActive]} onPress={() => updateSpan(2)}>
-              <Text style={[styles.segmentText, span === 2 && styles.segmentTextActive]}>2</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-      <View style={styles.helpBar}>
-        <View style={styles.helpLabelRow}>
-          <Ionicons name="sparkles-outline" size={14} color={ACCENT} />
-          <Text style={styles.helpLabel}>READING HELP</Text>
-        </View>
-        <View style={styles.segmented} accessibilityLabel="Reading help">
-          <Pressable style={[styles.helpSegment, policy === "clean" && styles.segmentActive]} onPress={() => updatePolicy("clean")}>
-            <Text style={[styles.segmentText, policy === "clean" && styles.segmentTextActive]}>Clean</Text>
+          <Pressable
+            style={[styles.compactControl, policy === "guided" && styles.compactControlActive]}
+            onPress={() => updatePolicy(policy === "guided" ? "clean" : "guided")}
+            accessibilityRole="button"
+            accessibilityLabel={`Reading help: ${policy}. Tap for ${policy === "guided" ? "clean" : "guided"}`}
+          >
+            <Ionicons name={policy === "guided" ? "sparkles" : "sparkles-outline"} size={13} color={policy === "guided" ? "#FFF9ED" : MUTED} />
+            <Text style={[styles.compactControlText, policy === "guided" && styles.compactControlTextActive]}>{policy === "guided" ? "Guided" : "Clean"}</Text>
           </Pressable>
-          <Pressable style={[styles.helpSegment, policy === "guided" && styles.segmentActive]} onPress={() => updatePolicy("guided")}>
-            <Text style={[styles.segmentText, policy === "guided" && styles.segmentTextActive]}>Guided</Text>
+          <Pressable
+            style={styles.squareControl}
+            onPress={() => updateSpan(span === 1 ? 2 : 1)}
+            accessibilityRole="button"
+            accessibilityLabel={`Showing ${span} ${span === 1 ? "passage" : "passages"}. Tap to show ${span === 1 ? 2 : 1}`}
+          >
+            <Text style={styles.squareControlText}>{span}</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.squareControl, mode === "both" && styles.compactControlActive]}
+            onPress={() => updateMode(mode === "both" ? "arabic" : "both")}
+            accessibilityRole="button"
+            accessibilityLabel={mode === "both" ? "Hide full English translation" : "Show full English translation"}
+          >
+            <Text style={[styles.squareControlText, mode === "both" && styles.compactControlTextActive]}>EN</Text>
           </Pressable>
         </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.paper}>
-          <Text style={styles.arabicParagraph} selectable>
-            {visibleTokens.map((token, index) => {
+          {policy === "guided" ? (
+            <View style={styles.guidedParagraph}>
+              {visibleTokens.map((token) => {
+                const marked = token.lemma_id != null
+                  ? draft?.unknownLemmaIds.includes(token.lemma_id)
+                  : draft?.unknownTokenPositions.includes(token.position);
+                const learning = draft?.learnTokenPositions.includes(token.position);
+                const inlineGloss = token.reader_gloss_eligible ? shortBookGloss(token.gloss_en) : null;
+                const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
+                return (
+                  <Pressable
+                    key={token.position}
+                    onPress={() => openToken(token)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${token.surface_form}${inlineGloss ? `, ${inlineGloss}. Tap to ${learning ? "stop learning" : "learn"}` : ""}`}
+                    style={[
+                      styles.guidedToken,
+                      marked && styles.guidedTokenUnknown,
+                      learning && styles.guidedTokenLearning,
+                      selectedToken?.position === token.position && styles.guidedTokenSelected,
+                    ]}
+                  >
+                    <Text style={[styles.guidedArabic, marked && styles.arabicUnknownText, learning && styles.arabicLearning]}>{displayed}</Text>
+                    {inlineGloss && (
+                      <Text numberOfLines={1} style={[styles.microGloss, learning && styles.inlineGlossLearning]}>{inlineGloss}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.arabicParagraph} selectable>
+              {visibleTokens.map((token, index) => {
               const marked = token.lemma_id != null
                 ? draft?.unknownLemmaIds.includes(token.lemma_id)
                 : draft?.unknownTokenPositions.includes(token.position);
               const ignored = draft?.dontLearnTokenPositions.includes(token.position);
-              const learning = draft?.learnTokenPositions.includes(token.position);
-              const inlineGloss = policy === "guided" && token.reader_gloss_eligible
-                ? shortBookGloss(token.gloss_en)
-                : null;
               const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
               return (
                 <Text key={token.position}>
@@ -487,27 +558,17 @@ export default function BookPageScreen() {
                       styles.arabicWord,
                       marked && styles.arabicUnknown,
                       ignored && styles.arabicIgnored,
-                      learning && styles.arabicLearning,
                       selectedToken?.position === token.position && styles.arabicSelected,
                     ]}
                   >
                     {displayed}
                   </Text>
-                  {inlineGloss && (
-                    <Text
-                      onPress={() => openToken(token)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${inlineGloss}. Tap to ${learning ? "stop learning" : "learn"} ${token.surface_form}`}
-                      style={[styles.inlineGloss, learning && styles.inlineGlossLearning]}
-                    >
-                      {` ‹⁦${inlineGloss}⁩›`}
-                    </Text>
-                  )}
                   {index < visibleTokens.length - 1 ? " " : ""}
                 </Text>
               );
             })}
-          </Text>
+            </Text>
+          )}
 
           {mode === "both" && (
             <View style={styles.translationBlock}>
@@ -516,11 +577,6 @@ export default function BookPageScreen() {
             </View>
           )}
         </View>
-        <Text style={styles.tapHint}>
-          {policy === "guided"
-            ? "Small glosses are free help and are not tracked. Tap one only when you want to learn it."
-            : "Tap a word you didn’t know. Untapped words are recorded only when you continue."}
-        </Text>
       </ScrollView>
 
       {selectedToken && (
@@ -532,24 +588,20 @@ export default function BookPageScreen() {
             <Text style={styles.lookupArabic}>{lookup?.lemma_ar || selectedToken.surface_form}</Text>
             {lookupLoading && <ActivityIndicator size="small" color={ACCENT} />}
           </View>
-          <Text style={styles.lookupGloss}>{lookup?.gloss_en || selectedToken.gloss_en || "Translation not available yet"}</Text>
-          {selectedGuided ? (
-            <Text style={styles.lookupExplanation}>
-              Guided word · this gloss is free help and is not tracked unless you choose to learn it.
+          <View style={styles.lookupSummary}>
+            <Text style={styles.lookupGloss}>{lookup?.gloss_en || selectedToken.gloss_en || "Translation unavailable"}</Text>
+            <Text style={styles.lookupStatus}>
+              {selectedGuided
+                ? selectedForLearning ? "Will learn" : "Not tracked"
+                : selectedToken.lemma_id == null ? "New word" : "Marked unknown"}
             </Text>
-          ) : selectedToken.lemma_id == null ? (
-            <Text style={styles.lookupExplanation}>New word · a full entry will be built only if this passage admits it.</Text>
-          ) : (
-            <Text style={styles.lookupExplanation}>
-              Existing word · this will count as a miss in your normal review history.
-            </Text>
-          )}
+          </View>
           {lookupError && <Text style={styles.lookupError}>Full entry unavailable right now. Your mark is still saved.</Text>}
           <View style={styles.lookupActions}>
             {selectedGuided ? (
               <Pressable style={[styles.secondaryAction, selectedForLearning && styles.learningAction]} onPress={() => openToken(selectedToken)}>
                 <Text style={[styles.secondaryActionText, selectedForLearning && styles.learningActionText]}>
-                  {selectedForLearning ? "Learning on Next · undo" : "Learn this word"}
+                  {selectedForLearning ? "Learning · Undo" : "Learn"}
                 </Text>
               </Pressable>
             ) : <>
@@ -592,13 +644,13 @@ export default function BookPageScreen() {
           <Text style={[styles.navButtonText, atBookStart && styles.disabledText]}>Previous</Text>
         </Pressable>
         <View style={styles.footerStatus}>
-          <Text style={styles.footerStatusText}>
-            {unknownCount > 0
-              ? `${unknownCount} unknown${learningCount > 0 ? ` · ${learningCount} to learn` : ""}`
-              : learningCount > 0
-                ? `${learningCount} to learn`
-                : `${visiblePassages.length} passage${visiblePassages.length > 1 ? "s" : ""}`}
-          </Text>
+          {(unknownCount > 0 || learningCount > 0) && (
+            <Text style={styles.footerStatusText}>
+              {unknownCount > 0 ? `${unknownCount} unknown` : ""}
+              {unknownCount > 0 && learningCount > 0 ? " · " : ""}
+              {learningCount > 0 ? `${learningCount} learning` : ""}
+            </Text>
+          )}
         </View>
         <Pressable disabled={submitting || !draftReady} style={[styles.nextButton, (!draftReady || submitting) && styles.disabled]} onPress={advance}>
           {submitting ? <ActivityIndicator size="small" color="#FFF9ED" /> : <>
@@ -615,41 +667,44 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PAPER },
   center: { flex: 1, backgroundColor: PAPER, alignItems: "center", justifyContent: "center", padding: 28 },
   headerButton: { paddingHorizontal: 12, paddingVertical: 6 },
-  toolbar: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: RULE, paddingHorizontal: 18, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  pageKicker: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
-  locationLabel: { color: MUTED, fontSize: 11, marginTop: 2 },
-  controls: { flexDirection: "row", alignItems: "center", gap: 8 },
-  helpBar: { minHeight: 42, borderBottomWidth: 1, borderBottomColor: RULE, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  helpLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  helpLabel: { color: ACCENT, fontSize: 9, fontWeight: "800", letterSpacing: 1.1 },
-  segmented: { flexDirection: "row", borderWidth: 1, borderColor: RULE, borderRadius: 8, overflow: "hidden" },
-  segment: { paddingHorizontal: 10, minHeight: 32, justifyContent: "center" },
-  segmentNarrow: { width: 34, minHeight: 32, alignItems: "center", justifyContent: "center" },
-  helpSegment: { minWidth: 68, minHeight: 28, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  segmentActive: { backgroundColor: INK },
-  segmentText: { color: MUTED, fontSize: 12, fontWeight: "700" },
-  segmentTextActive: { color: "#FFF9ED" },
+  toolbar: { minHeight: 42, borderBottomWidth: 1, borderBottomColor: RULE + "99", paddingHorizontal: 18, paddingVertical: 6, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  locationLabel: { color: ACCENT, fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  locationTotal: { color: MUTED, fontWeight: "500" },
+  controls: { flexDirection: "row", alignItems: "center", gap: 6 },
+  compactControl: { height: 30, paddingHorizontal: 10, borderRadius: 15, borderCurve: "continuous", backgroundColor: PAPER_DEEP + "88", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  compactControlActive: { backgroundColor: INK },
+  compactControlText: { color: MUTED, fontSize: 11, fontWeight: "700" },
+  compactControlTextActive: { color: "#FFF9ED" },
+  squareControl: { width: 34, height: 30, borderRadius: 15, borderCurve: "continuous", backgroundColor: PAPER_DEEP + "88", alignItems: "center", justifyContent: "center" },
+  squareControlText: { color: MUTED, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 34, alignItems: "center" },
-  paper: { width: "100%", maxWidth: 720, paddingHorizontal: 18, paddingVertical: 22, backgroundColor: "#F8EEDB", borderWidth: 1, borderColor: RULE, borderRadius: 8, boxShadow: "0 4px 12px rgba(78, 56, 36, 0.08)" },
-  arabicParagraph: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 23, lineHeight: 42, writingDirection: "rtl", textAlign: "right" },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 30, alignItems: "center" },
+  paper: { width: "100%", maxWidth: 720, paddingHorizontal: 4, paddingVertical: 8 },
+  arabicParagraph: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 22, lineHeight: 39, writingDirection: "rtl", textAlign: "right" },
   arabicWord: { color: INK, fontFamily: fontFamily.arabicNoto },
   arabicUnknown: { color: UNKNOWN, backgroundColor: "#D9968430" },
+  arabicUnknownText: { color: UNKNOWN },
   arabicIgnored: { color: MUTED, textDecorationLine: "line-through" },
   arabicLearning: { color: ACCENT, textDecorationLine: "underline" },
   arabicSelected: { backgroundColor: "#C98D5638" },
-  inlineGloss: { color: MUTED, fontFamily: "Georgia", fontSize: 9, fontStyle: "italic" },
+  guidedParagraph: { width: "100%", flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "flex-start", columnGap: 7, rowGap: 8 },
+  guidedToken: { minHeight: 39, paddingHorizontal: 2, paddingVertical: 1, borderRadius: 5, borderCurve: "continuous", alignItems: "center", justifyContent: "flex-start" },
+  guidedTokenUnknown: { backgroundColor: "#D9968424" },
+  guidedTokenLearning: { backgroundColor: "#C98D5618" },
+  guidedTokenSelected: { backgroundColor: "#C98D5630" },
+  guidedArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 22, lineHeight: 27, writingDirection: "rtl" },
+  microGloss: { maxWidth: 84, color: MUTED, fontFamily: fontFamily.translitRegular, fontSize: 8.5, lineHeight: 11, textAlign: "center" },
   inlineGlossLearning: { color: ACCENT, fontWeight: "700" },
-  translationBlock: { marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: RULE },
-  translationLabel: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.3, marginBottom: 8 },
-  translation: { color: "#44392D", fontFamily: "Georgia", fontSize: 16, lineHeight: 25 },
-  tapHint: { color: MUTED, fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 14, maxWidth: 360 },
+  translationBlock: { marginTop: 24, paddingTop: 18, borderTopWidth: 1, borderTopColor: RULE },
+  translationLabel: { color: ACCENT, fontSize: 9, fontWeight: "800", letterSpacing: 1.2, marginBottom: 7 },
+  translation: { color: "#44392D", fontFamily: "Georgia", fontSize: 15, lineHeight: 24 },
   lookupPanel: { backgroundColor: PAPER_DEEP, borderTopWidth: 1, borderTopColor: RULE, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 12 },
   lookupClose: { position: "absolute", right: 14, top: 12, zIndex: 2, padding: 5 },
   lookupTitleRow: { flexDirection: "row-reverse", justifyContent: "flex-end", alignItems: "center", gap: 10, paddingRight: 30 },
   lookupArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 25, lineHeight: 38, textAlign: "right" },
-  lookupGloss: { color: INK, fontSize: 16, fontWeight: "700", marginTop: 1 },
-  lookupExplanation: { color: MUTED, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  lookupSummary: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 1 },
+  lookupGloss: { color: INK, fontSize: 15, fontWeight: "700" },
+  lookupStatus: { color: MUTED, fontSize: 10, fontWeight: "700", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, overflow: "hidden", backgroundColor: "#F3E8D2" },
   lookupError: { color: UNKNOWN, fontSize: 12, marginTop: 5 },
   lookupActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
   secondaryAction: { borderWidth: 1, borderColor: "#B99D75", borderRadius: 7, paddingHorizontal: 11, minHeight: 34, justifyContent: "center" },
@@ -660,13 +715,13 @@ const styles = StyleSheet.create({
   entryActionText: { color: ACCENT, fontSize: 12, fontWeight: "800" },
   saveError: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#F3D8CE", borderTopWidth: 1, borderTopColor: "#D7AA99", paddingHorizontal: 16, paddingVertical: 9 },
   saveErrorText: { color: "#71372F", fontSize: 12, flex: 1 },
-  footer: { minHeight: 64, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: RULE, backgroundColor: PAPER_DEEP, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  navButton: { minWidth: 96, minHeight: 44, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 8 },
-  navButtonText: { color: INK, fontSize: 14, fontWeight: "700" },
+  footer: { minHeight: 52, paddingHorizontal: 12, paddingVertical: 6, borderTopWidth: 1, borderTopColor: RULE, backgroundColor: PAPER_DEEP, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  navButton: { minWidth: 82, minHeight: 38, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2, borderRadius: 19, borderCurve: "continuous" },
+  navButtonText: { color: INK, fontSize: 13, fontWeight: "700" },
   footerStatus: { flex: 1, alignItems: "center" },
   footerStatusText: { color: MUTED, fontSize: 11 },
-  nextButton: { minWidth: 96, minHeight: 44, paddingHorizontal: 15, borderRadius: 8, backgroundColor: ACCENT, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-  nextButtonText: { color: "#FFF9ED", fontSize: 14, fontWeight: "800" },
+  nextButton: { minWidth: 82, minHeight: 38, paddingHorizontal: 13, borderRadius: 19, borderCurve: "continuous", backgroundColor: ACCENT, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 },
+  nextButtonText: { color: "#FFF9ED", fontSize: 13, fontWeight: "800" },
   disabled: { opacity: 0.5 },
   disabledText: { color: RULE },
   errorTitle: { color: INK, fontSize: 19, fontWeight: "800", marginTop: 13 },

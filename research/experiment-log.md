@@ -48,6 +48,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Book reader shell correction — reading first, controls on demand
+
+**Problem.** The first production reader exposed three stacked control regions,
+an instructional label, a bordered card, and a permanently adjacent translation.
+On an iPhone-sized viewport the interface described itself before it let the user
+read. Guided mode was especially redundant: awkward inline English fragments and
+the full translation competed for attention at the same time, while leaving the
+screen made the active book unnecessarily hard to regain.
+
+**Correction.** Page position, Guided/Clean, one/two passages, and English reveal
+now share a single compact toolbar. Guided help is a stable Arabic-over-English
+interlinear grid with short whole-word glosses; its full translation defaults off
+and appears only through the EN control. Clean and Guided persist translation
+visibility independently. The book sits directly on warm paper without a card or
+instructional prose, lookup actions use a compact bottom panel, and ordinary tab
+navigation remains visible. Focusing Stories resumes the exact active book page
+and saved settings after navigation or a cold launch; explicit reader exit marks
+the session inactive so the story list remains reachable.
+
+**Verification.** At 393×852, browser simulation verified full-English reveal,
+active Stories-tab resume, explicit-exit behavior, and cold restoration of page,
+Guided policy, two-passage span, and hidden English. Pure reader-state tests cover
+storage-key separation, active-reader parsing, and bounded gloss truncation.
+
 ## 2026-08-03: Guided book reading — free inline glosses with opt-in vocabulary admission
 
 **Hypothesis.** The transactional reader is deliberately honest about passive
