@@ -244,6 +244,46 @@ Pipeline processes each page individually (not merged), preserving page boundari
 
 **Image persistence**: Uploaded images saved to `data/book-uploads/<timestamp>/` for retry on failure.
 
+#### Bilingual book reader passage evidence (2026-08-03)
+
+The dedicated reader is deliberately separate from sentence review. Importing,
+opening, translating, tapping, moving backward, and abandoning a draft create no
+learner evidence. `POST /api/stories/{story_id}/pages/{page}/complete` accepts the
+exact stored positions from one or two consecutive server-built reader passages and
+rejects evidence outside that range. Normal sentences stay whole; consecutive
+headings travel together, while unusually long literary comma-chains split only
+at preserved punctuation into roughly 24–48-token book passages.
+
+- **Untapped canonical lemma:** create/raise an ordinary `acquiring` row to a
+  Box-2 floor, due after the normal Box-2 interval. Never downgrade Box 2/3,
+  FSRS, or suspended state; never write a synthetic rating-3 ReviewLog.
+- **Tapped existing lemma:** there is no `Don't learn` branch. A row with no
+  learner state is started in acquisition and receives rating 1; an acquiring
+  row uses `submit_acquisition_review(1)`; every other established row uses
+  `submit_review(1)`. Thus an acquisition Box-3 or FSRS miss is byte-for-byte the
+  normal review transition and history event.
+- **Tapped genuinely new surface:** normal exact/clitic/canonical resolution and
+  the shared `run_quality_gates(..., background_enrich=False)` pipeline run first.
+  A still-new canonical enters Box 1 due immediately, without a fabricated prior
+  failure. If dedup resolves it to an existing canonical, the existing-word miss
+  rule applies.
+- **`Don't learn`:** valid only for a server-confirmed unmapped token. The token is
+  excluded before translation, lemma creation, enrichment, and learner writes.
+  An existing lemma ID is rejected even if the UI is stale.
+
+Passage receipts live in `Story.metadata_json.book_reader.passages`, keyed by page
+and exact token range. The stable client review ID makes a lost-response replay
+a no-op; a revisit may submit a fresh receipt only to add newly discovered misses.
+The receipt also advances `book_reader.location` for exact server-side resume.
+Slow enrichment commits/releases its own work before the short learner-state
+transaction, preserving the SQLite no-write-lock-during-LLM invariant.
+
+**Gate audit:** no new knowledge state exists. Box-2 reader rows are standard
+`acquiring` rows already understood by comprehensibility, book/corpus acquiring,
+unknown-scaffold, backlog, cohort, intro-card, and listening gates. Canonical
+resolution precedes the one-outcome-per-lemma loop. Untouched suspended rows stay
+suspended; an explicit tap is authoritative review evidence.
+
 ### 3.6 Duolingo Import
 
 **Path**: `python3 scripts/import_duolingo.py`

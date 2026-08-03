@@ -2569,6 +2569,7 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - [DONE] CAMeL morphology resolution for unmapped words: `_resolve_unmapped_via_camel()` resolves conjugated verb forms (e.g. ذَهَبَتْ→ذهب) to existing lemmas during sentence creation.
 - [DONE] Image persistence: uploaded book page images saved to `data/book-uploads/<timestamp>/` for retry on failed imports.
 - [DONE] Book page detail screen: clickable page pills navigate to `/book-page?storyId=X&page=N` showing already-known word count, new words list (arabic, transliteration, english, status pill), and sentences with seen/unseen indicators. Words tappable → word detail page.
+- [DONE] Passage-first bilingual book reader: warm-paper Arabic/English layout, one/two-passage pacing, exact resume, unknown-by-default word taps, full existing entries, fully enriched new admissions, unmapped-only opt-out, and transactional Box-2/normal-miss evidence on Next.
 - [DONE] StoryWord surface→lemma fallback lookup: after `_import_unknown_words` creates lemmas, `create_book_sentences` uses StoryWord mappings to resolve conjugated/affixed forms that CAMeL misses. Sentences with remaining unmapped tokens kept (not skipped).
 - Page ordering UI: drag-to-reorder page thumbnails before import (currently insertion-order only)
 - Progress polling: for longer books (30+ pages), switch from sync to async import with SSE/polling progress updates

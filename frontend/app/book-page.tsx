@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,417 +11,490 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 
-import { completeBookPage, getBookPageDetail, lookupReviewWord } from "../lib/api";
+import { completeBookPassage, getBookPageDetail, lookupReviewWord } from "../lib/api";
 import {
-  bookLookupDraftKey,
-  groupBookTokens,
-  parseBookLookupDraft,
-  pendingBookLookupIds,
+  BookPassageDraft,
+  BookReaderMode,
+  bookPassageDraftKey,
+  bookReaderLocationKey,
+  parseBookPassageDraft,
+  parseBookReaderLocation,
+  positionsForSameUnmappedSurface,
 } from "../lib/book-reader";
+import { stripDiacritics } from "../lib/review/tashkeel-evidence";
 import { BookPageDetail, BookPageToken, WordLookupResult } from "../lib/types";
-import { colors, fontFamily, fonts } from "../lib/theme";
+import { fontFamily } from "../lib/theme";
+
+const PAPER = "#F3E8D2";
+const PAPER_DEEP = "#E8D8BA";
+const INK = "#2B241C";
+const MUTED = "#766956";
+const RULE = "#D8C4A2";
+const ACCENT = "#8B4A2B";
+const UNKNOWN = "#A33E32";
+const MODE_KEY = "@alif:book-reader:mode";
+const SPAN_KEY = "@alif:book-reader:span";
+
+function freshClientReviewId(storyId: number, page: number, tokenPositions: number[]): string {
+  const range = tokenPositions.length > 0
+    ? `${tokenPositions[0]}-${tokenPositions[tokenPositions.length - 1]}`
+    : "empty";
+  return `bp:${storyId}:${page}:${range}:${Date.now().toString(36)}`;
+}
+
+function emptyDraft(storyId: number, page: number, tokenPositions: number[]): BookPassageDraft {
+  return {
+    unknownLemmaIds: [],
+    unknownTokenPositions: [],
+    dontLearnTokenPositions: [],
+    clientReviewId: freshClientReviewId(storyId, page, tokenPositions),
+  };
+}
 
 export default function BookPageScreen() {
-  const { storyId, page } = useLocalSearchParams<{ storyId: string; page: string }>();
-  const storyIdNumber = Number(storyId);
-  const pageNumber = Number(page || 1);
+  const params = useLocalSearchParams<{ storyId: string; page: string; atEnd?: string }>();
+  const storyId = Number(params.storyId);
+  const pageNumber = Number(params.page || 1);
+  const router = useRouter();
+  const navigation = useNavigation();
   const [data, setData] = useState<BookPageDetail | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [span, setSpan] = useState<1 | 2>(1);
+  const [mode, setMode] = useState<BookReaderMode>("both");
+  const [draft, setDraft] = useState<BookPassageDraft | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showTranslation, setShowTranslation] = useState(false);
-  const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [selectedToken, setSelectedToken] = useState<BookPageToken | null>(null);
   const [lookup, setLookup] = useState<WordLookupResult | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [draftReady, setDraftReady] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [completionError, setCompletionError] = useState(false);
   const [lookupError, setLookupError] = useState(false);
-  const requestRef = useRef(0);
-  const pageStartedAt = useRef(Date.now());
-  const router = useRouter();
-  const navigation = useNavigation();
+  const lookupRequest = useRef(0);
+  const passageStartedAt = useRef(Date.now());
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      title: data?.story_title_en || data?.story_title_ar || "Reader",
+      headerStyle: { backgroundColor: PAPER },
+      headerTintColor: INK,
+      headerShadowVisible: false,
       headerLeft: () => (
-        <Pressable onPress={() => router.replace("/books")} style={styles.headerBack}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        <Pressable onPress={() => router.replace("/books")} style={styles.headerButton}>
+          <Ionicons name="chevron-back" size={24} color={INK} />
         </Pressable>
       ),
-      title: data?.story_title_en || data?.story_title_ar || "Reader",
-      headerStyle: { backgroundColor: colors.bg },
-      headerTintColor: colors.text,
     });
   }, [data?.story_title_ar, data?.story_title_en, navigation, router]);
 
-  const loadPage = useCallback(async () => {
-    if (!Number.isFinite(storyIdNumber) || !Number.isFinite(pageNumber)) {
-      setData(null);
-      setLoadError(false);
+  const loadPage = useCallback(async (preferredSentenceIndex?: number, preferredTokenPosition?: number) => {
+    if (!Number.isFinite(storyId) || !Number.isFinite(pageNumber)) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    setSubmitting(false);
-    setShowTranslation(false);
+    setLoadError(false);
+    setSaveError(false);
     setSelectedToken(null);
     setLookup(null);
-    setLoadError(false);
-    setCompletionError(false);
-    setDraftReady(false);
-    pageStartedAt.current = Date.now();
     try {
-      const draftKey = bookLookupDraftKey(storyIdNumber, pageNumber);
-      const [next, rawDraft] = await Promise.all([
-        getBookPageDetail(storyIdNumber, pageNumber),
-        AsyncStorage.getItem(draftKey).catch(() => null),
+      const [next, rawLocation, savedMode, savedSpan] = await Promise.all([
+        getBookPageDetail(storyId, pageNumber),
+        AsyncStorage.getItem(bookReaderLocationKey(storyId)).catch(() => null),
+        AsyncStorage.getItem(MODE_KEY).catch(() => null),
+        AsyncStorage.getItem(SPAN_KEY).catch(() => null),
       ]);
-      const schedulableIds = new Set(
-        next.tokens
-          .filter((token) => token.is_schedulable && token.lemma_id != null)
-          .map((token) => token.lemma_id!),
-      );
-      const restoredDraft = parseBookLookupDraft(rawDraft).filter((lemmaId) =>
-        schedulableIds.has(lemmaId),
+      const localLocation = parseBookReaderLocation(rawLocation);
+      const desiredIndex = preferredSentenceIndex
+        ?? (params.atEnd === "1" ? next.passages.at(-1)?.sentence_index : undefined)
+        ?? (localLocation?.pageNumber === pageNumber ? localLocation.sentenceIndex : undefined)
+        ?? next.resume_sentence_index
+        ?? next.passages[0]?.sentence_index;
+      const desiredTokenPosition = preferredTokenPosition
+        ?? (params.atEnd === "1" ? next.passages.at(-1)?.token_positions[0] : undefined)
+        ?? (localLocation?.pageNumber === pageNumber ? localLocation.tokenPosition : undefined)
+        ?? next.resume_token_position;
+      const desiredOffset = Math.max(
+        0,
+        next.passages.findIndex((passage) =>
+          desiredTokenPosition != null
+            ? passage.token_positions.includes(desiredTokenPosition)
+            : passage.sentence_index === desiredIndex
+        ),
       );
       setData(next);
-      setLookedUp(new Set([...next.looked_up_lemma_ids, ...restoredDraft]));
-      setDraftReady(true);
+      setOffset(desiredOffset);
+      if (savedMode === "arabic" || savedMode === "both") setMode(savedMode);
+      if (savedSpan === "2") setSpan(2);
+      else if (savedSpan === "1") setSpan(1);
+      passageStartedAt.current = Date.now();
     } catch (error) {
-      console.error("Failed to load book page", error);
+      console.error("Failed to load book passage", error);
       setData(null);
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [pageNumber, storyIdNumber]);
+  }, [pageNumber, params.atEnd, storyId]);
 
   useEffect(() => {
     loadPage();
   }, [loadPage]);
 
-  useEffect(() => {
-    if (!draftReady || !data) return;
-    const key = bookLookupDraftKey(data.story_id, data.page_number);
-    const pending = pendingBookLookupIds(lookedUp, data.looked_up_lemma_ids);
-    const operation = pending.length > 0
-      ? AsyncStorage.setItem(key, JSON.stringify(pending))
-      : AsyncStorage.removeItem(key);
-    operation.catch((error) => console.warn("Failed to persist book lookup draft", error));
-  }, [data, draftReady, lookedUp]);
+  const visiblePassages = useMemo(
+    () => data?.passages.slice(offset, offset + span) ?? [],
+    [data?.passages, offset, span],
+  );
+  const visibleSentenceIndices = useMemo(
+    () => Array.from(new Set(visiblePassages.flatMap((passage) => passage.sentence_indices))),
+    [visiblePassages],
+  );
+  const visiblePositionList = useMemo(
+    () => visiblePassages.flatMap((passage) => passage.token_positions),
+    [visiblePassages],
+  );
+  const visiblePositions = useMemo(
+    () => new Set(visiblePositionList),
+    [visiblePositionList],
+  );
+  const visibleTokens = useMemo(
+    () => data?.tokens.filter((token) => visiblePositions.has(token.position)) ?? [],
+    [data?.tokens, visiblePositions],
+  );
 
-  async function handleTokenPress(token: BookPageToken) {
+  useEffect(() => {
+    if (!data || visibleSentenceIndices.length === 0) return;
+    let cancelled = false;
+    setDraftReady(false);
+    setSelectedToken(null);
+    setLookup(null);
+    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList);
+    AsyncStorage.getItem(key)
+      .then((raw) => {
+        if (cancelled) return;
+        setDraft(parseBookPassageDraft(raw) ?? emptyDraft(data.story_id, data.page_number, visiblePositionList));
+        passageStartedAt.current = Date.now();
+        setDraftReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDraft(emptyDraft(data.story_id, data.page_number, visiblePositionList));
+        setDraftReady(true);
+      });
+    return () => { cancelled = true; };
+  }, [data, visiblePositionList, visibleSentenceIndices]);
+
+  useEffect(() => {
+    if (!data || !draft || !draftReady || visibleSentenceIndices.length === 0) return;
+    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList);
+    AsyncStorage.setItem(key, JSON.stringify(draft)).catch((error) =>
+      console.warn("Failed to persist passage marks", error),
+    );
+  }, [data, draft, draftReady, visiblePositionList, visibleSentenceIndices]);
+
+  useEffect(() => {
+    const currentPassage = data?.passages[offset];
+    const sentenceIndex = currentPassage?.sentence_index;
+    if (!data || sentenceIndex == null) return;
+    const { story_id: currentStoryId, page_number: currentPageNumber } = data;
+    AsyncStorage.setItem(
+      bookReaderLocationKey(currentStoryId),
+      JSON.stringify({
+        pageNumber: currentPageNumber,
+        sentenceIndex,
+        tokenPosition: currentPassage?.token_positions[0],
+      }),
+    ).catch(() => {});
+  }, [data, offset]);
+
+  function updateMode(next: BookReaderMode) {
+    setMode(next);
+    AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
+  }
+
+  function updateSpan(next: 1 | 2) {
+    setSpan(next);
+    AsyncStorage.setItem(SPAN_KEY, String(next)).catch(() => {});
+  }
+
+  async function openToken(token: BookPageToken) {
+    if (!draft || !token.is_schedulable) return;
     setSelectedToken(token);
     setLookup(null);
     setLookupError(false);
-    if (token.is_schedulable && token.lemma_id != null) {
-      setLookedUp((current) => new Set(current).add(token.lemma_id!));
+    if (token.lemma_id != null) {
+      setDraft((current) => current ? {
+        ...current,
+        unknownLemmaIds: Array.from(new Set([...current.unknownLemmaIds, token.lemma_id!])),
+      } : current);
+      const requestId = ++lookupRequest.current;
+      setLookupLoading(true);
+      try {
+        const result = await lookupReviewWord(token.lemma_id);
+        if (lookupRequest.current === requestId) setLookup(result);
+      } catch {
+        if (lookupRequest.current === requestId) setLookupError(true);
+      } finally {
+        if (lookupRequest.current === requestId) setLookupLoading(false);
+      }
+      return;
     }
-    if (token.lemma_id == null) return;
 
-    await loadTokenLookup(token);
+    const positions = positionsForSameUnmappedSurface(visibleTokens, token);
+    setDraft((current) => current ? {
+      ...current,
+      unknownTokenPositions: Array.from(new Set([...current.unknownTokenPositions, ...positions])),
+      dontLearnTokenPositions: current.dontLearnTokenPositions.filter((position) => !positions.includes(position)),
+    } : current);
   }
 
-  async function loadTokenLookup(token: BookPageToken) {
-    if (token.lemma_id == null) return;
-    setLookupError(false);
-    const requestId = ++requestRef.current;
-    setLookupLoading(true);
-    try {
-      const result = await lookupReviewWord(token.lemma_id);
-      if (requestRef.current === requestId) setLookup(result);
-    } catch (error) {
-      console.warn("Book lookup failed", error);
-      if (requestRef.current === requestId) setLookupError(true);
-    } finally {
-      if (requestRef.current === requestId) setLookupLoading(false);
+  function undoUnknown(token: BookPageToken) {
+    if (!draft) return;
+    if (token.lemma_id != null) {
+      setDraft({
+        ...draft,
+        unknownLemmaIds: draft.unknownLemmaIds.filter((lemmaId) => lemmaId !== token.lemma_id),
+      });
+      return;
     }
-  }
-
-  function toggleUnknownMark(token: BookPageToken) {
-    if (!token.is_schedulable || token.lemma_id == null) return;
-    const isRecorded = data?.looked_up_lemma_ids.includes(token.lemma_id) ?? false;
-    if (isRecorded) return;
-    setLookedUp((current) => {
-      const next = new Set(current);
-      next.has(token.lemma_id!) ? next.delete(token.lemma_id!) : next.add(token.lemma_id!);
-      return next;
+    const positions = positionsForSameUnmappedSurface(visibleTokens, token);
+    setDraft({
+      ...draft,
+      unknownTokenPositions: draft.unknownTokenPositions.filter((position) => !positions.includes(position)),
     });
   }
 
-  function navigateTo(targetPage: number) {
-    router.replace(`/book-page?storyId=${storyIdNumber}&page=${targetPage}`);
+  function markDontLearn(token: BookPageToken) {
+    if (!draft || token.lemma_id != null) return;
+    const positions = positionsForSameUnmappedSurface(visibleTokens, token);
+    setDraft({
+      ...draft,
+      unknownTokenPositions: draft.unknownTokenPositions.filter((position) => !positions.includes(position)),
+      dontLearnTokenPositions: Array.from(new Set([...draft.dontLearnTokenPositions, ...positions])),
+    });
   }
 
-  async function handleAdvance() {
-    if (!data || submitting) return;
+  function moveBackward() {
+    if (offset > 0) {
+      setOffset((current) => Math.max(0, current - span));
+      return;
+    }
+    if (pageNumber > 1) {
+      router.replace(`/book-page?storyId=${storyId}&page=${pageNumber - 1}&atEnd=1`);
+    }
+  }
+
+  async function advance() {
+    if (!data || !draft || !draftReady || submitting || visibleSentenceIndices.length === 0) return;
     setSubmitting(true);
-    setCompletionError(false);
+    setSaveError(false);
     try {
-      await completeBookPage(
-        data.story_id,
-        data.page_number,
-        Array.from(lookedUp),
-        Date.now() - pageStartedAt.current,
-      );
-      AsyncStorage.removeItem(bookLookupDraftKey(data.story_id, data.page_number)).catch((error) =>
-        console.warn("Failed to clear saved book lookup draft", error),
-      );
-      if (data.page_number < data.page_count) {
-        navigateTo(data.page_number + 1);
+      await completeBookPassage(data.story_id, data.page_number, {
+        sentence_indices: visibleSentenceIndices,
+        passage_token_positions: visiblePositionList,
+        unknown_lemma_ids: draft.unknownLemmaIds,
+        unknown_token_positions: draft.unknownTokenPositions,
+        dont_learn_token_positions: draft.dontLearnTokenPositions,
+        reading_time_ms: Date.now() - passageStartedAt.current,
+        client_review_id: draft.clientReviewId,
+      });
+      await AsyncStorage.removeItem(
+        bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList),
+      ).catch(() => {});
+
+      const nextOffset = offset + visiblePassages.length;
+      if (nextOffset < data.passages.length) {
+        const nextSentenceIndex = data.passages[nextOffset].sentence_index;
+        const nextTokenPosition = data.passages[nextOffset].token_positions[0];
+        await AsyncStorage.setItem(
+          bookReaderLocationKey(data.story_id),
+          JSON.stringify({
+            pageNumber: data.page_number,
+            sentenceIndex: nextSentenceIndex,
+            tokenPosition: nextTokenPosition,
+          }),
+        );
+        await loadPage(nextSentenceIndex, nextTokenPosition);
+      } else if (data.page_number < data.page_count) {
+        router.replace(`/book-page?storyId=${storyId}&page=${data.page_number + 1}`);
       } else {
+        await AsyncStorage.removeItem(bookReaderLocationKey(data.story_id)).catch(() => {});
         router.replace("/books");
       }
     } catch (error) {
-      console.error("Failed to complete book page", error);
-      setCompletionError(true);
+      console.error("Failed to save book passage", error);
+      setSaveError(true);
+    } finally {
       setSubmitting(false);
     }
   }
 
   if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color={ACCENT} /></View>;
+  }
+
+  if (!data || visiblePassages.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <Ionicons name={loadError ? "cloud-offline-outline" : "book-outline"} size={36} color={MUTED} />
+        <Text style={styles.errorTitle}>{loadError ? "Couldn’t open this passage" : "Nothing to read here"}</Text>
+        <Text style={styles.errorCopy}>Your location and word marks are still saved.</Text>
+        {loadError && <Pressable style={styles.primarySmall} onPress={() => loadPage()}><Text style={styles.primarySmallText}>Try again</Text></Pressable>}
+        <Pressable style={styles.textButton} onPress={() => router.replace("/books")}><Text style={styles.textButtonLabel}>Back to library</Text></Pressable>
       </View>
     );
   }
 
-  if (!data) {
-    return (
-      <View style={styles.center}>
-        <Ionicons
-          name={loadError ? "cloud-offline-outline" : "document-outline"}
-          size={34}
-          color={colors.textSecondary}
-        />
-        <Text style={styles.errorStateTitle}>
-          {loadError ? "Couldn&apos;t load this page" : "Page not found"}
-        </Text>
-        <Text style={styles.errorStateText}>
-          {loadError
-            ? "Check your connection and try again. Your saved reading progress is safe."
-            : "This page may no longer be part of the imported book."}
-        </Text>
-        {loadError && (
-          <Pressable style={styles.retryPrimary} onPress={loadPage}>
-            <Text style={styles.retryPrimaryText}>Try again</Text>
-          </Pressable>
-        )}
-        <Pressable style={styles.backLink} onPress={() => router.replace("/books")}>
-          <Text style={styles.backLinkText}>Back to library</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const tokenGroups = groupBookTokens(data.tokens);
-  const pendingLookupCount = pendingBookLookupIds(lookedUp, data.looked_up_lemma_ids).length;
-  const selectedLemmaId = selectedToken?.lemma_id ?? null;
-  const selectedIsMarked = selectedLemmaId != null && lookedUp.has(selectedLemmaId);
-  const selectedIsRecorded = selectedLemmaId != null && data.looked_up_lemma_ids.includes(selectedLemmaId);
+  const atBookStart = pageNumber === 1 && offset === 0;
+  const atBookEnd = pageNumber === data.page_count && offset + visiblePassages.length >= data.passages.length;
+  const unknownCount = (draft?.unknownLemmaIds.length ?? 0) + (draft?.unknownTokenPositions.length ?? 0);
+  const translation = visiblePassages
+    .map((passage) => passage.english_translation)
+    .filter(Boolean)
+    .join(" ");
+  const selectedMarkedUnknown = selectedToken?.lemma_id != null
+    ? draft?.unknownLemmaIds.includes(selectedToken.lemma_id) === true
+    : selectedToken != null && draft?.unknownTokenPositions.includes(selectedToken.position) === true;
+  const selectedDontLearn = selectedToken != null
+    && selectedToken.lemma_id == null
+    && draft?.dontLearnTokenPositions.includes(selectedToken.position) === true;
 
   return (
     <View style={styles.container}>
-      <View style={styles.progressHeader}>
-        <Text style={styles.pageLabel}>
-          {data.source_page_number != null
-            ? `PRINTED PAGE ${data.source_page_number} · ${data.page_number} OF ${data.page_count}`
-            : `PAGE ${data.page_number} OF ${data.page_count}`}
-        </Text>
-        <Text style={styles.readerHint}>
-          {pendingLookupCount > 0
-            ? `${pendingLookupCount} new unknown word${pendingLookupCount === 1 ? "" : "s"} to save`
-            : data.completed
-            ? "This page is already recorded"
-            : lookedUp.size > 0
-              ? `${lookedUp.size} word${lookedUp.size === 1 ? "" : "s"} looked up`
-              : "Tap only the words you need"}
-        </Text>
+      <View style={styles.toolbar}>
+        <View>
+          <Text style={styles.pageKicker}>
+            {data.source_page_number != null ? `PRINTED PAGE ${data.source_page_number}` : `PAGE ${data.page_number}`}
+          </Text>
+          <Text style={styles.locationLabel}>{data.page_number} / {data.page_count}</Text>
+        </View>
+        <View style={styles.controls}>
+          <View style={styles.segmented} accessibilityLabel="Reading language">
+            <Pressable style={[styles.segment, mode === "arabic" && styles.segmentActive]} onPress={() => updateMode("arabic")}>
+              <Text style={[styles.segmentText, mode === "arabic" && styles.segmentTextActive]}>Arabic</Text>
+            </Pressable>
+            <Pressable style={[styles.segment, mode === "both" && styles.segmentActive]} onPress={() => updateMode("both")}>
+              <Text style={[styles.segmentText, mode === "both" && styles.segmentTextActive]}>Both</Text>
+            </Pressable>
+          </View>
+          <View style={styles.segmented} accessibilityLabel="Passage length">
+            <Pressable style={[styles.segmentNarrow, span === 1 && styles.segmentActive]} onPress={() => updateSpan(1)}>
+              <Text style={[styles.segmentText, span === 1 && styles.segmentTextActive]}>1</Text>
+            </Pressable>
+            <Pressable style={[styles.segmentNarrow, span === 2 && styles.segmentActive]} onPress={() => updateSpan(2)}>
+              <Text style={[styles.segmentText, span === 2 && styles.segmentTextActive]}>2</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.paper}>
-          <View style={styles.arabicFlow}>
-            {tokenGroups.map((group, groupIndex) => (
-              <View style={styles.sentenceFlow} key={`${group[0]?.sentence_index ?? "none"}-${groupIndex}`}>
-                {group.map((token) => {
-                  const isLookedUp = token.lemma_id != null && lookedUp.has(token.lemma_id);
-                  const isSelected = selectedToken?.position === token.position;
-                  return (
-                    <Pressable
-                      key={token.position}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${token.surface_form}${token.gloss_en ? `, ${token.gloss_en}` : ""}`}
-                      onPress={() => handleTokenPress(token)}
-                      style={[
-                        styles.wordPress,
-                        isLookedUp && styles.lookedUpWordPress,
-                        isSelected && styles.selectedWordPress,
-                      ]}
-                    >
-                      <Text style={[styles.arabicWord, isLookedUp && styles.lookedUpWord]}>
-                        {token.surface_form}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
+          <Text style={styles.arabicParagraph} selectable>
+            {visibleTokens.map((token, index) => {
+              const marked = token.lemma_id != null
+                ? draft?.unknownLemmaIds.includes(token.lemma_id)
+                : draft?.unknownTokenPositions.includes(token.position);
+              const ignored = draft?.dontLearnTokenPositions.includes(token.position);
+              const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
+              return (
+                <Text key={token.position}>
+                  <Text
+                    onPress={() => openToken(token)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${token.surface_form}${token.gloss_en ? `, ${token.gloss_en}` : ""}`}
+                    style={[
+                      styles.arabicWord,
+                      marked && styles.arabicUnknown,
+                      ignored && styles.arabicIgnored,
+                      selectedToken?.position === token.position && styles.arabicSelected,
+                    ]}
+                  >
+                    {displayed}
+                  </Text>
+                  {index < visibleTokens.length - 1 ? " " : ""}
+                </Text>
+              );
+            })}
+          </Text>
 
-          {data.tokens.length === 0 && (
-            <Text style={styles.muted}>No readable tokens on this page.</Text>
-          )}
-
-          {showTranslation && (
+          {mode === "both" && (
             <View style={styles.translationBlock}>
-              <View style={styles.translationHeader}>
-                <Text style={styles.translationEyebrow}>FULL TRANSLATION</Text>
-                <Pressable
-                  onPress={() => setShowTranslation(false)}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Hide English translation"
-                >
-                  <Text style={styles.hideTranslation}>Hide</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.translationText}>
-                {data.english_translation || "No English translation is available for this page."}
-              </Text>
+              <Text style={styles.translationLabel}>ENGLISH</Text>
+              <Text style={styles.translation}>{translation || "Translation unavailable for this passage."}</Text>
             </View>
           )}
         </View>
-
-        {!showTranslation && (
-          <Pressable
-            style={styles.revealButton}
-            onPress={() => setShowTranslation(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Show full English translation"
-          >
-            <Ionicons name="language-outline" size={18} color={colors.accent} />
-            <Text style={styles.revealText}>Show full English translation</Text>
-          </Pressable>
-        )}
+        <Text style={styles.tapHint}>
+          Tap a word you didn’t know. Untapped words are recorded only when you continue.
+        </Text>
       </ScrollView>
 
       {selectedToken && (
         <View style={styles.lookupPanel}>
-          <Pressable
-            style={styles.lookupClose}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Close word lookup"
-            onPress={() => {
-              requestRef.current += 1;
-              setSelectedToken(null);
-            }}
-          >
-            <Ionicons name="close" size={18} color={colors.textSecondary} />
+          <Pressable style={styles.lookupClose} onPress={() => { lookupRequest.current += 1; setSelectedToken(null); }} hitSlop={10}>
+            <Ionicons name="close" size={19} color={MUTED} />
           </Pressable>
-          <View style={styles.lookupHead}>
+          <View style={styles.lookupTitleRow}>
             <Text style={styles.lookupArabic}>{lookup?.lemma_ar || selectedToken.surface_form}</Text>
-            {lookupLoading && <ActivityIndicator size="small" color={colors.accent} />}
+            {lookupLoading && <ActivityIndicator size="small" color={ACCENT} />}
           </View>
-          <Text style={styles.lookupGloss}>
-            {lookup?.gloss_en || selectedToken.gloss_en || "No gloss available"}
-          </Text>
-          {lookupError && (
-            <Pressable style={styles.lookupErrorRow} onPress={() => loadTokenLookup(selectedToken)}>
-              <Ionicons name="alert-circle-outline" size={15} color={colors.stateLearning} />
-              <Text style={styles.lookupErrorText}>Definition unavailable · tap to retry</Text>
-            </Pressable>
-          )}
-          {(lookup?.transliteration || lookup?.root) && (
-            <Text style={styles.lookupMeta}>
-              {[lookup?.transliteration, lookup?.root ? `root ${lookup.root}` : null]
-                .filter(Boolean)
-                .join("  ·  ")}
+          <Text style={styles.lookupGloss}>{lookup?.gloss_en || selectedToken.gloss_en || "Translation not available yet"}</Text>
+          {selectedToken.lemma_id == null ? (
+            <Text style={styles.lookupExplanation}>New word · a full entry will be built only if this passage admits it.</Text>
+          ) : (
+            <Text style={styles.lookupExplanation}>
+              Existing word · this will count as a miss in your normal review history.
             </Text>
           )}
-          {selectedToken.is_schedulable ? (
-            selectedIsRecorded ? (
-              <View style={styles.evidenceRow}>
-                <Ionicons name="checkmark-circle-outline" size={16} color={colors.stateLearning} />
-                <Text style={styles.scheduleNote}>Already recorded as unknown on this page</Text>
-              </View>
-            ) : (
-              <Pressable
-                style={[styles.scheduleToggle, selectedIsMarked && styles.scheduleToggleMarked]}
-                onPress={() => toggleUnknownMark(selectedToken)}
-                accessibilityRole="button"
-                accessibilityLabel={selectedIsMarked ? "Do not schedule this word" : "Schedule this word"}
-              >
-                <Ionicons
-                  name={selectedIsMarked ? "close-circle-outline" : "add-circle-outline"}
-                  size={17}
-                  color={selectedIsMarked ? colors.stateLearning : colors.accent}
-                />
-                <View style={styles.scheduleToggleCopy}>
-                  <Text style={[styles.scheduleToggleTitle, selectedIsMarked && styles.scheduleToggleTitleMarked]}>
-                    {selectedIsMarked ? "Don't schedule this word" : "Schedule this word"}
-                  </Text>
-                  <Text style={styles.scheduleToggleHint}>
-                    {selectedIsMarked
-                      ? "It is currently marked unknown for this page."
-                      : "It will otherwise count as understood when you finish."}
-                  </Text>
-                </View>
+          {lookupError && <Text style={styles.lookupError}>Full entry unavailable right now. Your mark is still saved.</Text>}
+          <View style={styles.lookupActions}>
+            {selectedMarkedUnknown && (
+              <Pressable style={styles.secondaryAction} onPress={() => undoUnknown(selectedToken)}>
+                <Text style={styles.secondaryActionText}>I knew this · undo</Text>
               </Pressable>
-            )
-          ) : (
-            <Text style={styles.referenceNote}>Reference only · never added to your learning queue</Text>
-          )}
-          {selectedToken.lemma_id != null && (
-            <Pressable onPress={() => router.push(`/word/${selectedToken.lemma_id}`)}>
-              <Text style={styles.detailLink}>Open full word detail →</Text>
-            </Pressable>
-          )}
+            )}
+            {selectedToken.lemma_id == null && !selectedDontLearn && (
+              <Pressable style={styles.secondaryAction} onPress={() => markDontLearn(selectedToken)}>
+                <Text style={styles.secondaryActionText}>Don’t learn</Text>
+              </Pressable>
+            )}
+            {selectedDontLearn && (
+              <Pressable style={styles.secondaryAction} onPress={() => openToken(selectedToken)}>
+                <Text style={styles.secondaryActionText}>Learn after all</Text>
+              </Pressable>
+            )}
+            {selectedToken.lemma_id != null && (
+              <Pressable style={styles.entryAction} onPress={() => router.push(`/word/${selectedToken.lemma_id}`)}>
+                <Text style={styles.entryActionText}>Full entry</Text>
+                <Ionicons name="arrow-forward" size={15} color={ACCENT} />
+              </Pressable>
+            )}
+          </View>
         </View>
       )}
 
-      {completionError && (
-        <View style={styles.completionError} accessibilityRole="alert">
-          <Ionicons name="cloud-offline-outline" size={18} color={colors.stateLearning} />
-          <Text style={styles.completionErrorText}>
-            Couldn&apos;t save this page. Your lookups are kept — tap the button to retry.
-          </Text>
+      {saveError && (
+        <View style={styles.saveError} accessibilityRole="alert">
+          <Ionicons name="cloud-offline-outline" size={17} color={UNKNOWN} />
+          <Text style={styles.saveErrorText}>Couldn’t save. Nothing advanced; your marks are safe.</Text>
         </View>
       )}
 
       <View style={styles.footer}>
-        <Pressable
-          style={[styles.footerButton, data.page_number === 1 && styles.footerButtonDisabled]}
-          disabled={data.page_number === 1 || submitting}
-          accessibilityRole="button"
-          accessibilityLabel="Previous page"
-          onPress={() => navigateTo(data.page_number - 1)}
-        >
-          <Text style={styles.footerSecondary}>← Previous</Text>
+        <Pressable disabled={atBookStart || submitting} style={[styles.navButton, atBookStart && styles.disabled]} onPress={moveBackward}>
+          <Ionicons name="chevron-back" size={19} color={atBookStart ? RULE : INK} />
+          <Text style={[styles.navButtonText, atBookStart && styles.disabledText]}>Previous</Text>
         </Pressable>
-        <Pressable
-          style={[styles.footerButton, styles.nextButton]}
-          onPress={handleAdvance}
-          disabled={submitting}
-          accessibilityRole="button"
-          accessibilityLabel={
-            data.page_number === data.page_count
-              ? pendingLookupCount > 0 ? "Save page and finish book" : "Finish book"
-              : pendingLookupCount > 0 ? "Save page and continue" : "Continue to next page"
-          }
-        >
-          {submitting ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.nextText}>
-              {data.page_number === data.page_count
-                ? pendingLookupCount > 0 ? "Save · Finish ✓" : "Finish book ✓"
-                : pendingLookupCount > 0 ? "Save · Next →" : data.completed ? "Next page →" : "Done · Next →"}
-            </Text>
-          )}
+        <View style={styles.footerStatus}>
+          <Text style={styles.footerStatusText}>{unknownCount > 0 ? `${unknownCount} unknown` : `${visiblePassages.length} passage${visiblePassages.length > 1 ? "s" : ""}`}</Text>
+        </View>
+        <Pressable disabled={submitting || !draftReady} style={[styles.nextButton, (!draftReady || submitting) && styles.disabled]} onPress={advance}>
+          {submitting ? <ActivityIndicator size="small" color="#FFF9ED" /> : <>
+            <Text style={styles.nextButtonText}>{atBookEnd ? "Finish" : "Next"}</Text>
+            <Ionicons name={atBookEnd ? "checkmark" : "chevron-forward"} size={19} color="#FFF9ED" />
+          </>}
         </Pressable>
       </View>
     </View>
@@ -429,110 +502,58 @@ export default function BookPageScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  headerBack: { paddingLeft: 12, paddingVertical: 6 },
-  progressHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-  },
-  pageLabel: { color: colors.accent, fontSize: 11, fontWeight: "700", letterSpacing: 1.1 },
-  readerHint: { color: colors.textSecondary, fontSize: fonts.caption, flexShrink: 1, textAlign: "right" },
+  container: { flex: 1, backgroundColor: PAPER },
+  center: { flex: 1, backgroundColor: PAPER, alignItems: "center", justifyContent: "center", padding: 28 },
+  headerButton: { paddingHorizontal: 12, paddingVertical: 6 },
+  toolbar: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: RULE, paddingHorizontal: 18, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  pageKicker: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  locationLabel: { color: MUTED, fontSize: 11, marginTop: 2 },
+  controls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  segmented: { flexDirection: "row", borderWidth: 1, borderColor: RULE, borderRadius: 8, overflow: "hidden" },
+  segment: { paddingHorizontal: 10, minHeight: 32, justifyContent: "center" },
+  segmentNarrow: { width: 34, minHeight: 32, alignItems: "center", justifyContent: "center" },
+  segmentActive: { backgroundColor: INK },
+  segmentText: { color: MUTED, fontSize: 12, fontWeight: "700" },
+  segmentTextActive: { color: "#FFF9ED" },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36, alignItems: "center" },
-  paper: {
-    width: "100%",
-    maxWidth: 760,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingHorizontal: 22,
-    paddingVertical: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  arabicFlow: {
-    width: "100%",
-    gap: 13,
-  },
-  sentenceFlow: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
-    gap: 3,
-    rowGap: 5,
-  },
-  wordPress: { borderRadius: 5, paddingHorizontal: 3, paddingVertical: 1 },
-  lookedUpWordPress: { backgroundColor: colors.stateLearning + "25" },
-  selectedWordPress: { backgroundColor: colors.stateLearning + "45" },
-  arabicWord: {
-    color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 28,
-    lineHeight: 44,
-    writingDirection: "rtl",
-  },
-  lookedUpWord: { color: colors.stateLearning },
-  translationBlock: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 28, paddingTop: 22 },
-  translationHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  translationEyebrow: { color: colors.textSecondary, fontSize: 10, fontWeight: "700", letterSpacing: 1.2 },
-  hideTranslation: { color: colors.accent, fontSize: fonts.caption, fontWeight: "700" },
-  translationText: { color: colors.text, fontSize: 17, lineHeight: 28 },
-  revealButton: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16 },
-  revealText: { color: colors.accent, fontSize: fonts.small, fontWeight: "600" },
-  muted: { color: colors.textSecondary, fontSize: fonts.body },
-  errorStateTitle: { color: colors.text, fontSize: 19, fontWeight: "700", marginTop: 14 },
-  errorStateText: { color: colors.textSecondary, fontSize: fonts.small, lineHeight: 20, textAlign: "center", maxWidth: 360, marginTop: 6, paddingHorizontal: 20 },
-  retryPrimary: { minHeight: 44, justifyContent: "center", backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, marginTop: 18 },
-  retryPrimaryText: { color: "#fff", fontSize: fonts.small, fontWeight: "700" },
-  backLink: { minHeight: 40, justifyContent: "center", paddingHorizontal: 12, marginTop: 4 },
-  backLinkText: { color: colors.textSecondary, fontSize: fonts.small, fontWeight: "600" },
-  lookupPanel: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 12,
-  },
-  lookupClose: { position: "absolute", right: 16, top: 14, zIndex: 2 },
-  lookupHead: { flexDirection: "row", alignItems: "center", gap: 12, paddingRight: 30 },
-  lookupArabic: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 25 },
-  lookupGloss: { color: colors.text, fontSize: fonts.body, marginTop: 2 },
-  lookupMeta: { color: colors.textSecondary, fontSize: fonts.small, marginTop: 4 },
-  lookupErrorRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, alignSelf: "flex-start" },
-  lookupErrorText: { color: colors.stateLearning, fontSize: fonts.caption, fontWeight: "600" },
-  evidenceRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 9 },
-  scheduleNote: { color: colors.stateLearning, fontSize: fonts.caption, fontWeight: "600" },
-  scheduleToggle: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: colors.accent + "55", backgroundColor: colors.accent + "10", borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8, marginTop: 9, alignSelf: "flex-start", maxWidth: 420 },
-  scheduleToggleMarked: { borderColor: colors.stateLearning + "66", backgroundColor: colors.stateLearning + "12" },
-  scheduleToggleCopy: { flexShrink: 1 },
-  scheduleToggleTitle: { color: colors.accent, fontSize: fonts.caption, fontWeight: "700" },
-  scheduleToggleTitleMarked: { color: colors.stateLearning },
-  scheduleToggleHint: { color: colors.textSecondary, fontSize: 10, lineHeight: 14, marginTop: 1 },
-  referenceNote: { color: colors.textSecondary, fontSize: fonts.caption, marginTop: 8, fontStyle: "italic" },
-  detailLink: { color: colors.accent, fontSize: fonts.caption, marginTop: 7 },
-  completionError: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.stateLearning + "14", borderTopWidth: 1, borderTopColor: colors.stateLearning + "55", paddingHorizontal: 16, paddingVertical: 9 },
-  completionErrorText: { flex: 1, color: colors.text, fontSize: fonts.caption, lineHeight: 17 },
-  footer: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  footerButton: { minHeight: 44, flex: 1, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  footerButtonDisabled: { opacity: 0.3 },
-  footerSecondary: { color: colors.textSecondary, fontWeight: "600" },
-  nextButton: { backgroundColor: colors.accent },
-  nextText: { color: "#fff", fontWeight: "700" },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 34, alignItems: "center" },
+  paper: { width: "100%", maxWidth: 720, paddingHorizontal: 18, paddingVertical: 22, backgroundColor: "#F8EEDB", borderWidth: 1, borderColor: RULE, borderRadius: 8, shadowColor: "#4E3824", shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  arabicParagraph: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 23, lineHeight: 42, writingDirection: "rtl", textAlign: "right" },
+  arabicWord: { color: INK, fontFamily: fontFamily.arabicNoto },
+  arabicUnknown: { color: UNKNOWN, backgroundColor: "#D9968430" },
+  arabicIgnored: { color: MUTED, textDecorationLine: "line-through" },
+  arabicSelected: { backgroundColor: "#C98D5638" },
+  translationBlock: { marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: RULE },
+  translationLabel: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.3, marginBottom: 8 },
+  translation: { color: "#44392D", fontFamily: "Georgia", fontSize: 16, lineHeight: 25 },
+  tapHint: { color: MUTED, fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 14, maxWidth: 360 },
+  lookupPanel: { backgroundColor: PAPER_DEEP, borderTopWidth: 1, borderTopColor: RULE, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 12 },
+  lookupClose: { position: "absolute", right: 14, top: 12, zIndex: 2, padding: 5 },
+  lookupTitleRow: { flexDirection: "row-reverse", justifyContent: "flex-end", alignItems: "center", gap: 10, paddingRight: 30 },
+  lookupArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 25, lineHeight: 38, textAlign: "right" },
+  lookupGloss: { color: INK, fontSize: 16, fontWeight: "700", marginTop: 1 },
+  lookupExplanation: { color: MUTED, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  lookupError: { color: UNKNOWN, fontSize: 12, marginTop: 5 },
+  lookupActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  secondaryAction: { borderWidth: 1, borderColor: "#B99D75", borderRadius: 7, paddingHorizontal: 11, minHeight: 34, justifyContent: "center" },
+  secondaryActionText: { color: INK, fontSize: 12, fontWeight: "700" },
+  entryAction: { flexDirection: "row", gap: 5, alignItems: "center", paddingHorizontal: 8, minHeight: 34 },
+  entryActionText: { color: ACCENT, fontSize: 12, fontWeight: "800" },
+  saveError: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#F3D8CE", borderTopWidth: 1, borderTopColor: "#D7AA99", paddingHorizontal: 16, paddingVertical: 9 },
+  saveErrorText: { color: "#71372F", fontSize: 12, flex: 1 },
+  footer: { minHeight: 64, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: RULE, backgroundColor: PAPER_DEEP, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  navButton: { minWidth: 96, minHeight: 44, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 8 },
+  navButtonText: { color: INK, fontSize: 14, fontWeight: "700" },
+  footerStatus: { flex: 1, alignItems: "center" },
+  footerStatusText: { color: MUTED, fontSize: 11 },
+  nextButton: { minWidth: 96, minHeight: 44, paddingHorizontal: 15, borderRadius: 8, backgroundColor: ACCENT, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+  nextButtonText: { color: "#FFF9ED", fontSize: 14, fontWeight: "800" },
+  disabled: { opacity: 0.5 },
+  disabledText: { color: RULE },
+  errorTitle: { color: INK, fontSize: 19, fontWeight: "800", marginTop: 13 },
+  errorCopy: { color: MUTED, fontSize: 13, marginTop: 6, textAlign: "center" },
+  primarySmall: { backgroundColor: ACCENT, paddingHorizontal: 20, minHeight: 42, borderRadius: 8, justifyContent: "center", marginTop: 16 },
+  primarySmallText: { color: "#FFF9ED", fontWeight: "800" },
+  textButton: { padding: 12, marginTop: 3 },
+  textButtonLabel: { color: ACCENT, fontWeight: "700" },
 });
