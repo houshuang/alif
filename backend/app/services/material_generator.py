@@ -2301,10 +2301,29 @@ def _warm_sentence_cache_impl(
         db = SessionLocal()
         try:
             now = datetime.now(timezone.utc)
+            active_passage_sentence_counts = (
+                db.query(
+                    Sentence.story_id.label("story_id"),
+                    func.count(Sentence.id).label("active_sentence_count"),
+                )
+                .filter(
+                    Sentence.source == "passage",
+                    Sentence.is_active.is_(True),
+                    Sentence.story_id.isnot(None),
+                )
+                .group_by(Sentence.story_id)
+                .having(func.count(Sentence.id) >= 3)
+                .subquery()
+            )
             recent_count = (
                 db.query(Story)
+                .join(
+                    active_passage_sentence_counts,
+                    active_passage_sentence_counts.c.story_id == Story.id,
+                )
                 .filter(
                     Story.format_type == "maintenance_passage",
+                    Story.status == "active",
                     Story.created_at >= now - MAINTENANCE_PASSAGE_RECENT_WINDOW,
                 )
                 .count()

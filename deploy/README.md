@@ -8,7 +8,7 @@ own behavior — when they drift, things break silently.
 
 | File | Installed at | Owner | Notes |
 |---|---|---|---|
-| `alif-update-material.sh` | `/opt/alif-update-material.sh` | system crontab | 3-hourly material cron wrapper. Sets env vars that keep the frequency-core intake supply chain running. |
+| `alif-update-material.sh` | `/opt/alif-update-material.sh` | system crontab | 3-hourly material cron wrapper. Keeps the frequency-core intake running and invokes the bounded Codex-only embedded-story supply controller. |
 | `polyglot/deploy/polyglot-update-material.sh` | `/opt/polyglot-update-material.sh` | system crontab | 3-hourly Polyglot material cron wrapper (offset from Alif's). Five phases per pass, in order: `warm_pages_ahead`, `review_existing_sentences`, `warm_sentence_cache`, `translate_sentences`, `enrich_lemma_philology`. Sets `POLYGLOT_LLM_PROVIDER=codex` / `POLYGLOT_CODEX_MODEL=gpt-5.5` and pins `DATABASE_URL` at polyglot.db. |
 | `polyglot/deploy/deploy-polyglot.sh` | (deploy entry, not installed) | run locally | Polyglot Git deploy script: pushes `main`, pulls `origin/main` on the VM, links `/opt/polyglot-update-material.sh`, reinstalls + restarts `polyglot-backend`, health-checks port 3002. |
 

@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,38 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-02: Durable embedded-story supply — cron recovery, target cooldown, credential preflight
+
+**Reliability gap.** The improved generator was automatically invoked after a
+normal sentence session, but only as an in-process FastAPI background task. A
+restart could interrupt it, later sessions were the only retry trigger, failed
+target combinations had no cross-run memory, and quarantined stories counted
+against the 12-hour warm-cache cap. The three-hour root cron also did not load
+systemd's `/opt/alif/.env`; without an explicit override it looked in
+`/root/.codex` rather than the shared `/opt/alif/.codex` credentials.
+
+**Correction.** The versioned material wrapper now runs a fourth bounded phase,
+`maintain_short_story_supply.py`, with `CODEX_HOME` and `ALIF_CODEX_HOME` pinned
+to the shared credential directory. It maintains six *currently selectable*
+v2 passages, not merely six database rows: a story counts only while it remains
+active, retains at least three active passage sentences, and all three planned
+targets are presently due. The default cron budget is one accepted story per
+three-hour pass. Each non-empty run is persisted in `activity_log` before the
+LLM call and finalized as complete, partial, failed, or interrupted. Rejected
+target IDs cool down for 48 hours, an interrupted run is recovered after 45
+minutes, three failures in 24 hours create a visible alert, and credential or
+permission failures alert immediately. The recurring controller reuses the
+coherent batch planner's bounded fresh-candidate replacement logic.
+
+**Cap and validation.** The opportunistic warm-cache path remains as the fast
+path, but its recent-supply count now ignores failed stories and stories with
+fewer than three active sentences. Cron is the recovery path and shares the
+material-pipeline flock, so it cannot race warm-cache or another material job.
+`--status-only` checks live selectable supply, failed-target cooldown, binary,
+credential source, auth-file privacy, and auth modification time without a
+write or model call. The full backend suite passed 1,962 tests with nine slow
+tests intentionally deselected; the focused story/controller set passed 54.
 
 ## 2026-08-02: Short-story v2 cohort completion — planner continuity, fresh retries, six-story launch
 

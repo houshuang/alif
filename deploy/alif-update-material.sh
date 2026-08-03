@@ -7,10 +7,11 @@
 #
 #     30 */3 * * * /opt/alif-update-material.sh >> /var/log/alif-update-material.log 2>&1
 #
-# Wraps three passes per run, in order:
+# Wraps four passes per run, in order:
 #   1. rotate stale sentences
 #   2. update_material.py in maintenance-only mode (no Step A generation)
 #   3. refill the due-coverage deficit (R4, 2026-06-16)
+#   4. maintain a selectable supply of embedded short stories
 #
 # The material_jobs queue (plan/work) was retired 2026-06-16: it never drained
 # (a rescue-word flood starved everything else — ~3 jobs done/week against ~70
@@ -45,6 +46,9 @@ PYTHONPATH_VALUE="${PYTHONPATH:-/opt/limbic}"
 MAINTENANCE_TIMEOUT_SECONDS="${ALIF_MATERIAL_MAINTENANCE_TIMEOUT_SECONDS:-900}"
 DEFICIT_REFILL_TIMEOUT_SECONDS="${ALIF_DEFICIT_REFILL_TIMEOUT_SECONDS:-1200}"
 DEFICIT_REFILL_BUDGET="${ALIF_DEFICIT_REFILL_BUDGET:-30}"
+SHORT_STORY_TIMEOUT_SECONDS="${ALIF_SHORT_STORY_TIMEOUT_SECONDS:-1800}"
+SHORT_STORY_CRON_BUDGET="${ALIF_SHORT_STORY_CRON_BUDGET:-1}"
+SHORT_STORY_MIN_SELECTABLE="${ALIF_SHORT_STORY_MIN_SELECTABLE:-6}"
 
 # Intro supply chain — keep on by default in the cron context. The values are
 # still overridable from the environment (systemd Environment= or shell export
@@ -53,6 +57,11 @@ export ALIF_RUN_CRON_PREGENERATION="${ALIF_RUN_CRON_PREGENERATION:-1}"
 export ALIF_RUN_CRON_LEMMA_ENRICHMENT="${ALIF_RUN_CRON_LEMMA_ENRICHMENT:-1}"
 export ALIF_FREQ_CORE_INTAKE_MAX_RANK="${ALIF_FREQ_CORE_INTAKE_MAX_RANK:-3000}"
 export ALIF_FREQ_CORE_INTAKE_LIMIT="${ALIF_FREQ_CORE_INTAKE_LIMIT:-10}"
+# The API receives these through /opt/alif/.env, while root's cron does not
+# load the systemd EnvironmentFile. Pin cron to the same shared credentials so
+# story generation cannot silently fall back to an unauthenticated ~/.codex.
+export CODEX_HOME="${CODEX_HOME:-/opt/alif/.codex}"
+export ALIF_CODEX_HOME="${ALIF_CODEX_HOME:-$CODEX_HOME}"
 
 export PYTHONUNBUFFERED=1
 
@@ -81,6 +90,12 @@ run_phase "update_material.py maintenance-only" timeout "$MAINTENANCE_TIMEOUT_SE
 run_phase "refill_due_deficit.py" env ALIF_DEFICIT_REFILL_BUDGET="$DEFICIT_REFILL_BUDGET" \
   timeout "$DEFICIT_REFILL_TIMEOUT_SECONDS" \
   "$VENV" scripts/refill_due_deficit.py
+
+run_phase "maintain_short_story_supply.py" \
+  env ALIF_SHORT_STORY_CRON_BUDGET="$SHORT_STORY_CRON_BUDGET" \
+  ALIF_SHORT_STORY_MIN_SELECTABLE="$SHORT_STORY_MIN_SELECTABLE" \
+  timeout "$SHORT_STORY_TIMEOUT_SECONDS" \
+  "$VENV" scripts/maintain_short_story_supply.py
 
 echo "[$TIMESTAMP] Material cron done" >> "$LOG"
 echo "---" >> "$LOG"
