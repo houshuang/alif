@@ -153,3 +153,35 @@ def test_maintain_supply_records_completed_run_and_forwards_cooldown(
     ).one()
     assert row.detail_json["status"] == "complete"
     assert row.detail_json["after"]["selectable_story_count"] == 3
+
+
+def test_status_only_reports_supply_deficit(monkeypatch, capsys):
+    class FakeDb:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(maintainer, "SessionLocal", FakeDb)
+    monkeypatch.setattr(
+        maintainer,
+        "supply_snapshot",
+        lambda db: maintainer.SupplySnapshot(30, 6, 3, [1, 2, 3]),
+    )
+    monkeypatch.setattr(
+        maintainer,
+        "recent_failed_target_ids",
+        lambda db, now: set(),
+    )
+    monkeypatch.setattr(
+        maintainer,
+        "codex_credential_preflight",
+        lambda: {"credential_source": "auth_file"},
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["maintain_short_story_supply.py", "--status-only"],
+    )
+
+    assert maintainer.main() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "degraded"
+    assert report["selectable_deficit"] == 3

@@ -432,9 +432,14 @@ def main() -> int:
     if args.status_only:
         db = SessionLocal()
         try:
+            snapshot = supply_snapshot(db)
+            minimum = max(1, min(args.minimum_selectable, 12))
+            deficit = max(0, minimum - snapshot.selectable_story_count)
             report = {
-                "status": "healthy",
-                "supply": asdict(supply_snapshot(db)),
+                "status": "healthy" if deficit == 0 else "degraded",
+                "minimum_selectable": minimum,
+                "selectable_deficit": deficit,
+                "supply": asdict(snapshot),
                 "failed_target_lemma_ids_on_cooldown": sorted(
                     recent_failed_target_ids(db, now=datetime.now(timezone.utc))
                 ),
