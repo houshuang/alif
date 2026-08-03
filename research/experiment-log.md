@@ -48,6 +48,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Book reader selection is token-local
+
+**Observed defect.** The reader painted state by lemma rather than exact token.
+Production Momo passages contain multiple visibly different forms of one lemma
+(for example `شخصًا`/`شخص` and `صغير`/`الصغيرة`), so tapping one could illuminate
+another word before the exact selected-token treatment became apparent. Guided
+admission also grouped all visible positions sharing a lemma.
+
+**Correction.** Scheduling remains lemma-level, but selection and learning
+decoration are now limited to the exact tapped token position. Selecting a Guided
+token no longer changes admission implicitly; Learn/Undo in the lookup panel is
+the sole opt-in control. Existing-word misses also persist a display-only exact
+token position, so the canonical lemma still receives one authoritative miss
+without painting every visible inflection red. The server already
+canonicalizes that position and removes other occurrences of the admitted lemma
+from the inert cohort, so no learning semantics are lost. Tapping the currently
+selected token again closes lookup state and cancels any in-flight detail response;
+it does not silently undo the word's recorded learning/miss decision. Guided panel
+Undo remains the explicit way to reverse admission.
+
 ## 2026-08-03: Book reader shell correction — reading first, controls on demand
 
 **Problem.** The first production reader exposed three stacked control regions,
