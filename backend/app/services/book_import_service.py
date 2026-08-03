@@ -24,6 +24,7 @@ from app.services.morphology import get_word_features
 from app.services.ocr_service import _call_gemini_vision, extract_text_from_image
 from app.services.sentence_validator import (
     build_lemma_lookup,
+    is_function_word_lemma,
     map_tokens_to_lemmas,
     normalize_alef,
     requires_exact_running_text_alias,
@@ -658,7 +659,19 @@ def import_processed_book(
             )
         lemma_bare = strip_diacritics(lemma_ar)
         lemma_norm = normalize_alef(lemma_bare)
-        lemma_id = lemma_lookup.get(lemma_norm)
+        # A normalized-bare lookup is not enough for curated data: it chooses
+        # whichever homograph was inserted first (مَلَك "angel" can steal
+        # مَلِك "king"). Resolve the explicit Arabic/gloss/POS identity with
+        # the same collision-aware correction machinery used by validators.
+        from app.services.sentence_validator import correct_mapping
+        lemma_id = correct_mapping(
+            db,
+            lemma_ar,
+            gloss_en,
+            entry.get("pos") or "",
+            current_lemma_id=None,
+            lemma_lookup=lemma_lookup,
+        )
         if lemma_id is None:
             lemma = Lemma(
                 lemma_ar=lemma_ar,
@@ -675,7 +688,8 @@ def import_processed_book(
             db.flush()
             lemma_id = lemma.lemma_id
             curated_ids.append(lemma_id)
-            lemma_lookup[lemma_norm] = lemma_id
+            if lemma_norm not in lemma_lookup:
+                lemma_lookup[lemma_norm] = lemma_id
         for surface in surfaces:
             surface_norm = _story_word_bare(surface)
             if surface_norm:
@@ -688,12 +702,11 @@ def import_processed_book(
 
     knowledge_map = _build_knowledge_map(db)
     _create_story_words(db, story, body_ar, lemma_lookup, knowledge_map)
-    # A curated surface is an explicit, page-specific editorial decision. Apply
-    # it directly when the general lookup layer declines a cliticized, fused,
-    # or fictional form; strict imports must not fall through to morphology.
+    # A curated surface is an explicit editorial decision and therefore owns
+    # the mapping even when the general lookup produced *some* lemma. Applying
+    # it only to unmapped rows allowed existing homographs to defeat curation.
+    curated_positions: set[int] = set()
     for word in story.words:
-        if word.lemma_id is not None:
-            continue
         curated = curated_surface_map.get(_story_word_bare(word.surface_form))
         if curated is None:
             continue
@@ -703,6 +716,7 @@ def import_processed_book(
         word.is_known_at_creation = bool(
             name_type or knowledge_map.get(lemma_id) in ("learning", "known")
         )
+        curated_positions.add(word.position)
         if name_type:
             word.is_function_word = True
             word.name_type = name_type
@@ -718,24 +732,21 @@ def import_processed_book(
         if 0 <= (word.sentence_index or 0) < len(sentence_pages):
             word.page_number = sentence_pages[word.sentence_index or 0]
 
-    if strict_lexicon:
-        unmapped = sorted({
-            _story_word_bare(word.surface_form)
-            for word in story.words
-            if word.lemma_id is None
-            and not word.is_function_word
-            and _story_word_bare(word.surface_form)
-        })
-        if unmapped:
-            raise ValueError(
-                "Strict processed-book import has unmapped Arabic forms: "
-                + ", ".join(unmapped)
-            )
-        # Curated mapping controls *which* lemma a surface means; it is not a
-        # waiver from the shared lemma pipeline. Release the import write lock,
-        # then run the same synchronous gates/enrichment used by every admitted
-        # reader lemma before exposing the book.
-        db.commit()
+    # Unlike ordinary story import, a processed bilingual book already gives
+    # us unusually strong evidence: stable page boundaries and the published
+    # English translation. Verify every mapped token, not only newly created
+    # lemmas, before the hidden staging row can become reader-visible.
+    # Collision alternatives are reconstructed from the full gated inventory,
+    # so homographs such as مَلِك/مَلَك and أَحَد/أَحَد require an explicit
+    # contextual choice instead of inheriting lookup insertion order.
+    db.commit()
+    db.refresh(story)
+
+    try:
+        # Curated rows were committed with the hidden staging Story so external
+        # calls do not hold SQLite's writer lock. Gate them immediately: if
+        # later contextual verification blocks the book, no minimal/ungated
+        # lemma is left behind in the shared lexicon.
         if curated_ids:
             from app.services.lemma_quality import run_quality_gates
             run_quality_gates(
@@ -744,31 +755,42 @@ def import_processed_book(
                 background_enrich=False,
             )
             db.refresh(story)
+
+        _verify_processed_book_story_mappings(
+            db,
+            story,
+            normalized_pages,
+            trusted_positions=curated_positions,
+        )
+
+        if strict_lexicon:
+            unmapped = sorted({
+                _story_word_bare(word.surface_form)
+                for word in story.words
+                if word.lemma_id is None
+                and not word.is_function_word
+                and _story_word_bare(word.surface_form)
+            })
+            if unmapped:
+                raise ValueError(
+                    "Strict processed-book import has unmapped Arabic forms: "
+                    + ", ".join(unmapped)
+                )
+            new_ids = curated_ids
+        else:
+            new_ids = curated_ids + _import_unknown_words(db, story, lemma_lookup)
+
         _recalculate_story_counts(db, story)
         story.status = "active"
         db.commit()
         db.refresh(story)
-        new_ids = curated_ids
-    else:
-        # Persist the inert book and release SQLite's write lock before the
-        # enrichment pipeline makes any external calls. The generating status
-        # is hidden from the reader library until the second stage succeeds.
-        db.commit()
-        db.refresh(story)
-
-        try:
-            new_ids = curated_ids + _import_unknown_words(db, story, lemma_lookup)
-            _recalculate_story_counts(db, story)
-            story.status = "active"
+    except Exception:
+        db.rollback()
+        failed_story = db.get(Story, story.id)
+        if failed_story is not None:
+            failed_story.status = "failed"
             db.commit()
-            db.refresh(story)
-        except Exception:
-            db.rollback()
-            failed_story = db.get(Story, story.id)
-            if failed_story is not None:
-                failed_story.status = "failed"
-                db.commit()
-            raise
+        raise
 
     log_interaction(
         event="processed_book_imported",
@@ -778,3 +800,233 @@ def import_processed_book(
         new_lemmas=len(new_ids),
     )
     return story, new_ids
+
+
+def _verify_processed_book_story_mappings(
+    db: Session,
+    story: Story,
+    normalized_pages: list[dict],
+    *,
+    batch_size: int = 1,
+    trusted_positions: set[int] | None = None,
+    apply_repairs: bool = False,
+) -> dict[str, int]:
+    """Contextually verify every mapped StoryWord in a processed book.
+
+    The function is intentionally fail-closed. A missing provider verdict or
+    one malformed row aborts the import while its Story remains hidden. By
+    default, even a structurally valid proposed change is a curation blocker,
+    not an automatic write: model output is evidence, not lexical authority.
+    The explicit ``apply_repairs`` mode exists for reviewed maintenance runs;
+    it may use only fully gated canonical destinations and clears unresolved
+    bad mappings for the ordinary full-enrichment pipeline.
+
+    Page-level English is supplied to every Arabic sentence on that page. A
+    processed artifact's English often spans clauses differently from Arabic,
+    so trying to align fragments positionally can attach the wrong translation
+    and manufacture false mapping verdicts.
+    """
+    from app.services.sentence_validator import (
+        TokenMapping,
+        apply_corrections,
+        batch_verify_sentences,
+        build_comprehensive_lemma_lookup,
+    )
+
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    trusted_positions = trusted_positions or set()
+
+    # The caller commits the staging Story first. Keep every external verifier
+    # call outside a SQLite write transaction, and commit only after a complete
+    # batch has trustworthy verdicts.
+    db.expire_all()
+    story = db.get(Story, story.id)
+    if story is None:
+        raise ValueError("Processed-book story no longer exists")
+
+    gated_lookup = build_comprehensive_lemma_lookup(db, require_gated=True)
+    words = sorted(story.words, key=lambda word: word.position)
+    story_word_by_position = {word.position: word for word in words}
+
+    page_english = {
+        page_number: (page.get("english") or "").strip()
+        for page_number, page in enumerate(normalized_pages, start=1)
+    }
+    grouped: dict[tuple[int, int], list] = {}
+    for word in words:
+        if word.lemma_id is None or word.position in trusted_positions:
+            continue
+        page_number = word.page_number or 1
+        sentence_index = word.sentence_index or 0
+        grouped.setdefault((page_number, sentence_index), []).append(word)
+
+    units: list[dict] = []
+    lemma_ids: set[int] = set()
+    for (page_number, _sentence_index), unit_words in sorted(grouped.items()):
+        mappings = []
+        for word in unit_words:
+            # Re-run the surface through the current gated inventory solely to
+            # recover every collision candidate. Preserve the actual stored ID
+            # as option A so the verifier audits what would reach the reader.
+            remapped = map_tokens_to_lemmas(
+                [word.surface_form],
+                gated_lookup,
+                target_lemma_id=0,
+                target_bare="",
+            )
+            candidate_ids: list[int] = []
+            via_clitic = False
+            if remapped:
+                candidate_ids = [
+                    candidate
+                    for candidate in [
+                        remapped[0].lemma_id,
+                        *(remapped[0].alternative_lemma_ids or []),
+                    ]
+                    if candidate is not None and candidate != word.lemma_id
+                ]
+                via_clitic = remapped[0].via_clitic
+            alternatives = list(dict.fromkeys(candidate_ids))
+            mapping = TokenMapping(
+                position=word.position,
+                surface_form=word.surface_form,
+                lemma_id=word.lemma_id,
+                is_target=False,
+                is_function_word=bool(word.is_function_word),
+                alternative_lemma_ids=alternatives or None,
+                via_clitic=via_clitic,
+            )
+            mappings.append(mapping)
+            lemma_ids.add(word.lemma_id)
+            lemma_ids.update(alternatives)
+
+        units.append({
+            "arabic": " ".join(word.surface_form for word in unit_words),
+            "english": page_english.get(page_number, ""),
+            "mappings": mappings,
+            "has_ambiguous": any(
+                mapping.alternative_lemma_ids for mapping in mappings
+            ),
+        })
+
+    lemma_map = {
+        lemma.lemma_id: lemma
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
+    } if lemma_ids else {}
+    knowledge_map = _build_knowledge_map(db, lemma_ids=lemma_ids or None)
+
+    corrected = 0
+    nulled = 0
+    verified_units = 0
+    for start in range(0, len(units), batch_size):
+        batch = units[start:start + batch_size]
+        verdicts = batch_verify_sentences(
+            batch,
+            lemma_map,
+            return_invalid_rows=True,
+        )
+        if verdicts is None:
+            raise RuntimeError(
+                "Processed-book mapping verification unavailable; import remains hidden"
+            )
+        if len(verdicts) != len(batch):
+            raise RuntimeError(
+                "Processed-book mapping verification returned incomplete verdicts"
+            )
+
+        for unit, verdict in zip(batch, verdicts, strict=True):
+            invalid_reason = verdict.get("invalid_reason")
+            if invalid_reason:
+                raise RuntimeError(
+                    "Processed-book mapping verification returned an invalid row: "
+                    f"{invalid_reason}"
+                )
+
+            mappings = unit["mappings"]
+            mapping_by_position = {
+                mapping.position: mapping for mapping in mappings
+            }
+            proposed_positions: set[int] = set()
+            for choice in verdict.get("disambiguation", []):
+                mapping = mapping_by_position[choice["position"]]
+                if mapping.lemma_id != choice["lemma_id"]:
+                    proposed_positions.add(mapping.position)
+
+            issues = verdict.get("issues", [])
+            proposed_positions.update(
+                issue["position"] for issue in issues
+            )
+            if proposed_positions and not apply_repairs:
+                raise RuntimeError(
+                    "Processed-book mapping verification requires explicit "
+                    "curation at token positions: "
+                    + ", ".join(str(position) for position in sorted(proposed_positions))
+                )
+
+            for choice in verdict.get("disambiguation", []):
+                mapping = mapping_by_position[choice["position"]]
+                mapping.lemma_id = choice["lemma_id"]
+
+            failed_positions = set(apply_corrections(
+                issues,
+                mappings,
+                db,
+                lemma_lookup=gated_lookup,
+                arabic_text=unit["arabic"],
+                require_gated_lemmas=True,
+            ))
+            issue_by_position = {
+                issue["position"]: issue for issue in issues
+            }
+
+            for mapping in mappings:
+                story_word = story_word_by_position[mapping.position]
+                if mapping.position in failed_positions:
+                    story_word.lemma_id = None
+                    story_word.gloss_en = (
+                        issue_by_position[mapping.position].get("correct_gloss")
+                        or None
+                    )
+                    story_word.is_known_at_creation = False
+                    nulled += 1
+                    continue
+                if story_word.lemma_id == mapping.lemma_id:
+                    continue
+
+                story_word.lemma_id = mapping.lemma_id
+                destination = lemma_map.get(mapping.lemma_id)
+                if destination is None and mapping.lemma_id is not None:
+                    destination = db.get(Lemma, mapping.lemma_id)
+                    if destination is not None:
+                        lemma_map[destination.lemma_id] = destination
+                story_word.gloss_en = (
+                    destination.gloss_en if destination is not None else None
+                )
+                story_word.is_known_at_creation = bool(
+                    mapping.lemma_id
+                    and knowledge_map.get(mapping.lemma_id) in ("learning", "known")
+                )
+                if destination is not None:
+                    story_word.is_function_word = is_function_word_lemma(
+                        destination.lemma_ar_bare,
+                        destination.function_word_override,
+                    )
+                corrected += 1
+
+            verified_units += 1
+
+        db.commit()
+
+    logger.info(
+        "Processed book story %d mapping verification: %d units, %d corrected, %d nulled",
+        story.id,
+        verified_units,
+        corrected,
+        nulled,
+    )
+    return {
+        "verified_units": verified_units,
+        "corrected": corrected,
+        "nulled": nulled,
+    }

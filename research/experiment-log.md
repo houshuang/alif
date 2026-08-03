@@ -48,6 +48,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Processed-book mapping verification fails closed; Momo Chapter 5 three-page repair rehearsed
+
+**Root cause and scope.** Processed bilingual imports trusted the first normalized
+bare-form lookup winner for every existing lemma. The curated lexicon was applied
+only when a token remained unmapped, so an existing homograph defeated an explicit
+editorial mapping (`مَلَك` angel stole `مَلِك` king). Only newly created StoryWord
+mappings were subsequently verified, in Arabic-only position chunks. A complete
+three-page review of reader-only Story #240 found 93 exact token preimages needing
+inspection, 83 mapping targets, and 13 contextual gloss overrides. This includes
+the earlier page-68 candidates plus missed errors such as `الفصل` showing only
+“classroom,” `فلنقل`→transport, `الأقدام`→precede, `بالفعل`→verb, `سرها`→delight,
+gold→go, weight→beech, and two occurrences of indefinite `أحد`→Sunday.
+
+**Importer hardening.** Curated identity resolution is now gloss/POS-aware and
+curated surfaces override any heuristic mapping. Newly created curated lemmas run
+the shared synchronous quality gates immediately after the hidden staging commit,
+so a later blocked import never leaves minimal or ungated lexical rows. Every
+non-curated mapped StoryWord is verified with its Arabic sentence, the full English
+page translation, and all candidates reconstructed from the gated canonical
+inventory. Calls are deliberately one sentence per batch to avoid the observed
+large-prompt timeout/weak-provider fallback. Missing, malformed, or incomplete
+verdicts fail closed. A model-proposed mapping change is only a curation blocker by
+default; it is never silently applied. The explicit maintenance repair mode remains
+available only for reviewed runs and still restricts destinations to gated
+canonicals.
+
+**Repair discipline and rehearsal.** The versioned repair manifest validates Story
+#240's title, 611-token size, and every reviewed `(position, surface, lemma_id)`
+preimage. It reuses gated destinations for grammatical forms and known canonicals,
+creates only 47 distinct missing identities, and re-enriches nine objectively
+malformed or too-narrow existing entries. The first production-snapshot rehearsal
+correctly stopped because variant detection linked new `تِلْكَ` to existing
+demonstrative #443; the manifest was narrowed to reuse #443 and improve its gloss.
+The second full rehearsal passed the same finalize, shape, variant, morphology,
+etymology, root, grammar, example, and stamp pipeline: 47 new canonical lemmas,
+zero variants, 52 stamps including repaired entries, 81 changed token mappings,
+zero learner rows, `PRAGMA quick_check=ok`, and post-repair Story counts 181/259
+known (77.5%). Production apply remains contingent on a fresh backup and this same
+post-apply verifier.
+
 ## 2026-08-03: Momo page 68 — gentlemen mapping corrected; contextual residue inventoried
 
 **Reported defect.** The reader rendered `والسادة` as “blocked, closed.” Production

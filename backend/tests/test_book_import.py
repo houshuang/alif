@@ -12,6 +12,13 @@ from app.models import Lemma, ReviewLog, Root, Sentence, SentenceWord, Story, St
 _root_cache: dict[str, int] = {}
 
 
+def _clean_mapping_verdicts(sentences, _lemma_map, **_kwargs):
+    return [
+        {"index": index, "disambiguation": [], "issues": []}
+        for index, _sentence in enumerate(sentences)
+    ]
+
+
 def _create_lemma(db, arabic="كتاب", bare=None, english="book", pos="noun", freq=100, root_str="ك.ت.ب"):
     bare = bare or arabic
     # Reuse root if already created in this session
@@ -1034,8 +1041,14 @@ class TestProcessedBookImport:
             ("(المترجم).", "المترجم"),
         ]
 
+    @patch(
+        "app.services.sentence_validator.batch_verify_sentences",
+        side_effect=_clean_mapping_verdicts,
+    )
     @patch("app.services.story_service.generate_completion")
-    def test_bilingual_pages_import_without_learning_state(self, mock_generate, db_session):
+    def test_bilingual_pages_import_without_learning_state(
+        self, mock_generate, mock_verify, db_session
+    ):
         # No unresolved words need an LLM result in this fixture.
         mock_generate.return_value = []
         book = _create_lemma(db_session, "كِتَاب", "كتاب", "book", root_str="ك.ت.ب")
@@ -1075,11 +1088,22 @@ class TestProcessedBookImport:
             "english_translation": "The book.",
             "token_positions": [2],
         }]
+        assert mock_verify.call_count == 2
+        verified_rows = [
+            call.args[0][0] for call in mock_verify.call_args_list
+        ]
+        assert [row["english"] for row in verified_rows] == [
+            "A book.", "The book.",
+        ]
 
+    @patch(
+        "app.services.sentence_validator.batch_verify_sentences",
+        side_effect=_clean_mapping_verdicts,
+    )
     @patch("app.services.lemma_quality.run_quality_gates")
     @patch("app.services.story_service.generate_completion")
     def test_strict_curated_lexicon_maps_then_runs_shared_full_enrichment(
-        self, mock_generate, mock_quality_gates, db_session
+        self, mock_generate, mock_quality_gates, mock_verify, db_session
     ):
         from app.services.book_import_service import import_processed_book
         from app.models import StoryWord
@@ -1122,3 +1146,237 @@ class TestProcessedBookImport:
         assert db_session.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.lemma_id.in_(new_ids)
         ).count() == 0
+        # Explicit curated surfaces are authoritative; everything else still
+        # goes through contextual verification.
+        assert mock_verify.call_count == 0
+
+    @patch("app.services.lemma_quality.run_quality_gates")
+    def test_curated_identity_overrides_preexisting_homograph_mapping(
+        self, mock_quality_gates, db_session
+    ):
+        gated_at = datetime.now(timezone.utc)
+        angel = _create_lemma(
+            db_session, "مَلَك", "ملك", "angel", root_str="م.ل.ك"
+        )
+        king = _create_lemma(
+            db_session, "مَلِك", "ملك", "king", root_str="م.ل.ك"
+        )
+        angel.gates_completed_at = gated_at
+        king.gates_completed_at = gated_at
+        db_session.commit()
+
+        from app.services.book_import_service import import_processed_book
+
+        with patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            side_effect=AssertionError("curated token reached verifier"),
+        ):
+            story, new_ids = import_processed_book(
+                db_session,
+                title_ar="فصل",
+                title_en="Chapter",
+                author="Author",
+                pages=[{"arabic": "الملك", "english": "the king"}],
+                curated_lexicon=[{
+                    "surfaces": ["الملك"],
+                    "lemma_ar": "مَلِك",
+                    "gloss_en": "king",
+                    "pos": "noun",
+                }],
+                strict_lexicon=True,
+            )
+
+        word = db_session.query(StoryWord).filter_by(story_id=story.id).one()
+        assert word.lemma_id == king.lemma_id
+        assert word.lemma_id != angel.lemma_id
+        assert new_ids == []
+        mock_quality_gates.assert_not_called()
+
+    def test_verifier_disambiguates_existing_homograph_from_gated_inventory(
+        self, db_session
+    ):
+        gated_at = datetime.now(timezone.utc)
+        sunday = _create_lemma(
+            db_session, "أَحَد", "احد", "Sunday", root_str="أ.ح.د"
+        )
+        indefinite = _create_lemma(
+            db_session, "أَحَد", "احد", "someone; one", pos="pron",
+            root_str="أ.ح.د",
+        )
+        sunday.gates_completed_at = gated_at
+        indefinite.gates_completed_at = gated_at
+        story = Story(
+            title_ar="فصل",
+            body_ar="مِنْ أَحَدِ السُّيَّاحِ.",
+            source="book_ocr",
+            status="generating",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id,
+            position=10,
+            sentence_index=0,
+            page_number=1,
+            surface_form="أحد",
+            lemma_id=sunday.lemma_id,
+            gloss_en="Sunday",
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        from app.services.book_import_service import (
+            _verify_processed_book_story_mappings,
+        )
+
+        def choose_indefinite(sentences, lemma_map, **kwargs):
+            assert kwargs == {"return_invalid_rows": True}
+            mapping = sentences[0]["mappings"][0]
+            assert mapping.lemma_id == sunday.lemma_id
+            assert indefinite.lemma_id in mapping.alternative_lemma_ids
+            assert sentences[0]["english"] == "from a tourist"
+            assert set(lemma_map) >= {sunday.lemma_id, indefinite.lemma_id}
+            return [{
+                "index": 0,
+                "disambiguation": [{
+                    "position": word.position,
+                    "lemma_id": indefinite.lemma_id,
+                }],
+                "issues": [],
+            }]
+
+        with patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            side_effect=choose_indefinite,
+        ):
+            with pytest.raises(RuntimeError, match="explicit curation"):
+                _verify_processed_book_story_mappings(
+                    db_session,
+                    story,
+                    [{"arabic": story.body_ar, "english": "from a tourist"}],
+                )
+            db_session.refresh(word)
+            assert word.lemma_id == sunday.lemma_id
+
+            result = _verify_processed_book_story_mappings(
+                db_session,
+                story,
+                [{"arabic": story.body_ar, "english": "from a tourist"}],
+                apply_repairs=True,
+            )
+
+        db_session.refresh(word)
+        assert result == {"verified_units": 1, "corrected": 1, "nulled": 0}
+        assert word.lemma_id == indefinite.lemma_id
+        assert word.gloss_en == "someone; one"
+
+    def test_verifier_clears_wrong_mapping_when_correct_lemma_is_absent(
+        self, db_session
+    ):
+        wrong = _create_lemma(
+            db_session, "مَلَك", "ملك", "angel", root_str="م.ل.ك"
+        )
+        wrong.gates_completed_at = datetime.now(timezone.utc)
+        story = Story(
+            title_ar="فصل",
+            body_ar="مَلِكُهُمْ",
+            source="book_ocr",
+            status="generating",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id,
+            position=4,
+            sentence_index=0,
+            page_number=1,
+            surface_form="ملكهم",
+            lemma_id=wrong.lemma_id,
+            gloss_en="angel",
+            is_known_at_creation=True,
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        from app.services.book_import_service import (
+            _verify_processed_book_story_mappings,
+        )
+
+        verdict = [{
+            "index": 0,
+            "disambiguation": [],
+            "issues": [{
+                "position": 4,
+                "correct_lemma_ar": "مَلِك",
+                "correct_gloss": "king",
+                "correct_pos": "noun",
+                "explanation": "The context refers to a ruler.",
+            }],
+        }]
+        with patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=verdict,
+        ):
+            result = _verify_processed_book_story_mappings(
+                db_session,
+                story,
+                [{"arabic": story.body_ar, "english": "their king"}],
+                apply_repairs=True,
+            )
+
+        db_session.refresh(word)
+        assert result == {"verified_units": 1, "corrected": 0, "nulled": 1}
+        assert word.lemma_id is None
+        assert word.gloss_en == "king"
+        assert word.is_known_at_creation is False
+
+    @pytest.mark.parametrize("verdict", [None, [{
+        "index": 0,
+        "disambiguation": [],
+        "issues": [],
+        "invalid_reason": "malformed_issues",
+        "invalid_positions": [0],
+    }]])
+    def test_verifier_fails_closed_on_unavailable_or_invalid_verdict(
+        self, db_session, verdict
+    ):
+        lemma = _create_lemma(db_session, "كِتَاب", "كتاب", "book")
+        lemma.gates_completed_at = datetime.now(timezone.utc)
+        story = Story(
+            title_ar="فصل",
+            body_ar="كِتَاب",
+            source="book_ocr",
+            status="generating",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id,
+            position=0,
+            sentence_index=0,
+            page_number=1,
+            surface_form="كتاب",
+            lemma_id=lemma.lemma_id,
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        from app.services.book_import_service import (
+            _verify_processed_book_story_mappings,
+        )
+
+        with patch(
+            "app.services.sentence_validator.batch_verify_sentences",
+            return_value=verdict,
+        ), pytest.raises(RuntimeError, match="verification"):
+            _verify_processed_book_story_mappings(
+                db_session,
+                story,
+                [{"arabic": "كِتَاب", "english": "book"}],
+            )
+
+        db_session.refresh(word)
+        assert word.lemma_id == lemma.lemma_id
