@@ -15,11 +15,15 @@ import { completeBookPassage, getBookPageDetail, lookupReviewWord } from "../lib
 import {
   BookPassageDraft,
   BookReaderMode,
+  BookReaderPolicy,
   bookPassageDraftKey,
   bookReaderLocationKey,
+  countGuidedLearningWords,
   parseBookPassageDraft,
   parseBookReaderLocation,
+  positionsForSameGuidedWord,
   positionsForSameUnmappedSurface,
+  shortBookGloss,
 } from "../lib/book-reader";
 import { stripDiacritics } from "../lib/review/tashkeel-evidence";
 import { BookPageDetail, BookPageToken, WordLookupResult } from "../lib/types";
@@ -34,20 +38,32 @@ const ACCENT = "#8B4A2B";
 const UNKNOWN = "#A33E32";
 const MODE_KEY = "@alif:book-reader:mode";
 const SPAN_KEY = "@alif:book-reader:span";
+const POLICY_KEY = "@alif:book-reader:policy";
 
-function freshClientReviewId(storyId: number, page: number, tokenPositions: number[]): string {
+function freshClientReviewId(
+  storyId: number,
+  page: number,
+  tokenPositions: number[],
+  policy: BookReaderPolicy,
+): string {
   const range = tokenPositions.length > 0
     ? `${tokenPositions[0]}-${tokenPositions[tokenPositions.length - 1]}`
     : "empty";
-  return `bp:${storyId}:${page}:${range}:${Date.now().toString(36)}`;
+  return `bp:${storyId}:${page}:${range}:${policy}:${Date.now().toString(36)}`;
 }
 
-function emptyDraft(storyId: number, page: number, tokenPositions: number[]): BookPassageDraft {
+function emptyDraft(
+  storyId: number,
+  page: number,
+  tokenPositions: number[],
+  policy: BookReaderPolicy,
+): BookPassageDraft {
   return {
     unknownLemmaIds: [],
     unknownTokenPositions: [],
     dontLearnTokenPositions: [],
-    clientReviewId: freshClientReviewId(storyId, page, tokenPositions),
+    learnTokenPositions: [],
+    clientReviewId: freshClientReviewId(storyId, page, tokenPositions, policy),
   };
 }
 
@@ -61,6 +77,7 @@ export default function BookPageScreen() {
   const [offset, setOffset] = useState(0);
   const [span, setSpan] = useState<1 | 2>(1);
   const [mode, setMode] = useState<BookReaderMode>("both");
+  const [policy, setPolicy] = useState<BookReaderPolicy>("clean");
   const [draft, setDraft] = useState<BookPassageDraft | null>(null);
   const [draftReady, setDraftReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -99,11 +116,12 @@ export default function BookPageScreen() {
     setSelectedToken(null);
     setLookup(null);
     try {
-      const [next, rawLocation, savedMode, savedSpan] = await Promise.all([
+      const [next, rawLocation, savedMode, savedSpan, savedPolicy] = await Promise.all([
         getBookPageDetail(storyId, pageNumber),
         AsyncStorage.getItem(bookReaderLocationKey(storyId)).catch(() => null),
         AsyncStorage.getItem(MODE_KEY).catch(() => null),
         AsyncStorage.getItem(SPAN_KEY).catch(() => null),
+        AsyncStorage.getItem(POLICY_KEY).catch(() => null),
       ]);
       const localLocation = parseBookReaderLocation(rawLocation);
       const desiredIndex = preferredSentenceIndex
@@ -128,6 +146,7 @@ export default function BookPageScreen() {
       if (savedMode === "arabic" || savedMode === "both") setMode(savedMode);
       if (savedSpan === "2") setSpan(2);
       else if (savedSpan === "1") setSpan(1);
+      if (savedPolicy === "guided" || savedPolicy === "clean") setPolicy(savedPolicy);
       passageStartedAt.current = Date.now();
     } catch (error) {
       console.error("Failed to load book passage", error);
@@ -169,29 +188,29 @@ export default function BookPageScreen() {
     setDraftReady(false);
     setSelectedToken(null);
     setLookup(null);
-    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList);
+    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList, policy);
     AsyncStorage.getItem(key)
       .then((raw) => {
         if (cancelled) return;
-        setDraft(parseBookPassageDraft(raw) ?? emptyDraft(data.story_id, data.page_number, visiblePositionList));
+        setDraft(parseBookPassageDraft(raw) ?? emptyDraft(data.story_id, data.page_number, visiblePositionList, policy));
         passageStartedAt.current = Date.now();
         setDraftReady(true);
       })
       .catch(() => {
         if (cancelled) return;
-        setDraft(emptyDraft(data.story_id, data.page_number, visiblePositionList));
+        setDraft(emptyDraft(data.story_id, data.page_number, visiblePositionList, policy));
         setDraftReady(true);
       });
     return () => { cancelled = true; };
-  }, [data, visiblePositionList, visibleSentenceIndices]);
+  }, [data, policy, visiblePositionList, visibleSentenceIndices]);
 
   useEffect(() => {
     if (!data || !draft || !draftReady || visibleSentenceIndices.length === 0) return;
-    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList);
+    const key = bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList, policy);
     AsyncStorage.setItem(key, JSON.stringify(draft)).catch((error) =>
       console.warn("Failed to persist passage marks", error),
     );
-  }, [data, draft, draftReady, visiblePositionList, visibleSentenceIndices]);
+  }, [data, draft, draftReady, policy, visiblePositionList, visibleSentenceIndices]);
 
   useEffect(() => {
     const currentPassage = data?.passages[offset];
@@ -218,17 +237,49 @@ export default function BookPageScreen() {
     AsyncStorage.setItem(SPAN_KEY, String(next)).catch(() => {});
   }
 
+  function updatePolicy(next: BookReaderPolicy) {
+    setPolicy(next);
+    AsyncStorage.setItem(POLICY_KEY, next).catch(() => {});
+  }
+
   async function openToken(token: BookPageToken) {
     if (!draft || !token.is_schedulable) return;
+    const requestId = ++lookupRequest.current;
     setSelectedToken(token);
     setLookup(null);
     setLookupError(false);
+    setLookupLoading(false);
+
+    if (policy === "guided" && token.reader_gloss_eligible) {
+      const positions = positionsForSameGuidedWord(visibleTokens, token);
+      const alreadySelected = positions.some((position) => (
+        draft.learnTokenPositions.includes(position)
+      ));
+      setDraft((current) => current ? {
+        ...current,
+        learnTokenPositions: alreadySelected
+          ? current.learnTokenPositions.filter((position) => !positions.includes(position))
+          : Array.from(new Set([...current.learnTokenPositions, ...positions])),
+      } : current);
+      if (token.lemma_id != null) {
+        setLookupLoading(true);
+        try {
+          const result = await lookupReviewWord(token.lemma_id);
+          if (lookupRequest.current === requestId) setLookup(result);
+        } catch {
+          if (lookupRequest.current === requestId) setLookupError(true);
+        } finally {
+          if (lookupRequest.current === requestId) setLookupLoading(false);
+        }
+      }
+      return;
+    }
+
     if (token.lemma_id != null) {
       setDraft((current) => current ? {
         ...current,
         unknownLemmaIds: Array.from(new Set([...current.unknownLemmaIds, token.lemma_id!])),
       } : current);
-      const requestId = ++lookupRequest.current;
       setLookupLoading(true);
       try {
         const result = await lookupReviewWord(token.lemma_id);
@@ -291,16 +342,18 @@ export default function BookPageScreen() {
     setSaveError(false);
     try {
       await completeBookPassage(data.story_id, data.page_number, {
+        reader_policy: policy,
         sentence_indices: visibleSentenceIndices,
         passage_token_positions: visiblePositionList,
         unknown_lemma_ids: draft.unknownLemmaIds,
         unknown_token_positions: draft.unknownTokenPositions,
-        dont_learn_token_positions: draft.dontLearnTokenPositions,
+        dont_learn_token_positions: policy === "clean" ? draft.dontLearnTokenPositions : [],
+        learn_token_positions: policy === "guided" ? draft.learnTokenPositions : [],
         reading_time_ms: Date.now() - passageStartedAt.current,
         client_review_id: draft.clientReviewId,
       });
       await AsyncStorage.removeItem(
-        bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList),
+        bookPassageDraftKey(data.story_id, data.page_number, visiblePositionList, policy),
       ).catch(() => {});
 
       const nextOffset = offset + visiblePassages.length;
@@ -359,6 +412,14 @@ export default function BookPageScreen() {
   const selectedDontLearn = selectedToken != null
     && selectedToken.lemma_id == null
     && draft?.dontLearnTokenPositions.includes(selectedToken.position) === true;
+  const selectedGuided = policy === "guided"
+    && selectedToken?.reader_gloss_eligible === true;
+  const selectedForLearning = selectedToken != null
+    && draft?.learnTokenPositions.includes(selectedToken.position) === true;
+  const learningCount = countGuidedLearningWords(
+    visibleTokens,
+    draft?.learnTokenPositions ?? [],
+  );
 
   return (
     <View style={styles.container}>
@@ -388,6 +449,20 @@ export default function BookPageScreen() {
           </View>
         </View>
       </View>
+      <View style={styles.helpBar}>
+        <View style={styles.helpLabelRow}>
+          <Ionicons name="sparkles-outline" size={14} color={ACCENT} />
+          <Text style={styles.helpLabel}>READING HELP</Text>
+        </View>
+        <View style={styles.segmented} accessibilityLabel="Reading help">
+          <Pressable style={[styles.helpSegment, policy === "clean" && styles.segmentActive]} onPress={() => updatePolicy("clean")}>
+            <Text style={[styles.segmentText, policy === "clean" && styles.segmentTextActive]}>Clean</Text>
+          </Pressable>
+          <Pressable style={[styles.helpSegment, policy === "guided" && styles.segmentActive]} onPress={() => updatePolicy("guided")}>
+            <Text style={[styles.segmentText, policy === "guided" && styles.segmentTextActive]}>Guided</Text>
+          </Pressable>
+        </View>
+      </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.paper}>
@@ -397,6 +472,10 @@ export default function BookPageScreen() {
                 ? draft?.unknownLemmaIds.includes(token.lemma_id)
                 : draft?.unknownTokenPositions.includes(token.position);
               const ignored = draft?.dontLearnTokenPositions.includes(token.position);
+              const learning = draft?.learnTokenPositions.includes(token.position);
+              const inlineGloss = policy === "guided" && token.reader_gloss_eligible
+                ? shortBookGloss(token.gloss_en)
+                : null;
               const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
               return (
                 <Text key={token.position}>
@@ -408,11 +487,22 @@ export default function BookPageScreen() {
                       styles.arabicWord,
                       marked && styles.arabicUnknown,
                       ignored && styles.arabicIgnored,
+                      learning && styles.arabicLearning,
                       selectedToken?.position === token.position && styles.arabicSelected,
                     ]}
                   >
                     {displayed}
                   </Text>
+                  {inlineGloss && (
+                    <Text
+                      onPress={() => openToken(token)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${inlineGloss}. Tap to ${learning ? "stop learning" : "learn"} ${token.surface_form}`}
+                      style={[styles.inlineGloss, learning && styles.inlineGlossLearning]}
+                    >
+                      {` ‹⁦${inlineGloss}⁩›`}
+                    </Text>
+                  )}
                   {index < visibleTokens.length - 1 ? " " : ""}
                 </Text>
               );
@@ -427,7 +517,9 @@ export default function BookPageScreen() {
           )}
         </View>
         <Text style={styles.tapHint}>
-          Tap a word you didn’t know. Untapped words are recorded only when you continue.
+          {policy === "guided"
+            ? "Small glosses are free help and are not tracked. Tap one only when you want to learn it."
+            : "Tap a word you didn’t know. Untapped words are recorded only when you continue."}
         </Text>
       </ScrollView>
 
@@ -441,7 +533,11 @@ export default function BookPageScreen() {
             {lookupLoading && <ActivityIndicator size="small" color={ACCENT} />}
           </View>
           <Text style={styles.lookupGloss}>{lookup?.gloss_en || selectedToken.gloss_en || "Translation not available yet"}</Text>
-          {selectedToken.lemma_id == null ? (
+          {selectedGuided ? (
+            <Text style={styles.lookupExplanation}>
+              Guided word · this gloss is free help and is not tracked unless you choose to learn it.
+            </Text>
+          ) : selectedToken.lemma_id == null ? (
             <Text style={styles.lookupExplanation}>New word · a full entry will be built only if this passage admits it.</Text>
           ) : (
             <Text style={styles.lookupExplanation}>
@@ -450,21 +546,29 @@ export default function BookPageScreen() {
           )}
           {lookupError && <Text style={styles.lookupError}>Full entry unavailable right now. Your mark is still saved.</Text>}
           <View style={styles.lookupActions}>
-            {selectedMarkedUnknown && (
-              <Pressable style={styles.secondaryAction} onPress={() => undoUnknown(selectedToken)}>
-                <Text style={styles.secondaryActionText}>I knew this · undo</Text>
+            {selectedGuided ? (
+              <Pressable style={[styles.secondaryAction, selectedForLearning && styles.learningAction]} onPress={() => openToken(selectedToken)}>
+                <Text style={[styles.secondaryActionText, selectedForLearning && styles.learningActionText]}>
+                  {selectedForLearning ? "Learning on Next · undo" : "Learn this word"}
+                </Text>
               </Pressable>
-            )}
-            {selectedToken.lemma_id == null && !selectedDontLearn && (
-              <Pressable style={styles.secondaryAction} onPress={() => markDontLearn(selectedToken)}>
-                <Text style={styles.secondaryActionText}>Don’t learn</Text>
-              </Pressable>
-            )}
-            {selectedDontLearn && (
-              <Pressable style={styles.secondaryAction} onPress={() => openToken(selectedToken)}>
-                <Text style={styles.secondaryActionText}>Learn after all</Text>
-              </Pressable>
-            )}
+            ) : <>
+              {selectedMarkedUnknown && (
+                <Pressable style={styles.secondaryAction} onPress={() => undoUnknown(selectedToken)}>
+                  <Text style={styles.secondaryActionText}>I knew this · undo</Text>
+                </Pressable>
+              )}
+              {selectedToken.lemma_id == null && !selectedDontLearn && (
+                <Pressable style={styles.secondaryAction} onPress={() => markDontLearn(selectedToken)}>
+                  <Text style={styles.secondaryActionText}>Don’t learn</Text>
+                </Pressable>
+              )}
+              {selectedDontLearn && (
+                <Pressable style={styles.secondaryAction} onPress={() => openToken(selectedToken)}>
+                  <Text style={styles.secondaryActionText}>Learn after all</Text>
+                </Pressable>
+              )}
+            </>}
             {selectedToken.lemma_id != null && (
               <Pressable style={styles.entryAction} onPress={() => router.push(`/word/${selectedToken.lemma_id}`)}>
                 <Text style={styles.entryActionText}>Full entry</Text>
@@ -488,7 +592,13 @@ export default function BookPageScreen() {
           <Text style={[styles.navButtonText, atBookStart && styles.disabledText]}>Previous</Text>
         </Pressable>
         <View style={styles.footerStatus}>
-          <Text style={styles.footerStatusText}>{unknownCount > 0 ? `${unknownCount} unknown` : `${visiblePassages.length} passage${visiblePassages.length > 1 ? "s" : ""}`}</Text>
+          <Text style={styles.footerStatusText}>
+            {unknownCount > 0
+              ? `${unknownCount} unknown${learningCount > 0 ? ` · ${learningCount} to learn` : ""}`
+              : learningCount > 0
+                ? `${learningCount} to learn`
+                : `${visiblePassages.length} passage${visiblePassages.length > 1 ? "s" : ""}`}
+          </Text>
         </View>
         <Pressable disabled={submitting || !draftReady} style={[styles.nextButton, (!draftReady || submitting) && styles.disabled]} onPress={advance}>
           {submitting ? <ActivityIndicator size="small" color="#FFF9ED" /> : <>
@@ -509,20 +619,27 @@ const styles = StyleSheet.create({
   pageKicker: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
   locationLabel: { color: MUTED, fontSize: 11, marginTop: 2 },
   controls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  helpBar: { minHeight: 42, borderBottomWidth: 1, borderBottomColor: RULE, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  helpLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  helpLabel: { color: ACCENT, fontSize: 9, fontWeight: "800", letterSpacing: 1.1 },
   segmented: { flexDirection: "row", borderWidth: 1, borderColor: RULE, borderRadius: 8, overflow: "hidden" },
   segment: { paddingHorizontal: 10, minHeight: 32, justifyContent: "center" },
   segmentNarrow: { width: 34, minHeight: 32, alignItems: "center", justifyContent: "center" },
+  helpSegment: { minWidth: 68, minHeight: 28, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   segmentActive: { backgroundColor: INK },
   segmentText: { color: MUTED, fontSize: 12, fontWeight: "700" },
   segmentTextActive: { color: "#FFF9ED" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 34, alignItems: "center" },
-  paper: { width: "100%", maxWidth: 720, paddingHorizontal: 18, paddingVertical: 22, backgroundColor: "#F8EEDB", borderWidth: 1, borderColor: RULE, borderRadius: 8, shadowColor: "#4E3824", shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  paper: { width: "100%", maxWidth: 720, paddingHorizontal: 18, paddingVertical: 22, backgroundColor: "#F8EEDB", borderWidth: 1, borderColor: RULE, borderRadius: 8, boxShadow: "0 4px 12px rgba(78, 56, 36, 0.08)" },
   arabicParagraph: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 23, lineHeight: 42, writingDirection: "rtl", textAlign: "right" },
   arabicWord: { color: INK, fontFamily: fontFamily.arabicNoto },
   arabicUnknown: { color: UNKNOWN, backgroundColor: "#D9968430" },
   arabicIgnored: { color: MUTED, textDecorationLine: "line-through" },
+  arabicLearning: { color: ACCENT, textDecorationLine: "underline" },
   arabicSelected: { backgroundColor: "#C98D5638" },
+  inlineGloss: { color: MUTED, fontFamily: "Georgia", fontSize: 9, fontStyle: "italic" },
+  inlineGlossLearning: { color: ACCENT, fontWeight: "700" },
   translationBlock: { marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: RULE },
   translationLabel: { color: ACCENT, fontSize: 10, fontWeight: "800", letterSpacing: 1.3, marginBottom: 8 },
   translation: { color: "#44392D", fontFamily: "Georgia", fontSize: 16, lineHeight: 25 },
@@ -537,6 +654,8 @@ const styles = StyleSheet.create({
   lookupActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10 },
   secondaryAction: { borderWidth: 1, borderColor: "#B99D75", borderRadius: 7, paddingHorizontal: 11, minHeight: 34, justifyContent: "center" },
   secondaryActionText: { color: INK, fontSize: 12, fontWeight: "700" },
+  learningAction: { borderColor: ACCENT, backgroundColor: "#F2DDC4" },
+  learningActionText: { color: ACCENT },
   entryAction: { flexDirection: "row", gap: 5, alignItems: "center", paddingHorizontal: 8, minHeight: 34 },
   entryActionText: { color: ACCENT, fontSize: 12, fontWeight: "800" },
   saveError: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#F3D8CE", borderTopWidth: 1, borderTopColor: "#D7AA99", paddingHorizontal: 16, paddingVertical: 9 },

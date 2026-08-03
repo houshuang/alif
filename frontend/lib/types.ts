@@ -1003,6 +1003,7 @@ export interface BookPageToken {
   is_proper_name: boolean;
   is_schedulable: boolean;
   has_full_entry: boolean;
+  reader_gloss_eligible: boolean;
 }
 
 export interface BookPassage {
@@ -1046,6 +1047,8 @@ export interface BookPageCompleteResult {
   box2_floor: number;
   reviewed_again: number;
   dont_learn: number;
+  guided_inert: number;
+  guided_started: number;
   skipped: number;
   duplicate: boolean;
 }

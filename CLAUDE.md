@@ -59,7 +59,7 @@ npx expo start --web  # opens on localhost:8081
 | `~/src/bookifier/bilingual/RUNBOOK.md` | Bilingual EPUB build pipeline (AR + tashkīl + faithful EN). Use when generating reader-grade bilingual material from raw Arabic text rather than studying it inside alif. |
 
 ## Review Modes
-See `docs/review-modes.md` for full UX flows. Modes: Sentence-First Review (primary), Reading Mode, Listening Mode, Learn Mode, Story Mode, Quran Reading Mode (suspended 2026-04-07), Podcast Mode. The bilingual Book Reader is deliberately passage-first rather than a review card: opening and drafting are inert; only a successful Next commits exact-range Box-2 recognition floors and authoritative rating-1 misses.
+See `docs/review-modes.md` for full UX flows. Modes: Sentence-First Review (primary), Reading Mode, Listening Mode, Learn Mode, Story Mode, Quran Reading Mode (suspended 2026-04-07), Podcast Mode. The bilingual Book Reader is deliberately passage-first rather than a review card: opening and drafting are inert; only a successful Next commits exact-range evidence. Clean policy uses Box-2 recognition floors and authoritative rating-1 misses. Guided policy leaves unintroduced words inert behind inline glosses unless explicitly opted into ordinary Box 1; already introduced taps remain rating-1 misses.
 
 ## Hard Invariants
 These rules have all caused production bugs or data corruption when violated. For feature-level design details (intro cards, tashkeel, fonts, graduation tiers, etc.), see `docs/design-principles.md`.

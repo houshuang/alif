@@ -2,13 +2,16 @@ import {
   bookLookupDraftKey,
   bookPassageDraftKey,
   bookReaderLocationKey,
+  countGuidedLearningWords,
   groupBookTokens,
   normalizedBookSurface,
   parseBookPassageDraft,
   parseBookReaderLocation,
   parseBookLookupDraft,
   pendingBookLookupIds,
+  positionsForSameGuidedWord,
   positionsForSameUnmappedSurface,
+  shortBookGloss,
 } from "../book-reader";
 import { BookPageToken } from "../types";
 
@@ -26,6 +29,7 @@ const token = (position: number, sentenceIndex: number): BookPageToken => ({
   is_proper_name: false,
   is_schedulable: true,
   has_full_entry: true,
+  reader_gloss_eligible: true,
 });
 
 describe("book reader draft helpers", () => {
@@ -48,7 +52,8 @@ describe("book reader draft helpers", () => {
   });
 
   test("uses stable passage and exact-location storage keys", () => {
-    expect(bookPassageDraftKey(4, 12, [31, 32])).toBe("@alif:book-reader:passage:4:12:31-32");
+    expect(bookPassageDraftKey(4, 12, [31, 32])).toBe("@alif:book-reader:passage:4:12:31-32:clean");
+    expect(bookPassageDraftKey(4, 12, [31, 32], "guided")).toBe("@alif:book-reader:passage:4:12:31-32:guided");
     expect(bookReaderLocationKey(4)).toBe("@alif:book-reader:location:4");
     expect(parseBookReaderLocation('{"pageNumber":12,"sentenceIndex":31}')).toEqual({
       pageNumber: 12,
@@ -61,11 +66,13 @@ describe("book reader draft helpers", () => {
       unknownLemmaIds: [9, 9, -1],
       unknownTokenPositions: [0, 2, 2, 3, -1],
       dontLearnTokenPositions: [3, "4"],
+      learnTokenPositions: [5, 5, -2],
       clientReviewId: "bp:stable",
     }))).toEqual({
       unknownLemmaIds: [9],
       unknownTokenPositions: [0, 2],
       dontLearnTokenPositions: [3],
+      learnTokenPositions: [5],
       clientReviewId: "bp:stable",
     });
   });
@@ -76,5 +83,19 @@ describe("book reader draft helpers", () => {
     const other = { ...token(5, 1), lemma_id: null, has_full_entry: false, surface_form: "بَيْتٌ." };
     expect(normalizedBookSurface(first.surface_form)).toBe("وكتاب");
     expect(positionsForSameUnmappedSurface([first, second, other], first)).toEqual([0, 4]);
+    expect(positionsForSameGuidedWord([first, second, other], first)).toEqual([0, 4]);
+  });
+
+  test("keeps inline glosses compact and reader-like", () => {
+    expect(shortBookGloss("to become; to turn into")).toBe("to become");
+    expect(shortBookGloss("an unusually long contextual explanation")).toBe("an unusually long cont…");
+    expect(shortBookGloss(null)).toBeNull();
+  });
+
+  test("counts repeated guided selections as one word", () => {
+    const first = { ...token(0, 0), lemma_id: 7 };
+    const repeat = { ...token(4, 1), lemma_id: 7 };
+    const unmapped = { ...token(5, 1), lemma_id: null, surface_form: "بَيْتٌ." };
+    expect(countGuidedLearningWords([first, repeat, unmapped], [0, 4, 5])).toBe(2);
   });
 });
