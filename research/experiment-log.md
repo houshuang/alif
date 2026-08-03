@@ -48,6 +48,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Momo page 68 — gentlemen mapping corrected; contextual residue inventoried
+
+**Reported defect.** The reader rendered `والسادة` as “blocked, closed.” Production
+inspection showed positions 208 (`والسادة`) and 275 (`وسادتى،`) both mapped to
+verb #4399 `سَدَّ`, while the correct fully gated canonical already existed as
+known lemma #2309 `سَيِّد` with stored plural `سَادَة`.
+
+**Production correction.** Before mutation, took and quick-checked online backup
+`/opt/alif-backups/alif_pre_momo_reader_mapping_20260803_140433.db`. An exact-CAS
+surgical update changed only StoryWord rows #9786/#9853: lemma #4399→#2309,
+contextual gloss `blocked, closed`→`gentlemen`, and `is_known_at_creation` false→true.
+No SentenceWord rows exist for reader-only Story #240, no book receipt referenced
+#4399, and the legitimate #4399 textbook lemma/ULK were left intact. Story counts
+recalculated from 221/255 known and 34 unknown (90.0%) to 222/255 and 33 (90.3%).
+ActivityLog records the exact operation. Post-commit `PRAGMA quick_check` returned
+`ok`; the live page API returns both tokens as #2309, `knowledge_state=known`,
+`reader_gloss_eligible=false`, and `has_full_entry=true`, with zero remaining Story
+#240 references to #4399.
+
+**Bounded page audit.** A read-only contextual batch verifier over all seven page-68
+reader passages independently confirmed the two reported positions and surfaced 14
+additional candidates. Seven resolve to plausible existing gated destinations
+(`#3541 قَوْم`, `#2041 الَّذِي`, `#4523 مَلِك`, `#360 أَيّ`); seven need a distinct
+canonical sense/new fully enriched lemma (`سُلَّم` stairs, `أَكِيد`, `عَدَّ` count,
+`إِبَادَة`, `أَحَد` someone, `خَيَال`, `اِشْتَقَّ`). None were auto-applied: each
+requires independent surface/context review and exact-preimage safeguards.
+
 ## 2026-08-03: Book reader selection is token-local
 
 **Observed defect.** The reader painted state by lemma rather than exact token.
