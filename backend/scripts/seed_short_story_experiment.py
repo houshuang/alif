@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Any
+from typing import Any, Callable
 
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
@@ -22,6 +22,9 @@ def seed(
     count: int,
     attempts_per_story: int,
     initial_excluded_lemma_ids: set[int] | None = None,
+    candidate_event_callback: (
+        Callable[[str, dict[str, Any], dict[str, Any]], None] | None
+    ) = None,
 ) -> dict[str, Any]:
     created: list[dict[str, Any]] = []
     failures: list[str] = []
@@ -54,6 +57,11 @@ def seed(
             f"targets={sorted(group_ids)} scene={group.get('scene_hint') or '(none)'}",
             flush=True,
         )
+        if candidate_event_callback:
+            candidate_event_callback("started", group, {
+                "candidate_index": candidate_index,
+                "candidate_budget": candidate_budget,
+            })
         try:
             story = generate_and_store_maintenance_passage(
                 target_lemma_ids=group["target_lemma_ids"],
@@ -63,14 +71,25 @@ def seed(
             )
         except Exception as exc:  # Keep the bounded batch moving after rejection.
             failures.append(f"{type(exc).__name__}: {exc}")
+            if candidate_event_callback:
+                candidate_event_callback("failed", group, {
+                    "candidate_index": candidate_index,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
         else:
             metadata = story.metadata_json if isinstance(story.metadata_json, dict) else {}
-            created.append({
+            created_item = {
                 "story_id": story.id,
                 "title_en": story.title_en,
                 "narrative_mode": metadata.get("narrative_mode"),
                 "target_lemma_ids": metadata.get("target_lemma_ids") or [],
-            })
+            }
+            created.append(created_item)
+            if candidate_event_callback:
+                candidate_event_callback("accepted", group, {
+                    "candidate_index": candidate_index,
+                    "story": created_item,
+                })
             print(
                 f"Accepted story {story.id}: {story.title_en}",
                 flush=True,

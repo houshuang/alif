@@ -58,7 +58,10 @@ def test_recent_failed_targets_and_interrupted_runs_are_durable(db_session):
     interrupted = ActivityLog(
         event_type=maintainer.EVENT_TYPE,
         summary="started",
-        detail_json={"status": "started"},
+        detail_json={
+            "status": "started",
+            "current_candidate": {"target_lemma_ids": [10, 11, 12]},
+        },
         created_at=now - timedelta(hours=1),
     )
     db_session.add_all([failed, interrupted])
@@ -68,6 +71,7 @@ def test_recent_failed_targets_and_interrupted_runs_are_durable(db_session):
     assert maintainer.mark_interrupted_runs(db_session, now=now) == 1
     db_session.refresh(interrupted)
     assert interrupted.detail_json["status"] == "interrupted"
+    assert interrupted.detail_json["failed_target_lemma_ids"] == [10, 11, 12]
 
 
 def test_codex_preflight_uses_private_shared_auth_file(tmp_path, monkeypatch):
@@ -123,11 +127,26 @@ def test_maintain_supply_records_completed_run_and_forwards_cooldown(
         lambda: {"credential_source": "auth_file"},
     )
 
-    def fake_seed(count, attempts_per_story, initial_excluded_lemma_ids):
+    def fake_seed(
+        count,
+        attempts_per_story,
+        initial_excluded_lemma_ids,
+        candidate_event_callback,
+    ):
         captured.update({
             "count": count,
             "attempts": attempts_per_story,
             "excluded": initial_excluded_lemma_ids,
+        })
+        group = {"target_lemma_ids": [1, 2, 3], "scene_hint": "fresh"}
+        candidate_event_callback("started", group, {"candidate_index": 1})
+        candidate_event_callback("accepted", group, {
+            "candidate_index": 1,
+            "story": {
+                "story_id": 12,
+                "title_en": "Fresh",
+                "target_lemma_ids": [1, 2, 3],
+            },
         })
         return {
             "complete": True,

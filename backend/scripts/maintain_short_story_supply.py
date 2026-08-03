@@ -39,7 +39,7 @@ DEFAULT_MIN_SELECTABLE = 6
 DEFAULT_BUDGET = 1
 DEFAULT_ATTEMPTS_PER_STORY = 4
 FAILED_TARGET_COOLDOWN = timedelta(hours=48)
-STALE_RUN_AFTER = timedelta(minutes=45)
+STALE_RUN_AFTER = timedelta(minutes=35)
 ALERT_WINDOW = timedelta(hours=24)
 ALERT_THRESHOLD = 3
 ALERT_DEDUPE_WINDOW = timedelta(hours=6)
@@ -198,8 +198,25 @@ def mark_interrupted_runs(db, *, now: datetime) -> int:
         detail = _detail(row)
         if detail.get("status") != "started":
             continue
+        current = detail.get("current_candidate")
+        current_ids = (
+            current.get("target_lemma_ids")
+            if isinstance(current, dict)
+            else []
+        )
+        failed_ids = {
+            int(lemma_id)
+            for lemma_id in (detail.get("failed_target_lemma_ids") or [])
+        }
+        for raw_id in current_ids or []:
+            try:
+                failed_ids.add(int(raw_id))
+            except (TypeError, ValueError):
+                continue
         detail["status"] = "interrupted"
         detail["interrupted_at"] = now.isoformat()
+        detail["failed_target_lemma_ids"] = sorted(failed_ids)
+        detail["current_candidate"] = None
         row.detail_json = detail
         row.summary = "Embedded short-story generation was interrupted; cron will retry"
         changed += 1
@@ -242,6 +259,57 @@ def _failed_target_ids(result: dict[str, Any]) -> list[int]:
         if group_ids and group_ids not in created_sets:
             failed.update(group_ids)
     return sorted(failed)
+
+
+def persist_candidate_event(
+    run_id: int,
+    event: str,
+    group: dict[str, Any],
+    payload: dict[str, Any],
+) -> None:
+    """Checkpoint one candidate independently of the surrounding long batch."""
+    db = SessionLocal()
+    try:
+        row = db.get(ActivityLog, run_id)
+        if row is None:
+            raise RuntimeError(f"short-story supply run {run_id} disappeared")
+        detail = _detail(row)
+        target_ids = sorted(
+            int(lemma_id) for lemma_id in group.get("target_lemma_ids") or []
+        )
+        candidate = {
+            "event": event,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "target_lemma_ids": target_ids,
+            "scene_hint": str(group.get("scene_hint") or "")[:500],
+            "candidate_index": payload.get("candidate_index"),
+        }
+        history = list(detail.get("candidate_events") or [])
+        if event == "started":
+            detail["current_candidate"] = candidate
+        elif event == "failed":
+            candidate["error"] = str(payload.get("error") or "")[:2000]
+            failed_ids = {
+                int(lemma_id)
+                for lemma_id in (detail.get("failed_target_lemma_ids") or [])
+            }
+            failed_ids.update(target_ids)
+            detail["failed_target_lemma_ids"] = sorted(failed_ids)
+            detail["current_candidate"] = None
+        elif event == "accepted":
+            candidate["story"] = payload.get("story") or {}
+            created = list(detail.get("created") or [])
+            created.append(payload.get("story") or {})
+            detail["created"] = created
+            detail["current_candidate"] = None
+        else:
+            raise ValueError(f"Unknown candidate event: {event}")
+        history.append(candidate)
+        detail["candidate_events"] = history[-24:]
+        row.detail_json = detail
+        db.commit()
+    finally:
+        db.close()
 
 
 def _maybe_emit_alert(db, *, now: datetime, error: str | None = None) -> None:
@@ -342,6 +410,9 @@ def maintain_supply(
             count=requested,
             attempts_per_story=max(1, attempts_per_story),
             initial_excluded_lemma_ids=excluded,
+            candidate_event_callback=lambda event, group, payload: persist_candidate_event(
+                run_id, event, group, payload
+            ),
         )
         db = SessionLocal()
         try:
@@ -354,8 +425,14 @@ def maintain_supply(
                 if result.get("created_count")
                 else "failed"
             )
-            failed_ids = _failed_target_ids(result)
             detail = _detail(row)
+            failed_ids = sorted({
+                *(
+                    int(lemma_id)
+                    for lemma_id in (detail.get("failed_target_lemma_ids") or [])
+                ),
+                *_failed_target_ids(result),
+            })
             detail.update({
                 "status": status,
                 "finished_at": datetime.now(timezone.utc).isoformat(),

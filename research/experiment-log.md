@@ -66,10 +66,23 @@ active, retains at least three active passage sentences, and all three planned
 targets are presently due. The default cron budget is one accepted story per
 three-hour pass. Each non-empty run is persisted in `activity_log` before the
 LLM call and finalized as complete, partial, failed, or interrupted. Rejected
-target IDs cool down for 48 hours, an interrupted run is recovered after 45
+target IDs cool down for 48 hours, an interrupted run is recovered after 35
 minutes, three failures in 24 hours create a visible alert, and credential or
 permission failures alert immediately. The recurring controller reuses the
 coherent batch planner's bounded fresh-candidate replacement logic.
+
+**Timeout audit and candidate checkpoints.** A forced three-story recovery run
+started from only three selectable stories. It accepted story 241 after three
+editor rejections and story 242 after one, then rejected the smoking/expulsion
+triple four times. The 30-minute outer timeout arrived while a replacement was
+being drafted: the two accepted stories remained valid and active, no rejected
+draft was stored, but the original run-level journal could not identify the
+failed or in-progress triple until the entire batch returned. The seeder now
+emits `started`, `failed`, and `accepted` candidate events, each committed to
+the existing run row immediately. Interruption moves the exact in-progress
+target IDs into cooldown, while accepted story IDs survive independently. This
+keeps the normal one-story cron budget recoverable even if Codex or the process
+is killed during its replacement candidate.
 
 **Cap and validation.** The opportunistic warm-cache path remains as the fast
 path, but its recent-supply count now ignores failed stories and stories with
@@ -77,8 +90,12 @@ fewer than three active sentences. Cron is the recovery path and shares the
 material-pipeline flock, so it cannot race warm-cache or another material job.
 `--status-only` checks live selectable supply, failed-target cooldown, binary,
 credential source, auth-file privacy, and auth modification time without a
-write or model call. The full backend suite passed 1,962 tests with nine slow
-tests intentionally deselected; the focused story/controller set passed 54.
+write or model call; it exits degraded while supply is below the configured
+minimum. Before candidate checkpoints, the full backend suite passed 1,962
+tests with nine slow tests intentionally deselected. After checkpoints, 1,963
+passed and one unrelated randomized FSRS interval assertion exceeded its hard
+four-day bound; that exact test passed immediately in isolation. The final
+focused story/controller/material set passed 56 tests.
 
 ## 2026-08-02: Short-story v2 cohort completion — planner continuity, fresh retries, six-story launch
 

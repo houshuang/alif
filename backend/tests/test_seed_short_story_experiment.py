@@ -72,6 +72,48 @@ def test_seed_marks_full_batch_complete(monkeypatch):
     assert result["failed_count"] == 0
 
 
+def test_seed_emits_durable_candidate_events(monkeypatch):
+    outcomes = iter([RuntimeError("rejected"), _story(22)])
+    events = []
+    next_group = iter([
+        {"target_lemma_ids": [1, 2, 3], "scene_hint": "first"},
+        {"target_lemma_ids": [4, 5, 6], "scene_hint": "replacement"},
+    ])
+
+    def fake_generate(**kwargs):
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(
+        seeder,
+        "generate_and_store_maintenance_passage",
+        fake_generate,
+    )
+    monkeypatch.setattr(
+        seeder,
+        "plan_due_maintenance_target_groups",
+        lambda count, excluded_lemma_ids=None: [next(next_group) for _ in range(count)],
+    )
+
+    result = seeder.seed(
+        count=1,
+        attempts_per_story=1,
+        candidate_event_callback=lambda event, group, payload: events.append(
+            (event, group["target_lemma_ids"])
+        ),
+    )
+
+    assert result["complete"] is True
+    assert events == [
+        ("started", [1, 2, 3]),
+        ("failed", [1, 2, 3]),
+        ("started", [4, 5, 6]),
+        ("accepted", [4, 5, 6]),
+    ]
+
+
 def test_seed_forwards_initial_exclusions_to_first_plan(monkeypatch):
     captured = {}
 
