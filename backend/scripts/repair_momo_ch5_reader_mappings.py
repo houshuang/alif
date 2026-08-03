@@ -31,6 +31,7 @@ from app.services.sentence_validator import strip_diacritics  # noqa: E402
 from app.services.story_service import (  # noqa: E402
     _build_knowledge_map,
     _recalculate_story_counts,
+    get_book_page_detail,
 )
 
 STORY_ID = 240
@@ -49,6 +50,7 @@ EXPECTED = {
     168: ("وبالمناسبة", 2393), 174: ("بشوق", 3916), 181: ("أى", 360),
     182: ("مدى", 2173), 184: ("خياله،", 3075), 200: ("السلالم", 484),
     205: ("يلى:", 650), 210: ("فكما", 2051), 212: ("أكيد", 3576),
+    213: ("معلوم", 722),
     221: ("بحروب", 678), 223: ("تعد", 2470), 226: ("لتدافع", 3807),
     231: ("المستمرة", 2088), 237: ("الأقوام", 1293),
     241: ("الغضب", 3270), 247: ("التى", 582), 250: ("لدرجة", 3034),
@@ -154,6 +156,20 @@ METADATA_FIXES = {
     1725: {"gloss_en": "basin; pool; sink"},
 }
 
+# Exact values of every global lemma field the repair mutates. These are
+# checked both in the live database and in the supplied backup before apply.
+EXPECTED_METADATA = {
+    214: ("فَصْل", "class, classroom", "noun"),
+    378: ("أَكْبَر", "big", "adj"),
+    443: ("ذلِكَ", "that (masc.)", "pron"),
+    1725: ("حَوْض", "sink", "noun"),
+    1794: ("أَفْضَل", "best", "verb"),
+    1812: ("ذَهَبِيّ", "golden", "noun"),
+    2354: ("طَبَق", "dish", "verb"),
+    3471: ("قَلِق", "anxiety", "noun"),
+    3498: ("شَدِيد", "severe, intense", "noun_prop"),
+}
+
 CONTEXT_GLOSSES = {
     0: "chapter", 138: "present; there", 213: "known", 231: "continuous",
     283: "known", 342: "plate; dish", 388: "better", 475: "plate; dish",
@@ -181,11 +197,27 @@ def _validate_preimage(db):
         lemma = db.get(Lemma, lemma_id)
         if lemma is None or lemma.gates_completed_at is None or lemma.canonical_lemma_id is not None:
             raise RuntimeError(f"Existing destination #{lemma_id} is not gated canonical data")
+    for lemma_id, expected in EXPECTED_METADATA.items():
+        lemma = db.get(Lemma, lemma_id)
+        actual = (lemma.lemma_ar, lemma.gloss_en, lemma.pos) if lemma else None
+        if actual != expected:
+            raise RuntimeError(
+                f"Metadata preimage mismatch for #{lemma_id}: "
+                f"expected {expected!r}, got {actual!r}"
+            )
     return story, by_position
 
 
 def _new_positions():
     return {position for _ar, _gloss, _pos, positions in NEW.values() for position in positions}
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _validate_backup(path: Path) -> str:
@@ -211,11 +243,17 @@ def _validate_backup(path: Path) -> str:
                 raise RuntimeError(
                     f"Backup preimage mismatch at {position}: {row!r} != {expected!r}"
                 )
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+        for lemma_id, expected in EXPECTED_METADATA.items():
+            row = conn.execute(
+                "SELECT lemma_ar, gloss_en, pos FROM lemmas WHERE lemma_id = ?",
+                (lemma_id,),
+            ).fetchone()
+            if row != expected:
+                raise RuntimeError(
+                    f"Backup metadata preimage mismatch for #{lemma_id}: "
+                    f"{row!r} != {expected!r}"
+                )
+    return _sha256_file(path)
 
 
 def _verify_applied(db):
@@ -226,6 +264,21 @@ def _verify_applied(db):
         word.position: word
         for word in db.query(StoryWord).filter_by(story_id=STORY_ID).all()
     }
+    if len(by_position) != EXPECTED_WORD_COUNT:
+        raise RuntimeError(
+            f"Expected {EXPECTED_WORD_COUNT} StoryWords, found {len(by_position)}"
+        )
+    surface_mismatches = {
+        position: (
+            by_position.get(position).surface_form if by_position.get(position) else None,
+            surface,
+        )
+        for position, (surface, _old_id) in EXPECTED.items()
+        if by_position.get(position) is None
+        or by_position[position].surface_form != surface
+    }
+    if surface_mismatches:
+        raise RuntimeError(f"Reviewed surface mismatch: {surface_mismatches}")
     new_ids_by_key = {}
     target_by_position = dict(EXISTING)
     for key, (arabic, gloss, pos, positions) in NEW.items():
@@ -248,20 +301,154 @@ def _verify_applied(db):
     }
     if mismatches:
         raise RuntimeError(f"Applied mapping mismatch: {mismatches}")
+    target_ids = set(target_by_position.values())
+    invalid_targets = {}
+    for lemma_id in target_ids:
+        lemma = db.get(Lemma, lemma_id)
+        if (
+            lemma is None
+            or lemma.canonical_lemma_id is not None
+            or lemma.gates_completed_at is None
+        ):
+            invalid_targets[lemma_id] = (
+                None
+                if lemma is None
+                else {
+                    "canonical_lemma_id": lemma.canonical_lemma_id,
+                    "gates_completed_at": lemma.gates_completed_at,
+                }
+            )
+    if invalid_targets:
+        raise RuntimeError(f"Applied targets are not gated canonicals: {invalid_targets}")
+    gloss_mismatches = {
+        position: (by_position[position].gloss_en, gloss)
+        for position, gloss in CONTEXT_GLOSSES.items()
+        if by_position[position].gloss_en != gloss
+    }
+    if gloss_mismatches:
+        raise RuntimeError(f"Applied contextual gloss mismatch: {gloss_mismatches}")
+    metadata_mismatches = {}
+    for lemma_id, change in METADATA_FIXES.items():
+        lemma = db.get(Lemma, lemma_id)
+        expected_pos = change.get("pos") or EXPECTED_METADATA[lemma_id][2]
+        actual = (
+            lemma.gloss_en if lemma else None,
+            lemma.pos if lemma else None,
+            lemma.canonical_lemma_id if lemma else None,
+            bool(lemma and lemma.gates_completed_at),
+        )
+        expected = (change["gloss_en"], expected_pos, None, True)
+        if actual != expected:
+            metadata_mismatches[lemma_id] = (actual, expected)
+    if metadata_mismatches:
+        raise RuntimeError(f"Applied metadata mismatch: {metadata_mismatches}")
+
     new_ids = list(new_ids_by_key.values())
-    learning_rows = db.query(UserLemmaKnowledge).filter(
+    learning_rows_before = db.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id.in_(new_ids)
     ).count()
-    if learning_rows:
-        raise RuntimeError(f"Repair unexpectedly created {learning_rows} learner rows")
+    if learning_rows_before:
+        raise RuntimeError(
+            f"Repair unexpectedly created {learning_rows_before} learner rows"
+        )
+
+    pages = [get_book_page_detail(db, STORY_ID, page) for page in range(1, 4)]
+    if any(not (page["english_translation"] or "").strip() for page in pages):
+        raise RuntimeError("A repaired reader page has no English translation")
+    if any(not page["passages"] for page in pages):
+        raise RuntimeError("A repaired reader page has no sentence passages")
+    tokens = [token for page in pages for token in page["tokens"]]
+    api_by_position = {int(token["position"]): token for token in tokens}
+    if (
+        len(tokens) != EXPECTED_WORD_COUNT
+        or len(api_by_position) != EXPECTED_WORD_COUNT
+    ):
+        raise RuntimeError(
+            "Reader payload token coverage mismatch: "
+            f"tokens={len(tokens)}, unique_positions={len(api_by_position)}"
+        )
+    api_surface_mismatches = {
+        position: (api_by_position.get(position, {}).get("surface_form"), surface)
+        for position, (surface, _old_id) in EXPECTED.items()
+        if api_by_position.get(position, {}).get("surface_form") != surface
+    }
+    if api_surface_mismatches:
+        raise RuntimeError(f"Reader payload surface mismatch: {api_surface_mismatches}")
+    api_mapping_mismatches = {
+        position: (api_by_position[position]["lemma_id"], lemma_id)
+        for position, lemma_id in target_by_position.items()
+        if api_by_position[position]["lemma_id"] != lemma_id
+        or not api_by_position[position]["has_full_entry"]
+    }
+    if api_mapping_mismatches:
+        raise RuntimeError(
+            f"Reader payload mapping mismatch: {api_mapping_mismatches}"
+        )
+    api_gloss_mismatches = {
+        position: (api_by_position[position]["gloss_en"], gloss)
+        for position, gloss in CONTEXT_GLOSSES.items()
+        if api_by_position[position]["gloss_en"] != gloss
+    }
+    if api_gloss_mismatches:
+        raise RuntimeError(
+            f"Reader payload contextual gloss mismatch: {api_gloss_mismatches}"
+        )
+    db.expire_all()
+    learning_rows_after = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id.in_(new_ids)
+    ).count()
+    if learning_rows_after != learning_rows_before:
+        raise RuntimeError(
+            "Reading repaired pages mutated learner state: "
+            f"before={learning_rows_before}, after={learning_rows_after}"
+        )
+
+    audit = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.event_type == "momo_reader_mapping_repair")
+        .order_by(ActivityLog.id.desc())
+        .first()
+    )
+    if audit is None or not isinstance(audit.detail_json, dict):
+        raise RuntimeError("Repair audit record is missing")
+    detail = audit.detail_json
+    if detail.get("story_id") != STORY_ID:
+        raise RuntimeError("Repair audit record references the wrong story")
+    if detail.get("reviewed_preimages") != len(EXPECTED):
+        raise RuntimeError("Repair audit record has the wrong preimage count")
+    if detail.get("target_positions") != sorted(target_by_position):
+        raise RuntimeError("Repair audit record has the wrong mapping positions")
+    if detail.get("new_lemma_ids") != new_ids_by_key:
+        raise RuntimeError("Repair audit record has the wrong new lemma IDs")
+    backup_path = Path(detail.get("backup_path") or "")
+    backup_sha256 = detail.get("backup_sha256")
+    if not backup_path.is_file():
+        raise RuntimeError(f"Repair backup is missing: {backup_path}")
+    if _sha256_file(backup_path) != backup_sha256:
+        raise RuntimeError("Repair backup SHA-256 no longer matches its audit record")
+    if _validate_backup(backup_path) != backup_sha256:
+        raise RuntimeError("Repair backup no longer contains the reviewed preimage")
+
     quick_check = db.execute(text("PRAGMA quick_check")).scalar()
     if quick_check != "ok":
         raise RuntimeError(f"SQLite quick_check failed: {quick_check}")
     return {
         "verified": True,
         "mapped_positions": len(target_by_position),
+        "reviewed_surfaces": len(EXPECTED),
+        "context_glosses": len(CONTEXT_GLOSSES),
+        "metadata_repairs": len(METADATA_FIXES),
         "new_lemmas": len(new_ids),
-        "learning_rows_created": learning_rows,
+        "reader_pages": len(pages),
+        "reader_tokens": len(tokens),
+        "english_pages": sum(
+            bool((page["english_translation"] or "").strip()) for page in pages
+        ),
+        "passage_counts": [len(page["passages"]) for page in pages],
+        "learning_rows_created": learning_rows_after,
+        "audit_log_id": audit.id,
+        "backup_path": str(backup_path),
+        "backup_sha256": backup_sha256,
         "quick_check": quick_check,
         "story_counts": {
             "total": story.total_words,
