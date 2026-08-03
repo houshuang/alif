@@ -1,11 +1,14 @@
 import {
+  ACTIVE_BOOK_READER_KEY,
   bookLookupDraftKey,
   bookPassageDraftKey,
   bookReaderLocationKey,
+  bookReaderModeKey,
   countGuidedLearningWords,
   groupBookTokens,
   normalizedBookSurface,
   parseBookPassageDraft,
+  parseActiveBookReader,
   parseBookReaderLocation,
   parseBookLookupDraft,
   pendingBookLookupIds,
@@ -35,6 +38,18 @@ const token = (position: number, sentenceIndex: number): BookPageToken => ({
 describe("book reader draft helpers", () => {
   test("uses a stable per-page storage key", () => {
     expect(bookLookupDraftKey(4, 12)).toBe("@alif:book-reader:lookups:4:12");
+  });
+
+  test("keeps the active book route and per-policy display preferences stable", () => {
+    expect(ACTIVE_BOOK_READER_KEY).toBe("@alif:book-reader:active");
+    expect(bookReaderModeKey("clean")).toBe("@alif:book-reader:mode:clean");
+    expect(bookReaderModeKey("guided")).toBe("@alif:book-reader:mode:guided");
+    expect(parseActiveBookReader('{"storyId":240,"pageNumber":2,"active":true}')).toEqual({
+      storyId: 240,
+      pageNumber: 2,
+      active: true,
+    });
+    expect(parseActiveBookReader('{"storyId":0,"pageNumber":2,"active":true}')).toBeNull();
   });
 
   test("parses only unique positive integer lemma ids", () => {
@@ -88,7 +103,7 @@ describe("book reader draft helpers", () => {
 
   test("keeps inline glosses compact and reader-like", () => {
     expect(shortBookGloss("to become; to turn into")).toBe("to become");
-    expect(shortBookGloss("an unusually long contextual explanation")).toBe("an unusually long cont…");
+    expect(shortBookGloss("an unusually long contextual explanation")).toBe("an unusually…");
     expect(shortBookGloss(null)).toBeNull();
   });
 

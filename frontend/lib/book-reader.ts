@@ -17,6 +17,39 @@ export interface BookReaderLocation {
   tokenPosition?: number;
 }
 
+export interface ActiveBookReader {
+  storyId: number;
+  pageNumber: number;
+  active: boolean;
+}
+
+export const ACTIVE_BOOK_READER_KEY = "@alif:book-reader:active";
+
+export function bookReaderModeKey(policy: BookReaderPolicy): string {
+  return `@alif:book-reader:mode:${policy}`;
+}
+
+export function parseActiveBookReader(raw: string | null): ActiveBookReader | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<ActiveBookReader>;
+    if (
+      !Number.isInteger(value.storyId)
+      || !Number.isInteger(value.pageNumber)
+      || value.storyId! <= 0
+      || value.pageNumber! <= 0
+      || typeof value.active !== "boolean"
+    ) return null;
+    return {
+      storyId: value.storyId!,
+      pageNumber: value.pageNumber!,
+      active: value.active,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function bookLookupDraftKey(storyId: number, pageNumber: number): string {
   return `@alif:book-reader:lookups:${storyId}:${pageNumber}`;
 }
@@ -67,7 +100,9 @@ export function shortBookGloss(gloss: string | null): string | null {
     .split(/[;|]/, 1)[0]
     .trim();
   if (!concise) return null;
-  return concise.length <= 24 ? concise : `${concise.slice(0, 22).trimEnd()}…`;
+  if (concise.length <= 16) return concise;
+  const wholeWords = concise.slice(0, 16).replace(/\s+\S*$/, "").trimEnd();
+  return `${wholeWords || concise.slice(0, 14).trimEnd()}…`;
 }
 
 export function parseBookReaderLocation(raw: string | null): BookReaderLocation | null {

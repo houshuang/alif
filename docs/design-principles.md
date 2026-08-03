@@ -25,19 +25,25 @@ Feature-level design decisions and implementation details. For bug-preventing in
 - **Bilingual book reading is passage-first, not a review card** — the Arabic
   reader uses warm paper, Noto Naskh at book scale, and one/two-passage units.
   Its only language modes are Arabic and Arabic+English; English is never shown
-  alone. Translation is adjacent and primary, while word detail is secondary.
-  Tokens remain one nested RTL text flow so punctuation and Arabic shaping survive
-  mobile wrapping. A tap marks unknown by default. Existing lemmas offer a full
+  alone. In Clean mode translation is adjacent; in Guided mode the full translation
+  is hidden by default because the word-aligned micro-gloss layer already provides
+  reading support. A compact toolbar holds policy, passage span, and English reveal;
+  the page itself remains the dominant surface. Clean tokens stay in one nested RTL
+  text flow so punctuation and Arabic shaping survive mobile wrapping, while Guided
+  tokens use a consistent Arabic-over-English interlinear grid. A tap marks unknown
+  by default. Existing lemmas offer a full
   entry and an undo-before-advance action but never `Don't learn`; unmapped words
   show only their short contextual gloss and may be excluded before admission.
   Draft marks and exact passage location persist locally, while successful
   passage receipts persist the location server-side. Navigation never advances
   on a failed save.
-  The optional **Guided** policy adds tiny isolated English glosses only to
+  The optional **Guided** policy adds short word-aligned English glosses only to
   not-yet-introduced content vocabulary. Those glosses are free reading support,
   inert by default, and tappable to opt into Box 1 on Next. Function words and
   proper names remain visually unglossed; introduced vocabulary remains a normal
-  unknown-by-tap test. Clean and Guided keep separate local drafts.
+  unknown-by-tap test. Clean and Guided keep separate local drafts and translation
+  visibility. The Stories tab resumes the exact active book page and settings;
+  explicit reader exit clears only that active-reader redirect.
 
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating<=2). Yellow means Rating 2: the word was not retrieved before reveal but was recognized afterward. For an FSRS word this is scheduled prospectively as an assisted lapse (FSRS `Again`, 90% target, no immediate relearning step); for an acquiring word it stays in its current box. Red means Rating 1 (`Again`) and retains the uncapped failed-card retry path.
 - **Rating-2 cause and presentation evidence are diagnostic, never discounted credit** — reading submissions prospectively snapshot every mapped sentence token under word-evidence protocol v2, including function words and proper names, successful tokens, exact initial rendering, actual front/back tashkeel exposure, toggle history, rating, and optional cause chips (`retrieval_lapse`, `mixed_up`, `unfamiliar_form`, `missing_tashkeel`). Function words and proper names are exposure-only and never receive FSRS/acquisition credit. The yellow-word explanation panel remains visible above the submit actions even if focus moves to another word, names the exact active surface, and submission telemetry records which stable token prompts were actually rendered. Primary/collateral does not change validity, and morphology/tashkeel annotations do not weaken or replace the canonical lemma rating. Repeated tokens can carry distinct evidence while still producing one canonical scheduling update. Cause-specific representation routing remains inactive until version-segmented replay validates it.
