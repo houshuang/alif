@@ -92,6 +92,13 @@ follow-up live preflight showed 130 eligible verbs existed but schedule ranking
 placed the first non-cooled verb at rank 235, outside the 96-word planning
 window. The planner now scans the full due pool and injects the best lower-ranked
 eligible verb into that bounded window whenever a morphology slot needs one.
+The next recovery selected مَارَسَ from that lower-ranked pool, rejected two
+unnatural “practice music” drafts, and accepted story 243 on the third rewrite
+with مَارَسَتْ / مَارَسُوا / يُمَارِسُونَ. Its other targets recur three and
+four times. Production then reported six selectable stories, zero deficit, and
+nine cooled target IDs. The configured alert fired after the three preceding
+failed/interrupted runs; the newer completed run records the successful
+recovery and current healthy supply.
 
 **Cap and validation.** The opportunistic warm-cache path remains as the fast
 path, but its recent-supply count now ignores failed stories and stories with
