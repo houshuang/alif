@@ -478,7 +478,87 @@ class TestBookReaderPageEvidence:
             "كِتَاب", "نَادِر", "سَلِيم",
         ]
         assert detail["completed"] is False
+        assert [token["reader_gloss_eligible"] for token in detail["tokens"]] == [
+            True, True, False,
+        ]
         assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    def test_guided_passage_leaves_unintroduced_vocabulary_entirely_inert(self, db_session):
+        story, *_ = self._book(db_session)
+        from app.services.story_service import complete_book_page
+
+        result = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            reader_policy="guided",
+            sentence_indices=[0],
+            client_review_id="guided-inert",
+        )
+
+        assert result["guided_inert"] == 3
+        assert result["guided_started"] == 0
+        assert result["box2_floor"] == 0
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+        assert db_session.query(ReviewLog).count() == 0
+
+    def test_guided_toggle_starts_box_one_without_fabricated_miss(self, db_session):
+        story, understood, *_ = self._book(db_session)
+        from app.services.story_service import complete_book_page
+
+        result = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            reader_policy="guided",
+            sentence_indices=[0],
+            learn_token_positions=[0],
+            client_review_id="guided-learn",
+        )
+
+        state = db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=understood.lemma_id
+        ).one()
+        assert state.knowledge_state == "acquiring"
+        assert state.acquisition_box == 1
+        assert state.acquisition_next_due <= datetime.now(timezone.utc).replace(tzinfo=None)
+        assert result["guided_started"] == 1
+        assert result["guided_inert"] == 2
+        assert db_session.query(ReviewLog).filter_by(
+            lemma_id=understood.lemma_id
+        ).count() == 0
+
+    def test_clean_revisit_activates_only_previously_guided_inert_words(self, db_session):
+        story, understood, looked_up, person = self._book(db_session)
+        from app.services.story_service import complete_book_page
+
+        complete_book_page(
+            db_session,
+            story.id,
+            1,
+            reader_policy="guided",
+            sentence_indices=[0],
+            client_review_id="guided-first",
+        )
+        result = complete_book_page(
+            db_session,
+            story.id,
+            1,
+            reader_policy="clean",
+            sentence_indices=[0],
+            client_review_id="clean-revisit",
+        )
+
+        assert result["guided_inert"] == 0
+        assert result["box2_floor"] == 3
+        assert {
+            row.lemma_id: row.acquisition_box
+            for row in db_session.query(UserLemmaKnowledge).all()
+        } == {
+            understood.lemma_id: 2,
+            looked_up.lemma_id: 2,
+            person.lemma_id: 2,
+        }
 
     def test_stale_unmapped_word_resolves_existing_lemma_without_writing(self, db_session):
         existing = _create_lemma(
@@ -740,6 +820,7 @@ class TestBookReaderPageEvidence:
         from app.services.story_service import complete_book_page
         complete_book_page(
             db_session, story.id, 1,
+            reader_policy="guided",
             unknown_lemma_ids=[looked_up.lemma_id],
             sentence_indices=[0],
             client_review_id="book-box3-miss",
@@ -813,12 +894,39 @@ class TestBookReaderPageEvidence:
         assert db_session.query(Lemma).filter_by(lemma_ar_bare="زردق").first() is None
         assert db_session.query(UserLemmaKnowledge).count() == 0
 
-    @pytest.mark.parametrize("mark_unknown, expected_box, expected_reviews", [
-        (False, 2, 0),
-        (True, 1, 0),
+    def test_guided_unmapped_word_is_inert_without_running_import(self, db_session, monkeypatch):
+        story = Story(title_ar="فصل", body_ar="زَرْدَق.", source="book_ocr", status="active", page_count=1)
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id, position=0, page_number=1, sentence_index=0,
+            surface_form="زَرْدَق.", gloss_en="a zardaq", lemma_id=None,
+        ))
+        db_session.commit()
+        importer = MagicMock(return_value=[])
+        monkeypatch.setattr("app.services.story_service._import_unknown_words", importer)
+
+        from app.services.story_service import complete_book_page
+        result = complete_book_page(
+            db_session, story.id, 1,
+            reader_policy="guided",
+            sentence_indices=[0],
+            client_review_id="guided-unmapped-inert",
+        )
+
+        importer.assert_not_called()
+        assert result["guided_inert"] == 1
+        assert db_session.query(Lemma).filter_by(lemma_ar_bare="زردق").first() is None
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    @pytest.mark.parametrize("reader_policy, mark_unknown, learn_explicitly, expected_box, expected_reviews", [
+        ("clean", False, False, 2, 0),
+        ("clean", True, False, 1, 0),
+        ("guided", False, True, 1, 0),
     ])
     def test_new_reader_word_uses_full_inline_import_before_admission(
-        self, db_session, monkeypatch, mark_unknown, expected_box, expected_reviews
+        self, db_session, monkeypatch, reader_policy, mark_unknown,
+        learn_explicitly, expected_box, expected_reviews
     ):
         story = Story(title_ar="فصل", body_ar="زَرْدَق.", source="book_ocr", status="active", page_count=1)
         db_session.add(story)
@@ -850,9 +958,11 @@ class TestBookReaderPageEvidence:
         from app.services.story_service import complete_book_page
         complete_book_page(
             db_session, story.id, 1,
+            reader_policy=reader_policy,
             sentence_indices=[0],
             unknown_token_positions=[0] if mark_unknown else [],
-            client_review_id=f"book-new-{mark_unknown}",
+            learn_token_positions=[0] if learn_explicitly else [],
+            client_review_id=f"book-new-{reader_policy}-{mark_unknown}-{learn_explicitly}",
         )
 
         assert calls == [{
@@ -878,6 +988,36 @@ class TestBookReaderPageEvidence:
                 sentence_indices=[0],
                 dont_learn_token_positions=[0],
                 client_review_id="invalid-existing-opt-out",
+            )
+
+    def test_guided_policy_rejects_opt_out_and_learning_toggle_for_introduced_word(self, db_session):
+        story, understood, *_ = self._book(db_session)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=understood.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_started_at=datetime.now(timezone.utc),
+            acquisition_next_due=datetime.now(timezone.utc),
+            source="study",
+        ))
+        db_session.commit()
+        from app.services.story_service import complete_book_page
+
+        with pytest.raises(ValueError, match="already untracked"):
+            complete_book_page(
+                db_session, story.id, 1,
+                reader_policy="guided",
+                sentence_indices=[0],
+                dont_learn_token_positions=[1],
+                client_review_id="guided-invalid-optout",
+            )
+        with pytest.raises(ValueError, match="inline-glossed"):
+            complete_book_page(
+                db_session, story.id, 1,
+                reader_policy="guided",
+                sentence_indices=[0],
+                learn_token_positions=[0],
+                client_review_id="guided-invalid-learn",
             )
 
 

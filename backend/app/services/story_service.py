@@ -2094,6 +2094,15 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
             # after full enrichment when this passage is advanced.
             "is_schedulable": bool(effective_id or _story_word_bare(sw.surface_form)),
             "has_full_entry": bool(effective_id),
+            "reader_gloss_eligible": bool(
+                not sw.is_function_word
+                and not is_proper_name
+                and (
+                    effective_id is None
+                    or knowledge is None
+                    or knowledge.knowledge_state in ("new", "encountered")
+                )
+            ),
         })
 
     # Sentences on this page
@@ -2235,11 +2244,13 @@ def complete_book_page(
     page_number: int,
     looked_up_lemma_ids: list[int] | None = None,
     *,
+    reader_policy: str = "clean",
     sentence_indices: list[int] | None = None,
     passage_token_positions: list[int] | None = None,
     unknown_lemma_ids: list[int] | None = None,
     unknown_token_positions: list[int] | None = None,
     dont_learn_token_positions: list[int] | None = None,
+    learn_token_positions: list[int] | None = None,
     reading_time_ms: int | None = None,
     client_review_id: str | None = None,
 ) -> dict:
@@ -2250,11 +2261,13 @@ def complete_book_page(
             story_id,
             page_number,
             looked_up_lemma_ids or [],
+            reader_policy=reader_policy,
             sentence_indices=sentence_indices,
             passage_token_positions=passage_token_positions,
             unknown_lemma_ids=unknown_lemma_ids,
             unknown_token_positions=unknown_token_positions,
             dont_learn_token_positions=dont_learn_token_positions,
+            learn_token_positions=learn_token_positions,
             reading_time_ms=reading_time_ms,
             client_review_id=client_review_id,
         )
@@ -2266,11 +2279,13 @@ def _complete_book_page(
     page_number: int,
     looked_up_lemma_ids: list[int],
     *,
+    reader_policy: str = "clean",
     sentence_indices: list[int] | None = None,
     passage_token_positions: list[int] | None = None,
     unknown_lemma_ids: list[int] | None = None,
     unknown_token_positions: list[int] | None = None,
     dont_learn_token_positions: list[int] | None = None,
+    learn_token_positions: list[int] | None = None,
     reading_time_ms: int | None = None,
     client_review_id: str | None = None,
 ) -> dict:
@@ -2278,9 +2293,11 @@ def _complete_book_page(
 
     The server owns passage membership.  New tokens are fully enriched before
     learner state is written; opt-out is legal only while a token is genuinely
-    unmapped. Untouched words receive a Box-2 *floor*, never a synthetic positive
-    review. Existing-lemma taps use the same rating-1 primitives as sentence
-    review, including a real box-2/3 or FSRS lapse.
+    unmapped. Clean-mode untouched words receive a Box-2 *floor*, never a
+    synthetic positive review. Guided-mode unintroduced words remain inert
+    unless explicitly selected for learning. Existing-lemma taps use the same
+    rating-1 primitives as sentence review, including a real box-2/3 or FSRS
+    lapse.
     """
     from app.services.acquisition_service import (
         BOX_INTERVALS,
@@ -2292,6 +2309,8 @@ def _complete_book_page(
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story or story.source != "book_ocr":
         raise ValueError(f"Story {story_id} is not a book import")
+    if reader_policy not in ("clean", "guided"):
+        raise ValueError(f"Unsupported book reader policy: {reader_policy}")
     if page_number < 1 or page_number > (story.page_count or 1):
         raise ValueError(f"Page {page_number} is outside this book")
 
@@ -2363,10 +2382,19 @@ def _complete_book_page(
     resolved_target_lemma_ids = _resolve_book_word_lemma_ids(db, target_words)
     unknown_positions = set(unknown_token_positions or [])
     dont_learn_positions = set(dont_learn_token_positions or [])
-    if not unknown_positions <= target_positions or not dont_learn_positions <= target_positions:
+    learn_positions = set(learn_token_positions or [])
+    if (
+        not unknown_positions <= target_positions
+        or not dont_learn_positions <= target_positions
+        or not learn_positions <= target_positions
+    ):
         raise ValueError("Word evidence falls outside the displayed passage")
     if unknown_positions & dont_learn_positions:
         raise ValueError("A word cannot be both unknown and Don't learn")
+    if reader_policy == "guided" and dont_learn_positions:
+        raise ValueError("Guided words are already untracked by default")
+    if reader_policy == "clean" and learn_positions:
+        raise ValueError("Explicit learning toggles require guided reader mode")
 
     # Compatibility for the first page-reader client: its looked-up IDs apply
     # to the selected passage, while new clients send the explicit field.
@@ -2380,6 +2408,50 @@ def _complete_book_page(
     }
     if not requested_unknown_canonical <= target_canonical_ids:
         raise ValueError("Unknown lemma evidence falls outside the displayed passage")
+
+    target_lemmas = {
+        lemma.lemma_id: lemma
+        for lemma in db.query(Lemma)
+        .filter(Lemma.lemma_id.in_(target_canonical_ids | target_raw_ids))
+        .all()
+    } if target_raw_ids else {}
+    target_states = {
+        row.lemma_id: row.knowledge_state
+        for row in db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id.in_(target_canonical_ids))
+        .all()
+    } if target_canonical_ids else {}
+    guided_unintroduced_positions: set[int] = set()
+    guided_eligible_positions: set[int] = set()
+    for sw in target_words:
+        raw_id = resolved_target_lemma_ids.get(sw.position)
+        canonical_id = (
+            resolve_canonical_lemma_id(db, raw_id) if raw_id is not None else None
+        )
+        lemma = target_lemmas.get(canonical_id) or target_lemmas.get(raw_id)
+        is_unintroduced = (
+            canonical_id is None
+            or target_states.get(canonical_id) in (None, "new", "encountered")
+        )
+        if is_unintroduced:
+            guided_unintroduced_positions.add(sw.position)
+            if (
+                not sw.is_function_word
+                and sw.name_type not in ("personal", "place")
+                and (lemma is None or lemma.word_category != "proper_name")
+            ):
+                guided_eligible_positions.add(sw.position)
+    if reader_policy == "guided" and not learn_positions <= guided_eligible_positions:
+        raise ValueError("Only inline-glossed words can be explicitly learned")
+    if reader_policy == "guided":
+        guided_unknown_positions = unknown_positions & guided_eligible_positions
+        guided_unknown_ids = {
+            resolve_canonical_lemma_id(db, resolved_target_lemma_ids[position])
+            for position in guided_eligible_positions
+            if position in resolved_target_lemma_ids
+        } & requested_unknown_canonical
+        if guided_unknown_positions or guided_unknown_ids:
+            raise ValueError("Inline-glossed words use Learn, not miss evidence")
     for sw in target_words:
         if sw.position in dont_learn_positions and sw.position in resolved_target_lemma_ids:
             raise ValueError("Don't learn is unavailable for an existing lemma")
@@ -2411,7 +2483,24 @@ def _complete_book_page(
 
     previous_unknown_ids = set((previous or {}).get("unknown_lemma_ids") or [])
     previous_unknown_positions = set((previous or {}).get("unknown_token_positions") or [])
+    previous_inert_positions = set((previous or {}).get("inert_token_positions") or [])
     is_update = bool(previous and previous.get("completed_at"))
+    current_inert_positions = (
+        {
+            position
+            for position in guided_unintroduced_positions
+            if position not in learn_positions
+            and position not in unknown_positions
+            and (
+                position not in resolved_target_lemma_ids
+                or resolve_canonical_lemma_id(
+                    db, resolved_target_lemma_ids[position]
+                ) not in requested_unknown_canonical
+            )
+        }
+        if reader_policy == "guided"
+        else set()
+    )
 
     # Admit only the passage's unmapped, non-opted-out lexical positions. This
     # calls the normal importer with inline (not background) quality enrichment.
@@ -2421,6 +2510,11 @@ def _complete_book_page(
         for sw in target_words
         if sw.position not in resolved_target_lemma_ids
         and sw.position not in dont_learn_positions
+        and (
+            reader_policy == "clean"
+            or sw.position in learn_positions
+            or sw.position in unknown_positions
+        )
         and _story_word_bare(sw.surface_form)
     }
     imported_lemma_ids: list[int] = []
@@ -2453,11 +2547,16 @@ def _complete_book_page(
     # routed through the shared quality pipeline. Only this book's ungated
     # cohort is eligible; ordinary established DB lemmas are not re-enriched on
     # a reader request. As above, the gate commits before every slow LLM phase.
+    active_position_lemma_ids = {
+        lemma_id
+        for position, lemma_id in resolved_target_lemma_ids.items()
+        if position not in current_inert_positions
+    }
     story_scoped_ungated_ids = {
         lemma.lemma_id
         for lemma in db.query(Lemma)
         .filter(
-            Lemma.lemma_id.in_(set(resolved_target_lemma_ids.values())),
+            Lemma.lemma_id.in_(active_position_lemma_ids),
             Lemma.source_story_id == story_id,
             Lemma.gates_completed_at.is_(None),
         )
@@ -2485,6 +2584,7 @@ def _complete_book_page(
         sw.position for sw in target_words
         if sw.position not in resolved_target_lemma_ids
         and sw.position not in dont_learn_positions
+        and sw.position not in current_inert_positions
         and _story_word_bare(sw.surface_form)
     ]
     if unresolved_required:
@@ -2503,6 +2603,30 @@ def _complete_book_page(
         for position in unknown_positions
         if position in canonical_by_position
     )
+    guided_learn_canonical = {
+        canonical_by_position[position]
+        for position in learn_positions
+        if position in canonical_by_position
+    }
+    explicitly_active_canonical = guided_learn_canonical | unknown_canonical
+    current_inert_positions = {
+        position
+        for position in current_inert_positions
+        if canonical_by_position.get(position) not in explicitly_active_canonical
+    }
+    current_inert_canonical = {
+        canonical_by_position[position]
+        for position in current_inert_positions
+        if position in canonical_by_position
+    }
+    previous_inert_canonical = {
+        canonical_by_position[position]
+        for position in previous_inert_positions
+        if position in canonical_by_position
+    }
+    newly_active_canonical = (
+        previous_inert_canonical - current_inert_canonical
+    ) | guided_learn_canonical
     newly_created_canonical_ids = {
         resolve_canonical_lemma_id(db, lemma_id)
         for lemma_id in imported_lemma_ids
@@ -2522,6 +2646,8 @@ def _complete_book_page(
         "box2_floor": 0,
         "reviewed_again": 0,
         "dont_learn": len(dont_learn_positions),
+        "guided_inert": len(current_inert_positions),
+        "guided_started": 0,
         "skipped": 0,
     }
     review_prefix = client_review_id or f"book:{story_id}:{receipt_key}"
@@ -2536,7 +2662,25 @@ def _complete_book_page(
         ulk = ulks.get(lemma_id)
         was_unknown = lemma_id in unknown_canonical
 
-        if is_update and lemma_id not in new_unknown_ids:
+        if lemma_id in current_inert_canonical:
+            continue
+
+        if (
+            is_update
+            and lemma_id not in new_unknown_ids
+            and lemma_id not in newly_active_canonical
+        ):
+            continue
+
+        if lemma_id in guided_learn_canonical:
+            if ulk is None or ulk.knowledge_state in ("encountered", "new"):
+                ulk = start_acquisition(
+                    db, lemma_id, source="book", due_immediately=True,
+                    enforce_daily_cap=False,
+                )
+                ulks[lemma_id] = ulk
+                counts["scheduled"] += 1
+                counts["guided_started"] += 1
             continue
 
         if was_unknown:
@@ -2628,17 +2772,27 @@ def _complete_book_page(
             ulk.total_encounters = (ulk.total_encounters or 0) + 1
 
     previous_counts = (previous or {}).get("counts") or {}
-    stored_counts = {
-        key: previous_counts.get(key, 0) + value
-        for key, value in counts.items()
-    } if is_update else counts
+    if is_update:
+        stored_counts = {
+            key: previous_counts.get(key, 0) + value
+            for key, value in counts.items()
+            if key not in ("dont_learn", "guided_inert")
+        }
+        stored_counts["dont_learn"] = counts["dont_learn"]
+        stored_counts["guided_inert"] = counts["guided_inert"]
+    else:
+        stored_counts = counts
+    previous_learn_positions = set((previous or {}).get("learn_token_positions") or [])
     passage_receipts[receipt_key] = {
         "completed_at": now.isoformat(),
+        "reader_policy": reader_policy,
         "sentence_indices": selected_indices,
         "passage_token_positions": ordered_target_positions,
         "unknown_lemma_ids": sorted(previous_unknown_ids | unknown_canonical),
         "unknown_token_positions": sorted(previous_unknown_positions | unknown_positions),
         "dont_learn_token_positions": sorted(dont_learn_positions),
+        "learn_token_positions": sorted(previous_learn_positions | learn_positions),
+        "inert_token_positions": sorted(current_inert_positions),
         "reading_time_ms": reading_time_ms,
         "client_review_id": client_review_id,
         "counts": stored_counts,
@@ -2677,6 +2831,7 @@ def _complete_book_page(
         event="book_page_completed",
         story_id=story_id,
         page_number=page_number,
+        reader_policy=reader_policy,
         sentence_indices=selected_indices,
         looked_up_count=len(unknown_canonical),
         reading_time_ms=reading_time_ms,

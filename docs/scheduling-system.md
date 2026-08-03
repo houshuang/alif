@@ -270,10 +270,20 @@ at preserved punctuation into roughly 24–48-token book passages.
 - **`Don't learn`:** valid only for a server-confirmed unmapped token. The token is
   excluded before translation, lemma creation, enrichment, and learner writes.
   An existing lemma ID is rejected even if the UI is stale.
+- **Guided policy:** a token with no learner row or only `new`/`encountered`
+  state is inert by default. Content vocabulary exposes its short gloss inline;
+  function words and proper names stay visually clean but are still inert until
+  explicitly missed. `learn_token_positions` may name only server-confirmed
+  inline-gloss positions and starts their canonical at Box 1 due immediately,
+  after full enrichment when needed, with no ReviewLog because the answer was
+  visible. Already introduced tokens retain the normal miss/untapped semantics.
 
 Passage receipts live in `Story.metadata_json.book_reader.passages`, keyed by page
 and exact token range. The stable client review ID makes a lost-response replay
 a no-op; a revisit may submit a fresh receipt only to add newly discovered misses.
+Receipts retain guided inert positions: switching that passage to clean mode, or
+explicitly learning a guided word later, activates only the previously excluded
+canonical cohort rather than replaying established-word evidence.
 The receipt also advances `book_reader.location` for exact server-side resume.
 Slow enrichment commits/releases its own work before the short learner-state
 transaction, preserving the SQLite no-write-lock-during-LLM invariant.
@@ -283,6 +293,9 @@ transaction, preserving the SQLite no-write-lock-during-LLM invariant.
 unknown-scaffold, backlog, cohort, intro-card, and listening gates. Canonical
 resolution precedes the one-outcome-per-lemma loop. Untouched suspended rows stay
 suspended; an explicit tap is authoritative review evidence.
+Guided mode introduces no additional state: inert words have no mutation, and an
+opt-in uses the existing Box-1 acquisition shape. Its bypass of the clean Box-2
+floor is explicit, server-validated, and logged by `reader_policy="guided"`.
 
 ### 3.6 Duolingo Import
 

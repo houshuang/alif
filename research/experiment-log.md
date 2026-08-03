@@ -48,6 +48,39 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Guided book reading — free inline glosses with opt-in vocabulary admission
+
+**Hypothesis.** The transactional reader is deliberately honest about passive
+recognition, but importing every untouched new word at Box 2 still turns sustained
+book reading into a large vocabulary-admission event. A second, explicitly guided
+mode may increase authentic reading volume by making the not-yet-introduced layer
+immediately comprehensible without silently expanding the review queue.
+
+**Intervention.** In guided mode, lexical tokens with no learner row or only a
+`new`/`encountered` row receive a small inline English gloss. Function words and
+proper names are excluded from automatic glossing to protect line rhythm, but
+remain tappable. These glossed tokens are inert by default: advancing creates no
+lemma, enrichment, learner row, encounter, or review. Tapping a glossed token
+toggles explicit admission; a mapped lemma starts ordinary acquisition Box 1 due
+immediately, while an unmapped token first runs canonical deduplication and the
+full synchronous quality/enrichment pipeline. Because the answer was visible,
+admission writes no rating-1 ReviewLog. Already introduced words remain unglossed;
+tapping one is still the normal authoritative rating-1 miss. Clean reader mode
+retains the existing Box-2-floor semantics.
+
+**Expected effect.** The learner can read substantially more prose with a stable
+Arabic-first eye path, decide which useful gaps deserve durable study, and avoid
+review debt from incidental low-value vocabulary. The comparison is behavioral:
+reading pace, passages completed, inline-gloss density, opt-in rate, later misses
+on previously glossed forms, and continued use of guided versus clean mode.
+
+**Safety boundary.** The client submits exact token positions plus the reader
+policy; the server independently recomputes which positions were eligible for
+free glossing. A forged learning toggle for an introduced word or a guided opt-out
+request fails closed. Passage receipts retain inert positions so a later clean
+reading or explicit guided admission can activate only the previously excluded
+cohort without replaying credit for established words.
+
 ## 2026-08-03: Book reader passage evidence — Box-2 floor, authoritative misses, inert lookup drafts
 
 **Problem.** The first Arabic book reader used a whole printed page as both the

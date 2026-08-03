@@ -1,11 +1,13 @@
 import { BookPageToken } from "./types";
 
 export type BookReaderMode = "arabic" | "both";
+export type BookReaderPolicy = "clean" | "guided";
 
 export interface BookPassageDraft {
   unknownLemmaIds: number[];
   unknownTokenPositions: number[];
   dontLearnTokenPositions: number[];
+  learnTokenPositions: number[];
   clientReviewId: string;
 }
 
@@ -23,11 +25,12 @@ export function bookPassageDraftKey(
   storyId: number,
   pageNumber: number,
   tokenPositions: number[],
+  policy: BookReaderPolicy = "clean",
 ): string {
   const range = tokenPositions.length > 0
     ? `${tokenPositions[0]}-${tokenPositions[tokenPositions.length - 1]}`
     : "empty";
-  return `@alif:book-reader:passage:${storyId}:${pageNumber}:${range}`;
+  return `@alif:book-reader:passage:${storyId}:${pageNumber}:${range}:${policy}`;
 }
 
 export function bookReaderLocationKey(storyId: number): string {
@@ -49,11 +52,22 @@ export function parseBookPassageDraft(raw: string | null): BookPassageDraft | nu
       unknownTokenPositions: integers(value.unknownTokenPositions)
         .filter((position) => !dontLearn.has(position)),
       dontLearnTokenPositions,
+      learnTokenPositions: integers(value.learnTokenPositions),
       clientReviewId: value.clientReviewId,
     };
   } catch {
     return null;
   }
+}
+
+export function shortBookGloss(gloss: string | null): string | null {
+  if (!gloss) return null;
+  const concise = gloss
+    .replace(/^\(name\)\s*/i, "")
+    .split(/[;|]/, 1)[0]
+    .trim();
+  if (!concise) return null;
+  return concise.length <= 24 ? concise : `${concise.slice(0, 22).trimEnd()}…`;
 }
 
 export function parseBookReaderLocation(raw: string | null): BookReaderLocation | null {
@@ -88,6 +102,43 @@ export function positionsForSameUnmappedSurface(
   return tokens
     .filter((token) => token.lemma_id == null && normalizedBookSurface(token.surface_form) === key)
     .map((token) => token.position);
+}
+
+export function positionsForSameGuidedWord(
+  tokens: BookPageToken[],
+  selected: BookPageToken,
+): number[] {
+  if (selected.lemma_id != null) {
+    return tokens
+      .filter((token) => (
+        token.reader_gloss_eligible && token.lemma_id === selected.lemma_id
+      ))
+      .map((token) => token.position);
+  }
+  const key = normalizedBookSurface(selected.surface_form);
+  return tokens
+    .filter((token) => (
+      token.reader_gloss_eligible
+      && token.lemma_id == null
+      && normalizedBookSurface(token.surface_form) === key
+    ))
+    .map((token) => token.position);
+}
+
+export function countGuidedLearningWords(
+  tokens: BookPageToken[],
+  selectedPositions: Iterable<number>,
+): number {
+  const positions = new Set(selectedPositions);
+  const words = new Set<string>();
+  for (const token of tokens) {
+    if (!positions.has(token.position)) continue;
+    const key = token.lemma_id != null
+      ? `lemma:${token.lemma_id}`
+      : `surface:${normalizedBookSurface(token.surface_form)}`;
+    words.add(key);
+  }
+  return words.size;
 }
 
 export function parseBookLookupDraft(raw: string | null): number[] {

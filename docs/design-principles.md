@@ -33,6 +33,11 @@ Feature-level design decisions and implementation details. For bug-preventing in
   Draft marks and exact passage location persist locally, while successful
   passage receipts persist the location server-side. Navigation never advances
   on a failed save.
+  The optional **Guided** policy adds tiny isolated English glosses only to
+  not-yet-introduced content vocabulary. Those glosses are free reading support,
+  inert by default, and tappable to opt into Box 1 on Next. Function words and
+  proper names remain visually unglossed; introduced vocabulary remains a normal
+  unknown-by-tap test. Clean and Guided keep separate local drafts.
 
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating<=2). Yellow means Rating 2: the word was not retrieved before reveal but was recognized afterward. For an FSRS word this is scheduled prospectively as an assisted lapse (FSRS `Again`, 90% target, no immediate relearning step); for an acquiring word it stays in its current box. Red means Rating 1 (`Again`) and retains the uncapped failed-card retry path.
 - **Rating-2 cause and presentation evidence are diagnostic, never discounted credit** — reading submissions prospectively snapshot every mapped sentence token under word-evidence protocol v2, including function words and proper names, successful tokens, exact initial rendering, actual front/back tashkeel exposure, toggle history, rating, and optional cause chips (`retrieval_lapse`, `mixed_up`, `unfamiliar_form`, `missing_tashkeel`). Function words and proper names are exposure-only and never receive FSRS/acquisition credit. The yellow-word explanation panel remains visible above the submit actions even if focus moves to another word, names the exact active surface, and submission telemetry records which stable token prompts were actually rendered. Primary/collateral does not change validity, and morphology/tashkeel annotations do not weaken or replace the canonical lemma rating. Repeated tokens can carry distinct evidence while still producing one canonical scheduling update. Cause-specific representation routing remains inactive until version-segmented replay validates it.

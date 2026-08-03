@@ -713,11 +713,13 @@ export async function completeBookPassage(
   storyId: number,
   page: number,
   evidence: {
+    reader_policy: "clean" | "guided";
     sentence_indices: number[];
     passage_token_positions: number[];
     unknown_lemma_ids: number[];
     unknown_token_positions: number[];
     dont_learn_token_positions: number[];
+    learn_token_positions: number[];
     reading_time_ms?: number;
     client_review_id: string;
   },

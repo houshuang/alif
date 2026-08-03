@@ -852,6 +852,7 @@ class BookPageTokenOut(BaseModel):
     is_proper_name: bool = False
     is_schedulable: bool = False
     has_full_entry: bool = False
+    reader_gloss_eligible: bool = False
 
 
 class BookPassageOut(BaseModel):
@@ -886,12 +887,14 @@ class BookPageDetailOut(BaseModel):
 
 
 class BookPageCompleteIn(BaseModel):
+    reader_policy: Literal["clean", "guided"] = "clean"
     looked_up_lemma_ids: list[int] = Field(default_factory=list)
     sentence_indices: list[int] = Field(default_factory=list)
     passage_token_positions: list[int] = Field(default_factory=list)
     unknown_lemma_ids: list[int] = Field(default_factory=list)
     unknown_token_positions: list[int] = Field(default_factory=list)
     dont_learn_token_positions: list[int] = Field(default_factory=list)
+    learn_token_positions: list[int] = Field(default_factory=list)
     reading_time_ms: int | None = None
     client_review_id: str | None = None
 
@@ -906,6 +909,8 @@ class BookPageCompleteOut(BaseModel):
     box2_floor: int = 0
     reviewed_again: int = 0
     dont_learn: int = 0
+    guided_inert: int = 0
+    guided_started: int = 0
     skipped: int = 0
     duplicate: bool = False
 
