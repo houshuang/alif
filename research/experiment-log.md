@@ -48,6 +48,51 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-03: Book reader passage evidence — Box-2 floor, authoritative misses, inert lookup drafts
+
+**Problem.** The first Arabic book reader used a whole printed page as both the
+display and evidence unit. It excluded function words and proper names, treated
+untapped acquiring/carded words as successful reviews, and could only submit
+lemmas already mapped at import. That made leisurely bilingual reading look like
+sentence review, gave passive exposure too much scheduling credit, and left no
+safe semantics for a genuinely new surface that the learner chose not to admit.
+
+**Intervention.** The reader now submits only the displayed one- or two-passage
+unit. Opening, translating, and tapping remain an inert local draft until the
+learner advances. The server derives the passage token set from stored positions.
+For each untouched lexical item, it runs the normal canonical lookup and complete
+lemma quality/enrichment pipeline if needed, then creates or raises learner state
+to acquisition Box 2 without downgrading stronger state and without writing a
+synthetic successful ReviewLog. A tapped existing lemma has no opt-out and follows
+the same rating-1 acquisition/FSRS transition as sentence review. A tapped new
+surface is fully admitted and due immediately in Box 1; only an unmapped surface
+may be marked **Don’t learn**, in which case neither lemma nor learner row is
+created. Passage receipts make replay a no-op and persist exact location.
+
+**Expected effect.** Reading supplies broad recognition evidence without
+pretending it was recall practice; gaps found in authentic prose enter the normal
+review queue immediately; and imported books remain entirely inert beyond the
+passages actually advanced. Duplicate avoidance improves because admission uses
+the same exact-identity, clitic-aware canonical resolution and post-creation gates
+as other imports rather than a reader-only minimal entry.
+
+**Gate audit.** Box-2 rows are ordinary `acquiring` rows, so existing
+comprehensibility, book/corpus-acquiring, unknown-scaffold, backlog, focus-cohort,
+intro-card, and listening gates already recognize their shape. The reader does
+not create a new knowledge state. Suspended rows remain suspended when untouched;
+an explicit miss is handled by the normal review primitive. Canonical resolution
+happens before one outcome per lemma, so variants cannot receive duplicate credit.
+
+**Verification.** Service tests cover inert reads, passage-boundary enforcement,
+Box-2 floors with no positive review logs, existing Box 3 and FSRS misses, complete
+new-lemma gating, opt-out non-creation, canonical deduplication, receipt replay,
+and an untouched later passage. Frontend tests cover passage grouping, durable
+draft/location parsing, and repeated unmapped-surface handling. Rendered mobile QA
+targets an iPhone 16 viewport and verifies unknown-by-default taps plus opt-out
+availability only for unmapped tokens, alongside Arabic-only and
+bilingual modes, preserved punctuation, per-word tashkeel fading, and slow/error
+states that never advance location before the receipt succeeds.
+
 ## 2026-08-02: Durable embedded-story supply — cron recovery, target cooldown, credential preflight
 
 **Reliability gap.** The improved generator was automatically invoked after a

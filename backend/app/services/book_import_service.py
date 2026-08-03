@@ -731,6 +731,19 @@ def import_processed_book(
                 "Strict processed-book import has unmapped Arabic forms: "
                 + ", ".join(unmapped)
             )
+        # Curated mapping controls *which* lemma a surface means; it is not a
+        # waiver from the shared lemma pipeline. Release the import write lock,
+        # then run the same synchronous gates/enrichment used by every admitted
+        # reader lemma before exposing the book.
+        db.commit()
+        if curated_ids:
+            from app.services.lemma_quality import run_quality_gates
+            run_quality_gates(
+                db,
+                curated_ids,
+                background_enrich=False,
+            )
+            db.refresh(story)
         _recalculate_story_counts(db, story)
         story.status = "active"
         db.commit()

@@ -996,9 +996,21 @@ export interface BookPageToken {
   lemma_id: number | null;
   gloss_en: string | null;
   knowledge_state: string | null;
+  acquisition_box: number | null;
+  stability: number | null;
+  show_tashkeel: boolean;
   is_function_word: boolean;
   is_proper_name: boolean;
   is_schedulable: boolean;
+  has_full_entry: boolean;
+}
+
+export interface BookPassage {
+  sentence_index: number;
+  sentence_indices: number[];
+  arabic_text: string;
+  english_translation: string | null;
+  token_positions: number[];
 }
 
 export interface BookPageDetail {
@@ -1012,21 +1024,28 @@ export interface BookPageDetail {
   english_translation: string | null;
   completed: boolean;
   looked_up_lemma_ids: number[];
+  completed_sentence_indices: number[];
+  resume_sentence_index: number | null;
+  resume_token_position: number | null;
   known_count: number;
   new_not_started: number;
   new_learning: number;
   tokens: BookPageToken[];
   words: BookPageWord[];
   sentences: BookPageSentence[];
+  passages: BookPassage[];
 }
 
 export interface BookPageCompleteResult {
   story_id: number;
   page_number: number;
+  sentence_indices: number[];
+  passage_token_positions: number[];
   newly_known: number;
   scheduled: number;
-  reviewed_good: number;
+  box2_floor: number;
   reviewed_again: number;
+  dont_learn: number;
   skipped: number;
   duplicate: boolean;
 }

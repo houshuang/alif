@@ -709,6 +709,32 @@ export async function completeBookPage(
   );
 }
 
+export async function completeBookPassage(
+  storyId: number,
+  page: number,
+  evidence: {
+    sentence_indices: number[];
+    passage_token_positions: number[];
+    unknown_lemma_ids: number[];
+    unknown_token_positions: number[];
+    dont_learn_token_positions: number[];
+    reading_time_ms?: number;
+    client_review_id: string;
+  },
+): Promise<BookPageCompleteResult> {
+  return fetchApi<BookPageCompleteResult>(
+    `/api/stories/${storyId}/pages/${page}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        looked_up_lemma_ids: [],
+        ...evidence,
+        reading_time_ms: evidence.reading_time_ms ?? null,
+      }),
+    },
+  );
+}
+
 export async function generateStory(opts?: {
   difficulty?: string;
   length?: string;

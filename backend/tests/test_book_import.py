@@ -480,6 +480,53 @@ class TestBookReaderPageEvidence:
         assert detail["completed"] is False
         assert db_session.query(UserLemmaKnowledge).count() == 0
 
+    def test_stale_unmapped_word_resolves_existing_lemma_without_writing(self, db_session):
+        existing = _create_lemma(
+            db_session, "كِتَاب", "كتاب", "book", root_str="ك.ت.ب"
+        )
+        story = Story(
+            title_ar="فصل",
+            body_ar="كِتَاب.",
+            source="book_ocr",
+            status="active",
+            page_count=1,
+        )
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id,
+            position=0,
+            page_number=1,
+            sentence_index=0,
+            surface_form="كِتَاب.",
+            lemma_id=None,
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        from app.services.story_service import complete_book_page, get_book_page_detail
+
+        detail = get_book_page_detail(db_session, story.id, 1)
+
+        assert detail["tokens"][0]["lemma_id"] == existing.lemma_id
+        assert detail["tokens"][0]["has_full_entry"] is True
+        assert db_session.query(StoryWord).filter_by(id=word.id).one().lemma_id is None
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+        with pytest.raises(ValueError, match="existing lemma"):
+            complete_book_page(
+                db_session,
+                story.id,
+                1,
+                sentence_indices=[0],
+                passage_token_positions=[0],
+                dont_learn_token_positions=[0],
+                client_review_id="stale-existing-opt-out",
+            )
+
+        assert db_session.query(StoryWord).filter_by(id=word.id).one().lemma_id is None
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
     def test_page_tokens_and_receipts_use_canonical_lemma_ids(self, db_session):
         canonical = _create_lemma(db_session, "قَرَأَ", "قرأ", "to read", root_str="ق.ر.أ")
         variant = _create_lemma(db_session, "يَقْرَأُ", "يقرأ", "he reads", root_str="ق.ر.أ")
@@ -533,15 +580,17 @@ class TestBookReaderPageEvidence:
         lookup_state = db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=looked_up.lemma_id
         ).one()
-        assert known_state.knowledge_state == "known"
+        assert known_state.knowledge_state == "acquiring"
+        assert known_state.acquisition_box == 2
         assert known_state.fsrs_card_json is None
         assert lookup_state.knowledge_state == "acquiring"
         assert lookup_state.acquisition_box == 1
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=person.lemma_id
-        ).first() is None
+        ).one().acquisition_box == 1
         assert result["newly_known"] == 1
-        assert result["scheduled"] == 1
+        assert result["box2_floor"] == 1
+        assert result["reviewed_again"] == 2
 
         replay = complete_book_page(
             db_session,
@@ -560,12 +609,13 @@ class TestBookReaderPageEvidence:
             story.id,
             1,
             [looked_up.lemma_id, understood.lemma_id],
-            client_review_id=f"book:{story.id}:page:1",
+            client_review_id=f"book:{story.id}:page:1:revisit",
         )
         db_session.refresh(known_state)
         assert update["duplicate"] is False
-        assert update["scheduled"] == 1
+        assert update["reviewed_again"] == 3  # two original misses + one newly discovered gap
         assert known_state.knowledge_state == "acquiring"
+        assert known_state.acquisition_box == 1
 
     def test_concurrent_page_completion_is_cleanly_idempotent(self, db_session):
         story, _understood, looked_up, _person = self._book(db_session)
@@ -606,6 +656,229 @@ class TestBookReaderPageEvidence:
         assert db_session.query(ReviewLog).filter_by(
             client_review_id=f"book:{story_id}:page:1:again:{looked_up_id}"
         ).count() == 1
+
+    def test_only_displayed_passage_changes_state(self, db_session):
+        first = _create_lemma(db_session, "أَوَّل", "اول", "first", root_str="أ.و.ل")
+        later = _create_lemma(db_session, "لَاحِق", "لاحق", "later", root_str="ل.ح.ق")
+        story = Story(title_ar="فصل", body_ar="أَوَّل. لَاحِق.", source="book_ocr", status="active", page_count=1)
+        db_session.add(story)
+        db_session.flush()
+        db_session.add_all([
+            StoryWord(story_id=story.id, position=0, page_number=1, sentence_index=10,
+                      surface_form="أَوَّل.", lemma_id=first.lemma_id),
+            StoryWord(story_id=story.id, position=1, page_number=1, sentence_index=11,
+                      surface_form="لَاحِق.", lemma_id=later.lemma_id),
+        ])
+        db_session.commit()
+
+        from app.services.story_service import complete_book_page
+        complete_book_page(
+            db_session, story.id, 1, sentence_indices=[10], passage_token_positions=[0],
+            client_review_id="passage-only-10",
+        )
+
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=first.lemma_id
+        ).one().acquisition_box == 2
+        assert db_session.query(UserLemmaKnowledge).filter_by(
+            lemma_id=later.lemma_id
+        ).first() is None
+
+        with pytest.raises(ValueError, match="displayed reader units"):
+            complete_book_page(
+                db_session, story.id, 1,
+                passage_token_positions=[0, 999],
+                client_review_id="forged-reader-range",
+            )
+
+    def test_long_literary_sentence_splits_only_at_preserved_punctuation(self):
+        from app.services.story_service import (
+            _book_reader_token_units,
+            _leading_english_heading_count,
+            _split_english_reader_segments,
+        )
+        tokens = [
+            {
+                "position": index,
+                "sentence_index": 7,
+                "surface_form": f"كلمة{('،' if index in (29, 59, 89) else '')}",
+            }
+            for index in range(100)
+        ]
+
+        units = _book_reader_token_units(tokens)
+
+        assert len(units) == 3
+        assert [unit[-1]["position"] for unit in units[:-1]] == [29, 59]
+        assert [token["position"] for unit in units for token in unit] == list(range(100))
+
+        english = _split_english_reader_segments(
+            "CHAPTER FIVE\nSTORIES FOR MANY AND STORIES FOR ONE\n"
+            "Little by little, Momo became indispensable to Gigi."
+        )
+        assert _leading_english_heading_count(english, maximum=3) == 2
+
+    def test_existing_box_three_lookup_is_normal_review_miss(self, db_session, monkeypatch):
+        story, _understood, looked_up, _person = self._book(db_session)
+        looked_up.memory_hooks_json = {"approved": True}
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=looked_up.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=3,
+            acquisition_started_at=datetime.now(timezone.utc),
+            acquisition_next_due=datetime.now(timezone.utc),
+            source="study",
+            times_seen=3,
+            times_correct=3,
+        ))
+        db_session.commit()
+        monkeypatch.setattr(
+            "app.services.memory_hooks.regenerate_memory_hooks_premium",
+            lambda *_args, **_kwargs: None,
+        )
+
+        from app.services.story_service import complete_book_page
+        complete_book_page(
+            db_session, story.id, 1,
+            unknown_lemma_ids=[looked_up.lemma_id],
+            sentence_indices=[0],
+            client_review_id="book-box3-miss",
+        )
+
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=looked_up.lemma_id).one()
+        log = db_session.query(ReviewLog).filter_by(
+            client_review_id=f"book-box3-miss:again:{looked_up.lemma_id}"
+        ).one()
+        assert ulk.acquisition_box == 1
+        assert log.rating == 1
+        assert log.fsrs_log_json["acquisition_box_before"] == 3
+        assert log.fsrs_log_json["acquisition_box_after"] == 1
+
+    def test_existing_fsrs_lookup_is_normal_fsrs_miss(self, db_session, monkeypatch):
+        story, _understood, looked_up, _person = self._book(db_session)
+        from app.services.fsrs_service import create_new_card
+        looked_up.memory_hooks_json = {"approved": True}
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=looked_up.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=create_new_card(),
+            source="study",
+            times_seen=8,
+            times_correct=7,
+        ))
+        db_session.commit()
+        monkeypatch.setattr(
+            "app.services.memory_hooks.regenerate_memory_hooks_premium",
+            lambda *_args, **_kwargs: None,
+        )
+
+        from app.services.story_service import complete_book_page
+        complete_book_page(
+            db_session, story.id, 1,
+            unknown_lemma_ids=[looked_up.lemma_id],
+            sentence_indices=[0],
+            client_review_id="book-fsrs-miss",
+        )
+
+        log = db_session.query(ReviewLog).filter_by(
+            client_review_id=f"book-fsrs-miss:again:{looked_up.lemma_id}"
+        ).one()
+        assert log.rating == 1
+        assert log.is_acquisition is False
+        assert log.fsrs_log_json["fsrs_rating_applied"] == 1
+        assert log.fsrs_log_json["pre_knowledge_state"] == "known"
+
+    def test_dont_learn_unmapped_never_imports_or_creates_knowledge(self, db_session, monkeypatch):
+        story = Story(title_ar="فصل", body_ar="زَرْدَق.", source="book_ocr", status="active", page_count=1)
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id, position=0, page_number=1, sentence_index=0,
+            surface_form="زَرْدَق.", lemma_id=None,
+        ))
+        db_session.commit()
+        importer = MagicMock(return_value=[])
+        monkeypatch.setattr("app.services.story_service._import_unknown_words", importer)
+
+        from app.services.story_service import complete_book_page
+        result = complete_book_page(
+            db_session, story.id, 1,
+            sentence_indices=[0],
+            dont_learn_token_positions=[0],
+            client_review_id="book-opt-out",
+        )
+
+        importer.assert_not_called()
+        assert result["dont_learn"] == 1
+        assert db_session.query(Lemma).filter_by(lemma_ar_bare="زردق").first() is None
+        assert db_session.query(UserLemmaKnowledge).count() == 0
+
+    @pytest.mark.parametrize("mark_unknown, expected_box, expected_reviews", [
+        (False, 2, 0),
+        (True, 1, 0),
+    ])
+    def test_new_reader_word_uses_full_inline_import_before_admission(
+        self, db_session, monkeypatch, mark_unknown, expected_box, expected_reviews
+    ):
+        story = Story(title_ar="فصل", body_ar="زَرْدَق.", source="book_ocr", status="active", page_count=1)
+        db_session.add(story)
+        db_session.flush()
+        word = StoryWord(
+            story_id=story.id, position=0, page_number=1, sentence_index=0,
+            surface_form="زَرْدَق.", lemma_id=None,
+        )
+        db_session.add(word)
+        db_session.commit()
+
+        calls = []
+        def fully_imported(db, imported_story, _lookup, **kwargs):
+            calls.append(kwargs)
+            lemma = Lemma(
+                lemma_ar="زَرْدَقَ", lemma_ar_bare="زردق", gloss_en="to zardaq",
+                pos="verb", source="story_import", source_story_id=imported_story.id,
+                gates_completed_at=datetime.now(timezone.utc),
+                forms_json={"past_3ms": "زَرْدَقَ"},
+                etymology_json={"summary": "test"},
+            )
+            db.add(lemma)
+            db.flush()
+            db.query(StoryWord).filter_by(id=word.id).one().lemma_id = lemma.lemma_id
+            db.commit()
+            return [lemma.lemma_id]
+        monkeypatch.setattr("app.services.story_service._import_unknown_words", fully_imported)
+
+        from app.services.story_service import complete_book_page
+        complete_book_page(
+            db_session, story.id, 1,
+            sentence_indices=[0],
+            unknown_token_positions=[0] if mark_unknown else [],
+            client_review_id=f"book-new-{mark_unknown}",
+        )
+
+        assert calls == [{
+            "target_positions": {0},
+            "background_enrich": False,
+            "include_proper_names_as_lemmas": True,
+        }]
+        lemma = db_session.query(Lemma).filter_by(lemma_ar_bare="زردق").one()
+        assert lemma.gates_completed_at is not None
+        assert lemma.forms_json
+        assert lemma.etymology_json
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        assert ulk.acquisition_box == expected_box
+        assert db_session.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).count() == expected_reviews
+
+    def test_dont_learn_is_rejected_for_existing_lemma(self, db_session):
+        story, understood, *_ = self._book(db_session)
+        from app.services.story_service import complete_book_page
+
+        with pytest.raises(ValueError, match="existing lemma"):
+            complete_book_page(
+                db_session, story.id, 1,
+                sentence_indices=[0],
+                dont_learn_token_positions=[0],
+                client_review_id="invalid-existing-opt-out",
+            )
 
 
 class TestProcessedBookImport:
@@ -655,10 +928,18 @@ class TestProcessedBookImport:
         assert page["source_page_number"] == 68
         assert page["pdf_page_number"] == 69
         assert [token["surface_form"] for token in page["tokens"]] == ["كِتَاب."]
+        assert page["passages"] == [{
+            "sentence_index": 1,
+            "sentence_indices": [1],
+            "arabic_text": "كِتَاب.",
+            "english_translation": "The book.",
+            "token_positions": [2],
+        }]
 
+    @patch("app.services.lemma_quality.run_quality_gates")
     @patch("app.services.story_service.generate_completion")
-    def test_strict_curated_lexicon_maps_without_automatic_enrichment(
-        self, mock_generate, db_session
+    def test_strict_curated_lexicon_maps_then_runs_shared_full_enrichment(
+        self, mock_generate, mock_quality_gates, db_session
     ):
         from app.services.book_import_service import import_processed_book
         from app.models import StoryWord
@@ -690,6 +971,11 @@ class TestProcessedBookImport:
         assert story.status == "active"
         assert len(new_ids) == 2
         assert mock_generate.call_count == 0
+        mock_quality_gates.assert_called_once_with(
+            db_session,
+            new_ids,
+            background_enrich=False,
+        )
         words = db_session.query(StoryWord).filter_by(story_id=story.id).all()
         assert all(word.lemma_id is not None for word in words)
         assert words[1].name_type == "personal"

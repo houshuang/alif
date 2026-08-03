@@ -179,6 +179,11 @@ def complete_page(
             story_id,
             page_number,
             body.looked_up_lemma_ids,
+            sentence_indices=body.sentence_indices or None,
+            passage_token_positions=body.passage_token_positions or None,
+            unknown_lemma_ids=body.unknown_lemma_ids,
+            unknown_token_positions=body.unknown_token_positions,
+            dont_learn_token_positions=body.dont_learn_token_positions,
             reading_time_ms=body.reading_time_ms,
             client_review_id=body.client_review_id,
         )

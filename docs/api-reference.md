@@ -75,6 +75,8 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/stories/{id}/mark-heard` | Increment times_heard for all story words |
 | POST | `/api/stories/{id}/generate-audio` | Generate TTS audio (background) |
 | GET | `/api/stories/{id}/audio` | Stream story MP3 audio |
+| GET | `/api/stories/{id}/pages/{page}` | Read-only bilingual book page detail. Returns server-built passages with exact token positions, aligned English, canonical lemma/full-entry status, per-token tashkeel visibility, and exact resume location. |
+| POST | `/api/stories/{id}/pages/{page}/complete` | Commit one or two consecutive displayed book passages. Validates the exact token range; records untapped lemmas at a Box-2 floor, submits tapped existing lemmas as normal rating-1 misses, fully enriches genuinely new admissions, and permits `dont_learn_token_positions` only while a token is unmapped. Stable `client_review_id` retries are idempotent. |
 
 ## Sentences & Analysis
 | Method | Path | Description |

@@ -845,9 +845,21 @@ class BookPageTokenOut(BaseModel):
     lemma_id: int | None = None
     gloss_en: str | None = None
     knowledge_state: str | None = None
+    acquisition_box: int | None = None
+    stability: float | None = None
+    show_tashkeel: bool = True
     is_function_word: bool = False
     is_proper_name: bool = False
     is_schedulable: bool = False
+    has_full_entry: bool = False
+
+
+class BookPassageOut(BaseModel):
+    sentence_index: int
+    sentence_indices: list[int] = Field(default_factory=list)
+    arabic_text: str
+    english_translation: str | None = None
+    token_positions: list[int] = Field(default_factory=list)
 
 
 class BookPageDetailOut(BaseModel):
@@ -861,16 +873,25 @@ class BookPageDetailOut(BaseModel):
     english_translation: str | None = None
     completed: bool = False
     looked_up_lemma_ids: list[int] = Field(default_factory=list)
+    completed_sentence_indices: list[int] = Field(default_factory=list)
+    resume_sentence_index: int | None = None
+    resume_token_position: int | None = None
     known_count: int = 0
     new_not_started: int = 0
     new_learning: int = 0
     tokens: list[BookPageTokenOut] = Field(default_factory=list)
     words: list[BookPageWordOut] = Field(default_factory=list)
     sentences: list[BookPageSentenceOut] = Field(default_factory=list)
+    passages: list[BookPassageOut] = Field(default_factory=list)
 
 
 class BookPageCompleteIn(BaseModel):
     looked_up_lemma_ids: list[int] = Field(default_factory=list)
+    sentence_indices: list[int] = Field(default_factory=list)
+    passage_token_positions: list[int] = Field(default_factory=list)
+    unknown_lemma_ids: list[int] = Field(default_factory=list)
+    unknown_token_positions: list[int] = Field(default_factory=list)
+    dont_learn_token_positions: list[int] = Field(default_factory=list)
     reading_time_ms: int | None = None
     client_review_id: str | None = None
 
@@ -878,10 +899,13 @@ class BookPageCompleteIn(BaseModel):
 class BookPageCompleteOut(BaseModel):
     story_id: int
     page_number: int
+    sentence_indices: list[int] = Field(default_factory=list)
+    passage_token_positions: list[int] = Field(default_factory=list)
     newly_known: int = 0
     scheduled: int = 0
-    reviewed_good: int = 0
+    box2_floor: int = 0
     reviewed_again: int = 0
+    dont_learn: int = 0
     skipped: int = 0
     duplicate: bool = False
 
