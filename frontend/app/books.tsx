@@ -58,7 +58,7 @@ export default function BooksScreen() {
           <Text style={styles.eyebrow}>SLOW READING</Text>
           <Text style={styles.heading}>Your Arabic library</Text>
           <Text style={styles.subtitle}>
-            Books stay separate from study until you read them. Tap unfamiliar words; everything else is recorded as understood when you finish the page.
+            Books stay separate from study until you read them. Tap unfamiliar words; everything else in the passage is recorded as understood only when you continue.
           </Text>
         </View>
       </View>
