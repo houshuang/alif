@@ -6,6 +6,7 @@ import {
   bookReaderModeKey,
   countGuidedLearningWords,
   groupBookTokens,
+  isBookTokenMarked,
   normalizedBookSurface,
   parseBookPassageDraft,
   parseActiveBookReader,
@@ -14,6 +15,7 @@ import {
   pendingBookLookupIds,
   positionsForSameGuidedWord,
   positionsForSameUnmappedSurface,
+  sameBookToken,
   shortBookGloss,
 } from "../book-reader";
 import { BookPageToken } from "../types";
@@ -80,25 +82,52 @@ describe("book reader draft helpers", () => {
     expect(parseBookPassageDraft(JSON.stringify({
       unknownLemmaIds: [9, 9, -1],
       unknownTokenPositions: [0, 2, 2, 3, -1],
+      markedTokenPositions: [2, 2, 7, -1],
       dontLearnTokenPositions: [3, "4"],
       learnTokenPositions: [5, 5, -2],
       clientReviewId: "bp:stable",
     }))).toEqual({
       unknownLemmaIds: [9],
       unknownTokenPositions: [0, 2],
+      markedTokenPositions: [2, 7],
       dontLearnTokenPositions: [3],
       learnTokenPositions: [5],
       clientReviewId: "bp:stable",
     });
   });
 
-  test("groups repeated unmapped surfaces so opt-out and admission cannot conflict", () => {
+  test("groups repeated unmapped surfaces for Clean-reader decisions", () => {
     const first = { ...token(0, 1), lemma_id: null, has_full_entry: false, surface_form: "وَكِتَابٌ،" };
     const second = { ...token(4, 1), lemma_id: null, has_full_entry: false, surface_form: "وكتابٌ." };
     const other = { ...token(5, 1), lemma_id: null, has_full_entry: false, surface_form: "بَيْتٌ." };
     expect(normalizedBookSurface(first.surface_form)).toBe("وكتاب");
     expect(positionsForSameUnmappedSurface([first, second, other], first)).toEqual([0, 4]);
-    expect(positionsForSameGuidedWord([first, second, other], first)).toEqual([0, 4]);
+    expect(positionsForSameGuidedWord([first, second, other], first)).toEqual([0]);
+  });
+
+  test("keeps guided selection on the exact tapped token, even for the same lemma", () => {
+    const first = { ...token(0, 1), lemma_id: 7, surface_form: "والسادة" };
+    const otherInflection = { ...token(4, 2), lemma_id: 7, surface_form: "وسادتي" };
+    expect(positionsForSameGuidedWord([first, otherInflection], first)).toEqual([0]);
+    expect(sameBookToken(first, first)).toBe(true);
+    expect(sameBookToken(first, otherInflection)).toBe(false);
+    expect(sameBookToken(null, first)).toBe(false);
+  });
+
+  test("paints only the exact missed token while retaining a lemma-level miss", () => {
+    const tapped = { ...token(15, 1), lemma_id: 267, surface_form: "شخصًا" };
+    const otherForm = { ...token(33, 1), lemma_id: 267, surface_form: "شخص" };
+    const draft = parseBookPassageDraft(JSON.stringify({
+      unknownLemmaIds: [267],
+      unknownTokenPositions: [],
+      markedTokenPositions: [15],
+      dontLearnTokenPositions: [],
+      learnTokenPositions: [],
+      clientReviewId: "bp:exact-token",
+    }));
+    expect(isBookTokenMarked(draft, tapped)).toBe(true);
+    expect(isBookTokenMarked(draft, otherForm)).toBe(false);
+    expect(draft?.unknownLemmaIds).toEqual([267]);
   });
 
   test("keeps inline glosses compact and reader-like", () => {

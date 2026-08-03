@@ -2572,6 +2572,7 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - [DONE] Passage-first bilingual book reader: warm-paper Arabic/English layout, one/two-passage pacing, exact resume, unknown-by-default word taps, full existing entries, fully enriched new admissions, unmapped-only opt-out, and transactional Box-2/normal-miss evidence on Next.
 - [DONE] Experimental Guided book policy: compact inline glosses for unintroduced content vocabulary, inert by default with explicit Box-1 opt-in, while introduced-word taps remain authoritative misses.
 - [DONE] Sleek persistent reader shell: compact one-row controls, word-aligned Guided glosses, Guided full-English opt-in, visible bottom navigation, and Stories-tab resume of exact page/settings with explicit-exit escape hatch.
+- [DONE] Exact-token reader selection: Guided taps no longer highlight a different inflection sharing the lemma, selection no longer auto-toggles learning before lookup appears, and tapping the selected word again closes its detail panel without changing the saved learning decision.
 - [DONE] StoryWord surface→lemma fallback lookup: after `_import_unknown_words` creates lemmas, `create_book_sentences` uses StoryWord mappings to resolve conjugated/affixed forms that CAMeL misses. Sentences with remaining unmapped tokens kept (not skipped).
 - Page ordering UI: drag-to-reorder page thumbnails before import (currently insertion-order only)
 - Progress polling: for longer books (30+ pages), switch from sync to async import with SSE/polling progress updates

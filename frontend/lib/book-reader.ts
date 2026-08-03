@@ -6,6 +6,7 @@ export type BookReaderPolicy = "clean" | "guided";
 export interface BookPassageDraft {
   unknownLemmaIds: number[];
   unknownTokenPositions: number[];
+  markedTokenPositions: number[];
   dontLearnTokenPositions: number[];
   learnTokenPositions: number[];
   clientReviewId: string;
@@ -84,6 +85,7 @@ export function parseBookPassageDraft(raw: string | null): BookPassageDraft | nu
       unknownLemmaIds: integers(value.unknownLemmaIds),
       unknownTokenPositions: integers(value.unknownTokenPositions)
         .filter((position) => !dontLearn.has(position)),
+      markedTokenPositions: integers(value.markedTokenPositions),
       dontLearnTokenPositions,
       learnTokenPositions: integers(value.learnTokenPositions),
       clientReviewId: value.clientReviewId,
@@ -140,24 +142,31 @@ export function positionsForSameUnmappedSurface(
 }
 
 export function positionsForSameGuidedWord(
-  tokens: BookPageToken[],
+  _tokens: BookPageToken[],
   selected: BookPageToken,
 ): number[] {
-  if (selected.lemma_id != null) {
-    return tokens
-      .filter((token) => (
-        token.reader_gloss_eligible && token.lemma_id === selected.lemma_id
-      ))
-      .map((token) => token.position);
-  }
-  const key = normalizedBookSurface(selected.surface_form);
-  return tokens
-    .filter((token) => (
-      token.reader_gloss_eligible
-      && token.lemma_id == null
-      && normalizedBookSurface(token.surface_form) === key
-    ))
-    .map((token) => token.position);
+  // Learning is lemma-level on the server, but selection is token-level in the
+  // reader. Returning every matching lemma made a tap on one inflection light up
+  // a visually different occurrence elsewhere in the passage.
+  return [selected.position];
+}
+
+export function sameBookToken(
+  first: BookPageToken | null,
+  second: BookPageToken,
+): boolean {
+  return first?.position === second.position
+    && first.sentence_index === second.sentence_index;
+}
+
+export function isBookTokenMarked(
+  draft: BookPassageDraft | null,
+  token: BookPageToken,
+): boolean {
+  if (!draft) return false;
+  return token.lemma_id != null
+    ? draft.markedTokenPositions.includes(token.position)
+    : draft.unknownTokenPositions.includes(token.position);
 }
 
 export function countGuidedLearningWords(

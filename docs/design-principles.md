@@ -39,7 +39,8 @@ Feature-level design decisions and implementation details. For bug-preventing in
   on a failed save.
   The optional **Guided** policy adds short word-aligned English glosses only to
   not-yet-introduced content vocabulary. Those glosses are free reading support,
-  inert by default, and tappable to opt into Box 1 on Next. Function words and
+  inert by default; tapping selects the exact token, and the lookup panel's explicit
+  Learn action opts it into Box 1 on Next. Function words and
   proper names remain visually unglossed; introduced vocabulary remains a normal
   unknown-by-tap test. Clean and Guided keep separate local drafts and translation
   visibility. The Stories tab resumes the exact active book page and settings;
