@@ -97,6 +97,44 @@ def test_codex_target_planner_requires_verb_in_morphology_group(monkeypatch):
         raise AssertionError("Expected morphology group without a verb to be rejected")
 
 
+def test_codex_target_planner_names_validated_verb_ids_in_morphology_prompt(monkeypatch):
+    captured = {}
+    pool = [
+        {
+            "lemma_id": 1,
+            "arabic": "فَعَلَ",
+            "english": "did",
+            "pos": "noun",  # legacy bad POS; paradigm remains authoritative
+            "forms_json": {
+                "past_3fs": "فَعَلَتْ",
+                "past_3p": "فَعَلُوا",
+                "present_3mp": "يَفْعَلُونَ",
+            },
+        },
+        {"lemma_id": 2, "arabic": "شَيْء", "english": "thing", "pos": "noun"},
+        {"lemma_id": 3, "arabic": "مَكَان", "english": "place", "pos": "noun"},
+    ]
+
+    def fake_generate(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return {
+            "groups": [{
+                "target_lemma_ids": [1, 2, 3],
+                "scene_hint": "one action scene",
+            }]
+        }
+
+    monkeypatch.setattr(
+        "app.services.passage_generator._generate_codex_json",
+        fake_generate,
+    )
+
+    groups = plan_maintenance_target_groups(pool, 1, morphology_group_indexes={1})
+
+    assert groups[0]["target_lemma_ids"] == [1, 2, 3]
+    assert "validated inflectable-verb list: [1]" in captured["prompt"]
+
+
 def test_codex_target_planner_moves_coherent_verb_group_to_morphology_slot(monkeypatch):
     pool = [
         {

@@ -82,7 +82,12 @@ emits `started`, `failed`, and `accepted` candidate events, each committed to
 the existing run row immediately. Interruption moves the exact in-progress
 target IDs into cooldown, while accepted story IDs survive independently. This
 keeps the normal one-story cron budget recoverable even if Codex or the process
-is killed during its replacement candidate.
+is killed during its replacement candidate. The next one-story recovery then
+failed closed on an unnatural clinical morphology group and persisted its three
+IDs correctly, but its replacement planner ignored the morphology constraint
+four times when there was only one group and therefore no verb-bearing donor
+group to swap. Morphology planning now supplies an explicit deterministic list
+of validated inflectable-verb IDs that every such group must draw from.
 
 **Cap and validation.** The opportunistic warm-cache path remains as the fast
 path, but its recent-supply count now ignores failed stories and stories with
@@ -95,7 +100,7 @@ minimum. Before candidate checkpoints, the full backend suite passed 1,962
 tests with nine slow tests intentionally deselected. After checkpoints, 1,963
 passed and one unrelated randomized FSRS interval assertion exceeded its hard
 four-day bound; that exact test passed immediately in isolation. The final
-focused story/controller/material set passed 56 tests.
+focused story/controller/material set passed 57 tests.
 
 ## 2026-08-02: Short-story v2 cohort completion — planner continuity, fresh retries, six-story launch
 

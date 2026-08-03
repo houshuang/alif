@@ -1084,6 +1084,40 @@ def plan_maintenance_target_groups(
             f"{group_count} stories; found {len(ranked)}"
         )
 
+    verb_form_keys = {
+        "verb_form",
+        "past_3fs",
+        "past_3p",
+        "past_1s",
+        "past_3fp",
+        "present_3fp",
+        "present_3mp",
+        "imperative",
+    }
+
+    def word_has_inflectable_verb(word: dict[str, Any]) -> bool:
+        forms = word.get("forms_json")
+        if not isinstance(forms, dict) or len(forms) < 3:
+            return False
+        has_verbal_paradigm = len(verb_form_keys.intersection(forms)) >= 2
+        return "verb" in str(word.get("pos") or "").lower() or has_verbal_paradigm
+
+    morphology_verb_ids = [
+        int(word["lemma_id"])
+        for word in ranked
+        if word_has_inflectable_verb(word)
+    ]
+    if morphology_group_indexes and len(morphology_verb_ids) < len(morphology_group_indexes):
+        raise PassageGenerationError(
+            "Not enough reliable due inflectable verbs for the requested morphology groups"
+        )
+    morphology_requirement = (
+        "For every morphology-focus group, select at least one ID from this "
+        f"validated inflectable-verb list: {morphology_verb_ids}."
+        if morphology_group_indexes
+        else ""
+    )
+
     schema = json.loads(json.dumps(PASSAGE_TARGET_GROUP_SCHEMA))
     schema["properties"]["groups"]["minItems"] = group_count
     schema["properties"]["groups"]["maxItems"] = group_count
@@ -1101,6 +1135,7 @@ Groups {sorted(morphology_group_indexes) or 'none'} are morphology-focus groups.
 Each numbered morphology group MUST include at least one true verb whose
 forms_json supplies reliable contrasting person/number forms. Place that verb
 where repeating its inflections will make narrative sense.
+{morphology_requirement}
 
 DUE TARGET POOL:
 {json.dumps(_agent_targets(ranked), ensure_ascii=False, indent=2)}
@@ -1143,24 +1178,7 @@ Return exactly {group_count} groups of exactly three IDs.""",
     def has_inflectable_verb(group: dict[str, Any]) -> bool:
         for lemma_id in group["target_lemma_ids"]:
             word = ranked_by_id[lemma_id]
-            forms = word.get("forms_json")
-            if not isinstance(forms, dict) or len(forms) < 3:
-                continue
-            verb_form_keys = {
-                "verb_form",
-                "past_3fs",
-                "past_3p",
-                "past_1s",
-                "past_3fp",
-                "present_3fp",
-                "present_3mp",
-                "imperative",
-            }
-            has_verbal_paradigm = len(verb_form_keys.intersection(forms)) >= 2
-            if (
-                "verb" in str(word.get("pos") or "").lower()
-                or has_verbal_paradigm
-            ):
+            if word_has_inflectable_verb(word):
                 return True
         return False
 
