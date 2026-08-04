@@ -843,6 +843,7 @@ class BookPageTokenOut(BaseModel):
     sentence_index: int | None = None
     surface_form: str
     lemma_id: int | None = None
+    lemma_ar: str | None = None
     gloss_en: str | None = None
     knowledge_state: str | None = None
     acquisition_box: int | None = None

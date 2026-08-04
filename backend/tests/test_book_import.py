@@ -484,6 +484,9 @@ class TestBookReaderPageEvidence:
         assert [token["surface_form"] for token in detail["tokens"]] == [
             "كِتَاب", "نَادِر", "سَلِيم",
         ]
+        assert [token["lemma_ar"] for token in detail["tokens"]] == [
+            "كِتَاب", "نَادِر", "سَلِيم",
+        ]
         assert detail["completed"] is False
         assert [token["reader_gloss_eligible"] for token in detail["tokens"]] == [
             True, True, False,
@@ -640,6 +643,7 @@ class TestBookReaderPageEvidence:
 
         detail = get_book_page_detail(db_session, story.id, 1)
         assert detail["tokens"][0]["lemma_id"] == canonical.lemma_id
+        assert detail["tokens"][0]["lemma_ar"] == canonical.lemma_ar
 
         complete_book_page(db_session, story.id, 1, [canonical.lemma_id])
         assert db_session.query(UserLemmaKnowledge).filter_by(

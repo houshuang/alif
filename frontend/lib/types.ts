@@ -994,6 +994,7 @@ export interface BookPageToken {
   sentence_index: number | null;
   surface_form: string;
   lemma_id: number | null;
+  lemma_ar: string | null;
   gloss_en: string | null;
   knowledge_state: string | null;
   acquisition_box: number | null;
