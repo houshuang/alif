@@ -5,6 +5,7 @@ import {
   bookReaderLocationKey,
   bookReaderModeKey,
   countGuidedLearningWords,
+  guidedTokenTapAction,
   groupBookTokens,
   isBookTokenMarked,
   normalizedBookSurface,
@@ -25,6 +26,7 @@ const token = (position: number, sentenceIndex: number): BookPageToken => ({
   sentence_index: sentenceIndex,
   surface_form: `word-${position}`,
   lemma_id: position + 1,
+  lemma_ar: `لَمَّة-${position}`,
   gloss_en: null,
   knowledge_state: null,
   acquisition_box: null,
@@ -112,6 +114,16 @@ describe("book reader draft helpers", () => {
     expect(sameBookToken(first, first)).toBe(true);
     expect(sameBookToken(first, otherInflection)).toBe(false);
     expect(sameBookToken(null, first)).toBe(false);
+  });
+
+  test("cycles an inline-guided token from details to learning to a full undo", () => {
+    const first = { ...token(0, 1), lemma_id: 7, lemma_ar: "قَرَأَ" };
+    const otherInflection = { ...token(4, 2), lemma_id: 7, lemma_ar: "قَرَأَ" };
+
+    expect(guidedTokenTapAction(null, first, [])).toBe("open");
+    expect(guidedTokenTapAction(first, first, [])).toBe("learn");
+    expect(guidedTokenTapAction(first, first, [first.position])).toBe("undo");
+    expect(guidedTokenTapAction(first, otherInflection, [first.position])).toBe("open");
   });
 
   test("paints only the exact missed token while retaining a lemma-level miss", () => {

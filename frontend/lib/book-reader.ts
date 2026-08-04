@@ -159,6 +159,17 @@ export function sameBookToken(
     && first.sentence_index === second.sentence_index;
 }
 
+export type GuidedTokenTapAction = "open" | "learn" | "undo";
+
+export function guidedTokenTapAction(
+  selected: BookPageToken | null,
+  tapped: BookPageToken,
+  learningPositions: Iterable<number>,
+): GuidedTokenTapAction {
+  if (!sameBookToken(selected, tapped)) return "open";
+  return new Set(learningPositions).has(tapped.position) ? "undo" : "learn";
+}
+
 export function isBookTokenMarked(
   draft: BookPassageDraft | null,
   token: BookPageToken,

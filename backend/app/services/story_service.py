@@ -1969,7 +1969,10 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
             unique_words.append(sw)
 
     # Batch fetch lemma + ULK info
-    lemma_ids = list(raw_lemma_ids | seen_lemmas)
+    # Include every effective canonical, including function words excluded
+    # from vocabulary accounting, so the reader never falls back to a variant
+    # headword when presenting the citation form.
+    lemma_ids = list(raw_lemma_ids | set(effective_by_raw.values()))
     lemmas_by_id: dict[int, Lemma] = {}
     if lemma_ids:
         for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all():
@@ -2082,6 +2085,10 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
             "sentence_index": sw.sentence_index,
             "surface_form": sw.surface_form,
             "lemma_id": effective_id,
+            # Citation form for the reader's compact explanation. This must be
+            # the canonical, vocalized lexical headword rather than the often
+            # highly inflected/affixed surface form on the page.
+            "lemma_ar": lemma.lemma_ar if lemma else None,
             "gloss_en": sw.gloss_en or (lemma.gloss_en if lemma else None),
             "knowledge_state": knowledge_map.get(effective_id) if effective_id else None,
             "acquisition_box": knowledge.acquisition_box if knowledge else None,

@@ -22,6 +22,7 @@ import {
   bookReaderLocationKey,
   bookReaderModeKey,
   countGuidedLearningWords,
+  guidedTokenTapAction,
   isBookTokenMarked,
   parseBookPassageDraft,
   parseBookReaderLocation,
@@ -313,6 +314,22 @@ export default function BookPageScreen() {
 
   async function openToken(token: BookPageToken) {
     if (!draft || !token.is_schedulable) return;
+    if (policy === "guided" && token.reader_gloss_eligible) {
+      const action = guidedTokenTapAction(
+        selectedToken,
+        token,
+        draft.learnTokenPositions,
+      );
+      if (action === "learn") {
+        toggleGuidedLearning(token);
+        return;
+      }
+      if (action === "undo") {
+        toggleGuidedLearning(token);
+        closeToken();
+        return;
+      }
+    }
     if (sameBookToken(selectedToken, token)) {
       closeToken();
       return;
@@ -494,6 +511,7 @@ export default function BookPageScreen() {
     && selectedToken?.reader_gloss_eligible === true;
   const selectedForLearning = selectedToken != null
     && draft?.learnTokenPositions.includes(selectedToken.position) === true;
+  const selectedLemmaAr = lookup?.lemma_ar || selectedToken?.lemma_ar || null;
   const learningCount = countGuidedLearningWords(
     visibleTokens,
     draft?.learnTokenPositions ?? [],
@@ -544,23 +562,34 @@ export default function BookPageScreen() {
                 const marked = isBookTokenMarked(draft, token);
                 const learning = draft?.learnTokenPositions.includes(token.position);
                 const inlineGloss = token.reader_gloss_eligible ? shortBookGloss(token.gloss_en) : null;
+                const inlineLemma = token.reader_gloss_eligible ? token.lemma_ar : null;
                 const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
+                const tapAction = token.reader_gloss_eligible
+                  ? guidedTokenTapAction(selectedToken, token, draft?.learnTokenPositions ?? [])
+                  : null;
                 return (
                   <Pressable
                     key={token.position}
                     onPress={() => openToken(token)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${token.surface_form}${inlineGloss ? `, ${inlineGloss}. Tap to ${learning ? "stop learning" : "learn"}` : ""}`}
+                    accessibilityLabel={`${token.surface_form}${inlineLemma ? `, lemma ${inlineLemma}` : ""}${inlineGloss ? `, ${inlineGloss}` : ""}${tapAction ? `. Tap to ${tapAction === "open" ? "show details" : tapAction === "learn" ? "learn" : "undo and close"}` : ""}`}
                     style={[
                       styles.guidedToken,
                       marked && styles.guidedTokenUnknown,
-                      learning && styles.guidedTokenLearning,
                       selectedToken?.position === token.position && styles.guidedTokenSelected,
+                      learning && styles.guidedTokenLearning,
                     ]}
                   >
                     <Text style={[styles.guidedArabic, marked && styles.arabicUnknownText, learning && styles.arabicLearning]}>{displayed}</Text>
-                    {inlineGloss && (
-                      <Text numberOfLines={1} style={[styles.microGloss, learning && styles.inlineGlossLearning]}>{inlineGloss}</Text>
+                    {(inlineLemma || inlineGloss) && (
+                      <View style={styles.inlineHelp} pointerEvents="none">
+                        {inlineLemma && (
+                          <Text numberOfLines={1} style={[styles.microLemma, learning && styles.inlineGlossLearning]}>{inlineLemma}</Text>
+                        )}
+                        {inlineGloss && (
+                          <Text numberOfLines={1} style={[styles.microGloss, learning && styles.inlineGlossLearning]}>{inlineGloss}</Text>
+                        )}
+                      </View>
                     )}
                   </Pressable>
                 );
@@ -609,7 +638,12 @@ export default function BookPageScreen() {
             <Ionicons name="close" size={19} color={MUTED} />
           </Pressable>
           <View style={styles.lookupTitleRow}>
-            <Text style={styles.lookupArabic}>{lookup?.lemma_ar || selectedToken.surface_form}</Text>
+            <View style={styles.lookupForms}>
+              <Text style={styles.lookupArabic}>{selectedLemmaAr || selectedToken.surface_form}</Text>
+              {selectedLemmaAr && selectedLemmaAr !== selectedToken.surface_form && (
+                <Text style={styles.lookupSurface}>{selectedToken.surface_form}</Text>
+              )}
+            </View>
             {lookupLoading && <ActivityIndicator size="small" color={ACCENT} />}
           </View>
           <View style={styles.lookupSummary}>
@@ -712,11 +746,13 @@ const styles = StyleSheet.create({
   arabicLearning: { color: ACCENT, textDecorationLine: "underline" },
   arabicSelected: { backgroundColor: "#C98D5638" },
   guidedParagraph: { width: "100%", flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "flex-start", columnGap: 7, rowGap: 8 },
-  guidedToken: { minHeight: 39, paddingHorizontal: 2, paddingVertical: 1, borderRadius: 5, borderCurve: "continuous", alignItems: "center", justifyContent: "flex-start" },
+  guidedToken: { minHeight: 39, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 5, borderCurve: "continuous", borderWidth: 1, borderColor: "transparent", alignItems: "center", justifyContent: "flex-start" },
   guidedTokenUnknown: { backgroundColor: "#D9968424" },
-  guidedTokenLearning: { backgroundColor: "#C98D5618" },
+  guidedTokenLearning: { backgroundColor: "#E4BE5A55", borderColor: "#C9943588" },
   guidedTokenSelected: { backgroundColor: "#C98D5630" },
   guidedArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 22, lineHeight: 27, writingDirection: "rtl" },
+  inlineHelp: { maxWidth: 90, alignItems: "center", marginTop: -1 },
+  microLemma: { maxWidth: 90, color: ACCENT, fontFamily: fontFamily.arabicNoto, fontSize: 10, lineHeight: 13, textAlign: "center", writingDirection: "rtl" },
   microGloss: { maxWidth: 84, color: MUTED, fontFamily: fontFamily.translitRegular, fontSize: 8.5, lineHeight: 11, textAlign: "center" },
   inlineGlossLearning: { color: ACCENT, fontWeight: "700" },
   translationBlock: { marginTop: 24, paddingTop: 18, borderTopWidth: 1, borderTopColor: RULE },
@@ -725,7 +761,9 @@ const styles = StyleSheet.create({
   lookupPanel: { backgroundColor: PAPER_DEEP, borderTopWidth: 1, borderTopColor: RULE, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 12 },
   lookupClose: { position: "absolute", right: 14, top: 12, zIndex: 2, padding: 5 },
   lookupTitleRow: { flexDirection: "row-reverse", justifyContent: "flex-end", alignItems: "center", gap: 10, paddingRight: 30 },
+  lookupForms: { alignItems: "flex-end" },
   lookupArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 25, lineHeight: 38, textAlign: "right" },
+  lookupSurface: { color: MUTED, fontFamily: fontFamily.arabicNoto, fontSize: 14, lineHeight: 20, textAlign: "right", writingDirection: "rtl", marginTop: -4 },
   lookupSummary: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 1 },
   lookupGloss: { color: INK, fontSize: 15, fontWeight: "700" },
   lookupStatus: { color: MUTED, fontSize: 10, fontWeight: "700", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, overflow: "hidden", backgroundColor: "#F3E8D2" },

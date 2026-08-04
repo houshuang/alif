@@ -48,6 +48,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-04: Guided reader tap cycle and vocalized citation-form help
+
+**Observed reading evidence.** Four Story #240 Guided completions on 2026-08-03
+covered page-1 positions 0–133. They recorded 1/1/6/3 misses but zero Guided
+learning toggles. The UI explained this: a first tap opened an inert inline-gloss
+word, while a second tap only closed it; the existing Learn button was the sole
+way to produce the yellow state. The remaining inline-glossed content words in
+that range are corrected Momo identities #4571–4579. They are fully gated lexical
+entries but have no learner rows; several old, incorrect homograph mappings had
+the apparent history instead (for example `تسير` under “biography” and `الأقدام`
+under “to precede”). The gloss eligibility rule was therefore consistent with
+“unintroduced to the learner,” not evidence of another surface-mapping failure.
+
+**Change and verification.** Reader tokens now carry the effective canonical
+`lemma_ar`, including canonical resolution for function-word variants. Guided
+annotations show that fully vocalized citation form above the short English gloss,
+and the detail panel retains both citation and exact surface forms. Repeated taps
+now form an explicit token-local cycle: details → yellow/Will learn → complete undo
+and close. A 393×852 browser pass verified `خَيَال`/“imagination,” the yellow state,
+the third-tap reset, and an empty persisted `learnTokenPositions` afterward. All
+216 frontend tests, TypeScript, and 42 focused backend/import tests pass.
+
 ## 2026-08-03: Processed-book mapping verification fails closed; Momo Chapter 5 repaired in production
 
 **Root cause and scope.** Processed bilingual imports trusted the first normalized
