@@ -425,6 +425,10 @@ class InsightsOut(BaseModel):
     dark_horse_root: dict | None = None  # {root, meaning, known, total}
     unique_sentences_reviewed: int = 0
     total_sentence_reviews: int = 0
+    total_review_cards: int = 0
+    total_passage_cards: int = 0
+    total_arabic_words_read: int = 0
+    total_word_reviews: int = 0
     forgetting_forecast: dict = {}  # {skip_1d: N, skip_3d: N, skip_7d: N}
     record_intro_day: dict | None = None  # {date, count}
     record_graduation_day: dict | None = None  # {date, count}
@@ -712,6 +716,13 @@ class SessionSummaryOut(BaseModel):
     sentences_partial: int = 0
     sentences_no_idea: int = 0
     avg_response_ms: float | None = None
+    review_card_count: int = 0
+    passage_card_count: int = 0
+    arabic_word_count: int = 0
+    word_review_count: int = 0
+    word_red_count: int = 0
+    word_yellow_count: int = 0
+    word_green_count: int = 0
 
 
 class PartialRootOut(BaseModel):
@@ -728,6 +739,13 @@ class SessionEndOut(BaseModel):
     sentences_partial: int = 0
     sentences_no_idea: int = 0
     avg_response_ms: float | None = None
+    review_card_count: int = 0
+    passage_card_count: int = 0
+    arabic_word_count: int = 0
+    word_review_count: int = 0
+    word_red_count: int = 0
+    word_yellow_count: int = 0
+    word_green_count: int = 0
     known_count: int = 0
     reviews_today: int = 0
     fsrs_reviewed_today: int = 0

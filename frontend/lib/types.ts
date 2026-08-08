@@ -335,6 +335,8 @@ export interface PassageExperimentMetadata {
   target_lemma_ids?: number[];
   target_occurrence_counts?: Record<string, number>;
   target_surface_form_counts?: Record<string, number>;
+  target_max_identical_surface_uses?: Record<string, number>;
+  running_word_count?: number;
 }
 
 export interface WordLookupResult {
@@ -887,6 +889,10 @@ export interface InsightsData {
   dark_horse_root: { root: string; meaning: string | null; known: number; total: number } | null;
   unique_sentences_reviewed: number;
   total_sentence_reviews: number;
+  total_review_cards: number;
+  total_passage_cards: number;
+  total_arabic_words_read: number;
+  total_word_reviews: number;
   forgetting_forecast: { skip_1d: number; skip_3d: number; skip_7d: number };
   record_intro_day: { count: number; date: string } | null;
   record_graduation_day: { count: number; date: string } | null;
@@ -1342,6 +1348,13 @@ export interface SessionSummary {
   sentences_partial: number;
   sentences_no_idea: number;
   avg_response_ms: number | null;
+  review_card_count: number;
+  passage_card_count: number;
+  arabic_word_count: number;
+  word_review_count: number;
+  word_red_count: number;
+  word_yellow_count: number;
+  word_green_count: number;
 }
 
 export interface PartialRoot {
@@ -1358,6 +1371,13 @@ export interface SessionEndData {
   sentences_partial: number;
   sentences_no_idea: number;
   avg_response_ms: number | null;
+  review_card_count: number;
+  passage_card_count: number;
+  arabic_word_count: number;
+  word_review_count: number;
+  word_red_count: number;
+  word_yellow_count: number;
+  word_green_count: number;
   known_count: number;
   reviews_today: number;
   fsrs_reviewed_today: number;

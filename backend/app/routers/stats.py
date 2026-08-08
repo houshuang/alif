@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog, SentenceWord, FrequencyCoreEntry,
+    Sentence, SentenceReviewLog, SentenceWord, FrequencyCoreEntry,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -2001,6 +2001,39 @@ def _get_insights(db: Session) -> InsightsOut:
         db.query(func.count(SentenceReviewLog.id))
         .scalar() or 0
     )
+    activity_rows = (
+        db.query(
+            SentenceReviewLog.id,
+            SentenceReviewLog.client_review_id,
+            Sentence.source,
+        )
+        .join(Sentence, Sentence.id == SentenceReviewLog.sentence_id)
+        .all()
+    )
+    review_card_keys: set[str] = set()
+    passage_card_keys: set[str] = set()
+    for log_id, client_review_id, source in activity_rows:
+        if client_review_id:
+            base, marker, suffix = client_review_id.rpartition(":s")
+            key = base if marker and suffix.isdigit() else client_review_id
+        else:
+            key = f"legacy:{log_id}"
+        review_card_keys.add(key)
+        if source == "passage":
+            passage_card_keys.add(key)
+    total_arabic_words_read = (
+        db.query(func.count(SentenceWord.id))
+        .select_from(SentenceReviewLog)
+        .join(SentenceWord, SentenceWord.sentence_id == SentenceReviewLog.sentence_id)
+        .scalar()
+        or 0
+    )
+    total_word_reviews = (
+        db.query(func.count(ReviewLog.id))
+        .filter(ReviewLog.sentence_id.isnot(None))
+        .scalar()
+        or 0
+    )
 
     # 6. Forgetting forecast
     now = datetime.now(timezone.utc)
@@ -2059,6 +2092,10 @@ def _get_insights(db: Session) -> InsightsOut:
         dark_horse_root=dark_horse,
         unique_sentences_reviewed=unique_sent,
         total_sentence_reviews=total_sent_reviews,
+        total_review_cards=len(review_card_keys),
+        total_passage_cards=len(passage_card_keys),
+        total_arabic_words_read=total_arabic_words_read,
+        total_word_reviews=total_word_reviews,
         forgetting_forecast=forecast,
         record_intro_day=record_intro,
         record_graduation_day=record_grad,

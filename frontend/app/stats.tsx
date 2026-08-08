@@ -801,8 +801,15 @@ function InsightsCard({ insights }: { insights: InsightsData }) {
     const r = insights.dark_horse_root;
     tiles.push({ big: r.root, label: "untapped root", context: `${r.known}/${r.total} known · ${r.meaning || ""}` });
   }
-  if (insights.total_sentence_reviews > 0) {
-    tiles.push({ big: `${insights.total_sentence_reviews}`, label: "total reviews", context: `${insights.unique_sentences_reviewed} unique sentences` });
+  if (insights.total_review_cards > 0) {
+    const storyContext = insights.total_passage_cards > 0
+      ? ` · ${insights.total_passage_cards} stories`
+      : "";
+    tiles.push({
+      big: `${insights.total_review_cards}`,
+      label: "reading cards",
+      context: `${insights.total_arabic_words_read} Arabic words · ${insights.total_word_reviews} word reviews${storyContext}`,
+    });
   }
   const fc = insights.forgetting_forecast;
   if (fc && fc.skip_7d > 0) {
