@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,57 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-09: Embedded-story first word-level readout — retain, shorten, pair translations
+
+**Metric correction.** Whole-card “understood” is length-confounded: one miss
+makes a 53-token story partial just as it does a seven-token sentence. The
+predeclared comprehension guard remains descriptive, but the primary format
+comparison is now the percentage of distinct reviewed lemmas marked rating 1
+(red) or rating 2 (yellow), reported separately for all words and selected
+story targets.
+
+**First readout.** Eleven reading-mode v2 cards produced 296 lemma judgments:
+6.42% red and 1.01% yellow, versus 9.98% and 1.92% across 1,563 ordinary-sentence
+judgments. Easy support words make that all-word comparison optimistic. The
+selected v2 targets were 6/31 red and 0/31 yellow (19.35% combined), essentially
+tied with ordinary sentence primary targets (20.34% red/yellow, n=236) and
+directionally better than those exact story-target lemmas when they appeared in
+sentence cards (23.81%, n=21). Only five later qualifying story-target reviews
+exist, all green; delayed retention is not yet identified.
+
+**Efficiency and friction.** A typical v2 card contained 53 Arabic tokens and
+26 distinct reviewed lemmas, took 223 seconds, and used 3.73 lookups. An
+ordinary sentence contained 7 tokens and 6 reviewed lemmas, took 34 seconds,
+and used 1.05 lookups. Stories were faster per running token (3.92s vs 4.61s)
+but slower per distinct scheduled lemma (8.59s vs 5.58s), primarily because
+repeated occurrences earn one lemma judgment. The five ≤45-token v2 cards were
+preliminarily competitive at 4.90s/reviewed lemma; five >55-token cards took
+10.65s. This is a product-adjustment signal, not a fitted length effect.
+
+**Repetition and accounting.** Of 33 selected-target slots, 72.7% repeated and
+48.5% delivered multiple mapped surfaces. Aggregate varied-form delivery across
+all repeated reviewed lemmas was 88.9%, which masks the learner-valued target
+outcome. In the same seven-day reading window, 253 displayed cards became 292
+`SentenceReviewLog` rows; 15 story cards alone became 54 child-sentence rows.
+The current sentence statistic therefore does not count a story as one, but it
+still flattens reading load and learning yield.
+
+**Decision.** Retain increased story supply. Trial a 35–45-token default,
+optimize varied-form repetition at the selected-target level, pair each Arabic
+child sentence with its English translation after reveal, and report cards,
+Arabic running words, and distinct reviewed lemmas rather than one undifferentiated
+sentence count. Re-read at 30 reading-mode v2 cards and 30 delayed target
+reviews. Full analysis: `research/analysis-2026-08-09-recovery-and-story-efficiency.md`.
+
+**Implemented 2026-08-09.** New v2 drafts now default to three sentences with a
+hard 35–45 mapped-word budget. Repeated selected targets require mapped surface
+variation (maximum two uses of one normalized form); morphology-focus targets
+require three occurrences in three forms. Passage answers now pair each Arabic
+child sentence with its English/transliteration. Session-end and lifetime stats
+separate cards, passage cards, child sentences, Arabic words, and lemma judgments,
+with red/yellow word percentages replacing full-sentence comprehension as the
+prominent session outcome. Re-evaluate after 30 reviewed v2 story cards.
 
 ## 2026-08-04: Guided reader tap cycle and vocalized citation-form help
 

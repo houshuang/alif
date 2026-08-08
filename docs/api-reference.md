@@ -27,8 +27,8 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring + missed words. `WrapUpCardOut` includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`, `etymology_json`, `memory_hooks_json` |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
-| GET | `/api/review/session-summary/{session_id}` | Per-word journey data (graduated, box advanced/slipped) + sentence comprehension stats + avg response time for session end card |
-| GET | `/api/review/session-end/{session_id}` | Lightweight all-in-one endpoint for session end card: word journeys + pipeline counts + speed comparison + root coverage + today stats + 7-day retention %. Replaces 3 separate calls to session-summary + analytics + deep-analytics |
+| GET | `/api/review/session-summary/{session_id}` | Per-word journey data plus child-sentence stats and honest activity units: review cards, passage cards, Arabic running words, reviewed-lemma judgments, and red/yellow/green word counts |
+| GET | `/api/review/session-end/{session_id}` | Lightweight all-in-one session-end payload: word journeys, card/passage/Arabic-word activity counts, red/yellow/green word outcomes, pipeline counts, speed comparison, today stats, and 7-day retention %. Replaces 3 separate calls to session-summary + analytics + deep-analytics |
 
 ## Learn
 | Method | Path | Description |

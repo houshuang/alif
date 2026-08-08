@@ -2894,3 +2894,24 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Not practical as drop-in sentence source (needs diacritization + has context-dependent excerpts), but useful for difficulty calibration.
 - BERT-based models available for automatic readability assessment (87.5% QWK from BAREC shared task 2025)
 - HuggingFace: CAMeL-Lab/BAREC-Shared-Task-2025-sent
+
+## Embedded-story review follow-ups (2026-08-09; implemented)
+
+- [DONE 2026-08-09] Use word-level red/yellow percentage as the primary story-versus-sentence
+  outcome. Whole-card “understood” is length-confounded and should remain a
+  descriptive card-level signal only.
+- [DONE 2026-08-09] Show activity in multiple honest units: cards completed, child sentences,
+  Arabic running words, and distinct reviewed lemmas. A passage's child
+  sentences already create separate `SentenceReviewLog` rows, but that still
+  hides the difference between four short cards and one long passage.
+- [DONE 2026-08-09] On passage reveal, pair each Arabic child sentence directly with its English
+  translation so checking does not require scrolling between the full Arabic
+  and full English blocks. Preserve red/yellow marking and inline word lookup.
+- [DONE 2026-08-09] Trial a 35–45-token default for embedded v2 stories. The first 11 reading
+  cards showed comparable target red/yellow rates to sentences, but the >55-word
+  stories took roughly twice as long per distinct reviewed lemma as the ≤45-word
+  stories. Re-evaluate after 30 story cards.
+- [DONE 2026-08-09] Optimize repetition at the selected-target level: when a target repeats,
+  prefer at least two verified surface forms and cap same-form repetition.
+  Corpus-wide form diversity can hide that only 48.5% of target slots in the
+  first reviewed v2 cohort delivered multiple surfaces.

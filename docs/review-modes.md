@@ -25,6 +25,7 @@ Cards are shown in the order above, then sentences begin.
 After all sentences are reviewed:
 
 1. **Wrap-up cards** — mini-quiz for acquiring + missed words. Info-dense layout matching reintro cards: Arabic on front, then reveals English + flow chips (POS, clickable root → `/root/{id}`, clickable pattern → `/pattern/{wazn}`), FormsStrip with transliterations, etymology derivation, memory hook mnemonic (hidden since 2026-05-22). Got it / Missed buttons. Backend: `POST /api/review/wrap-up`, response includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`.
+2. **Session summary** — reports review cards separately from child sentences, plus story-card count, Arabic running words, and reviewed-lemma judgments. Red/yellow word percentages are the primary outcome display; whole-sentence “fully understood” remains available in the API only as a length-confounded descriptive signal.
 
 ## Reading Mode
 1. User sees Arabic sentence (diacritized, large RTL text)
@@ -35,6 +36,7 @@ After all sentences are reviewed:
 6. **Back-phase actions**: "Know All" (understood) / "Continue" (partial, if words marked) / "No idea" (no_idea)
 7. **Back/Undo**: after submitting, can go back to previous card — undoes the review (restores pre-review FSRS state via backend undo endpoint), removes from sync queue if not yet flushed, restores word markings/cause selections/tashkeel interaction state, deletes token presentation evidence, and removes/reopens exact-surface pilot trigger/outcome metadata tied to the deleted review
 8. **Mature duplicate skip**: a later non-acquisition sentence may be skipped only when its primary and every due obligation already succeeded in the current session. Missing due metadata fails closed, variant outcomes merge at the canonical level with failures sticky, and any due acquiring word keeps every planned encoding repetition.
+9. **Embedded passage reveal**: the front remains one uninterrupted Arabic passage. After reveal, each child sentence is rendered as an interactive Arabic block immediately followed by its English translation and transliteration, preserving global word indices for lookup and red/yellow marking without requiring scroll-back comparison.
 
 ## Listening Mode (real TTS via expo-av)
 1. Audio plays via ElevenLabs TTS (speed 0.7x, multilingual_v2 model)
