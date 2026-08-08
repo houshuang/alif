@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 PASSAGE_EXPERIMENT_VERSION = "clustered_short_stories_v2"
-PASSAGE_QUALITY_GATE_VERSION = "codex_editor_v2"
+PASSAGE_QUALITY_GATE_VERSION = "codex_editor_v3"
 PASSAGE_CODEX_MODEL = os.environ.get("ALIF_PASSAGE_CODEX_MODEL", "gpt-5.6-sol")
 PASSAGE_CODEX_REASONING_EFFORT = os.environ.get(
     "ALIF_PASSAGE_CODEX_REASONING_EFFORT",
@@ -69,6 +69,9 @@ PASSAGE_PROMPT_VOCAB_SIZE = 1200
 PASSAGE_MIN_TARGETS_USED = 3
 PASSAGE_MAX_TARGETS_USED = 3
 PASSAGE_MIN_TARGET_STABILITY_DAYS = 7.0
+PASSAGE_MIN_RUNNING_WORDS = 35
+PASSAGE_MAX_RUNNING_WORDS = 45
+PASSAGE_MAX_IDENTICAL_TARGET_SURFACE_USES = 2
 PASSAGE_RECENT_CONTEXT_LIMIT = 24
 PASSAGE_TARGET_HISTORY_WINDOW = timedelta(days=30)
 PASSAGE_VERB_FORM_KEYS = {
@@ -1327,7 +1330,7 @@ def generate_maintenance_passage_agentic(
     target_pool: list[dict[str, Any]],
     known_words: list[dict[str, Any]],
     style: str | None = None,
-    sentence_count: int = 4,
+    sentence_count: int = 3,
     model_override: str = "codex",
     feedback: str | None = None,
     recent_passages: list[dict[str, Any]] | None = None,
@@ -1362,6 +1365,8 @@ def generate_maintenance_passage_agentic(
         )
 
         prompt = f"""Create one cohesive {sentence_count}-sentence maintenance passage.
+The complete Arabic passage must contain {PASSAGE_MIN_RUNNING_WORDS}-{PASSAGE_MAX_RUNNING_WORDS}
+running word tokens in total. Treat this as a hard reading-length budget.
 
 Inputs (inlined below this instruction by the caller):
 - Candidate due/review target pool from targets.json
@@ -1393,7 +1398,10 @@ Selection rules:
   not merely words sharing a broad theme.
 - Return exactly three selected targets: two cannot earn a passage card, while
   four too often turns a strong miniature into a forced vocabulary parade.
-- Make one selected target recur at least twice. Repetition must change or
+- Make one selected target recur at least twice. Whenever a selected lemma
+  recurs, use at least two genuinely different inflected surface forms; never
+  use the same normalized target surface more than
+  {PASSAGE_MAX_IDENTICAL_TARGET_SURFACE_USES} times. Repetition must change or
   deepen its role rather than copy a clause.
 - The ending should reframe or complete the scene gently; it should not exist
   merely to introduce another due word.
@@ -1455,7 +1463,7 @@ Return exactly {sentence_count} sentence objects. Include:
 - narrative_mode: exactly "{mode_id}".
 - morphology_focus: exactly {str(morphology_focus).lower()}.
 - ending_kind: a short label for the payoff, not an explanation.
-- selected_target_lemma_ids: the 2-4 target words intentionally used."""
+- selected_target_lemma_ids: exactly the three target words intentionally used."""
 
         result = _generate_agent_with_tools(
             prompt=prompt,
@@ -1478,7 +1486,7 @@ def generate_maintenance_passage_draft(
     target_words: list[dict[str, Any]],
     known_words: list[dict[str, Any]],
     style: str | None = None,
-    sentence_count: int = 4,
+    sentence_count: int = 3,
     model_override: str = "codex",
 ) -> dict[str, Any]:
     if not target_words:
@@ -1502,6 +1510,8 @@ SUPPORT WORDS YOU MAY USE:
 {known_list}
 
 Rules:
+- Keep the complete Arabic passage between {PASSAGE_MIN_RUNNING_WORDS} and
+  {PASSAGE_MAX_RUNNING_WORDS} running word tokens.
 - Use at least one target word in each sentence.
 - Across the full passage, use at least {min(sentence_count, len(target_words))} target words.
 - Reuse simple listed words instead of adding any unlisted content word.
@@ -1629,6 +1639,17 @@ def _assert_passage_has_lexical_anchor(validated: list[dict[str, Any]]) -> None:
         raise PassageGenerationError(
             "Passage has no repeated content-word anchor across sentences"
         )
+
+
+def _assert_v2_running_word_budget(validated: list[dict[str, Any]]) -> int:
+    running_word_count = sum(len(item["mappings"]) for item in validated)
+    if not PASSAGE_MIN_RUNNING_WORDS <= running_word_count <= PASSAGE_MAX_RUNNING_WORDS:
+        raise PassageGenerationError(
+            "Passage length must be "
+            f"{PASSAGE_MIN_RUNNING_WORDS}-{PASSAGE_MAX_RUNNING_WORDS} running words; "
+            f"got {running_word_count}"
+        )
+    return running_word_count
 
 
 def store_maintenance_passage(
@@ -1775,8 +1796,8 @@ def store_maintenance_passage(
         )
 
     target_occurrences: Counter[int] = Counter()
-    target_surface_forms: dict[int, set[str]] = {
-        lemma_id: set() for lemma_id in target_ids_used
+    target_surface_counts: dict[int, Counter[str]] = {
+        lemma_id: Counter() for lemma_id in target_ids_used
     }
     for item in validated:
         for mapping in item["mappings"]:
@@ -1790,7 +1811,7 @@ def store_maintenance_passage(
                 )
             )
             if normalized_surface:
-                target_surface_forms[lemma_id].add(normalized_surface)
+                target_surface_counts[lemma_id][normalized_surface] += 1
 
     if experiment_version:
         declared_target_ids = {
@@ -1811,6 +1832,22 @@ def store_maintenance_passage(
         if max(target_occurrences.values(), default=0) < 2:
             raise PassageGenerationError("Passage does not naturally repeat a selected target")
 
+        for lemma_id in declared_target_ids:
+            if target_occurrences[lemma_id] < 2:
+                continue
+            surface_counts = target_surface_counts.get(lemma_id, Counter())
+            if len(surface_counts) < 2:
+                raise PassageGenerationError(
+                    f"Repeated target {lemma_id} did not use a contrasting surface form"
+                )
+            if (
+                max(surface_counts.values(), default=0)
+                > PASSAGE_MAX_IDENTICAL_TARGET_SURFACE_USES
+            ):
+                raise PassageGenerationError(
+                    f"Repeated target {lemma_id} overused the same surface form"
+                )
+
         morphology_focus = bool(generated.get("morphology_focus"))
         morphology_target_raw = generated.get("morphology_target_lemma_id")
         morphology_target_id = (
@@ -1821,14 +1858,18 @@ def store_maintenance_passage(
         if morphology_focus:
             if morphology_target_id not in declared_target_ids:
                 raise PassageGenerationError("Morphology target is not a selected target")
-            if target_occurrences[morphology_target_id] < 2:
-                raise PassageGenerationError("Morphology target did not recur")
-            if len(target_surface_forms.get(morphology_target_id, set())) < 2:
+            if target_occurrences[morphology_target_id] < 3:
+                raise PassageGenerationError("Morphology target did not recur three times")
+            if len(target_surface_counts.get(morphology_target_id, Counter())) < 3:
                 raise PassageGenerationError(
-                    "Morphology target did not use contrasting surface forms"
+                    "Morphology target did not use three contrasting surface forms"
                 )
         elif morphology_target_id is not None:
             raise PassageGenerationError("Non-morphology passage declared a morphology target")
+
+        running_word_count = _assert_v2_running_word_budget(validated)
+    else:
+        running_word_count = sum(len(item["mappings"]) for item in validated)
 
     _assert_passage_has_lexical_anchor(validated)
 
@@ -1872,7 +1913,14 @@ def store_maintenance_passage(
                 for lemma_id in sorted(target_ids_used)
             },
             "target_surface_form_counts": {
-                str(lemma_id): len(target_surface_forms.get(lemma_id, set()))
+                str(lemma_id): len(target_surface_counts.get(lemma_id, Counter()))
+                for lemma_id in sorted(target_ids_used)
+            },
+            "target_max_identical_surface_uses": {
+                str(lemma_id): max(
+                    target_surface_counts.get(lemma_id, Counter()).values(),
+                    default=0,
+                )
                 for lemma_id in sorted(target_ids_used)
             },
             "target_stability_days": {
@@ -1881,6 +1929,7 @@ def store_maintenance_passage(
                 if word.get("stability_days") is not None
             },
             "sentence_count": len(validated),
+            "running_word_count": running_word_count,
             "proper_names": sorted(proper_name_norms),
         },
     )
@@ -1931,7 +1980,7 @@ def generate_and_store_maintenance_passage(
     target_lemma_ids: list[int] | None = None,
     scene_hint: str | None = None,
     style: str | None = None,
-    sentence_count: int = 4,
+    sentence_count: int = 3,
     model_override: str = "codex",
     max_generation_attempts: int = 4,
     experiment_version: str = PASSAGE_EXPERIMENT_VERSION,

@@ -10,6 +10,7 @@ from app.services.passage_generator import (
     PASSAGE_TARGET_POOL_SIZE,
     PassageGenerationError,
     _assert_not_recent_plot_echo,
+    _assert_v2_running_word_budget,
     _due_maintenance_targets,
     _eligible_passage_words,
     _rank_targets_for_passage,
@@ -31,6 +32,17 @@ from app.services.sentence_selector import (
 
 def test_generated_target_floor_matches_passage_delivery_floor():
     assert PASSAGE_MIN_TARGETS_USED >= PASSAGE_MIN_DUE_WORDS
+
+
+def test_v2_running_word_budget_is_enforced():
+    assert _assert_v2_running_word_budget([{"mappings": [None] * 35}]) == 35
+
+    try:
+        _assert_v2_running_word_budget([{"mappings": [None] * 46}])
+    except PassageGenerationError as exc:
+        assert "35-45 running words" in str(exc)
+    else:
+        raise AssertionError("Expected an overlong v2 passage to be rejected")
 
 
 def test_codex_target_planner_returns_disjoint_storyable_groups(monkeypatch):
@@ -722,6 +734,8 @@ def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
     assert len(captured["targets"]) == 8
     assert "model" not in captured
     assert "Do not maximize target count" in captured["prompt"]
+    assert "35-45" in captured["prompt"]
+    assert "different inflected surface forms" in captured["prompt"]
     assert "premise" in captured["prompt"]
     assert "Previous rejected draft/editor feedback" in captured["prompt"]
     assert "Recent passage titles" in captured["prompt"]
@@ -933,6 +947,51 @@ def test_v2_store_requires_repeated_selected_target(db_session):
         raise AssertionError("Expected v2 passage without target repetition to be rejected")
 
 
+def test_v2_store_rejects_repeated_target_in_only_one_surface_form(db_session):
+    words = [
+        _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),
+        _seed_lemma(db_session, 2, "وَلَد", "ولد", "boy"),
+        _seed_lemma(db_session, 3, "بَيْت", "بيت", "house"),
+        _seed_lemma(db_session, 4, "مَدْرَسَة", "مدرسة", "school"),
+    ]
+    db_session.commit()
+    eligible = [
+        {"lemma_id": word.lemma_id, "arabic": word.lemma_ar, "english": word.gloss_en, "pos": word.pos}
+        for word in words
+    ]
+    generated = {
+        "title_ar": "نَصٌّ",
+        "title_en": "Text",
+        "style_tag": "wry",
+        "narrative_mode": "dialogue_turn",
+        "premise": "A boy finds a book in a house.",
+        "target_plan": "Three concrete targets share one setting.",
+        "ending_kind": "reply",
+        "morphology_focus": False,
+        "morphology_target_lemma_id": None,
+        "selected_target_lemma_ids": [1, 2, 3],
+        "sentences": [
+            {"arabic": "كِتَابٌ فِي مَدْرَسَةٍ.", "english": "A book is in a school."},
+            {"arabic": "وَلَدٌ مَعَ كِتَابٍ.", "english": "A boy is with a book."},
+            {"arabic": "بَيْتٌ فِي مَدْرَسَةٍ.", "english": "A house is in a school."},
+        ],
+    }
+
+    try:
+        store_maintenance_passage(
+            db_session,
+            generated,
+            target_words=eligible[:3],
+            eligible_words=eligible,
+            quality_gate=False,
+            experiment_version=PASSAGE_EXPERIMENT_VERSION,
+        )
+    except PassageGenerationError as exc:
+        assert "contrasting surface form" in str(exc)
+    else:
+        raise AssertionError("Expected same-form target repetition to be rejected")
+
+
 def test_generated_story_return_value_survives_closed_session(db_session, monkeypatch):
     words = [
         _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book"),
@@ -978,6 +1037,7 @@ def test_generated_story_return_value_survives_closed_session(db_session, monkey
     story = generate_and_store_maintenance_passage(
         target_lemma_ids=[word.lemma_id for word in words],
         max_generation_attempts=1,
+        experiment_version="",
     )
 
     assert story.id is not None
