@@ -13,7 +13,7 @@ from app.database import (
     SessionLocal,
     set_session_context,
 )
-from app.models import GrammarFeature, Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, UserLemmaKnowledge
+from app.models import GrammarFeature, Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, SentenceWord, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ConfusionAnalysisOut,
@@ -51,6 +51,66 @@ from app.services.transliteration import transliterate_arabic, transliterate_lem
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/review", tags=["review"])
+
+
+def _review_card_key(log_id: int, client_review_id: str | None) -> str:
+    """Collapse one passage card's child-sentence log IDs into one card key."""
+    if not client_review_id:
+        return f"legacy:{log_id}"
+    base, marker, suffix = client_review_id.rpartition(":s")
+    return base if marker and suffix.isdigit() else client_review_id
+
+
+def _session_activity_counts(db: Session, session_id: str) -> dict[str, int]:
+    """Return card-, text-, and word-level activity for an honest session summary."""
+    sentence_rows = (
+        db.query(
+            SentenceReviewLog.id,
+            SentenceReviewLog.client_review_id,
+            Sentence.source,
+        )
+        .join(Sentence, Sentence.id == SentenceReviewLog.sentence_id)
+        .filter(SentenceReviewLog.session_id == session_id)
+        .all()
+    )
+    card_keys: set[str] = set()
+    passage_keys: set[str] = set()
+    for log_id, client_review_id, source in sentence_rows:
+        key = _review_card_key(log_id, client_review_id)
+        card_keys.add(key)
+        if source == "passage":
+            passage_keys.add(key)
+
+    arabic_word_count = (
+        db.query(func.count(SentenceWord.id))
+        .select_from(SentenceReviewLog)
+        .join(SentenceWord, SentenceWord.sentence_id == SentenceReviewLog.sentence_id)
+        .filter(SentenceReviewLog.session_id == session_id)
+        .scalar()
+        or 0
+    )
+    word_row = (
+        db.query(
+            func.count(ReviewLog.id).label("total"),
+            func.sum(case((ReviewLog.rating == 1, 1), else_=0)).label("red"),
+            func.sum(case((ReviewLog.rating == 2, 1), else_=0)).label("yellow"),
+            func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label("green"),
+        )
+        .filter(
+            ReviewLog.session_id == session_id,
+            ReviewLog.sentence_id.isnot(None),
+        )
+        .first()
+    )
+    return {
+        "review_card_count": len(card_keys),
+        "passage_card_count": len(passage_keys),
+        "arabic_word_count": int(arabic_word_count),
+        "word_review_count": int(word_row.total or 0),
+        "word_red_count": int(word_row.red or 0),
+        "word_yellow_count": int(word_row.yellow or 0),
+        "word_green_count": int(word_row.green or 0),
+    }
 
 
 def _session_sentence_ids(result: dict) -> list[int]:
@@ -1180,6 +1240,7 @@ def get_session_summary(session_id: str, db: Session = Depends(get_db)):
     sentences_no_idea = sum(1 for s in sentence_logs if s.comprehension == "no_idea")
     response_times = [s.response_ms for s in sentence_logs if s.response_ms is not None]
     avg_response_ms = sum(response_times) / len(response_times) if response_times else None
+    activity = _session_activity_counts(db, session_id)
 
     return SessionSummaryOut(
         word_journeys=word_journeys,
@@ -1188,6 +1249,7 @@ def get_session_summary(session_id: str, db: Session = Depends(get_db)):
         sentences_partial=sentences_partial,
         sentences_no_idea=sentences_no_idea,
         avg_response_ms=avg_response_ms,
+        **activity,
     )
 
 
@@ -1259,6 +1321,7 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
     sentences_partial = sent_row.partial or 0
     sentences_no_idea = sent_row.no_idea or 0
     avg_response_ms = round(sent_row.avg_ms, 1) if sent_row.avg_ms else None
+    activity = _session_activity_counts(db, session_id)
 
     # --- Known count + reviews today (simple counts) ---
     known_count = (
@@ -1324,6 +1387,7 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         sentences_partial=sentences_partial,
         sentences_no_idea=sentences_no_idea,
         avg_response_ms=avg_response_ms,
+        **activity,
         known_count=known_count,
         reviews_today=reviews_today,
         fsrs_reviewed_today=fsrs_reviewed_today,

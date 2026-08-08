@@ -6,6 +6,18 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-08-09
+
+- Bound embedded v2 maintenance stories to 35–45 mapped Arabic words, default
+  them to three sentences, and require selected-target form variation with a
+  cap on identical-form repetition.
+- Pair each revealed story sentence with its translation/transliteration while
+  preserving inline lookup and red/yellow word marking.
+- Replace length-confounded session-comprehension prominence with red/yellow
+  word percentages and honest activity units (cards, story cards, child
+  sentences, Arabic words, and reviewed-lemma judgments); expose the same
+  reading-yield totals in deep analytics.
+
 ## 2026-07-30 — Reviewed *Momo* Chapter 1 prefill boundary
 
 - Add a fixed, independently reviewed seven-row manifest for the safe Chapter

@@ -3380,6 +3380,56 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
 // --- Sentence-First Cards ---
 
+function PassagePairedReveal({
+  item,
+  missedIndices,
+  confusedIndices,
+  onWordTap,
+  showDiacritics,
+  arabicFont,
+}: {
+  item: SentenceReviewItem;
+  missedIndices: Set<number>;
+  confusedIndices: Set<number>;
+  onWordTap: (index: number, lemmaId: number | null) => void;
+  showDiacritics: boolean;
+  arabicFont: string;
+}) {
+  return (
+    <View style={styles.passageRevealList}>
+      {item.passage_sentences?.map((span) => (
+        <View key={span.sentence_id} style={styles.passageRevealBlock}>
+          <Text style={[styles.passageRevealArabic, { fontFamily: arabicFont }]}>
+            {item.words.slice(span.start_index, span.end_index).map((word, offset) => {
+              const index = span.start_index + offset;
+              const wordStyle = missedIndices.has(index)
+                ? styles.missedWord
+                : confusedIndices.has(index)
+                  ? styles.confusedWord
+                  : undefined;
+              return (
+                <Text key={`${span.sentence_id}-${index}`}>
+                  {offset > 0 ? " " : null}
+                  <Text
+                    onPress={() => onWordTap(index, word.lemma_id ?? null)}
+                    style={wordStyle}
+                  >
+                    {showDiacritics ? word.surface_form : stripDiacritics(word.surface_form)}
+                  </Text>
+                </Text>
+              );
+            })}
+          </Text>
+          <Text style={styles.passageRevealEnglish}>{span.english_translation}</Text>
+          {!!span.transliteration && (
+            <Text style={styles.passageRevealTranslit}>{span.transliteration}</Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function SentenceReadingCard({
   item,
   cardState,
@@ -3402,10 +3452,11 @@ function SentenceReadingCard({
   const englishLines = passageLines(item, "english_translation");
   const translitLines = passageLines(item, "transliteration");
   const currentFont = arabicFontForSentence(item.sentence_id);
+  const pairedReveal = showAnswer && isPassageCard(item) && (item.passage_sentences?.length ?? 0) > 1;
 
   return (
     <>
-      <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
+      {!pairedReveal && <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -3430,7 +3481,7 @@ function SentenceReadingCard({
             </Text>
           );
         })}
-      </Text>
+      </Text>}
 
       <View style={styles.cardToggles}>
         <Pressable
@@ -3450,7 +3501,16 @@ function SentenceReadingCard({
         ]}
       >
           <View style={styles.divider} />
-          {showAnswer ? (
+          {pairedReveal ? (
+            <PassagePairedReveal
+              item={item}
+              missedIndices={missedIndices}
+              confusedIndices={confusedIndices}
+              onWordTap={onWordTap}
+              showDiacritics={!overridden}
+              arabicFont={currentFont.font}
+            />
+          ) : showAnswer ? (
             englishLines.map((line, i) => (
               <Text key={`en-${i}`} style={styles.sentenceEnglish}>
                 {line}
@@ -3459,11 +3519,11 @@ function SentenceReadingCard({
           ) : (
             <Text style={styles.sentenceEnglish}> </Text>
           )}
-          <View style={styles.translitSlot}>
+          {!pairedReveal && <View style={styles.translitSlot}>
             <Text style={[styles.sentenceTranslit, !showAnswer && styles.hiddenText]}>
               {showAnswer && translitLines.length > 0 ? translitLines.join("\n") : " "}
             </Text>
-          </View>
+          </View>}
         </View>
     </>
   );
@@ -3542,10 +3602,11 @@ function SentenceListeningCard({
     );
   }
   const currentFont = arabicFontForSentence(item.sentence_id);
+  const pairedReveal = showAnswer && isPassageCard(item) && (item.passage_sentences?.length ?? 0) > 1;
 
   return (
     <>
-      <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
+      {!pairedReveal && <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -3570,7 +3631,7 @@ function SentenceListeningCard({
             </Text>
           );
         })}
-      </Text>
+      </Text>}
 
       <View style={styles.cardToggles}>
         <Pressable
@@ -3587,12 +3648,21 @@ function SentenceListeningCard({
       {showAnswer && (
         <View style={styles.answerSection}>
           <View style={styles.divider} />
-          {englishLines.map((line, i) => (
-            <Text key={`en-${i}`} style={styles.sentenceEnglish}>
-              {line}
-            </Text>
-          ))}
-          <View style={styles.translitSlot}>
+          {pairedReveal ? (
+            <PassagePairedReveal
+              item={item}
+              missedIndices={missedIndices}
+              confusedIndices={confusedIndices}
+              onWordTap={(index) => onToggleMissed(index)}
+              showDiacritics={!overridden}
+              arabicFont={currentFont.font}
+            />
+          ) : englishLines.map((line, i) => (
+              <Text key={`en-${i}`} style={styles.sentenceEnglish}>
+                {line}
+              </Text>
+            ))}
+          {!pairedReveal && <View style={styles.translitSlot}>
             {translitLines.length > 0 ? (
               <Text style={styles.sentenceTranslit}>
                 {translitLines.join("\n")}
@@ -3600,7 +3670,7 @@ function SentenceListeningCard({
             ) : (
               <Text style={styles.translitPlaceholder}>.</Text>
             )}
-          </View>
+          </View>}
         </View>
       )}
 
@@ -4071,6 +4141,15 @@ function SessionComplete({
 
   // Title based on what happened
   const sentenceCount = data?.sentence_count ?? results.total;
+  const reviewCardCount = data?.review_card_count ?? results.total;
+  const passageCardCount = data?.passage_card_count ?? 0;
+  const wordReviewCount = data?.word_review_count ?? 0;
+  const redPct = wordReviewCount > 0
+    ? Math.round(((data?.word_red_count ?? 0) / wordReviewCount) * 100)
+    : 0;
+  const yellowPct = wordReviewCount > 0
+    ? Math.round(((data?.word_yellow_count ?? 0) / wordReviewCount) * 100)
+    : 0;
   const title = graduated.length > 0
     ? `${graduated.length} ${graduated.length === 1 ? "word" : "words"} graduated!`
     : boxAdvanced.length > 0
@@ -4088,8 +4167,29 @@ function SessionComplete({
       {/* Title area */}
       <Text style={styles.summaryTitle}>{title}</Text>
       <Text style={styles.summarySubtitle}>
-        {sentenceCount} sentences in {mode === "listening" ? "listening" : "reading"} mode
+        {reviewCardCount} cards · {sentenceCount} child sentences
+        {passageCardCount > 0 ? ` · ${passageCardCount} ${passageCardCount === 1 ? "story" : "stories"}` : ""}
       </Text>
+
+      {dataReady && data && wordReviewCount > 0 && (
+        <Animated.View style={[styles.summaryGrid, { opacity: fadeAnim }]}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{data.arabic_word_count}</Text>
+            <Text style={styles.summaryLabel}>Arabic words</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: colors.missed }]}>{redPct}%</Text>
+            <Text style={styles.summaryLabel}>red words</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: colors.confused }]}>{yellowPct}%</Text>
+            <Text style={styles.summaryLabel}>yellow words</Text>
+          </View>
+        </Animated.View>
+      )}
+      {dataReady && data && wordReviewCount > 0 && (
+        <Text style={styles.wordReviewDetail}>{wordReviewCount} reviewed-lemma judgments</Text>
+      )}
 
       {/* Hero button */}
       <Pressable style={styles.nextSessionHeroButton} onPress={onNewSession}>
@@ -4149,7 +4249,7 @@ function SessionComplete({
       )}
 
       {/* Journey timeline */}
-      {dataReady && data && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
+      {dataReady && data && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0 || data.word_review_count > 0) && (
         <Animated.View style={[styles.journeyTimeline, { opacity: fadeAnim }]}>
           {graduated.length > 0 && (
             <View style={styles.journeyNode}>
@@ -4217,15 +4317,17 @@ function SessionComplete({
               </View>
             </View>
           )}
-          {/* Comprehension node */}
-          <View style={styles.journeyNode}>
-            <View style={[styles.journeyDot, { backgroundColor: colors.accent }]} />
-            <View style={styles.journeyContent}>
-              <Text style={[styles.journeyNodeTitle, { color: colors.accent }]}>
-                {data.sentences_understood} of {data.sentence_count} sentences fully understood
-              </Text>
+          {data.word_review_count > 0 && (
+            <View style={styles.journeyNode}>
+              <View style={[styles.journeyDot, { backgroundColor: colors.accent }]} />
+              <View style={styles.journeyContent}>
+                <Text style={[styles.journeyNodeTitle, { color: colors.accent }]}>Word outcomes</Text>
+                <Text style={styles.journeyNodeDetail}>
+                  {data.word_green_count} green · {data.word_yellow_count} yellow · {data.word_red_count} red
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
         </Animated.View>
       )}
 
@@ -4673,6 +4775,38 @@ const styles = StyleSheet.create({
     minHeight: 150,
     justifyContent: "flex-start",
   },
+  passageRevealList: {
+    width: "100%",
+    gap: 12,
+  },
+  passageRevealBlock: {
+    width: "100%",
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  passageRevealArabic: {
+    color: colors.arabic,
+    fontSize: 27,
+    lineHeight: 48,
+    writingDirection: "rtl",
+    textAlign: "right",
+  },
+  passageRevealEnglish: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "600",
+    lineHeight: 24,
+    marginTop: 6,
+  },
+  passageRevealTranslit: {
+    color: colors.textSecondary,
+    fontFamily: fontFamily.translit,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+  },
   missedWordSummary: {
     width: "100%",
     marginTop: 12,
@@ -4959,6 +5093,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 24,
     marginBottom: 16,
+  },
+  wordReviewDetail: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 12,
   },
   summaryItem: {
     alignItems: "center",
