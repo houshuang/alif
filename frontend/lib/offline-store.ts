@@ -33,7 +33,10 @@ const KEYS = {
 // resume window after the app is suspended/remounted.
 const SHOWN_INTRO_TTL_MS = 24 * 60 * 60 * 1000;
 
-const MAX_CACHED_SESSIONS = 20;
+// The explicit "Download for Offline" action requests 40 sessions. Keep some
+// headroom for the active session and normal background prefetches so a flight
+// download is not silently truncated as soon as another session is cached.
+const MAX_CACHED_SESSIONS = 50;
 const SESSION_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
 
 interface CachedSessionEntry {
@@ -117,10 +120,11 @@ export async function cacheSessions(
     const newEntries: CachedSessionEntry[] = sessions
       .filter((s) => !existingIds.has(s.session_id))
       .map((s) => ({ session: s, cached_at: now }));
-    const freshExisting = existing.filter(
-      (e) => e.cached_at === 0 || now - e.cached_at <= SESSION_STALENESS_MS
-    );
-    const combined = [...freshExisting, ...newEntries].slice(-MAX_CACHED_SESSIONS);
+    // Staleness controls whether an ONLINE load may consume a session; it must
+    // not erase durable offline material. Previously, any later cache write
+    // deleted every downloaded session older than 30 minutes, which could
+    // reduce a pre-flight download to a single background-prefetched session.
+    const combined = [...existing, ...newEntries].slice(-MAX_CACHED_SESSIONS);
     await setJson(key, combined);
   });
 }

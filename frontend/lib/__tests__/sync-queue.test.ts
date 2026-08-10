@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { enqueueReview, removeFromQueue, pendingCount } from "../sync-queue";
+import { enqueueReview, flushQueue, removeFromQueue, pendingCount } from "../sync-queue";
 
 // Mock modules that sync-queue imports
 jest.mock("../sync-events", () => ({
@@ -11,10 +11,13 @@ jest.mock("../offline-store", () => ({
 }));
 
 const QUEUE_KEY = "@alif/sync-queue";
+const mockFetch = jest.fn();
+(global as any).fetch = mockFetch;
 
 beforeEach(async () => {
   (AsyncStorage as any)._store[QUEUE_KEY] = undefined;
   delete (AsyncStorage as any)._store[QUEUE_KEY];
+  mockFetch.mockReset();
   jest.clearAllMocks();
 });
 
@@ -83,5 +86,25 @@ describe("pendingCount", () => {
     await enqueueReview("sentence", {}, "r-3");
 
     expect(await pendingCount()).toBe(3);
+  });
+});
+
+describe("durable retries", () => {
+  it("never drops a review after repeated server failures", async () => {
+    await enqueueReview("sentence", {
+      sentence_id: 1,
+      primary_lemma_id: 42,
+      comprehension_signal: "understood",
+    }, "durable-review");
+    mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+    for (let i = 0; i < 10; i++) {
+      await flushQueue();
+    }
+
+    expect(await pendingCount()).toBe(1);
+    const queue = JSON.parse((AsyncStorage as any)._store[QUEUE_KEY]);
+    expect(queue[0].client_review_id).toBe("durable-review");
+    expect(queue[0].attempts).toBe(10);
   });
 });

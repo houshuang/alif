@@ -169,7 +169,13 @@ class CodexCLIError(RuntimeError):
     pass
 
 
-def _run_codex_command(*, cmd: list[str], runner, timeout: int):
+def _run_codex_command(
+    *,
+    cmd: list[str],
+    runner,
+    timeout: int,
+    prompt_input: str | None = None,
+):
     """Run Codex, retrying without its Linux sandbox only when bwrap is absent.
 
     The production host is already a dedicated application VM but does not
@@ -177,16 +183,21 @@ def _run_codex_command(*, cmd: list[str], runner, timeout: int):
     narrowly detected fallback avoids silently weakening unrelated failures.
     """
     def invoke(command: list[str]):
+        kwargs = {
+            "capture_output": True,
+            "text": True,
+            "timeout": timeout,
+            "env": _codex_env(),
+        }
+        if prompt_input is not None:
+            kwargs["input"] = prompt_input
         try:
-            return runner(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env=_codex_env(),
-            )
+            return runner(command, **kwargs)
         except TypeError:
-            return runner(command, capture_output=True, text=True, timeout=timeout)
+            # Lightweight test runners may not accept env. Preserve stdin:
+            # dropping the prompt here would make the fallback meaningless.
+            kwargs.pop("env", None)
+            return runner(command, **kwargs)
 
     proc = invoke(cmd)
     stderr_lower = (proc.stderr or "").lower()
@@ -266,10 +277,15 @@ def generate_via_codex_cli(
             # makes the model cite sources (arabdict.com + utm_source=openai
             # URLs) inside stored learner-facing text (seen 2026-07-25).
             "-c", "tools.web_search=false",
-            full_prompt,
+            "-",
         ]
         try:
-            proc = _run_codex_command(cmd=cmd, runner=runner, timeout=timeout)
+            proc = _run_codex_command(
+                cmd=cmd,
+                runner=runner,
+                timeout=timeout,
+                prompt_input=full_prompt,
+            )
         except subprocess.TimeoutExpired as exc:
             raise CodexCLIError(f"codex CLI timed out after {timeout}s") from exc
         except (FileNotFoundError, OSError) as exc:
@@ -323,10 +339,15 @@ def _generate_via_codex_cli_text(
             "--output-last-message", output_path,
             "-c", f'model_reasoning_effort="{reasoning_effort or CODEX_REASONING_EFFORT}"',
             "-c", "tools.web_search=false",
-            full_prompt,
+            "-",
         ]
         try:
-            proc = _run_codex_command(cmd=cmd, runner=runner, timeout=timeout)
+            proc = _run_codex_command(
+                cmd=cmd,
+                runner=runner,
+                timeout=timeout,
+                prompt_input=full_prompt,
+            )
         except subprocess.TimeoutExpired as exc:
             raise CodexCLIError(f"codex CLI timed out after {timeout}s") from exc
         except (FileNotFoundError, OSError) as exc:

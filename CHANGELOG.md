@@ -6,6 +6,17 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-08-10
+
+- Make the 40-session flight download real: retain all downloaded sessions
+  beyond the online freshness window, keep capacity for active/background
+  sessions, and let Next Session consume stale cached material in airplane mode
+  or after a weak-signal fetch failure.
+- Keep offline review evidence queued indefinitely across repeated server
+  errors instead of silently dropping it after eight attempts.
+- Stream Codex prompts through stdin so embedded maintenance-passage generation
+  cannot exceed the operating system's command-line argument limit.
+
 ## 2026-08-09
 
 - Bound embedded v2 maintenance stories to 35–45 mapped Arabic words, default
