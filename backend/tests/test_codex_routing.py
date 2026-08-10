@@ -284,6 +284,28 @@ def test_codex_does_not_weaken_sandbox_for_generic_failures():
     assert len(calls) == 1
 
 
+def test_codex_prompt_is_streamed_over_stdin_not_argv():
+    """Large passage vocabularies must not hit the OS ARG_MAX boundary."""
+    calls = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    prompt = "vocabulary\n" * 100_000
+    result = _run_codex_command(
+        cmd=["codex", "exec", "-"],
+        runner=fake_runner,
+        timeout=30,
+        prompt_input=prompt,
+    )
+
+    assert result.returncode == 0
+    assert calls[0][0][-1] == "-"
+    assert prompt not in calls[0][0]
+    assert calls[0][1]["input"] == prompt
+
+
 def test_strict_response_schema_marks_all_properties_required():
     """Codex requires every property in `required`; optional fields become
     nullable. Mirrors polyglot/app/services/llm_cli.py::strict_response_schema."""

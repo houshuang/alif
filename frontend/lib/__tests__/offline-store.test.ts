@@ -158,6 +158,39 @@ describe("cacheSessions / getCachedSession", () => {
     expect(result).toBeNull();
   });
 
+  it("retains a complete 40-session flight download", async () => {
+    for (let i = 1; i <= 40; i++) {
+      await cacheSessions("reading", [makeSession(`flight-${i}`, [
+        { sentence_id: i, primary_lemma_id: 1000 + i, words: [] },
+      ])]);
+    }
+
+    const raw = JSON.parse(store["@alif/sessions/v2/reading"]);
+    expect(raw).toHaveLength(40);
+    expect(raw[0].session.session_id).toBe("flight-1");
+    expect(raw[39].session.session_id).toBe("flight-40");
+  });
+
+  it("does not erase stale flight sessions when a later prefetch is cached", async () => {
+    const now = Date.now();
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    await cacheSessions("reading", [makeSession("flight-1", [
+      { sentence_id: 1, primary_lemma_id: 10, words: [] },
+    ])]);
+
+    (Date.now as jest.Mock).mockReturnValue(now + 2 * 60 * 60 * 1000);
+    await cacheSessions("reading", [makeSession("background-later", [
+      { sentence_id: 2, primary_lemma_id: 20, words: [] },
+    ])]);
+
+    const raw = JSON.parse(store["@alif/sessions/v2/reading"]);
+    expect(raw.map((entry: any) => entry.session.session_id)).toEqual([
+      "flight-1",
+      "background-later",
+    ]);
+    jest.restoreAllMocks();
+  });
+
   it("filters out already-shown intros from cached session", async () => {
     const session = {
       ...makeSession("s-1", [

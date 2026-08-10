@@ -425,15 +425,34 @@ function backgroundPrefetch(mode: ReviewMode): void {
 export async function fetchFreshSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
-  const data = await fetchApi<SentenceReviewSession>(
-    `/api/review/next-sentences?limit=10&mode=${mode}`,
-    { timeoutMs: 12_000 }
-  );
-  const session = { ...data, session_id: data.session_id || generateSessionId() };
-  cacheSessions(mode, [session]).catch(() => {});
-  prefetchWordLookupsForSession(session).catch(() => {});
-  backgroundPrefetch(mode);
-  return session;
+  // "Next Session" deliberately prefers current server state while online,
+  // but it must still consume the downloaded queue in airplane mode (or while
+  // NetInfo briefly overestimates reachability). The former implementation
+  // always fetched and therefore stranded a perfectly valid offline cache.
+  if (!netStatus.isOnline) {
+    const cached = await getCachedSession(mode, true);
+    if (cached && cached.items.length > 0) return cached;
+    throw new Error("No sessions available offline");
+  }
+
+  try {
+    const data = await fetchApi<SentenceReviewSession>(
+      `/api/review/next-sentences?limit=10&mode=${mode}`,
+      { timeoutMs: 12_000 }
+    );
+    const session = { ...data, session_id: data.session_id || generateSessionId() };
+    cacheSessions(mode, [session]).catch(() => {});
+    prefetchWordLookupsForSession(session).catch(() => {});
+    backgroundPrefetch(mode);
+    return session;
+  } catch (error) {
+    const cached = await getCachedSession(mode, true);
+    if (cached && cached.items.length > 0) {
+      console.warn("Fresh session fetch failed, using offline cache:", error);
+      return cached;
+    }
+    throw error;
+  }
 }
 
 export async function getSentenceReviewSession(

@@ -4,7 +4,7 @@ import { syncEvents } from "./sync-events";
 import { invalidateDataCaches, updateCachedStoryStatus } from "./offline-store";
 
 const QUEUE_KEY = "@alif/sync-queue";
-const MAX_RETRY_ATTEMPTS = 8;
+const RETRY_WARNING_THRESHOLD = 8;
 
 export type QueueEntryType =
   | "sentence"
@@ -272,14 +272,16 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
       }
 
       const nextAttempts = entry.attempts + 1;
-      if (nextAttempts >= MAX_RETRY_ATTEMPTS) {
+      if (nextAttempts === RETRY_WARNING_THRESHOLD) {
         console.warn(
-          "dropping sync queue entry after max attempts:",
+          "sync queue entry still pending after repeated server attempts:",
           entry.type,
           entry.client_review_id
         );
-        continue;
       }
+      // Learning evidence is durable user data. Never silently discard it
+      // merely because the server returned several errors; idempotent client
+      // IDs make later retries safe after a backend fix or reconnect.
       updated.push({ ...entry, attempts: nextAttempts });
     }
     failed = updated.length;

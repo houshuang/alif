@@ -17,6 +17,7 @@ import {
   getWordDetail,
   getStats,
   getSentenceReviewSession,
+  fetchFreshSession,
   submitSentenceReview,
   undoSentenceReview,
   lookupReviewWord,
@@ -420,6 +421,46 @@ describe("getSentenceReviewSession", () => {
     const session = await getSentenceReviewSession("reading");
     expect(session.session_id).toBe("cached-sess");
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("serves Next Session from stale cache without a network call offline", async () => {
+    const cached = {
+      session_id: "flight-next",
+      items: [{ sentence_id: 91, primary_lemma_id: 901, words: [] }],
+      total_due_words: 1,
+      covered_due_words: 1,
+      intro_candidates: [],
+    };
+    store[SESSION_CACHE_KEY] = JSON.stringify([{
+      session: cached,
+      cached_at: Date.now() - 6 * 60 * 60 * 1000,
+    }]);
+    jest.requireMock("../net-status").netStatus.isOnline = false;
+
+    const session = await fetchFreshSession("reading");
+
+    expect(session.session_id).toBe("flight-next");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to downloaded material when a nominally-online fetch fails", async () => {
+    const cached = {
+      session_id: "weak-signal-next",
+      items: [{ sentence_id: 92, primary_lemma_id: 902, words: [] }],
+      total_due_words: 1,
+      covered_due_words: 1,
+      intro_candidates: [],
+    };
+    store[SESSION_CACHE_KEY] = JSON.stringify([{
+      session: cached,
+      cached_at: Date.now() - 6 * 60 * 60 * 1000,
+    }]);
+    mockFetch.mockRejectedValueOnce(new Error("Network request failed"));
+
+    const session = await fetchFreshSession("reading");
+
+    expect(session.session_id).toBe("weak-signal-next");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
 
