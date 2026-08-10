@@ -10,7 +10,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 
 import { completeBookPassage, getBookPageDetail, lookupReviewWord } from "../lib/api";
 import {
@@ -478,13 +477,12 @@ export default function BookPageScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><StatusBar style="dark" /><ActivityIndicator size="large" color={ACCENT} /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={ACCENT} /></View>;
   }
 
   if (!data || visiblePassages.length === 0) {
     return (
       <View style={styles.center}>
-        <StatusBar style="dark" />
         <Ionicons name={loadError ? "cloud-offline-outline" : "book-outline"} size={36} color={MUTED} />
         <Text style={styles.errorTitle}>{loadError ? "Couldn’t open this passage" : "Nothing to read here"}</Text>
         <Text style={styles.errorCopy}>Your location and word marks are still saved.</Text>
@@ -519,7 +517,6 @@ export default function BookPageScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
       <View style={styles.toolbar}>
         <Text style={styles.locationLabel}>
           {data.source_page_number != null ? data.source_page_number : data.page_number}

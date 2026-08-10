@@ -30,6 +30,7 @@ import {
   EBGaramond_600SemiBold,
 } from "@expo-google-fonts/eb-garamond";
 import { colors } from "../lib/theme";
+import { statusBarStyleForPath } from "../lib/status-bar-style";
 import { detectNewlyAppliedUpdate, versionLabel } from "../lib/app-version";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
@@ -150,7 +151,7 @@ function LayoutInner({ online }: { online: boolean }) {
   // the spinner instead, so the redirect always targets a stable navigator.
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyleForPath(pathname)} />
       {!online && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineBannerText}>
