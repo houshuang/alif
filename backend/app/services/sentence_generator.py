@@ -89,16 +89,18 @@ def build_at_risk_boost_map(db: Session) -> dict[int, float]:
         return {}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=AT_RISK_RECENT_MISS_DAYS)
+    from app.services.form_recovery_service import is_form_recovery_protected_log
+
     recent_miss = {
-        lid
-        for (lid,) in db.query(ReviewLog.lemma_id)
+        row.lemma_id
+        for row in db.query(ReviewLog)
         .filter(
             ReviewLog.reviewed_at >= cutoff,
             ReviewLog.rating <= 2,
             or_(ReviewLog.is_acquisition == False, ReviewLog.is_acquisition.is_(None)),  # noqa: E712
         )
-        .distinct()
         .all()
+        if not is_form_recovery_protected_log(row)
     }
 
     boost: dict[int, float] = {}

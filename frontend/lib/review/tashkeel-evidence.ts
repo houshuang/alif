@@ -5,7 +5,7 @@ import {
   WordReviewEvidenceIn,
 } from "../types";
 
-export const WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 2;
+export const WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 3;
 
 export interface TashkeelCardInteraction {
   frontOverride: boolean;
@@ -83,6 +83,24 @@ export function assistedRecognitionIndex(
   return marked.length > 0 ? marked[marked.length - 1] : null;
 }
 
+export function failureCauseIndex(
+  missedIndices: ReadonlySet<number>,
+  confusedIndices: ReadonlySet<number>,
+  tappedOrder: readonly number[],
+  focusedIndex: number | null,
+): number | null {
+  const failedIndices = new Set([...missedIndices, ...confusedIndices]);
+  if (focusedIndex != null && failedIndices.has(focusedIndex)) {
+    return focusedIndex;
+  }
+  for (let i = tappedOrder.length - 1; i >= 0; i -= 1) {
+    const index = tappedOrder[i];
+    if (failedIndices.has(index)) return index;
+  }
+  const marked = Array.from(failedIndices);
+  return marked.length > 0 ? marked[marked.length - 1] : null;
+}
+
 export function buildWordReviewEvidence({
   words,
   signal,
@@ -132,7 +150,7 @@ export function buildWordReviewEvidence({
       rating = 2;
     }
 
-    const selectedCauses = rating === 2
+    const selectedCauses = rating <= 2
       ? (failureCausesByIndex[index] ?? []).filter(
           (cause) => (
             cause !== "missing_tashkeel"

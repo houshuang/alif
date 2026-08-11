@@ -101,20 +101,24 @@ def _is_noise_lemma(lemma) -> bool:
 
 def _get_recently_failed_roots(db: Session) -> set[int]:
     """Get root_ids that have a sibling which failed (rating=1) in the last 7 days."""
+    from app.services.form_recovery_service import is_form_recovery_protected_log
+
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-    failed_lemma_ids = (
-        db.query(ReviewLog.lemma_id)
+    failed_logs = (
+        db.query(ReviewLog)
         .filter(
             ReviewLog.rating == 1,
             ReviewLog.reviewed_at >= cutoff,
         )
-        .distinct()
         .all()
     )
-    if not failed_lemma_ids:
+    failed_ids = {
+        row.lemma_id
+        for row in failed_logs
+        if not is_form_recovery_protected_log(row)
+    }
+    if not failed_ids:
         return set()
-
-    failed_ids = {r[0] for r in failed_lemma_ids}
     roots = (
         db.query(Lemma.root_id)
         .filter(Lemma.lemma_id.in_(failed_ids), Lemma.root_id.isnot(None))

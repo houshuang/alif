@@ -86,7 +86,7 @@ import {
   EMPTY_TASHKEEL_INTERACTION,
   TashkeelCardInteraction,
   WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION,
-  assistedRecognitionIndex,
+  failureCauseIndex,
   buildWordReviewEvidence,
   hasTashkeel,
   stripDiacritics,
@@ -316,6 +316,7 @@ interface CardSnapshot {
   wordOutcomesBefore: Map<number, WordOutcome>;
   failureCausesByIndex: Record<number, WordFailureCause[]>;
   rating2PromptShownSentenceWordIds: Set<number>;
+  failureCausePromptShownSentenceWordIds: Set<number>;
   tashkeelInteraction: TashkeelCardInteraction;
 }
 
@@ -414,6 +415,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     rating2PromptShownSentenceWordIds,
     setRating2PromptShownSentenceWordIds,
   ] = useState<Set<number>>(new Set());
+  const [
+    failureCausePromptShownSentenceWordIds,
+    setFailureCausePromptShownSentenceWordIds,
+  ] = useState<Set<number>>(new Set());
   const [tashkeelInteraction, setTashkeelInteraction] = useState<
     TashkeelCardInteraction
   >(EMPTY_TASHKEEL_INTERACTION);
@@ -496,6 +501,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setConfusionCaptures({});
     setFailureCausesByIndex({});
     setRating2PromptShownSentenceWordIds(new Set());
+    setFailureCausePromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
   }, [mode]);
 
@@ -515,12 +521,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       : null;
   const activeAssistedRecognitionIndex = useMemo(
     () =>
-      assistedRecognitionIndex(
+      failureCauseIndex(
+        missedIndices,
         confusedIndices,
         tappedOrder,
         focusedReviewWordIndex,
       ),
-    [confusedIndices, focusedReviewWordIndex, tappedOrder],
+    [confusedIndices, focusedReviewWordIndex, missedIndices, tappedOrder],
   );
 
   useEffect(() => {
@@ -537,12 +544,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         activeAssistedRecognitionIndex
       ]?.sentence_word_id;
     if (sentenceWordId == null) return;
-    setRating2PromptShownSentenceWordIds((previous) => {
+    setFailureCausePromptShownSentenceWordIds((previous) => {
       if (previous.has(sentenceWordId)) return previous;
       const next = new Set(previous);
       next.add(sentenceWordId);
       return next;
     });
+    if (confusedIndices.has(activeAssistedRecognitionIndex)) {
+      setRating2PromptShownSentenceWordIds((previous) => {
+        if (previous.has(sentenceWordId)) return previous;
+        const next = new Set(previous);
+        next.add(sentenceWordId);
+        return next;
+      });
+    }
   }, [
     activeAssistedRecognitionIndex,
     cardState,
@@ -550,6 +565,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     mode,
     sentenceItemIndex,
     sentenceSession,
+    confusedIndices,
   ]);
 
   useEffect(() => {
@@ -957,6 +973,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setConfusionCaptures({});
     setFailureCausesByIndex({});
     setRating2PromptShownSentenceWordIds(new Set());
+    setFailureCausePromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setAudioPlayCount(0);
     setLookupCount(0);
@@ -1246,7 +1263,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     // Cycle state: off → missed → confused → off
     toggleMissed(index);
 
-    if (nextMark !== "did_not_recognize") {
+    if (nextMark === null) {
       setConfusionCandidateLemmaIds((prev) => {
         if (!prev[lemmaId]) return prev;
         const next = { ...prev };
@@ -1427,6 +1444,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       rating2PromptShownSentenceWordIds: new Set(
         rating2PromptShownSentenceWordIds,
       ),
+      failureCausePromptShownSentenceWordIds: new Set(
+        failureCausePromptShownSentenceWordIds,
+      ),
       tashkeelInteraction: { ...tashkeelInteraction },
     };
 
@@ -1503,6 +1523,21 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         failedCanonicalIds.add(item.primary_lemma_id);
       } else if (signal === "partial") {
         for (const lid of missedLemmaIds) {
+          const matchingFailedIndices = item.words
+            .map((word, index) => ({ word, index }))
+            .filter(({ word, index }) => (
+              missedIndices.has(index)
+              && (word.lemma_id === lid || word.canonical_lemma_id === lid)
+            ))
+            .map(({ index }) => index);
+          const formIsolated = matchingFailedIndices.length > 0
+            && matchingFailedIndices.every((index) => {
+              const causes = failureCausesByIndex[index] ?? [];
+              return causes.length > 0 && causes.every(
+                (cause) => cause === "unfamiliar_form" || cause === "missing_tashkeel",
+              );
+            });
+          if (formIsolated) continue;
           const w = item.words.find(x => x.lemma_id === lid);
           if (w) {
             if (!w.is_function_word) failedCanonicalIds.add(w.canonical_lemma_id ?? lid);
@@ -1535,6 +1570,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         rating2_prompt_shown_sentence_word_ids:
           rating2PromptShownSentenceWordIds.size > 0
             ? Array.from(rating2PromptShownSentenceWordIds)
+            : undefined,
+        failure_cause_prompt_shown_sentence_word_ids:
+          failureCausePromptShownSentenceWordIds.size > 0
+            ? Array.from(failureCausePromptShownSentenceWordIds)
             : undefined,
         word_evidence_protocol_version: mode === "reading"
           ? WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION
@@ -1621,6 +1660,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setRating2PromptShownSentenceWordIds(
       snapshot.rating2PromptShownSentenceWordIds,
     );
+    setFailureCausePromptShownSentenceWordIds(
+      snapshot.failureCausePromptShownSentenceWordIds,
+    );
     setTashkeelInteraction(snapshot.tashkeelInteraction);
 
     // Decrement results counter
@@ -1705,6 +1747,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setFailureCausesByIndex({});
     setRating2PromptShownSentenceWordIds(new Set());
+    setFailureCausePromptShownSentenceWordIds(new Set());
     setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
     setWordOutcomes(new Map());
     setSeenLemmaIds(new Set());
@@ -3297,7 +3340,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         && (
           <AssistedRecognitionCauses
             surfaceForm={assistedWord.surface_form}
-            assistedWordCount={confusedIndices.size}
+            assistedWordCount={missedIndices.size + confusedIndices.size}
+            rating={missedIndices.has(activeAssistedRecognitionIndex) ? 1 : 2}
             selected={
               failureCausesByIndex[activeAssistedRecognitionIndex] ?? []
             }

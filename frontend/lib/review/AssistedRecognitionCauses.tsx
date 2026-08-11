@@ -12,6 +12,7 @@ const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
 export function AssistedRecognitionCauses({
   surfaceForm,
   assistedWordCount,
+  rating,
   selected,
   missingTashkeelApplicable,
   onToggle,
@@ -19,6 +20,7 @@ export function AssistedRecognitionCauses({
 }: {
   surfaceForm: string;
   assistedWordCount: number;
+  rating: 1 | 2;
   selected: readonly WordFailureCause[];
   missingTashkeelApplicable: boolean;
   onToggle: (cause: WordFailureCause) => void;
@@ -38,7 +40,9 @@ export function AssistedRecognitionCauses({
       <View style={styles.heading}>
         <Text style={styles.arabic}>{surfaceForm}</Text>
         <Text style={styles.prompt} numberOfLines={1}>
-          Knew it after reveal — why? (optional)
+          {rating === 1
+            ? "What made this form hard? (optional)"
+            : "Knew it after reveal — why? (optional)"}
         </Text>
       </View>
       <View style={styles.chips}>

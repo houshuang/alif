@@ -27,6 +27,13 @@ from app.services.confusion_service import (
     normalize_surface_form,
 )
 from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_review
+from app.services.form_recovery_service import (
+    FORM_RECOVERY_CAUSES,
+    FORM_RECOVERY_VERSION,
+    is_meaningful_form_failure,
+    process_form_recovery_review,
+    undo_form_recovery_reviews,
+)
 from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_validator import (
     is_function_word_lemma,
@@ -39,8 +46,8 @@ from app.services.surface_form_experiment import (
 
 logger = logging.getLogger(__name__)
 
-WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 2
-_SUPPORTED_WORD_REVIEW_EVIDENCE_PROTOCOLS = {1, 2}
+WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION = 3
+_SUPPORTED_WORD_REVIEW_EVIDENCE_PROTOCOLS = {1, 2, 3}
 _WORD_FAILURE_CAUSES = {
     "retrieval_lapse",
     "mixed_up",
@@ -225,6 +232,31 @@ def submit_sentence_review(
         elif ulk.knowledge_state == "encountered":
             encountered_lemma_ids.add(lid)
 
+    validated_word_evidence = _validate_word_review_evidence(
+        client_review_id=client_review_id,
+        protocol_version=word_evidence_protocol_version,
+        evidence_rows=word_review_evidence or [],
+        sentence_words=sentence_words,
+        review_sentence_ids=review_sentence_ids,
+        comprehension_signal=comprehension_signal,
+        missed_set=missed_set,
+        confused_set=confused_set,
+        review_mode=review_mode,
+        variant_to_canonical=variant_to_canonical,
+        function_word_lemma_ids=function_word_lemma_ids,
+        proper_name_lemma_ids=proper_name_lemma_ids,
+    )
+    evidence_by_effective: dict[int, list[dict]] = {}
+    for row in validated_word_evidence:
+        evidence_by_effective.setdefault(row["effective_lemma_id"], []).append(row)
+    protected_effective_ids = _form_recovery_protected_lemma_ids(
+        protocol_version=word_evidence_protocol_version,
+        comprehension_signal=comprehension_signal,
+        evidence_by_effective=evidence_by_effective,
+        surface_evidence_by_effective=surface_evidence_by_effective,
+        lemma_map=lemma_map,
+    )
+
     word_results = []
     latest_review_log_by_effective: dict[int, ReviewLog] = {}
 
@@ -302,6 +334,28 @@ def submit_sentence_review(
             or effective_lemma_id == primary_lemma_id
         )
         credit_type = "primary" if is_primary else "collateral"
+        form_recovery_protected = (
+            rating <= 2 and effective_lemma_id in protected_effective_ids
+        )
+        recovery_rows = evidence_by_effective.get(effective_lemma_id, [])
+        recovery_metadata = None
+        if form_recovery_protected:
+            recovery_metadata = {
+                "form_recovery_policy_version": FORM_RECOVERY_VERSION,
+                "form_recovery_protected": True,
+                "form_recovery_product_rating": rating,
+                "form_recovery_causes": sorted({
+                    cause
+                    for row in recovery_rows
+                    if row["rating"] <= 2
+                    for cause in row["causes"]
+                }),
+                "form_recovery_sentence_word_ids": [
+                    row["sentence_word_id"]
+                    for row in recovery_rows
+                    if row["rating"] <= 2
+                ],
+            }
 
         review_client_id = (
             f"{client_review_id}:{effective_lemma_id}"
@@ -351,6 +405,8 @@ def submit_sentence_review(
                 client_review_id=review_client_id,
                 commit=False,
                 was_confused=is_confused,
+                effective_rating_int=2 if form_recovery_protected else None,
+                review_metadata=recovery_metadata,
             )
         else:
             result = submit_review(
@@ -364,6 +420,8 @@ def submit_sentence_review(
                 client_review_id=review_client_id,
                 commit=False,
                 was_confused=is_confused,
+                effective_rating_int=2 if form_recovery_protected else None,
+                review_metadata=recovery_metadata,
             )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
@@ -429,7 +487,7 @@ def submit_sentence_review(
                         entry["missed"] = entry.get("missed", 0) + 1
                     elif surface_confused:
                         entry["confused"] = entry.get("confused", 0) + 1
-                    morph = classify_surface_morphology(surface_key, canonical_lemma_obj)
+                    morph = classify_surface_morphology(surface, canonical_lemma_obj)
                     if morph:
                         entry["category"] = morph["category"]
                         if morph.get("form_key"):
@@ -448,12 +506,22 @@ def submit_sentence_review(
                 sentence_ids=review_sentence_ids,
                 now=now,
             )
+            process_form_recovery_review(
+                knowledge=knowledge,
+                lemma=canonical_lemma_obj,
+                rows=recovery_rows,
+                protected=form_recovery_protected,
+                review_log=latest_log,
+                client_review_id=client_review_id,
+                now=now,
+            )
 
         if not is_duplicate:
             word_results.append({
                 "lemma_id": effective_lemma_id,
                 "rating": rating,
                 "credit_type": credit_type,
+                "form_recovery_protected": form_recovery_protected,
                 "new_state": result["new_state"],
                 "next_due": result["next_due"],
             })
@@ -544,16 +612,8 @@ def submit_sentence_review(
         db,
         client_review_id=client_review_id,
         protocol_version=word_evidence_protocol_version,
-        evidence_rows=word_review_evidence or [],
-        sentence_words=sentence_words,
-        review_sentence_ids=review_sentence_ids,
-        comprehension_signal=comprehension_signal,
-        missed_set=missed_set,
-        confused_set=confused_set,
+        validated_rows=validated_word_evidence,
         review_mode=review_mode,
-        variant_to_canonical=variant_to_canonical,
-        function_word_lemma_ids=function_word_lemma_ids,
-        proper_name_lemma_ids=proper_name_lemma_ids,
         latest_review_log_by_effective=latest_review_log_by_effective,
         now=now,
     )
@@ -566,8 +626,7 @@ def submit_sentence_review(
     }
 
 
-def _persist_word_review_evidence(
-    db: Session,
+def _validate_word_review_evidence(
     *,
     client_review_id: str | None,
     protocol_version: int | None,
@@ -581,39 +640,36 @@ def _persist_word_review_evidence(
     variant_to_canonical: dict[int, int],
     function_word_lemma_ids: set[int],
     proper_name_lemma_ids: set[int],
-    latest_review_log_by_effective: dict[int, ReviewLog],
-    now: datetime,
-) -> int:
-    """Validate and persist presentation evidence without blocking a review.
+) -> list[dict]:
+    """Validate presentation evidence before it can affect scheduling.
 
-    Telemetry is deliberately non-authoritative: malformed or stale rows are
-    dropped, while the existing lemma-level rating remains the sole scheduling
-    input. This protects offline review submission if a cached client and the
-    current sentence mapping ever disagree.
+    Invalid or stale rows are dropped without blocking the canonical review.
+    Only the returned protocol-v3 rows may participate in form-recovery
+    protection; persistence consumes this exact validated representation.
     """
 
     if not evidence_rows:
-        return 0
+        return []
     if not isinstance(evidence_rows, list):
         logger.warning("Dropping non-list word review evidence payload")
-        return 0
+        return []
     if not client_review_id:
         logger.warning("Dropping word review evidence without client_review_id")
-        return 0
+        return []
     if protocol_version not in _SUPPORTED_WORD_REVIEW_EVIDENCE_PROTOCOLS:
         logger.warning(
             "Dropping word review evidence with unsupported protocol version %r",
             protocol_version,
         )
-        return 0
+        return []
     if review_mode != "reading":
         logger.warning("Dropping word review evidence for review_mode=%s", review_mode)
-        return 0
+        return []
 
     by_id = {sw.id: sw for sw in sentence_words}
     allowed_sentence_ids = set(review_sentence_ids)
     seen_sentence_word_ids: set[int] = set()
-    saved = 0
+    validated: list[dict] = []
 
     for evidence in evidence_rows[:100]:
         if not isinstance(evidence, dict):
@@ -689,7 +745,13 @@ def _persist_word_review_evidence(
         causes = list(dict.fromkeys(evidence.get("failure_causes") or []))
         if (
             any(cause not in _WORD_FAILURE_CAUSES for cause in causes)
-            or (causes and rating != 2)
+            or (
+                causes
+                and (
+                    rating not in (1, 2)
+                    or (rating == 1 and protocol_version < 3)
+                )
+            )
             or (
                 "retrieval_lapse" in causes
                 and len(causes) > 1
@@ -746,43 +808,128 @@ def _persist_word_review_evidence(
         ):
             continue
 
-        latest_log = latest_review_log_by_effective.get(effective_lemma_id)
-        db.add(WordReviewEvidence(
-            client_review_id=client_review_id,
-            review_log_id=latest_log.id if latest_log else None,
-            sentence_word_id=sw.id,
-            sentence_id=sw.sentence_id,
-            position=sw.position,
-            lemma_id=sw.lemma_id,
-            canonical_lemma_id=effective_lemma_id,
-            rating=rating,
-            review_mode=review_mode,
-            protocol_version=protocol_version,
-            is_schedulable_content=is_schedulable_content,
-            is_function_word=is_function_word,
-            is_proper_name=is_proper_name,
-            rating_source=rating_source,
-            surface_form=surface_form,
-            rendered_front_form=rendered_front_form,
-            default_show_tashkeel=default_show,
-            front_initial_tashkeel_visible=initial_visible,
-            front_ever_tashkeel_visible=ever_visible,
-            front_tashkeel_visible_at_answer=visible_at_answer,
-            front_toggle_count=front_toggle_count,
-            answer_revealed=answer_revealed,
-            back_tashkeel_visible_at_rating=back_visible,
-            back_toggle_count=back_toggle_count,
-            failure_causes_json=causes or None,
-            created_at=now,
-        ))
-        saved += 1
+        validated.append({
+            "sentence_word_id": sw.id,
+            "sentence_id": sw.sentence_id,
+            "position": sw.position,
+            "lemma_id": sw.lemma_id,
+            "effective_lemma_id": effective_lemma_id,
+            "rating": rating,
+            "is_schedulable_content": is_schedulable_content,
+            "is_function_word": is_function_word,
+            "is_proper_name": is_proper_name,
+            "rating_source": rating_source,
+            "surface_form": surface_form,
+            "rendered_front_form": rendered_front_form,
+            "default_show_tashkeel": default_show,
+            "front_initial_tashkeel_visible": initial_visible,
+            "front_ever_tashkeel_visible": ever_visible,
+            "front_tashkeel_visible_at_answer": visible_at_answer,
+            "front_toggle_count": front_toggle_count,
+            "answer_revealed": answer_revealed,
+            "back_tashkeel_visible_at_rating": back_visible,
+            "back_toggle_count": back_toggle_count,
+            "causes": causes,
+        })
 
     if len(evidence_rows) > 100:
         logger.warning(
             "Truncated word review evidence payload from %s to 100 rows",
             len(evidence_rows),
         )
-    return saved
+    return validated
+
+
+def _form_recovery_protected_lemma_ids(
+    *,
+    protocol_version: int | None,
+    comprehension_signal: str,
+    evidence_by_effective: dict[int, list[dict]],
+    surface_evidence_by_effective: dict[int, list[tuple[int, str]]],
+    lemma_map: dict[int, Lemma],
+) -> set[int]:
+    """Find canonicals whose every failed token is form/tashkeel-isolated."""
+    if protocol_version != WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION:
+        return set()
+    if comprehension_signal != "partial":
+        return set()
+
+    protected: set[int] = set()
+    for effective_id, rows in evidence_by_effective.items():
+        content_rows = [row for row in rows if row["is_schedulable_content"]]
+        # Protocol v3 is an all-token ledger. Missing even one mapped occurrence
+        # makes the attribution ambiguous and therefore ineligible.
+        expected_count = len(surface_evidence_by_effective.get(effective_id, []))
+        if not content_rows or len(content_rows) != expected_count:
+            continue
+        failed_rows = [row for row in content_rows if row["rating"] <= 2]
+        if not failed_rows:
+            continue
+        lemma = lemma_map.get(effective_id)
+        eligible = True
+        for row in failed_rows:
+            causes = set(row["causes"])
+            if (
+                row["rating_source"] != "token_mark"
+                or not causes
+                or not causes <= FORM_RECOVERY_CAUSES
+            ):
+                eligible = False
+                break
+            if (
+                "unfamiliar_form" in causes
+                and not is_meaningful_form_failure(row["surface_form"], lemma)
+            ):
+                eligible = False
+                break
+        if eligible:
+            protected.add(effective_id)
+    return protected
+
+
+def _persist_word_review_evidence(
+    db: Session,
+    *,
+    client_review_id: str | None,
+    protocol_version: int | None,
+    validated_rows: list[dict],
+    review_mode: str,
+    latest_review_log_by_effective: dict[int, ReviewLog],
+    now: datetime,
+) -> int:
+    if not client_review_id or protocol_version is None:
+        return 0
+    for row in validated_rows:
+        latest_log = latest_review_log_by_effective.get(row["effective_lemma_id"])
+        db.add(WordReviewEvidence(
+            client_review_id=client_review_id,
+            review_log_id=latest_log.id if latest_log else None,
+            sentence_word_id=row["sentence_word_id"],
+            sentence_id=row["sentence_id"],
+            position=row["position"],
+            lemma_id=row["lemma_id"],
+            canonical_lemma_id=row["effective_lemma_id"],
+            rating=row["rating"],
+            review_mode=review_mode,
+            protocol_version=protocol_version,
+            is_schedulable_content=row["is_schedulable_content"],
+            is_function_word=row["is_function_word"],
+            is_proper_name=row["is_proper_name"],
+            rating_source=row["rating_source"],
+            surface_form=row["surface_form"],
+            rendered_front_form=row["rendered_front_form"],
+            default_show_tashkeel=row["default_show_tashkeel"],
+            front_initial_tashkeel_visible=row["front_initial_tashkeel_visible"],
+            front_ever_tashkeel_visible=row["front_ever_tashkeel_visible"],
+            front_tashkeel_visible_at_answer=row["front_tashkeel_visible_at_answer"],
+            front_toggle_count=row["front_toggle_count"],
+            answer_revealed=row["answer_revealed"],
+            back_tashkeel_visible_at_rating=row["back_tashkeel_visible_at_rating"],
+            back_toggle_count=row["back_toggle_count"],
+            failure_causes_json=row["causes"] or None,
+            created_at=now,
+        ))
+    return len(validated_rows)
 
 
 def _record_sentence_grammar(
@@ -909,6 +1056,10 @@ def undo_sentence_review(
             if pre_knowledge_state is not None:
                 ulk.knowledge_state = pre_knowledge_state
             undo_surface_experiment_reviews(
+                ulk,
+                deleted_review_ids_by_lemma.get(log.lemma_id, set()),
+            )
+            undo_form_recovery_reviews(
                 ulk,
                 deleted_review_ids_by_lemma.get(log.lemma_id, set()),
             )

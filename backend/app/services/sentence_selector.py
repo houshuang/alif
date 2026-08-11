@@ -59,6 +59,10 @@ from app.services.surface_form_experiment import (
     active_treatment_episodes,
 )
 from app.services.confusion_service import normalize_surface_form
+from app.services.form_recovery_service import (
+    form_family,
+    open_form_recovery_episodes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +74,7 @@ MIN_ACQUISITION_EXPOSURES = 2  # legacy alias for box 1 / fallback
 BOX1_MIN_EXPOSURES = 2
 BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
+FORM_RECOVERY_MAX_SLOTS_PER_SESSION = 1
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
 DAILY_AUTO_INTRO_TARGET = 30  # aggressive 2026-05-04 trial target
 HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200  # allow daily intros while retention is strong
@@ -261,6 +266,7 @@ class SentenceCandidate:
     selection_reason: str = ""
     selection_order: int = 0
     exact_surface_lemma_ids: set[int] = field(default_factory=set)
+    form_recovery_matches: dict[int, dict] = field(default_factory=dict)
     primary_override_lemma_id: int | None = None
     # Private, server-side evidence for interaction telemetry. Never serialize
     # this into selection_info: it contains the learner's exact lapse history.
@@ -337,9 +343,13 @@ def _established_lapse_evidence(
         )
         .all()
     )
+    from app.services.form_recovery_service import is_form_recovery_protected_log
+
     evidence: dict[int, dict] = {}
     seen_lemma_ids: set[int] = set()
     for row in rows:
+        if is_form_recovery_protected_log(row):
+            continue
         if row.lemma_id in seen_lemma_ids:
             continue
         # The latest lapse is authoritative even when it is below threshold.
@@ -1754,6 +1764,15 @@ def build_session(
         if mode == "reading"
         else {}
     )
+    form_recovery_episodes = (
+        {
+            lemma_id: episodes
+            for lemma_id, knowledge in knowledge_map.items()
+            if (episodes := open_form_recovery_episodes(knowledge))
+        }
+        if mode == "reading"
+        else {}
+    )
 
     # Load grammar exposure for grammar_fit scoring
     from app.services.grammar_service import compute_comfort
@@ -1849,6 +1868,7 @@ def build_session(
         sws = sw_by_sentence.get(sent.id, [])
         due_covered: set[int] = set()
         exact_surface_lemma_ids: set[int] = set()
+        form_recovery_matches: dict[int, dict] = {}
         word_metas: list[WordMeta] = []
         scaffold_stabilities: list[float] = []
 
@@ -1877,6 +1897,44 @@ def build_session(
                 and normalize_surface_form(sw.surface_form) == episode.get("surface_key")
             ):
                 exact_surface_lemma_ids.add(effective_id)
+
+            if effective_id and sent.source != "passage":
+                normalized_surface = normalize_surface_form(sw.surface_form)
+                candidate_family = None
+                for recovery_episode in form_recovery_episodes.get(effective_id, []):
+                    trigger_sentence_ids = {
+                        trigger.get("sentence_id")
+                        for trigger in recovery_episode.get("triggers") or []
+                    }
+                    if sent.id in trigger_sentence_ids:
+                        continue
+                    exact_match = (
+                        normalized_surface
+                        == recovery_episode.get("normalized_surface")
+                    )
+                    if not exact_match and recovery_episode.get("family_key"):
+                        if candidate_family is None:
+                            candidate_family = form_family(
+                                sw.surface_form,
+                                lemma_map.get(effective_id),
+                            )
+                        family_match = bool(
+                            candidate_family
+                            and candidate_family.get("family_key")
+                            == recovery_episode.get("family_key")
+                        )
+                    else:
+                        family_match = False
+                    if exact_match or family_match:
+                        existing = form_recovery_matches.get(effective_id)
+                        # Prefer the exact surface over a family-only bridge.
+                        if existing is None or exact_match:
+                            form_recovery_matches[effective_id] = {
+                                "episode": recovery_episode,
+                                "exact": exact_match,
+                            }
+                        if exact_match:
+                            break
 
             k_state = "new"
             is_fresh_today = False
@@ -2046,12 +2104,91 @@ def build_session(
             due_words_covered=due_covered,
             score=score,
             exact_surface_lemma_ids=exact_surface_lemma_ids,
+            form_recovery_matches=form_recovery_matches,
         ))
 
     # 3. Greedy set cover with within-session scaffold diversity
     selected: list[SentenceCandidate] = []
     remaining_due = set(due_lemma_ids)
     session_scaffold_counts: dict[int, int] = {}
+
+    # Corrective form recovery gets at most one representation preference. The
+    # candidate already covers ordinary due work and passed all normal gates;
+    # the recovering lemma may be collateral and never becomes due itself.
+    recovery_options: list[
+        tuple[int, str, float, int, int, SentenceCandidate]
+    ] = []
+    recovery_opening_due_ids = set(sorted(
+        due_lemma_ids,
+        key=lambda lid: frequency_priority_sort_key(
+            lid, due_frequency_ranks, overdue_days_map
+        ),
+    )[:min(OLDEST_DUE_FIRST_BLOCK, limit)])
+    for candidate in candidates:
+        if not (candidate.due_words_covered & recovery_opening_due_ids):
+            continue
+        for lemma_id, match in candidate.form_recovery_matches.items():
+            episode = match.get("episode") or {}
+            recovery_options.append((
+                0 if match.get("exact") else 1,
+                str(episode.get("opened_at") or ""),
+                -candidate.score,
+                candidate.sentence_id,
+                lemma_id,
+                candidate,
+            ))
+    recovery_options.sort(key=lambda row: row[:5])
+    reserved_recovery_slots = 0
+    for match_rank, _, _, _, lemma_id, candidate in recovery_options:
+        if (
+            reserved_recovery_slots >= FORM_RECOVERY_MAX_SLOTS_PER_SESSION
+            or len(selected) >= limit
+        ):
+            break
+        if candidate not in candidates or not (
+            candidate.due_words_covered & remaining_due
+        ):
+            continue
+        candidate.selection_reason = "form_recovery_v1"
+        candidate.selection_order = len(selected) + 1
+        candidate.score_components = dict(candidate.score_components)
+        candidate.score_components.update({
+            "form_recovery_v1": True,
+            "form_recovery_match": "exact" if match_rank == 0 else "family",
+            "form_recovery_collateral": lemma_id not in candidate.due_words_covered,
+        })
+        selected.append(candidate)
+        reserved_recovery_slots += 1
+        candidates.remove(candidate)
+        remaining_due -= candidate.due_words_covered
+        for word in candidate.words_meta:
+            if (
+                word.lemma_id
+                and not word.is_due
+                and not word.is_function_word
+                and not word.is_proper_name
+            ):
+                session_scaffold_counts[word.lemma_id] = (
+                    session_scaffold_counts.get(word.lemma_id, 0) + 1
+                )
+
+    matched_recovery_ids = {
+        lemma_id
+        for candidate in candidates + selected
+        for lemma_id in candidate.form_recovery_matches
+    }
+    missing_recovery_ids = set(form_recovery_episodes) - matched_recovery_ids
+    if missing_recovery_ids:
+        logger.info(
+            "Form recovery inventory gap for %s open canonicals",
+            len(missing_recovery_ids),
+        )
+        if log_events:
+            log_interaction(
+                event="form_recovery_inventory_gap",
+                lemma_ids=sorted(missing_recovery_ids),
+                open_lemma_count=len(missing_recovery_ids),
+            )
 
     # Reserve at most one ordinary due-card slot for the treatment arm. This
     # changes representation, not workload: the lemma was already due and the

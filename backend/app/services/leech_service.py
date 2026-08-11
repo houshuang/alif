@@ -24,6 +24,7 @@ from app.models import FrequencyCoreEntry, Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.activity_log import log_activity
 from app.services.frequency_lanes import is_low_priority_lemma
 from app.services.interaction_logger import log_interaction
+from app.services.form_recovery_service import is_form_recovery_protected_log
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +362,7 @@ def _recent_accuracy(
     """
     from sqlalchemy import or_
 
-    query = db.query(ReviewLog.rating).filter(
+    query = db.query(ReviewLog).filter(
         ReviewLog.lemma_id == lemma_id,
         or_(
             ReviewLog.review_mode.is_(None),
@@ -371,10 +372,14 @@ def _recent_accuracy(
     )
     if since is not None:
         query = query.filter(ReviewLog.reviewed_at >= since)
-    recent = query.order_by(ReviewLog.reviewed_at.desc()).limit(window).all()
+    recent = [
+        row
+        for row in query.order_by(ReviewLog.reviewed_at.desc()).all()
+        if not is_form_recovery_protected_log(row)
+    ][:window]
     if len(recent) < LEECH_MIN_REVIEWS:
         return None
-    correct = sum(1 for (r,) in recent if r >= 3)
+    correct = sum(1 for row in recent if row.rating >= 3)
     return correct / len(recent)
 
 
@@ -391,6 +396,21 @@ def is_leech(ulk: UserLemmaKnowledge, db: Session | None = None) -> bool:
         acc = _recent_accuracy(db, ulk.lemma_id, since=since)
         if acc is not None:
             return acc < LEECH_MAX_ACCURACY
+        protected_query = db.query(ReviewLog).filter(
+            ReviewLog.lemma_id == ulk.lemma_id
+        )
+        if since is not None:
+            protected_query = protected_query.filter(
+                ReviewLog.reviewed_at >= since
+            )
+        if any(
+            is_form_recovery_protected_log(row)
+            for row in protected_query.all()
+        ):
+            # The minimum evidence window is five canonical judgments. A
+            # token-isolated form event is outside that denominator, so do not
+            # fall through to cumulative counters until five valid rows exist.
+            return False
         if since is not None:
             # Old reviews explain why the word entered treatment; they cannot
             # end that treatment before it has produced five fresh observations.

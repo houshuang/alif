@@ -93,15 +93,19 @@ def _quiz_retest_after_failure(
     of the lemma's most recent rating-1 review."""
     if review_mode != "quiz" or rating_int < 3:
         return False
-    last_fail = (
-        db.query(ReviewLog.reviewed_at)
+    from app.services.form_recovery_service import is_form_recovery_protected_log
+
+    last_fail_log = next((
+        row
+        for row in db.query(ReviewLog)
         .filter(ReviewLog.lemma_id == lemma_id, ReviewLog.rating == 1)
         .order_by(ReviewLog.reviewed_at.desc())
-        .first()
-    )
-    if not last_fail or last_fail[0] is None:
+        .all()
+        if not is_form_recovery_protected_log(row)
+    ), None)
+    if not last_fail_log or last_fail_log.reviewed_at is None:
         return False
-    failed_at = last_fail[0]
+    failed_at = last_fail_log.reviewed_at
     if failed_at.tzinfo is None:
         failed_at = failed_at.replace(tzinfo=timezone.utc)
     return timedelta(0) <= now - failed_at < RETEST_CREDIT_GAP
@@ -623,6 +627,8 @@ def submit_acquisition_review(
     client_review_id: Optional[str] = None,
     commit: bool = True,
     was_confused: bool = False,
+    effective_rating_int: Optional[int] = None,
+    review_metadata: Optional[dict] = None,
 ) -> dict:
     """Submit a review for a word in the acquisition phase.
 
@@ -669,6 +675,26 @@ def submit_acquisition_review(
             review_mode=review_mode, comprehension_signal=comprehension_signal,
             client_review_id=client_review_id,
             commit=commit,
+            was_confused=was_confused,
+            effective_rating_int=effective_rating_int,
+            review_metadata=review_metadata,
+        )
+
+    protected_form_recovery = bool(
+        (review_metadata or {}).get("form_recovery_protected")
+    )
+    if effective_rating_int is not None and (
+        effective_rating_int != 2 or not protected_form_recovery
+    ):
+        raise ValueError(
+            "Effective acquisition ratings require form_recovery_v1 Hard"
+        )
+    scheduler_rating_int = (
+        effective_rating_int if effective_rating_int is not None else rating_int
+    )
+    if scheduler_rating_int not in (1, 2, 3, 4):
+        raise ValueError(
+            f"Invalid effective acquisition rating: {scheduler_rating_int}"
         )
 
     old_box = ulk.acquisition_box or 1
@@ -677,7 +703,9 @@ def submit_acquisition_review(
     old_knowledge_state = ulk.knowledge_state
     old_last_reviewed = ulk.last_reviewed  # captured before the update below (Tier E elapsed)
     recent_intro = _intro_shown_recently(ulk, now)
-    retest_gate = _quiz_retest_after_failure(db, lemma_id, now, review_mode, rating_int)
+    retest_gate = _quiz_retest_after_failure(
+        db, lemma_id, now, review_mode, scheduler_rating_int
+    )
     distributed_day_policy = distributed_day_graduation_enabled()
     distributed_days_confirmed = (
         _reviews_span_calendar_days(
@@ -687,7 +715,7 @@ def submit_acquisition_review(
             include_at=now,
             successful_only=True,
         )
-        if distributed_day_policy and rating_int >= 3
+        if distributed_day_policy and scheduler_rating_int >= 3
         else False
     )
     early_graduation_blocked = False
@@ -698,7 +726,7 @@ def submit_acquisition_review(
     # (Tier 1/2 read it); incrementing both would inflate it (conformance v2,
     # 2026-07-25). The event still logs to ReviewLog with
     # fsrs_log_json.retest_credit_blocked and bumps total_encounters.
-    if not retest_gate:
+    if not retest_gate and not protected_form_recovery:
         ulk.times_seen = old_times_seen + 1
         if rating_int >= 3:
             ulk.times_correct = old_times_correct + 1
@@ -726,7 +754,7 @@ def submit_acquisition_review(
     # learning, and bypassing acquisition robs the encoding phase.
     graduated = False
     grad_reason: Optional[str] = None
-    if old_times_seen == 0 and rating_int >= 3:
+    if old_times_seen == 0 and scheduler_rating_int >= 3:
         if not recent_intro and not retest_gate:
             if distributed_day_policy and not distributed_days_confirmed:
                 early_graduation_blocked = True
@@ -737,7 +765,7 @@ def submit_acquisition_review(
     # Box advancement logic
     # Box 1→2: allowed for encoding unless this is intro-card working memory
     # Box 2→3 and graduation: only when due (enforce inter-session spacing)
-    if not graduated and rating_int >= 3:
+    if not graduated and scheduler_rating_int >= 3:
         if retest_gate:
             # Correct bare-recall re-test minutes after a failure: count the
             # exposure, clear the 5-min retry due-date, but keep the box —
@@ -768,7 +796,7 @@ def submit_acquisition_review(
             # Not due yet — record the review but don't advance box or reset timer
             # This gives within-session exposure credit without bypassing spacing
             pass
-    elif rating_int == 2:
+    elif scheduler_rating_int == 2:
         # Hard: stay in same box
         if is_due:
             if (ulk.times_correct or 0) == 0:
@@ -809,7 +837,7 @@ def submit_acquisition_review(
     # 3/4 correct -> Hard -> 3/5 = 60% in box 3), but it is not evidence that
     # the word is ready to leave acquisition. Historical audit found two such
     # graduations, including one in the 2026-07-15 bookifier cohort.
-    if not graduated and rating_int >= 3:
+    if not graduated and scheduler_rating_int >= 3:
         new_times_seen = ulk.times_seen
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
@@ -820,7 +848,7 @@ def submit_acquisition_review(
         # long gap means it was forgotten — no graduation), unlike tiers 1-3 which
         # ignore the current rating. The intro working-memory gate is definitionally
         # satisfied by a multi-day gap; not_recent_intro kept for symmetry.
-        if (not recent_intro and not retest_gate and rating_int >= 3
+        if (not recent_intro and not retest_gate and scheduler_rating_int >= 3
                 and elapsed_since_last is not None
                 and elapsed_since_last >= ELAPSED_GRADUATION_MIN_INTERVAL):
             graduated = True
@@ -882,6 +910,7 @@ def submit_acquisition_review(
         is_acquisition=True,
         was_confused=was_confused,
         fsrs_log_json={
+            **(review_metadata or {}),
             "rating": rating_int,
             "state": ulk.knowledge_state,
             "acquisition_box_before": old_box,
@@ -907,8 +936,9 @@ def submit_acquisition_review(
                 elapsed_since_last.total_seconds()
                 if elapsed_since_last is not None else None
             ),
-            "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
+            "intro_working_memory_blocked": recent_intro and scheduler_rating_int >= 3 and old_box == 1,
             "retest_credit_blocked": retest_gate,
+            "acquisition_rating_applied": scheduler_rating_int,
         },
     )
     db.add(log_entry)

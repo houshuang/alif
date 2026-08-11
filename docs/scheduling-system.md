@@ -1286,6 +1286,44 @@ The canonical lemma remains the only scheduling unit; this pilot changes sentenc
 representation, not the SRS state machine. See
 `research/analysis-2026-07-09-return-recovery-next-phase.md` for power and stop rules.
 
+### Token-Isolated Form/Tashkeel Recovery (2026-08-11)
+
+**Code**: `form_recovery_service.py`, `sentence_review_service.py`,
+`sentence_selector.py`, `material_generator.py`
+
+Word-evidence protocol v3 extends optional failure causes to red as well as
+yellow tokens and validates the complete token ledger before scheduling. A
+partial-review canonical is protected only when every mapped occurrence is
+present and every failed occurrence is explicitly explained solely by a
+non-trivial unfamiliar form and/or by missing tashkeel that was genuinely
+hidden on a stored vocalized token. Any retrieval lapse, mix-up, absent cause,
+invalid row, unexplained failing sibling, or whole-card `no_idea` keeps the
+ordinary canonical lapse.
+
+For protected established words, `ReviewLog.rating` remains the learner's 1/2
+and the event remains outside canonical `times_seen`/`times_correct`, while the FSRS card receives genuine
+Hard (`fsrs_rating_applied=2`) instead of Again. Protected acquiring words stay
+in their current box and cannot graduate. Metadata is stamped
+`form_recovery_policy_version=form_recovery_v1`; protected rows are excluded
+from leech, recent-lapse/scaffold, root-failure, mnemonic-generation, and rapid
+re-test signals.
+
+The exact vocalized surface, normalized surface, diacritic-aware morphology
+family, cause, token, sentence, and review are stored under
+`variant_stats_json["__form_recovery_v1"]`. Two later green token judgments in
+distinct sentences resolve the episode; missing-tashkeel successes count only
+when the front again hid the stored marks. Undo removes trigger/outcome evidence
+and reopens a resolution when necessary.
+
+Recovery remains workload-neutral. The selector may reserve at most one
+already-eligible ordinary sentence that covers normal due work and contains an
+open recovery exact surface (or, secondarily, its form family) as collateral.
+It never makes the recovering lemma due, creates a card, or expands the session.
+When fewer than two non-trigger exact-form sentences exist, the background warm
+cache adds the fully vocalized surface to its normal validated generation queue;
+there is still no LLM call during session construction. This corrective ledger
+is deliberately separate from the randomized `__exact_surface_v1` pilot.
+
 ### Undo System
 
 Every review creates a pre-review snapshot stored in `fsrs_log_json`:
@@ -1299,7 +1337,8 @@ Every review creates a pre-review snapshot stored in `fsrs_log_json`:
 ```
 
 `POST /api/review/undo-sentence` restores this snapshot, rolls back the FSRS state, and
-removes/reopens any exact-surface pilot trigger/outcome written by the deleted ReviewLog.
+removes/reopens any exact-surface pilot or form-recovery trigger/outcome written
+by the deleted ReviewLog.
 
 ---
 

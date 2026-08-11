@@ -96,6 +96,8 @@ def submit_review(
     client_review_id: Optional[str] = None,
     commit: bool = True,
     was_confused: bool = False,
+    effective_rating_int: Optional[int] = None,
+    review_metadata: Optional[dict] = None,
 ) -> dict:
     if client_review_id:
         existing = (
@@ -133,11 +135,32 @@ def submit_review(
 
     card_data = parse_json_column(knowledge.fsrs_card_json)
     card = Card() if not card_data else Card.from_dict(card_data)
-    assisted_lapse = rating_int == 2 and FSRS_ASSISTED_LAPSE_ENABLED
+    protected_form_recovery = bool(
+        (review_metadata or {}).get("form_recovery_protected")
+    )
+    if effective_rating_int is not None and (
+        effective_rating_int != 2 or not protected_form_recovery
+    ):
+        raise ValueError("Effective FSRS ratings require form_recovery_v1 Hard")
+    scheduler_rating_int = (
+        effective_rating_int if effective_rating_int is not None else rating_int
+    )
+    if scheduler_rating_int not in RATING_MAP:
+        raise ValueError(f"Invalid effective FSRS rating: {scheduler_rating_int}")
+    # An explicit effective rating is a versioned caller policy. In particular,
+    # form_recovery_v1 uses genuine FSRS Hard; it must not fall back through the
+    # product rating-2 assisted-lapse mapping to Again.
+    assisted_lapse = (
+        effective_rating_int is None
+        and rating_int == 2
+        and FSRS_ASSISTED_LAPSE_ENABLED
+    )
     selected_scheduler = assisted_lapse_scheduler if assisted_lapse else scheduler
     # Rating 2 is not successful unaided retrieval: update memory as a lapse,
     # while preserving the user's original rating in ReviewLog.
-    fsrs_rating = Rating.Again if assisted_lapse else RATING_MAP[rating_int]
+    fsrs_rating = (
+        Rating.Again if assisted_lapse else RATING_MAP[scheduler_rating_int]
+    )
 
     # Snapshot pre-review state for undo support
     old_card_dict = card.to_dict() if card_data else None
@@ -158,7 +181,7 @@ def submit_review(
     knowledge.fsrs_card_json = card_dict
     knowledge.knowledge_state = new_state
     knowledge.last_reviewed = now
-    knowledge.times_seen = old_times_seen + 1
+    knowledge.times_seen = old_times_seen + (0 if protected_form_recovery else 1)
     if rating_int >= 3:
         knowledge.times_correct = old_times_correct + 1
 
@@ -173,6 +196,7 @@ def submit_review(
         client_review_id=client_review_id,
         was_confused=was_confused,
         fsrs_log_json={
+            **(review_metadata or {}),
             "rating": rating_int,
             "state": new_state,
             "stability": card_dict.get("stability"),
@@ -202,7 +226,7 @@ def submit_review(
         db.flush()
 
     # Generate/regenerate mnemonic on failure
-    if rating_int <= 2:
+    if rating_int <= 2 and not protected_form_recovery:
         import threading
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         has_hooks = lemma and lemma.memory_hooks_json
