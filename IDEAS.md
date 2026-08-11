@@ -1,5 +1,21 @@
 # Alif — Master Ideas File
 
+## 🟢 [IMPLEMENTED 2026-08-11 — not deployed] Learn difficult forms without punishing the lemma
+
+Token evidence already distinguishes an unfamiliar plural, prefixed/derived
+form, or missing tashkeel from genuinely forgetting the word, but scheduling
+still collapses both into the same canonical lapse. Build a versioned
+form-recovery policy that keeps these failures red/yellow at the exact token,
+protects the canonical only when every failed occurrence is explicitly and
+validly form/tashkeel-isolated, and asks for two later green judgments of that
+surface/family. Recovery must be workload-neutral: prefer an eligible sentence
+that contains the form while still doing due work, never create an independent
+form card or enlarge the session. Preserve diacritics for morphology evidence,
+handle plural/singular occurrences independently inside passages, make undo
+symmetric, and keep this ledger separate from the randomized exact-surface
+pilot. Pre-registration and guardrails: `research/experiment-log.md`,
+2026-08-11 "Token-isolated form/tashkeel recovery v1."
+
 ## 🟢 [IMPLEMENTED + DEPLOYED 2026-07-29 — exact backfill complete] Close verifier, grammatical-identity, and authentic-corpus lifecycle seams
 
 The adversarial review after PRs #232–#233 reproduced four gaps. A semantic

@@ -633,6 +633,285 @@ class TestWordReviewEvidence:
         assert result["word_evidence_saved"] == 0
         assert db_session.query(WordReviewEvidence).count() == 0
 
+    def test_protocol_v3_red_form_failure_uses_hard_and_opens_recovery(
+        self,
+        db_session,
+    ):
+        lemma = _seed_word(db_session, 1, "فنجان", "cup")
+        lemma.forms_json = {"plural": "فَنَاجِين"}
+        _seed_sentence(
+            db_session, 1, "فناجين", "cups", target_lemma_id=1, word_ids=[1]
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "فَنَاجِين"
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        before_seen = knowledge.times_seen
+        before_correct = knowledge.times_correct
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="form-red-v3",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                sentence_word,
+                rating=1,
+                causes=["unfamiliar_form"],
+            )],
+        )
+
+        assert result["word_evidence_saved"] == 1
+        assert result["word_results"][0]["form_recovery_protected"] is True
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert log.rating == 1
+        assert log.fsrs_log_json["form_recovery_protected"] is True
+        assert log.fsrs_log_json["form_recovery_policy_version"] == "form_recovery_v1"
+        assert log.fsrs_log_json["fsrs_rating_applied"] == 2
+        db_session.refresh(knowledge)
+        assert knowledge.knowledge_state != "lapsed"
+        assert knowledge.times_seen == before_seen
+        assert knowledge.times_correct == before_correct
+        episode = knowledge.variant_stats_json["__form_recovery_v1"]["episodes"][0]
+        assert episode["status"] == "open"
+        assert episode["surface_form"] == "فَنَاجِين"
+        assert episode["form_key"] == "plural"
+
+    def test_protocol_v2_red_cause_cannot_change_scheduling(self, db_session):
+        lemma = _seed_word(db_session, 1, "فنجان", "cup")
+        lemma.forms_json = {"plural": "فَنَاجِين"}
+        _seed_sentence(
+            db_session, 1, "فناجين", "cups", target_lemma_id=1, word_ids=[1]
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "فَنَاجِين"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="form-red-v2",
+            word_evidence_protocol_version=2,
+            word_review_evidence=[_evidence(
+                sentence_word,
+                rating=1,
+                causes=["unfamiliar_form"],
+            )],
+        )
+
+        assert result["word_evidence_saved"] == 0
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert not log.fsrs_log_json.get("form_recovery_protected")
+        assert log.fsrs_log_json["fsrs_rating_applied"] == 1
+
+    def test_unexplained_failing_sibling_blocks_canonical_protection(
+        self,
+        db_session,
+    ):
+        lemma = _seed_word(db_session, 1, "فنجان", "cup")
+        lemma.forms_json = {"plural": "فَنَاجِين"}
+        _seed_sentence(
+            db_session, 1, "فناجين فناجين", "cups", target_lemma_id=1,
+            word_ids=[1, 1],
+        )
+        words = db_session.query(SentenceWord).order_by(SentenceWord.position).all()
+        for word in words:
+            word.surface_form = "فَنَاجِين"
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            confused_lemma_ids=[1],
+            client_review_id="form-mixed-evidence",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[
+                _evidence(words[0], rating=1, causes=["unfamiliar_form"]),
+                _evidence(words[1], rating=2),
+            ],
+        )
+
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert not log.fsrs_log_json.get("form_recovery_protected")
+
+    def test_failed_plural_and_green_singular_open_token_scoped_episode(
+        self,
+        db_session,
+    ):
+        lemma = _seed_word(db_session, 1, "سِنْجَاب", "squirrel")
+        lemma.forms_json = {"plural": "السَّنَاجِيب"}
+        _seed_sentence(
+            db_session, 1, "السناجيب سنجاب", "squirrels and a squirrel",
+            target_lemma_id=1, word_ids=[1, 1],
+        )
+        words = db_session.query(SentenceWord).order_by(SentenceWord.position).all()
+        words[0].surface_form = "السَّنَاجِيب"
+        words[1].surface_form = "سِنْجَاب"
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="mixed-form-passage",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[
+                _evidence(words[0], rating=1, causes=["unfamiliar_form"]),
+                _evidence(words[1], rating=3),
+            ],
+        )
+
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert log.fsrs_log_json["form_recovery_protected"] is True
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        episodes = knowledge.variant_stats_json["__form_recovery_v1"]["episodes"]
+        assert len(episodes) == 1
+        assert episodes[0]["surface_form"] == "السَّنَاجِيب"
+        assert episodes[0]["form_key"] == "plural"
+
+    def test_missing_tashkeel_recovery_counts_only_hidden_green(self, db_session):
+        _seed_word(db_session, 1, "عَلَم", "flag")
+        for sentence_id in (1, 2, 3):
+            _seed_sentence(
+                db_session, sentence_id, "علم", "flag", target_lemma_id=1,
+                word_ids=[1],
+            )
+        words = db_session.query(SentenceWord).order_by(SentenceWord.sentence_id).all()
+        for word in words:
+            word.surface_form = "عَلَم"
+        db_session.commit()
+
+        hidden = dict(
+            default_show_tashkeel=False,
+            rendered_front_form="علم",
+            initial_visible=False,
+            ever_visible=False,
+            visible_at_answer=False,
+        )
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", confused_lemma_ids=[1],
+            client_review_id="tashkeel-trigger", word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                words[0], rating=2, causes=["missing_tashkeel"], **hidden,
+            )],
+        )
+        # Seeing the marks on the front does not prove reading without them.
+        submit_sentence_review(
+            db_session, sentence_id=2, primary_lemma_id=1,
+            comprehension_signal="understood", client_review_id="tashkeel-visible",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(words[1])],
+        )
+        submit_sentence_review(
+            db_session, sentence_id=3, primary_lemma_id=1,
+            comprehension_signal="understood", client_review_id="tashkeel-hidden",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(words[2], **hidden)],
+        )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        episode = knowledge.variant_stats_json["__form_recovery_v1"]["episodes"][0]
+        assert episode["status"] == "open"
+        assert len(episode["successes"]) == 1
+        assert episode["successes"][0]["sentence_id"] == 3
+
+    def test_acquiring_red_form_failure_stays_in_current_box(self, db_session):
+        lemma = _seed_word(db_session, 1, "فنجان", "cup", with_card=False)
+        lemma.forms_json = {"plural": "فَنَاجِين"}
+        knowledge = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(hours=1),
+            times_seen=2,
+            times_correct=1,
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=2),
+            source="study",
+        )
+        db_session.add(knowledge)
+        _seed_sentence(
+            db_session, 1, "فناجين", "cups", target_lemma_id=1, word_ids=[1]
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "فَنَاجِين"
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="form-acquiring",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                sentence_word, rating=1, causes=["unfamiliar_form"]
+            )],
+        )
+
+        db_session.refresh(knowledge)
+        assert knowledge.acquisition_box == 2
+        assert knowledge.times_seen == 2
+        assert knowledge.times_correct == 1
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert log.rating == 1
+        assert log.fsrs_log_json["acquisition_rating_applied"] == 2
+
+    def test_two_later_green_sentences_resolve_and_undo_reopens(self, db_session):
+        lemma = _seed_word(db_session, 1, "فنجان", "cup")
+        lemma.forms_json = {"plural": "فَنَاجِين"}
+        for sentence_id in (1, 2, 3):
+            _seed_sentence(
+                db_session, sentence_id, "فناجين", "cups",
+                target_lemma_id=1, word_ids=[1],
+            )
+        words = db_session.query(SentenceWord).order_by(SentenceWord.sentence_id).all()
+        for word in words:
+            word.surface_form = "فَنَاجِين"
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", missed_lemma_ids=[1],
+            client_review_id="form-trigger", word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                words[0], rating=1, causes=["unfamiliar_form"]
+            )],
+        )
+        for sentence_id, word, client_id in (
+            (2, words[1], "form-success-1"),
+            (3, words[2], "form-success-2"),
+        ):
+            submit_sentence_review(
+                db_session, sentence_id=sentence_id, primary_lemma_id=1,
+                comprehension_signal="understood", client_review_id=client_id,
+                word_evidence_protocol_version=3,
+                word_review_evidence=[_evidence(word)],
+            )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
+        episode = knowledge.variant_stats_json["__form_recovery_v1"]["episodes"][0]
+        assert episode["status"] == "resolved"
+        assert len(episode["successes"]) == 2
+
+        undo_sentence_review(db_session, "form-success-2")
+        db_session.refresh(knowledge)
+        episode = knowledge.variant_stats_json["__form_recovery_v1"]["episodes"][0]
+        assert episode["status"] == "open"
+        assert len(episode["successes"]) == 1
+
     def test_undo_removes_evidence(self, db_session):
         _seed_word(db_session, 1, "كتب", "books")
         _seed_sentence(
@@ -754,6 +1033,7 @@ class TestWordReviewEvidence:
             "confused_lemma_ids": [2],
             "confusion_candidate_lemma_ids": {"2": [1]},
             "rating2_prompt_shown_sentence_word_ids": [1],
+            "failure_cause_prompt_shown_sentence_word_ids": [1, 2],
             "session_id": "api-test",
         })
 
@@ -761,6 +1041,7 @@ class TestWordReviewEvidence:
         assert events[-1]["event"] == "sentence_review"
         assert events[-1]["confusion_candidate_lemma_ids"] == {2: [1]}
         assert events[-1]["rating2_prompt_shown_sentence_word_ids"] == [1]
+        assert events[-1]["failure_cause_prompt_shown_sentence_word_ids"] == [1, 2]
 
 
 class TestVariantStatsMorphology:

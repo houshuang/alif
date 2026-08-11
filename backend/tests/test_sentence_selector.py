@@ -723,6 +723,62 @@ class TestExactSurfaceExperimentSelection:
         assert result["items"][0]["selection_info"]["reason"] != "exact_surface_v1"
 
 
+class TestFormRecoverySelection:
+    def test_recovery_form_is_collateral_inside_an_existing_due_card(self, db_session):
+        form_lemma, form_knowledge = _seed_word(
+            db_session, 9301, "فنجان", "cup", due_hours=24,
+        )
+        form_lemma.forms_json = {"plural": "فناجين"}
+        due_lemma, _ = _seed_word(
+            db_session, 9302, "شيء", "thing", due_hours=-1,
+        )
+        form_knowledge.variant_stats_json = {
+            "__form_recovery_v1": {
+                "version": "form_recovery_v1",
+                "episodes": [{
+                    "episode_key": "فناجين|derived_form:plural|unfamiliar_form",
+                    "status": "open",
+                    "surface_form": "فَنَاجِين",
+                    "normalized_surface": "فناجين",
+                    "family_key": "derived_form:plural",
+                    "causes": ["unfamiliar_form"],
+                    "opened_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+                    "required_successes": 2,
+                    "triggers": [{"sentence_id": 99300, "review_log_id": 77}],
+                    "successes": [],
+                }],
+            },
+        }
+        _seed_sentence(
+            db_session,
+            99301,
+            "فَنَاجِين الشَّيْءَ",
+            "cups and the thing",
+            target_lemma_id=due_lemma.lemma_id,
+            word_surfaces_and_ids=[
+                ("فَنَاجِين", form_lemma.lemma_id),
+                ("الشَّيْءَ", due_lemma.lemma_id),
+            ],
+            source="book",
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            mode="reading",
+            log_events=False,
+            allow_intro_mutations=False,
+        )
+
+        assert len(result["items"]) == 1
+        item = result["items"][0]
+        assert item["sentence_id"] == 99301
+        assert item["primary_lemma_id"] == due_lemma.lemma_id
+        assert item["selection_info"]["reason"] == "form_recovery_v1"
+        assert item["selection_info"]["components"]["form_recovery_collateral"] is True
+
+
 class TestSourceDisplay:
     def test_generic_learning_source_does_not_fall_back_to_lexical_source(self):
         lemma = Lemma(lemma_ar="كلمة", lemma_ar_bare="كلمة", gloss_en="word", source="duolingo")

@@ -5,6 +5,7 @@ from app.services.material_generator import (
     ACQUIRING_RESCUE_SENTENCE_TARGET,
     acquiring_material_gaps,
     active_sentence_counts_by_lemma,
+    form_recovery_material_gaps,
 )
 
 
@@ -178,6 +179,51 @@ def test_acquiring_material_gaps_excludes_proper_names(db_session):
 
     assert name.lemma_id not in ids
     assert real_word.lemma_id in ids
+
+
+def test_form_recovery_material_gap_counts_only_non_trigger_exact_surfaces(
+    db_session,
+):
+    lemma = _lemma(db_session, "فِنْجَان", "cup")
+    trigger = _sentence(
+        db_session, [lemma.lemma_id], target_id=lemma.lemma_id
+    )
+    generic = _sentence(
+        db_session, [lemma.lemma_id], target_id=lemma.lemma_id
+    )
+    exact = _sentence(
+        db_session, [lemma.lemma_id], target_id=lemma.lemma_id
+    )
+    rows = db_session.query(SentenceWord).order_by(SentenceWord.sentence_id).all()
+    rows[0].surface_form = "فَنَاجِين"
+    rows[1].surface_form = "فِنْجَان"
+    rows[2].surface_form = "فَنَاجِين"
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="learning",
+        variant_stats_json={
+            "__form_recovery_v1": {
+                "version": "form_recovery_v1",
+                "episodes": [{
+                    "status": "open",
+                    "surface_form": "فَنَاجِين",
+                    "normalized_surface": "فناجين",
+                    "opened_at": "2026-08-10T10:00:00+00:00",
+                    "triggers": [{"sentence_id": trigger.id}],
+                    "successes": [],
+                }],
+            },
+        },
+    ))
+    db_session.commit()
+
+    gaps = form_recovery_material_gaps(db_session)
+
+    assert len(gaps) == 1
+    assert gaps[0]["lemma_id"] == lemma.lemma_id
+    assert gaps[0]["surface_form"] == "فَنَاجِين"
+    assert gaps[0]["needed"] == 1
+    assert generic.id != exact.id
 
 
 def test_backfill_dry_run_overrides_backoff_for_acquiring_rescue(db_session, capsys):

@@ -2,6 +2,7 @@ import {
   EMPTY_TASHKEEL_INTERACTION,
   assistedRecognitionIndex,
   buildWordReviewEvidence,
+  failureCauseIndex,
   toggleFailureCause,
   toggleTashkeelInteraction,
 } from "../tashkeel-evidence";
@@ -22,6 +23,17 @@ describe("assistedRecognitionIndex", () => {
   it("falls back to a marked word after history is restored without taps", () => {
     expect(
       assistedRecognitionIndex(new Set([2]), [], null),
+    ).toBe(2);
+  });
+});
+
+describe("failureCauseIndex", () => {
+  it("keeps red and yellow failures navigable from the same prompt", () => {
+    expect(
+      failureCauseIndex(new Set([0]), new Set([2]), [0, 2], 0),
+    ).toBe(0);
+    expect(
+      failureCauseIndex(new Set([0]), new Set([2]), [0, 2], null),
     ).toBe(2);
   });
 });
@@ -95,6 +107,23 @@ describe("tashkeel review evidence", () => {
       rendered_front_form: "قَلَم",
       front_initial_tashkeel_visible: true,
       failure_causes: [],
+    });
+  });
+
+  it("preserves explicit form causes on a red token", () => {
+    const evidence = buildWordReviewEvidence({
+      words: [words[0]],
+      signal: "partial",
+      missedIndices: new Set([0]),
+      confusedIndices: new Set(),
+      failureCausesByIndex: { 0: ["unfamiliar_form"] },
+      tashkeel: EMPTY_TASHKEEL_INTERACTION,
+      answerRevealed: true,
+    });
+
+    expect(evidence[0]).toMatchObject({
+      rating: 1,
+      failure_causes: ["unfamiliar_form"],
     });
   });
 

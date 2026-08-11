@@ -370,11 +370,19 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         words_reviewed=len(result.get("word_results", [])),
         collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
         word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
+        form_recovery_protected_lemma_ids=[
+            w["lemma_id"]
+            for w in result.get("word_results", [])
+            if w.get("form_recovery_protected")
+        ],
         audio_play_count=body.audio_play_count,
         lookup_count=body.lookup_count,
         parent_card_type=body.parent_card_type,
         rating2_prompt_shown_sentence_word_ids=(
             body.rating2_prompt_shown_sentence_word_ids
+        ),
+        failure_cause_prompt_shown_sentence_word_ids=(
+            body.failure_cause_prompt_shown_sentence_word_ids
         ),
         word_evidence_protocol_version=body.word_evidence_protocol_version,
         word_evidence_count=len(body.word_review_evidence),
@@ -667,11 +675,20 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         words_reviewed=len(result.get("word_results", [])),
                         collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
                         word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
+                        form_recovery_protected_lemma_ids=[
+                            w["lemma_id"]
+                            for w in result.get("word_results", [])
+                            if w.get("form_recovery_protected")
+                        ],
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
                         parent_card_type=payload.get("parent_card_type"),
                         rating2_prompt_shown_sentence_word_ids=payload.get(
                             "rating2_prompt_shown_sentence_word_ids"
+                        )
+                        or [],
+                        failure_cause_prompt_shown_sentence_word_ids=payload.get(
+                            "failure_cause_prompt_shown_sentence_word_ids"
                         )
                         or [],
                         word_evidence_protocol_version=payload.get(

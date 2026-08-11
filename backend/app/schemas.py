@@ -675,6 +675,9 @@ class SentenceReviewSubmitIn(BaseModel):
     rating2_prompt_shown_sentence_word_ids: list[int] = Field(
         default_factory=list
     )
+    failure_cause_prompt_shown_sentence_word_ids: list[int] = Field(
+        default_factory=list
+    )
     word_evidence_protocol_version: int | None = None
     word_review_evidence: list[WordReviewEvidenceIn] = Field(default_factory=list)
 

@@ -253,6 +253,7 @@ describe("submitSentenceReview", () => {
       session_id: "sess-evidence",
       review_mode: "reading",
       rating2_prompt_shown_sentence_word_ids: [501],
+      failure_cause_prompt_shown_sentence_word_ids: [500, 501],
       word_evidence_protocol_version: 1,
       word_review_evidence: [{
         sentence_word_id: 501,
@@ -275,6 +276,10 @@ describe("submitSentenceReview", () => {
     const entry = queue.find((e: any) => e.payload.sentence_id === 10);
     expect(entry.payload.word_evidence_protocol_version).toBe(1);
     expect(entry.payload.rating2_prompt_shown_sentence_word_ids).toEqual([501]);
+    expect(entry.payload.failure_cause_prompt_shown_sentence_word_ids).toEqual([
+      500,
+      501,
+    ]);
     expect(entry.payload.word_review_evidence).toHaveLength(1);
     expect(entry.payload.word_review_evidence[0]).toMatchObject({
       sentence_word_id: 501,

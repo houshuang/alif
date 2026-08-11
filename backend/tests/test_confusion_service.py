@@ -597,6 +597,18 @@ class TestClassifySurfaceMorphology:
         assert out["category"] == "derived_form"
         assert out["form_key"] == "plural"
 
+    def test_vocalized_mu_active_participle_survives_case_ending(self):
+        lem = _mk_lemma("أَمْسَكَ", "امسك", "verb", "to hold")
+        out = classify_surface_morphology("مُمْسِكًا", lem)
+        assert out["category"] == "derived_form"
+        assert out["form_key"] == "active_participle"
+
+    def test_vocalized_mu_active_participle_not_mislabeled_passive(self):
+        lem = _mk_lemma("اِرْتَفَعَ", "ارتفع", "verb", "to rise")
+        out = classify_surface_morphology("مُرْتَفِعٍ", lem)
+        assert out["category"] == "derived_form"
+        assert out["form_key"] == "active_participle"
+
     def test_proclitic_noun(self):
         lem = _mk_lemma("نُور", "نور", "noun", "light")
         out = classify_surface_morphology("بنور", lem)  # bi- + light

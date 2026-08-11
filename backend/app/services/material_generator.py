@@ -93,6 +93,7 @@ GENERATION_BACKOFF_DURATION = timedelta(days=7)
 # missing reviewable sentence coverage, they should outrank speculative
 # pre-generation for future introductions.
 ACQUIRING_RESCUE_SENTENCE_TARGET = 3
+FORM_RECOVERY_SENTENCE_TARGET = 2
 MAINTENANCE_PASSAGE_RECENT_WINDOW = timedelta(hours=12)
 # Minimum pool of due, comfortable words needed before a cohesive passage is worth
 # building (below this the generator would have to force word-salad).
@@ -262,6 +263,71 @@ def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
 
     gaps.sort(key=lambda item: item[0])
     return [gap for _sort_key, gap in gaps[:limit]]
+
+
+def form_recovery_material_gaps(db, limit: int = 20) -> list[dict]:
+    """Return open recovery surfaces with thin non-trigger inventory."""
+    from app.services.confusion_service import normalize_surface_form
+    from app.services.form_recovery_service import open_form_recovery_episodes
+
+    rows = (
+        db.query(Lemma, UserLemmaKnowledge)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            UserLemmaKnowledge.knowledge_state != "suspended",
+            Lemma.canonical_lemma_id.is_(None),
+        )
+        .all()
+    )
+    gaps: list[dict] = []
+    for lemma, knowledge in rows:
+        episodes = open_form_recovery_episodes(knowledge)
+        if not episodes:
+            continue
+        episode = sorted(
+            episodes,
+            key=lambda item: str(item.get("opened_at") or ""),
+        )[0]
+        desired_surface = str(episode.get("surface_form") or "").strip()
+        desired_key = normalize_surface_form(desired_surface)
+        if not desired_key:
+            continue
+        trigger_sentence_ids = {
+            trigger.get("sentence_id")
+            for trigger in episode.get("triggers") or []
+        }
+        RecoverySentenceWord = aliased(SentenceWord)
+        existing_surfaces = (
+            db.query(
+                RecoverySentenceWord.surface_form,
+                RecoverySentenceWord.sentence_id,
+            )
+            .join(Sentence, Sentence.id == RecoverySentenceWord.sentence_id)
+            .filter(
+                RecoverySentenceWord.lemma_id == lemma.lemma_id,
+                reviewable_sentence_clauses(),
+            )
+            .all()
+        )
+        exact_count = sum(
+            1
+            for surface, sentence_id in existing_surfaces
+            if (
+                sentence_id not in trigger_sentence_ids
+                and normalize_surface_form(surface) == desired_key
+            )
+        )
+        needed = FORM_RECOVERY_SENTENCE_TARGET - exact_count
+        if needed > 0:
+            gaps.append({
+                "lemma_id": lemma.lemma_id,
+                "surface_form": desired_surface,
+                "normalized_surface": desired_key,
+                "needed": needed,
+                "opened_at": str(episode.get("opened_at") or ""),
+            })
+    gaps.sort(key=lambda item: (item["opened_at"], item["lemma_id"]))
+    return gaps[:limit]
 
 
 def record_generation_result(db, lemma_id: int, sentences_generated: int) -> None:
@@ -1890,6 +1956,7 @@ def _warm_sentence_cache_impl(
 
     stats = {
         "acquiring_rescue_gaps": 0,
+        "form_recovery_gaps": 0,
         "cohort_gaps": 0,
         "intro_gaps": 0,
         "generated": 0,
@@ -1943,6 +2010,22 @@ def _warm_sentence_cache_impl(
         for w in acquiring_rescue_words:
             add_gap_word(w["lemma_id"])
         stats["acquiring_rescue_gaps"] = len(acquiring_rescue_words)
+
+        # Token-isolated form recovery uses the ordinary background material
+        # pipeline when existing exact-form supply is thin. Session building
+        # remains read-only/no-LLM; this phase merely adds the fully vocalized
+        # running surface as a bounded generation target.
+        from app.services.confusion_service import normalize_surface_form
+
+        recovery_surface_by_id: dict[int, str] = {}
+        recovery_rank: dict[int, int] = {}
+        recovery_gaps = form_recovery_material_gaps(db, limit=20)
+        for gap in recovery_gaps:
+            lemma_id = gap["lemma_id"]
+            recovery_rank[lemma_id] = len(recovery_rank)
+            recovery_surface_by_id[lemma_id] = gap["surface_form"]
+            add_gap_word(lemma_id)
+        stats["form_recovery_gaps"] = len(recovery_surface_by_id)
 
         # 1. Focus cohort words below their tier-based sentence target
         cohort = get_focus_cohort(db)
@@ -2027,7 +2110,7 @@ def _warm_sentence_cache_impl(
         # missing-material gap must keep trying instead of waiting out backoff.
         backoff_ids = lemmas_on_backoff(db, gap_word_ids)
         if backoff_ids:
-            rescue_ids = set(rescue_rank)
+            rescue_ids = set(rescue_rank) | set(recovery_rank)
             rescue_backoff_ids = backoff_ids & rescue_ids
             ordinary_backoff_ids = backoff_ids - rescue_backoff_ids
             gap_word_ids = [
@@ -2048,8 +2131,8 @@ def _warm_sentence_cache_impl(
 
         # Sort gap words by tier urgency (most urgent first)
         gap_word_ids.sort(key=lambda lid: (
-            0 if lid in rescue_rank else 1,
-            rescue_rank.get(lid, 1_000_000),
+            0 if lid in recovery_rank else (1 if lid in rescue_rank else 2),
+            recovery_rank.get(lid, rescue_rank.get(lid, 1_000_000)),
             tier_lookup[lid].tier if lid in tier_lookup else 4,
             tier_lookup[lid].due_dt or datetime.max.replace(tzinfo=timezone.utc) if lid in tier_lookup else datetime.max.replace(tzinfo=timezone.utc),
         ))
@@ -2073,8 +2156,12 @@ def _warm_sentence_cache_impl(
             if lem:
                 word_dicts.append({
                     "lemma_id": lid,
-                    "lemma_ar": lem.lemma_ar,
-                    "lemma_ar_bare": lem.lemma_ar_bare,
+                    "lemma_ar": recovery_surface_by_id.get(lid, lem.lemma_ar),
+                    "lemma_ar_bare": (
+                        normalize_surface_form(recovery_surface_by_id[lid])
+                        if lid in recovery_surface_by_id
+                        else lem.lemma_ar_bare
+                    ),
                     "gloss_en": lem.gloss_en or "",
                     "pos": lem.pos or "",
                     "root_id": lem.root_id,
@@ -2123,7 +2210,11 @@ def _warm_sentence_cache_impl(
         rescue_stats = rescue_sentences_for_lemmas(gap_word_ids)
         stats["mapping_rescue"] = rescue_stats.to_dict()
         if rescue_stats.lemmas_now_covered:
-            covered = rescue_stats.lemmas_now_covered
+            # A generic canonical sentence does not close an exact-form supply
+            # gap, so mapping rescue may only remove ordinary gaps here.
+            covered = set(rescue_stats.lemmas_now_covered) - set(
+                recovery_surface_by_id
+            )
             before = len(gap_word_ids)
             gap_word_ids = [lid for lid in gap_word_ids if lid not in covered]
             word_dicts = [wd for wd in word_dicts if wd["lemma_id"] not in covered]
@@ -2160,6 +2251,22 @@ def _warm_sentence_cache_impl(
 
     # ── Phase 2: LLM generation (no DB lock) ──
     groups = group_words_for_multi_target(word_dicts)
+    grouped_ids = {
+        word["lemma_id"] for group in groups for word in group
+    }
+    # The generic grouping policy may drop a singleton. Recovery surfaces must
+    # still travel through the exact target-bare validator; the ordinary
+    # single-word fallback below would silently revert to the citation form.
+    recovery_word_by_id = {
+        word["lemma_id"]: word
+        for word in word_dicts
+        if word["lemma_id"] in recovery_surface_by_id
+    }
+    groups.extend(
+        [recovery_word_by_id[lemma_id]]
+        for lemma_id in recovery_rank
+        if lemma_id not in grouped_ids and lemma_id in recovery_word_by_id
+    )
     all_results: list[tuple[list[dict], dict[str, int]]] = []  # (results, target_bares) per group
     logger.info(
         "Warm cache %s: phase 2 multi-target generation start groups=%d",
@@ -2254,7 +2361,11 @@ def _warm_sentence_cache_impl(
     # multi-target sentence. This is intentionally after validation/write so a
     # failed group does not consume the only rescue attempt for an acquiring gap.
     single_covered: set[int] = set()
-    remaining = [lid for lid in gap_word_ids if lid not in multi_covered]
+    remaining = [
+        lid
+        for lid in gap_word_ids
+        if lid not in multi_covered and lid not in recovery_surface_by_id
+    ]
     logger.info(
         "Warm cache %s: phase 3c single-target fallback start remaining=%d",
         run_label,

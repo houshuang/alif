@@ -550,6 +550,31 @@ def test_check_single_word_not_leech(db_session):
     assert ulk.knowledge_state == "learning"
 
 
+def test_protected_form_review_is_outside_leech_window(db_session):
+    lemma = _create_lemma(db_session)
+    ulk = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="learning",
+        times_seen=5,
+        times_correct=0,
+    )
+    db_session.add(ulk)
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 1, 1])
+    db_session.add(ReviewLog(
+        lemma_id=lemma.lemma_id,
+        rating=1,
+        reviewed_at=datetime.now(timezone.utc),
+        fsrs_log_json={
+            "form_recovery_policy_version": "form_recovery_v1",
+            "form_recovery_protected": True,
+        },
+    ))
+    db_session.commit()
+
+    assert check_single_word_leech(db_session, lemma.lemma_id) is False
+    assert ulk.knowledge_state == "learning"
+
+
 def test_check_single_word_already_suspended(db_session):
     lemma = _create_lemma(db_session)
     db_session.add(UserLemmaKnowledge(

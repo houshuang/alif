@@ -10,7 +10,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
-**FSRS / lapse / leech** — `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
+**FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
 **Session building / selection / comprehensibility** — `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
@@ -30,11 +30,11 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
-**Confusion capture / confusors** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+**Confusion capture / confusors** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
 **Stories / podcast / listening / maintenance passages** — `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
-**Display — tashkeel / fonts** — `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
+**Display — tashkeel / fonts** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
 **Infra — write-lock / LLM provider / quota** — `2026-04-17 "Write-lock refactor — release SQLite write lock across LLM calls"` · `2026-05-07 "Claude quota fallback, material lock coordination"` · `2026-05-26 "Codex gpt-5.5 vs Claude"` (A/Bs: enrichment→Codex, sentence-gen stays Sonnet) · `2026-04-14 "Fix Silent JSON Parse Failure"`.
 
@@ -47,6 +47,76 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-11: Token-isolated form/tashkeel recovery v1 — build preregistration
+
+**Observed failure mode.** The first five days of protocol-v2 token evidence
+contained ten explicitly labelled unfamiliar-form failures and three
+missing-tashkeel failures. The unfamiliar forms included plurals, `mu-`
+participles, present-tense `ya-` forms, a verbal noun, and a proclitic. None of
+the ten exact surfaces appeared again after the labelled failure by the
+analysis cutoff; only two canonicals reappeared, both in different forms. The
+three missing-tashkeel failures likewise received no later token evidence.
+Although the evidence identifies a local reading problem, the canonical card
+currently receives the same lapse treatment as a forgotten word. In the clear
+known-word cases that immediately reduced FSRS stability by 87.7% on average.
+Mixed-form passage cards expose a second seam: evidence for plural and singular
+tokens is aggregated before the existing exact-surface pilot can open an
+episode, so a failed plural beside a green singular creates no follow-up.
+
+**Pre-registered policy.** Introduce evidence protocol v3. Red and yellow token
+marks may both carry causes. A partial-review failure is *form-isolated* only
+when every failing occurrence of the canonical has valid token evidence, every
+cause is `unfamiliar_form` and/or `missing_tashkeel`, and the form evidence is
+structurally meaningful (or the initially-hidden token genuinely contained
+stored tashkeel). Mixed-up, retrieval-lapse, unexplained, whole-card no-idea,
+or invalid evidence keeps the current canonical lapse behavior. A protected
+established review records the learner's product rating 1/2 but applies FSRS
+Hard, does not enter canonical seen/correct accuracy counters, does not generate a new mnemonic, and is
+excluded from canonical leech/recent-lapse signals. A protected acquiring
+review stays in its box rather than resetting to Box 1 and cannot graduate.
+Every decision is stamped `form_recovery_v1` in the review metadata.
+
+**Recovery unit and success rule.** Open a token-scoped recovery episode in
+`variant_stats_json["__form_recovery_v1"]`, keyed by canonical plus normalized
+surface/form family and cause. Preserve the fully vocalized observed surface.
+An episode requires two later green token judgments in distinct sentences;
+missing-tashkeel recovery additionally requires that the judged presentation
+actually hid the relevant tashkeel. Undo must remove triggers and reopen
+outcomes symmetrically. The recovery ledger is separate from the randomized
+`exact_surface_v1` pilot so this corrective policy cannot contaminate that
+experiment.
+
+**Workload boundary and selection rule.** Recovery does not create a card,
+change canonical due state, increase session length, or make an otherwise
+not-due word due. At most one slot in a session may prefer an already-eligible
+sentence that still covers scheduled due work and contains an open recovery
+surface as collateral evidence. This is representation within existing review
+work, not an independent form schedule. If no eligible inventory exists, record
+the supply gap for background material work; never call an LLM during session
+construction.
+
+**Primary metrics and guardrails.** At 30 mature episodes report: eligible
+failures protected, exact/family recovery exposure within 7 and 14 days,
+two-success resolution, canonical stability retained versus the prior lapse
+counterfactual, inventory-gap rate, and extra-card/session-length deltas (both
+must remain zero). Also report subsequent retrieval lapses, leech events, and
+confusion recurrence. Roll back protection if protected canonicals show a
+materially higher later retrieval-lapse rate or if evidence validation permits
+ambiguous/unexplained misses. This first readout is observational because the
+policy corrects attribution rather than randomizing learner harm.
+
+**Implemented on branch `sh/form-recovery-v1`.** Protocol v3 validates the
+all-token ledger before scheduling and exposes the cause panel for red and
+yellow marks. Protected product failures apply genuine Hard/same-box with
+versioned metadata, remain outside canonical counters and downstream lapse,
+leech, mnemonic, root, scaffold-risk, and rapid-retest signals, and open an
+undo-safe two-success ledger. The selector reserves at most one eligible
+due-bearing recovery sentence; the background warm cache requests the fully
+vocalized surface until two non-trigger exact-form sentences exist. Vocalized
+`mu-` participles retain active/passive identity through case endings. Focused
+backend, selector, material, leech, and frontend protocol tests cover these
+boundaries.
 
 ## 2026-08-09: Embedded-story first word-level readout — retain, shorten, pair translations
 

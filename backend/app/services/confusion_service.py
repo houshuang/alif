@@ -808,6 +808,45 @@ _PRESENT_PREFIXES = ("ي", "ت", "ن", "أ")
 _PROCLITICS_LONGEST_FIRST = ("وال", "بال", "فال", "كال", "لل", "و", "ف", "ب", "ل", "ك")
 
 
+def _vocalized_mu_participle_key(surface: str) -> str | None:
+    """Recognize a vocalized ``mu-`` participle without losing case endings.
+
+    The generic decomposition path works on bare Arabic and can therefore
+    confuse active/passive participles whose consonants are identical.  In a
+    vocalized running form the last stem vowel is the useful distinction:
+    kasra for the active pattern (for example ``مُرْتَفِعٍ``), fatha for the
+    passive pattern.  Ignore final nunation/case and retain this evidence before
+    ``normalize_surface_form`` strips it.
+    """
+    cleaned = surface.strip("،؛؟.!?؟«»\"'()[]{} ")
+    if not cleaned.startswith("مُ"):
+        return None
+    letters: list[tuple[str, list[str]]] = []
+    for char in cleaned:
+        if "\u0600" <= char <= "\u06ff" and strip_diacritics(char) == char:
+            letters.append((char, []))
+        elif letters and strip_diacritics(char) == "":
+            letters[-1][1].append(char)
+    if (
+        len(letters) >= 2
+        and letters[-1][0] in {"ا", "ى"}
+        and "ً" in letters[-2][1]
+    ):
+        # Accusative nunation may be followed by a spelling-only alif; it is
+        # not a stem consonant and must not shift the diagnostic vowel.
+        letters.pop()
+    if len(letters) < 3:
+        return None
+    # The vowel on the penultimate consonant is inside the stem; the last
+    # consonant may carry nominative/accusative/genitive case or nunation.
+    penultimate_marks = letters[-2][1]
+    if "ِ" in penultimate_marks:
+        return "active_participle"
+    if "َ" in penultimate_marks:
+        return "passive_participle"
+    return None
+
+
 def classify_surface_morphology(surface_bare: str, lemma: "Lemma | None") -> dict | None:
     """Classify how an inflected surface differs from its dictionary lemma.
 
@@ -828,6 +867,7 @@ def classify_surface_morphology(surface_bare: str, lemma: "Lemma | None") -> dic
     """
     if not lemma or not surface_bare:
         return None
+    vocalized_participle_key = _vocalized_mu_participle_key(surface_bare)
     surface_bare = normalize_surface_form(surface_bare)
     lemma_bare = normalize_surface_form(
         lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar or "")
@@ -838,7 +878,9 @@ def classify_surface_morphology(surface_bare: str, lemma: "Lemma | None") -> dic
     decomp = decompose_surface(surface_bare, lemma_bare, getattr(lemma, "forms_json", None))
     prefix_clitics = decomp.get("prefix_clitics") if decomp else []
     suffix_clitics = decomp.get("suffix_clitics") if decomp else []
-    form_key = decomp.get("matched_form_key") if decomp else None
+    form_key = vocalized_participle_key or (
+        decomp.get("matched_form_key") if decomp else None
+    )
 
     # Pure definite article (ال + stem == lemma) — trivial, suppress the bridge.
     if (
