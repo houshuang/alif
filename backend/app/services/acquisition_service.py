@@ -84,6 +84,7 @@ DISTRIBUTED_DAY_GRADUATION_ENV = "ALIF_DISTRIBUTED_DAY_GRADUATION"
 # First explicit boundary for the FSRS card created at graduation. Version 1
 # aligns root-boost Easy intervals with the production 95% retention policy.
 FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION = 1
+MIXED_UP_TOTAL_LAPSE_VERSION = "mixed_up_total_lapse_v1"
 
 
 def _quiz_retest_after_failure(
@@ -633,7 +634,8 @@ def submit_acquisition_review(
     """Submit a review for a word in the acquisition phase.
 
     Rating >= 3: advance box (1→2→3), graduate from box 3 if criteria met
-    Rating == 2: stay in same box, reset interval
+    Rating == 2: stay in same box, reset interval, unless validated
+                 mixed-up evidence stamps a total-lapse override
     Rating == 1: reset to box 1
 
     Returns dict with new state info.
@@ -683,13 +685,25 @@ def submit_acquisition_review(
     protected_form_recovery = bool(
         (review_metadata or {}).get("form_recovery_protected")
     )
+    mixed_up_total_lapse = bool(
+        (review_metadata or {}).get("mixed_up_total_lapse")
+    )
+    if mixed_up_total_lapse and (
+        rating_int != 2
+        or protected_form_recovery
+        or (review_metadata or {}).get("mixed_up_total_lapse_policy_version")
+        != MIXED_UP_TOTAL_LAPSE_VERSION
+    ):
+        raise ValueError(
+            "mixed_up_total_lapse_v1 requires an unprotected product rating 2"
+        )
     if effective_rating_int is not None and (
         effective_rating_int != 2 or not protected_form_recovery
     ):
         raise ValueError(
             "Effective acquisition ratings require form_recovery_v1 Hard"
         )
-    scheduler_rating_int = (
+    scheduler_rating_int = 1 if mixed_up_total_lapse else (
         effective_rating_int if effective_rating_int is not None else rating_int
     )
     if scheduler_rating_int not in (1, 2, 3, 4):

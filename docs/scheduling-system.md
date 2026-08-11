@@ -421,6 +421,8 @@ limits how fast the encountered pool drains. Future tuning: count high-encounter
        - Do NOT advance the box or reset the timer
 
      Hard (rating=2): Stay in current box, reschedule if due
+       - Exception: protocol-v3 yellow + `mixed_up` keeps stored rating 2 but
+         applies effective acquisition rating 1 and resets to Box 1
      Fail (rating=1): ALWAYS reset to box 1 (regardless of due status)
      Exception: words with 0% accuracy use shorter retries:
        - Rating 2 + never correct: retry in 10 minutes
@@ -1307,6 +1309,16 @@ in their current box and cannot graduate. Metadata is stamped
 `form_recovery_policy_version=form_recovery_v1`; protected rows are excluded
 from leech, recent-lapse/scaffold, root-failure, mnemonic-generation, and rapid
 re-test signals.
+
+`mixed_up` is lexical rather than form-local evidence. A protocol-v3 yellow
+token explicitly labelled `mixed_up` retains product rating 2, `was_confused`,
+the token ledger, and any named confusion pair, but is stamped
+`mixed_up_total_lapse_v1`. Established words continue through the rating-2
+assisted-lapse policy (FSRS Again); acquiring words apply effective rating 1 and
+reset to Box 1. Naming the competing word is useful for later contrastive
+teaching but is not required for the scheduling override. If `mixed_up` appears
+beside a form/tashkeel cause, it blocks form protection and the total-lapse rule
+wins. A plain yellow without `mixed_up` retains ordinary acquisition Hard.
 
 The exact vocalized surface, normalized surface, diacritic-aware morphology
 family, cause, token, sentence, and review are stored under
