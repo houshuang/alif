@@ -284,6 +284,17 @@ previous data model stored a lemma-level yellow mark and occasional confusion
 pair, but neither the exact failed token nor the actual post-toggle tashkeel
 condition. Historical exposure therefore cannot be reconstructed reliably.
 
+## 🟢 [IMPLEMENTED 2026-08-11] Cause-specific total lapse for yellow mix-ups
+
+Keep the learner-facing distinction between red (lexical item unavailable) and
+yellow (recognized after reveal), but let the explicit cause control the narrow
+scheduling exception. `mixed_up` is a total canonical lapse even when the
+stored product rating is yellow/2; acquiring words therefore reset to Box 1,
+matching established FSRS's existing assisted-Again behavior. Preserve the
+cause and optional named counterpart so repeated observed pairs can later drive
+contrastive comparison cards, distinguishing cues, and paired sentence checks.
+Do not require the slower counterpart picker for the scheduling correction.
+
 Word-evidence protocol v1 is prospective and measurement-only. Every schedulable
 content token on a submitted reading card now records its stable SentenceWord ID,
 exact initial render, default/initial/ever/final front tashkeel visibility, back

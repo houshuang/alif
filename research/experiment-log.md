@@ -8,7 +8,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
 
-**Word lifecycle — acquisition / graduation / intro cap** — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
 **FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
@@ -30,7 +30,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
-**Confusion capture / confusors** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+**Confusion capture / confusors** — `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
 **Stories / podcast / listening / maintenance passages** — `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
@@ -47,6 +47,63 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-08-11: Yellow mixed-up means a total lexical lapse — acquisition parity preregistration
+
+**Learner contract.** Card color records what happened at reveal, while the
+token cause records why retrieval failed. Red means the lexical item was
+unavailable; yellow can mean the learner recognized the answer after reveal.
+When a yellow token is explicitly labelled `mixed_up`, the learner retrieved a
+different lexical item. That is a total miss for canonical scheduling, not a
+form-local failure, even though preserving product rating 2 is useful evidence
+that recognition returned after reveal. The optional named confusor remains
+pair-level data for later contrastive teaching; choosing a counterpart is not
+required for the scheduling rule.
+
+**Observed inconsistency.** Established rating-2 reviews already use
+`assisted_lapse_v1`: `ReviewLog.rating=2` is preserved while FSRS receives
+Again. Acquisition still branches on the product rating, so the identical
+yellow mixed-up evidence stays in its current Leitner box. Red mixed-up resets
+to Box 1. This makes scheduling depend on color rather than the explicit cause
+and encourages the learner to mislabel yellow evidence as red.
+
+**Pre-registered correction.** On a protocol-v3 partial reading review, when
+the canonical product rating is 2 and at least one validated failed token has
+cause `mixed_up`, stamp `mixed_up_total_lapse_v1`. Preserve rating 2,
+`was_confused`, token evidence, and any `ConfusionCapture`, but apply effective
+acquisition rating 1 so every acquiring box resets to Box 1. Do not require a
+named confusor. Existing established behavior remains the rating-2 assisted
+FSRS lapse; do not add a second FSRS update or convert the stored product
+rating. A token containing both `mixed_up` and a form/tashkeel cause is not
+form-protected and follows this total-lapse rule. Form/tashkeel-only evidence
+continues to use `form_recovery_v1` Hard/same-box protection.
+
+**Verification.** Regression tests must prove: yellow mixed-up from acquisition
+Box 2 resets to Box 1 while the log remains rating 2 and records effective
+rating 1; the same event for an established word remains FSRS Again; a yellow
+form-only failure stays protected in its current box; and a plain yellow
+without `mixed_up` retains ordinary acquisition Hard behavior. After natural
+use, report yellow mixed-up counts, box-before/after transitions, named-pair
+capture rate, and repeat-confusion rate. This is a semantic correction, not a
+randomized experiment.
+
+**Implemented.** `sentence_review_service` derives the override only from a
+validated protocol-v3 token mark, stamps the policy and exact token IDs, and
+passes the metadata through without changing the product rating. Acquisition
+validates the internal stamp and applies rating 1 to its box transition; its
+log exposes both `rating=2` and `acquisition_rating_applied=1`. Established
+reviews retain the existing `assisted_lapse_v1` path and now carry the same
+policy stamp for a uniform analysis boundary. Focused acquisition/review tests:
+123 passed; complete backend suite: 2,008 passed, 9 deselected.
+
+**Lifecycle gate audit.** The override does not create a state or transition;
+it deliberately reuses the existing rating-1 Box-1 reset branch. The
+comprehensibility and unknown-scaffold gates therefore see the same conservative
+Box-1 acquiring state they already handle; book/corpus acquisition blocking,
+pipeline backlog, focus cohort, intro-card filtering, listening readiness,
+variant resolution, mapping verification, and function-word exclusion require
+no new value or special case. The normal Box-1 due/backlog behavior is intended:
+a lexical mix-up is acquisition debt.
 
 ## 2026-08-11: Token-isolated form/tashkeel recovery v1 — build preregistration
 

@@ -341,6 +341,98 @@ class TestConfused:
         assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3  # understood
 
+    def test_yellow_mixed_up_is_total_lapse_for_established_word(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(
+            db_session, 1, "الكتاب", "the book",
+            target_lemma_id=1, word_ids=[1],
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "كِتَاب"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="mixed-up-established",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                sentence_word, rating=2, causes=["mixed_up"]
+            )],
+        )
+
+        assert result["word_results"][0]["rating"] == 2
+        assert result["word_results"][0]["form_recovery_protected"] is False
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert log.rating == 2
+        assert log.was_confused is True
+        assert log.fsrs_log_json["mixed_up_total_lapse"] is True
+        assert (
+            log.fsrs_log_json["mixed_up_total_lapse_policy_version"]
+            == "mixed_up_total_lapse_v1"
+        )
+        assert log.fsrs_log_json["fsrs_assisted_lapse"] is True
+        assert log.fsrs_log_json["fsrs_rating_applied"] == 1
+
+    def test_yellow_mixed_up_resets_acquiring_word_to_box_one(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "كتاب", "book", with_card=False)
+        knowledge = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_next_due=(
+                datetime.now(timezone.utc) - timedelta(hours=1)
+            ),
+            times_seen=3,
+            times_correct=2,
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=2),
+            source="study",
+        )
+        db_session.add(knowledge)
+        _seed_sentence(
+            db_session, 1, "الكتاب", "the book",
+            target_lemma_id=1, word_ids=[1],
+        )
+        sentence_word = db_session.query(SentenceWord).one()
+        sentence_word.surface_form = "كِتَاب"
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[1],
+            client_review_id="mixed-up-acquiring",
+            word_evidence_protocol_version=3,
+            word_review_evidence=[_evidence(
+                sentence_word, rating=2, causes=["mixed_up"]
+            )],
+        )
+
+        assert result["word_results"][0]["rating"] == 2
+        assert result["word_results"][0]["form_recovery_protected"] is False
+        db_session.refresh(knowledge)
+        assert knowledge.acquisition_box == 1
+        assert knowledge.times_seen == 4
+        assert knowledge.times_correct == 2
+        log = db_session.query(ReviewLog).filter_by(lemma_id=1).one()
+        assert log.rating == 2
+        assert log.was_confused is True
+        assert log.fsrs_log_json["mixed_up_total_lapse"] is True
+        assert log.fsrs_log_json["acquisition_box_before"] == 2
+        assert log.fsrs_log_json["acquisition_box_after"] == 1
+        assert log.fsrs_log_json["acquisition_rating_applied"] == 1
+
 
 class TestWordReviewEvidence:
     def test_protocol_v2_persists_function_and_proper_name_presentations(

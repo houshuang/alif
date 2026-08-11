@@ -22,6 +22,7 @@ from app.models import (
     UserLemmaKnowledge,
     WordReviewEvidence,
 )
+from app.services.acquisition_service import MIXED_UP_TOTAL_LAPSE_VERSION
 from app.services.confusion_service import (
     classify_surface_morphology,
     normalize_surface_form,
@@ -338,9 +339,22 @@ def submit_sentence_review(
             rating <= 2 and effective_lemma_id in protected_effective_ids
         )
         recovery_rows = evidence_by_effective.get(effective_lemma_id, [])
-        recovery_metadata = None
+        mixed_up_rows = [
+            row
+            for row in recovery_rows
+            if row["rating"] <= 2
+            and row["rating_source"] == "token_mark"
+            and "mixed_up" in row["causes"]
+        ]
+        mixed_up_total_lapse = (
+            word_evidence_protocol_version
+            == WORD_REVIEW_EVIDENCE_PROTOCOL_VERSION
+            and rating == 2
+            and bool(mixed_up_rows)
+        )
+        review_metadata = None
         if form_recovery_protected:
-            recovery_metadata = {
+            review_metadata = {
                 "form_recovery_policy_version": FORM_RECOVERY_VERSION,
                 "form_recovery_protected": True,
                 "form_recovery_product_rating": rating,
@@ -354,6 +368,17 @@ def submit_sentence_review(
                     row["sentence_word_id"]
                     for row in recovery_rows
                     if row["rating"] <= 2
+                ],
+            }
+        elif mixed_up_total_lapse:
+            review_metadata = {
+                "mixed_up_total_lapse_policy_version": (
+                    MIXED_UP_TOTAL_LAPSE_VERSION
+                ),
+                "mixed_up_total_lapse": True,
+                "mixed_up_product_rating": rating,
+                "mixed_up_sentence_word_ids": [
+                    row["sentence_word_id"] for row in mixed_up_rows
                 ],
             }
 
@@ -406,7 +431,7 @@ def submit_sentence_review(
                 commit=False,
                 was_confused=is_confused,
                 effective_rating_int=2 if form_recovery_protected else None,
-                review_metadata=recovery_metadata,
+                review_metadata=review_metadata,
             )
         else:
             result = submit_review(
@@ -421,7 +446,7 @@ def submit_sentence_review(
                 commit=False,
                 was_confused=is_confused,
                 effective_rating_int=2 if form_recovery_protected else None,
-                review_metadata=recovery_metadata,
+                review_metadata=review_metadata,
             )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
