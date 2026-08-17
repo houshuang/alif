@@ -29,6 +29,7 @@ from app.models import (
     Root,
     Sentence,
     SentenceGrammarFeature,
+    SentenceReviewLog,
     SentenceWord,
     UserGrammarExposure,
     UserLemmaKnowledge,
@@ -132,6 +133,26 @@ def _source_bonus_for_sentence(sent: Sentence) -> float:
     if sent.source in ("book", "corpus"):
         return 1.3
     return 1.0
+
+
+def _never_understood_in_mode_clause(mode: str):
+    """Exclude sentences that have ever received Know All in this mode.
+
+    The denormalized `last_*_comprehension` columns drive short retry timing,
+    but cannot express "ever understood" if a stale client later writes a
+    partial result. The review log is the durable evidence for this one-and-done
+    rule. Legacy NULL review modes are reading reviews.
+    """
+    if mode == "listening":
+        mode_clause = SentenceReviewLog.review_mode == "listening"
+    else:
+        mode_clause = or_(
+            SentenceReviewLog.review_mode == "reading",
+            SentenceReviewLog.review_mode.is_(None),
+        )
+    return ~Sentence.review_logs.any(
+        (SentenceReviewLog.comprehension == "understood") & mode_clause
+    )
 
 
 def _book_sentence_blocked_for_acquiring(sent: Sentence, word_metas: list) -> bool:
@@ -1345,13 +1366,15 @@ def build_session(
     tashkeel_mode = (tashkeel_settings.tashkeel_mode if tashkeel_settings else None) or "always"
     tashkeel_threshold = (tashkeel_settings.tashkeel_stability_threshold if tashkeel_settings else None) or 30.0
 
-    # Comprehension-aware recency cutoffs
-    # Failed sentences can be re-shown quickly so learner gets a positive review,
-    # then ideally sees the same word in a different sentence next time.
-    # An understood sentence should provide word evidence without itself
-    # becoming a daily review card. Keep it out for a full week; the due word
-    # can use another sentence while the material pipeline replenishes variety.
-    cutoff_understood = now - timedelta(days=7)
+    # Comprehension-aware recency cutoffs. Failed sentences can be re-shown
+    # quickly so the learner gets a positive review. An understood sentence is
+    # finished in this mode: future reviews of its words must use new context,
+    # otherwise recognition of a distinctive sentence masquerades as recall of
+    # the vocabulary. Listening and reading keep independent evidence columns,
+    # so a sentence understood in reading may still be useful once in listening.
+    # Legacy rows with a shown timestamp but no comprehension signal retain a
+    # conservative cooldown rather than disappearing forever.
+    cutoff_unrated = now - timedelta(days=30)
     cutoff_partial = now - timedelta(hours=4)
     cutoff_no_idea = now - timedelta(minutes=30)
 
@@ -1633,12 +1656,12 @@ def build_session(
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
             reviewable_sentence_clauses(),
+            _never_understood_in_mode_clause(mode),
             or_(
                 shown_col.is_(None),
-                (comp_col == "understood") & (shown_col < cutoff_understood),
                 (comp_col == "partial") & (shown_col < cutoff_partial),
                 (comp_col == "no_idea") & (shown_col < cutoff_no_idea),
-                (comp_col.is_(None)) & (shown_col < cutoff_understood),
+                (comp_col.is_(None)) & (shown_col < cutoff_unrated),
             ),
         )
         .all()
@@ -1668,6 +1691,7 @@ def build_session(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    _never_understood_in_mode_clause(mode),
                     comp_col.in_(("partial", "no_idea")),
                 )
                 .all()
@@ -1704,6 +1728,7 @@ def build_session(
                 Sentence.story_id.in_(passage_story_ids),
                 Sentence.source == "passage",
                 reviewable_sentence_clauses(),
+                _never_understood_in_mode_clause(mode),
             )
             .all()
         )
@@ -3268,7 +3293,7 @@ def _find_pregenerated_sentences_for_words(
 
     # Recency filter (same cutoffs as build_session)
     now = datetime.now(timezone.utc)
-    cutoff_understood = now - timedelta(days=7)
+    cutoff_unrated = now - timedelta(days=30)
     cutoff_partial = now - timedelta(hours=4)
     cutoff_no_idea = now - timedelta(minutes=30)
 
@@ -3284,12 +3309,12 @@ def _find_pregenerated_sentences_for_words(
         .filter(
             Sentence.id.in_(sentence_ids_with_target),
             reviewable_sentence_clauses(),
+            _never_understood_in_mode_clause(mode),
             or_(
                 shown_col.is_(None),
-                (comp_col == "understood") & (shown_col < cutoff_understood),
                 (comp_col == "partial") & (shown_col < cutoff_partial),
                 (comp_col == "no_idea") & (shown_col < cutoff_no_idea),
-                (comp_col.is_(None)) & (shown_col < cutoff_understood),
+                (comp_col.is_(None)) & (shown_col < cutoff_unrated),
             ),
         )
         .all()
@@ -3315,6 +3340,7 @@ def _find_pregenerated_sentences_for_words(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    _never_understood_in_mode_clause(mode),
                     comp_col.in_(("partial", "no_idea")),
                 )
                 .all()
