@@ -6,7 +6,14 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.orm import sessionmaker
 
-from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
+from app.models import (
+    Lemma,
+    ReviewLog,
+    Sentence,
+    SentenceReviewLog,
+    SentenceWord,
+    UserLemmaKnowledge,
+)
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     BOX1_MIN_EXPOSURES,
@@ -1198,13 +1205,12 @@ class TestGreedySetCover:
         db_session.commit()
 
         result = build_session(db_session, limit=10)
-        # Sentence skipped (shown 2 days ago < 7 day cooldown)
-        # No word-only fallback — word just gets skipped (or on-demand gen attempted)
-        # In test mode with no LLM, uncovered words are simply skipped
+        # An understood sentence is complete for this mode. No word-only
+        # fallback: the due word waits for a different generated context.
         assert result["total_due_words"] == 1
         assert all(item["sentence_id"] != 1 for item in result["items"])
 
-    def test_understood_sentence_returns_after_seven_day_cooldown(self, db_session):
+    def test_understood_sentence_does_not_return_after_long_interval(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         sent = _seed_sentence(
             db_session,
@@ -1214,13 +1220,38 @@ class TestGreedySetCover:
             target_lemma_id=1,
             word_surfaces_and_ids=[("الكتاب", 1)],
         )
-        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=8)
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=365)
         sent.last_reading_comprehension = "understood"
         db_session.commit()
 
         result = build_session(db_session, limit=10)
 
-        assert any(item["sentence_id"] == 1 for item in result["items"])
+        assert all(item["sentence_id"] != 1 for item in result["items"])
+
+    def test_historical_know_all_survives_later_partial_state(self, db_session):
+        """A stale later write must not erase durable Know All evidence."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        sent = _seed_sentence(
+            db_session,
+            1,
+            "الكتاب",
+            "the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("الكتاب", 1)],
+        )
+        db_session.add(SentenceReviewLog(
+            sentence_id=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=60),
+            comprehension="understood",
+            review_mode="reading",
+        ))
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=30)
+        sent.last_reading_comprehension = "partial"
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+
+        assert all(item["sentence_id"] != 1 for item in result["items"])
 
     def test_no_due_words_returns_empty(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=24)
@@ -2486,12 +2517,12 @@ class TestRescuePass:
         assert 1 in sentence_ids, \
             "Rescue pass should include stale sentence rather than dropping the word"
 
-    def test_rescue_pass_never_bypasses_understood_cooldown(self, db_session):
-        """Know-all evidence keeps the exact sentence out for seven days."""
+    def test_rescue_pass_never_reuses_understood_sentence(self, db_session):
+        """Know All finishes that exact sentence even after a long interval."""
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         sent = _seed_sentence(db_session, 1, "الكتاب", "the book", 1,
                               [("الكتاب", 1)])
-        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=3)
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=365)
         sent.last_reading_comprehension = "understood"
         db_session.commit()
 
@@ -2773,3 +2804,18 @@ class TestBookSentenceAcquiringGate:
         )
         assert len(items) == 1
         assert db_session.get(Sentence, items[0]["sentence_id"]).source == "corpus"
+
+    def test_pregenerated_fill_never_reuses_understood_sentence(self, db_session):
+        _, k1 = _seed_word(db_session, 1, "كناس", "sweeper", state="known",
+                           stability=5.0)
+        sent = _seed_sentence(db_session, 1, "الكناس", "the sweeper",
+                              1, [("الكناس", 1)], source="llm")
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=365)
+        sent.last_reading_comprehension = "understood"
+        db_session.commit()
+
+        items = _find_pregenerated_sentences_for_words(
+            db_session, {1}, {1: 5.0}, {1: k1}, [k1], limit=5,
+        )
+
+        assert items == []

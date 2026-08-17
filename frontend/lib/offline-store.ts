@@ -75,6 +75,22 @@ function reviewKey(
   return `${mode}:${sentenceId ?? "word"}:${lemmaId}`;
 }
 
+/**
+ * A displayed sentence is the review unit regardless of which due lemma made
+ * the selector choose it. Prefetched sessions can contain the same sentence
+ * with a different primary_lemma_id, so a lemma-scoped key alone lets an
+ * already-reviewed sentence leak back out of the cache.
+ *
+ * Word-only quiz cards still need the lemma-scoped reviewKey above because
+ * they have no sentence identity.
+ */
+function sentenceReviewKey(
+  mode: ReviewMode,
+  sentenceId: number
+): string {
+  return `${mode}:sentence:${sentenceId}`;
+}
+
 function legacyReviewKey(
   sessionId: string,
   sentenceId: number | null,
@@ -148,10 +164,13 @@ export async function getCachedSession(
 
     const session = entry.session;
     const remaining = session.items.filter(
-      (item) => !itemSentenceIds(item).some((sentenceId) =>
-        reviewed.has(reviewKey(mode, sentenceId, item.primary_lemma_id)) ||
-        reviewed.has(legacyReviewKey(session.session_id, sentenceId, item.primary_lemma_id))
-      )
+      (item) => !itemSentenceIds(item).some((sentenceId) => {
+        const sentenceAlreadyReviewed = sentenceId != null
+          && reviewed.has(sentenceReviewKey(mode, sentenceId));
+        return sentenceAlreadyReviewed
+          || reviewed.has(reviewKey(mode, sentenceId, item.primary_lemma_id))
+          || reviewed.has(legacyReviewKey(session.session_id, sentenceId, item.primary_lemma_id));
+      })
     );
     if (remaining.length >= minRemaining) {
       // Strip intros the user already dismissed (24h window). Otherwise a
@@ -211,6 +230,7 @@ export async function markReviewed(
   const reviewed = await getReviewedSet();
   const ids = sentenceIds?.length ? sentenceIds : [sentenceId];
   for (const id of ids) {
+    if (id != null) reviewed.add(sentenceReviewKey(mode, id));
     reviewed.add(reviewKey(mode, id, lemmaId));
     reviewed.add(legacyReviewKey(sessionId, id, lemmaId));
   }
@@ -267,6 +287,7 @@ export async function unmarkReviewed(
   const reviewed = await getReviewedSet();
   const ids = sentenceIds?.length ? sentenceIds : [sentenceId];
   for (const id of ids) {
+    if (id != null) reviewed.delete(sentenceReviewKey(mode, id));
     reviewed.delete(reviewKey(mode, id, lemmaId));
     reviewed.delete(legacyReviewKey(sessionId, id, lemmaId));
   }
@@ -289,6 +310,9 @@ export async function pruneReviewedSet(): Promise<void> {
       const session = entry.session;
       for (const item of session.items) {
         for (const sentenceId of itemSentenceIds(item)) {
+          if (sentenceId != null) {
+            validKeys.add(sentenceReviewKey(mode, sentenceId));
+          }
           validKeys.add(reviewKey(mode, sentenceId, item.primary_lemma_id));
           validKeys.add(legacyReviewKey(session.session_id, sentenceId, item.primary_lemma_id));
         }

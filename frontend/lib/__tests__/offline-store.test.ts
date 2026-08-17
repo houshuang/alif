@@ -31,6 +31,7 @@ describe("markReviewed / unmarkReviewed", () => {
 
     const raw = store[REVIEWED_KEY];
     const keys: string[] = JSON.parse(raw);
+    expect(keys).toContain("reading:sentence:10");
     expect(keys).toContain("reading:10:42");
     expect(keys).toContain("sess-1:10:42");
   });
@@ -49,6 +50,7 @@ describe("markReviewed / unmarkReviewed", () => {
     await unmarkReviewed("sess-1", 10, 42, "reading");
 
     const keys: string[] = JSON.parse(store[REVIEWED_KEY]);
+    expect(keys).not.toContain("reading:sentence:10");
     expect(keys).not.toContain("reading:10:42");
     expect(keys).not.toContain("sess-1:10:42");
     // Other entry still there
@@ -106,6 +108,43 @@ describe("cacheSessions / getCachedSession", () => {
     expect(result).not.toBeNull();
     expect(result!.items).toHaveLength(1);
     expect(result!.items[0].primary_lemma_id).toBe(20);
+  });
+
+  it("filters a reviewed sentence even when a cached copy has a different primary lemma", async () => {
+    const reviewedSession = makeSession("s-1", [
+      { sentence_id: 1, primary_lemma_id: 10, words: [] },
+    ]);
+    const prefetchedSession = makeSession("s-2", [
+      { sentence_id: 1, primary_lemma_id: 99, words: [] },
+      { sentence_id: 2, primary_lemma_id: 20, words: [] },
+    ]);
+    await cacheSessions("reading", [reviewedSession, prefetchedSession]);
+
+    await markReviewed("s-1", 1, 10, "reading");
+
+    const result = await getCachedSession("reading");
+    expect(result).not.toBeNull();
+    expect(result!.session_id).toBe("s-2");
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0].sentence_id).toBe(2);
+  });
+
+  it("filters a cached passage when any child sentence was already reviewed under another primary lemma", async () => {
+    const reviewedSession = makeSession("s-1", [
+      { sentence_id: 1, sentence_ids: [1, 2], primary_lemma_id: 10, words: [] },
+    ]);
+    const prefetchedSession = makeSession("s-2", [
+      { sentence_id: 1, sentence_ids: [1, 2], primary_lemma_id: 99, words: [] },
+      { sentence_id: 3, primary_lemma_id: 30, words: [] },
+    ]);
+    await cacheSessions("reading", [reviewedSession, prefetchedSession]);
+
+    await markReviewed("s-1", 1, 10, "reading", [1, 2]);
+
+    const result = await getCachedSession("reading");
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0].sentence_id).toBe(3);
   });
 
   it("skips depleted cached sessions when a minimum remaining count is requested", async () => {
