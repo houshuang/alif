@@ -49,7 +49,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://46.225.75.29:3000",
+      "apiUrl": "https://alifstian.duckdns.org/alif-api-not-configured",
       "router": {},
       "eas": {
         "projectId": "20b68974-631b-4074-83df-64d741f72325"
