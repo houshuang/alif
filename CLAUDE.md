@@ -269,7 +269,12 @@ ssh alif "cd /opt/alif && git checkout main && git pull --ff-only && git log --o
 #     The JS bundle is embedded — the app launches instantly offline, NO Metro
 #     dependency. UI changes ship over the air from the local checkout (merge to
 #     main + pull first so you publish exactly what's merged):
-cd frontend && eas update --channel preview --message "<what changed>"
+scripts/publish-ios-update.sh "<what changed>"
+#     This wrapper reads the private HTTPS capability from
+#     ~/.config/alif/api-capability, verifies the resolved Expo config before
+#     publishing, and verifies the published manifest afterward. Never invoke
+#     `eas update` directly: a missing ALIF_API_URL produces a broken fail-closed
+#     bundle.
 #     The phone picks the update up in the background on next launch and applies
 #     it the launch after (fallbackToCacheTimeout=0 default). NATIVE changes
 #     (new native module, permissions, icon, app.json ios/android keys) do NOT
