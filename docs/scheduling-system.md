@@ -2042,8 +2042,11 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence rows authored as one cohesive `source="passage"` story (sharing a `story_id`) are bundled — standalone generated/book/corpus rows are never opportunistically grouped. Acquisition cards always stay single-sentence. Replaced the old `PASSAGE_MIN_DUE_PER_SENTENCE = 1.25` density check with explicit min/preferred due-word floors (commit `ddf3bc44`, "Require denser maintenance passage reviews", 2026-05-18).
 
+**Temporarily suspended from sentence review (2026-08-28).** `MAINTENANCE_PASSAGE_REVIEW_ENABLED = False` excludes `source="passage"` rows from both ordinary selection and pre-generated fill/rescue selection. The matching frontend cache gate filters passage cards from sessions downloaded before the suspension, including offline sessions, without invalidating their ordinary sentence cards. Stored stories and all generation, grouping, rendering, credit, and analysis code remain intact for a later re-enable.
+
 | Constant | Value | Purpose |
 |----------|-------|---------|
+| `MAINTENANCE_PASSAGE_REVIEW_ENABLED` | `False` | Reversible delivery switch; while false, maintenance-passage sentences cannot enter the sentence-review queue |
 | `PASSAGE_MIN_SENTENCES` | 3 | Min sentences in a viable passage group (`_is_viable_maintenance_passage_group`) |
 | `PASSAGE_MAX_SENTENCES` | 5 | Max sentences taken from a story when forming a passage group |
 | `PASSAGE_MIN_DUE_WORDS` | 3 | Min distinct due lemmas a passage group must cover to be viable — a passage card must earn its extra reading cost with enough due reviews |

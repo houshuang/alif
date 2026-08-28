@@ -6,6 +6,13 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-08-28
+
+- Temporarily suspend embedded maintenance stories from the sentence review
+  queue, including already-prefetched offline sessions, while preserving their
+  stored content and all generation, grouping, rendering, review-credit, and
+  analysis code for a later re-enable.
+
 ## 2026-08-10
 
 - Make the 40-session flight download real: retain all downloaded sessions

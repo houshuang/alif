@@ -10,6 +10,9 @@ import type {
 const SESSION_CACHE_VERSION = 2;
 const WORD_LOOKUP_CACHE_VERSION = 5;
 const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Mirror the backend's temporary delivery suspension so sessions downloaded
+// before the switch cannot keep surfacing maintenance-passage cards offline.
+const MAINTENANCE_PASSAGE_REVIEW_ENABLED = false;
 
 const KEYS = {
   sessions: (mode: ReviewMode) => `@alif/sessions/v${SESSION_CACHE_VERSION}/${mode}`,
@@ -63,11 +66,23 @@ async function withSessionCacheLock<T>(fn: () => Promise<T>): Promise<T> {
 function normalizeSessionEntries(
   raw: CachedSessionEntry[] | SentenceReviewSession[]
 ): CachedSessionEntry[] {
-  return raw.map((item: any) =>
-    item.session
+  return raw.map((item: any) => {
+    const entry = item.session
       ? (item as CachedSessionEntry)
-      : { session: item as SentenceReviewSession, cached_at: 0 }
-  );
+      : { session: item as SentenceReviewSession, cached_at: 0 };
+    if (MAINTENANCE_PASSAGE_REVIEW_ENABLED) return entry;
+    return {
+      ...entry,
+      session: {
+        ...entry.session,
+        items: entry.session.items.filter((sessionItem) =>
+          sessionItem.card_type !== "passage"
+          && (sessionItem.passage_sentences?.length ?? 0) <= 1
+          && (sessionItem.sentence_ids?.length ?? 0) <= 1
+        ),
+      },
+    };
+  });
 }
 
 function reviewKey(

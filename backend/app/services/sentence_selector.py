@@ -117,7 +117,18 @@ PASSAGE_MIN_DUE_WORDS = 3
 PASSAGE_PREFERRED_DUE_WORDS = 4
 PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
 PASSAGE_MAX_CARDS_PER_SESSION = 2
+# Temporarily keep maintenance passages out of the sentence-review queue. The
+# generation, grouping, rendering, and review-credit paths remain intact so the
+# format can be re-enabled without migrating or rewriting stored stories.
+MAINTENANCE_PASSAGE_REVIEW_ENABLED = False
 LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
+
+
+def _sentence_review_queue_source_clause():
+    """SQL clause for sources currently admitted to sentence review."""
+    if MAINTENANCE_PASSAGE_REVIEW_ENABLED:
+        return True
+    return or_(Sentence.source.is_(None), Sentence.source != "passage")
 
 
 def _source_bonus_for_sentence(sent: Sentence) -> float:
@@ -1656,6 +1667,7 @@ def build_session(
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
             reviewable_sentence_clauses(),
+            _sentence_review_queue_source_clause(),
             _never_understood_in_mode_clause(mode),
             or_(
                 shown_col.is_(None),
@@ -1691,6 +1703,7 @@ def build_session(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    _sentence_review_queue_source_clause(),
                     _never_understood_in_mode_clause(mode),
                     comp_col.in_(("partial", "no_idea")),
                 )
@@ -3309,6 +3322,7 @@ def _find_pregenerated_sentences_for_words(
         .filter(
             Sentence.id.in_(sentence_ids_with_target),
             reviewable_sentence_clauses(),
+            _sentence_review_queue_source_clause(),
             _never_understood_in_mode_clause(mode),
             or_(
                 shown_col.is_(None),
@@ -3340,6 +3354,7 @@ def _find_pregenerated_sentences_for_words(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     reviewable_sentence_clauses(),
+                    _sentence_review_queue_source_clause(),
                     _never_understood_in_mode_clause(mode),
                     comp_col.in_(("partial", "no_idea")),
                 )

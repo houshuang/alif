@@ -110,6 +110,31 @@ describe("cacheSessions / getCachedSession", () => {
     expect(result!.items[0].primary_lemma_id).toBe(20);
   });
 
+  it("filters suspended maintenance passages from an existing cached session", async () => {
+    const session = makeSession("s-1", [
+      {
+        card_type: "passage",
+        sentence_id: 1,
+        sentence_ids: [1, 2, 3],
+        passage_sentences: [
+          { sentence_id: 1 },
+          { sentence_id: 2 },
+          { sentence_id: 3 },
+        ],
+        primary_lemma_id: 10,
+        words: [],
+      },
+      { card_type: "sentence", sentence_id: 4, primary_lemma_id: 20, words: [] },
+    ]);
+    await cacheSessions("reading", [session]);
+
+    const result = await getCachedSession("reading");
+
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0].sentence_id).toBe(4);
+  });
+
   it("filters a reviewed sentence even when a cached copy has a different primary lemma", async () => {
     const reviewedSession = makeSession("s-1", [
       { sentence_id: 1, primary_lemma_id: 10, words: [] },

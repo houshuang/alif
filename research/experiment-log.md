@@ -48,6 +48,23 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-08-28: Suspend embedded stories from sentence review
+
+**Prompt.** The longer maintenance stories are useful reading material, but
+they can make a time-limited sentence review session feel overwhelming.
+
+**Change.** A reversible `MAINTENANCE_PASSAGE_REVIEW_ENABLED = False` delivery
+gate now excludes `source="passage"` rows from ordinary sentence selection and
+both pre-generated fill/rescue paths. The matching frontend cache gate removes
+passage cards from sessions downloaded before the suspension, including
+offline sessions, while retaining their ordinary sentence cards. No story
+rows, generation paths, grouping/rendering code, review-credit logic, or
+analysis tooling were removed or migrated.
+
+**Re-enable.** Flip the matching backend and frontend delivery constants after
+deciding that the review-time cost is desirable again. Existing stored stories
+remain available to the dormant code paths.
+
 ## 2026-08-11: Yellow mixed-up means a total lexical lapse — acquisition parity preregistration
 
 **Learner contract.** Card color records what happened at reveal, while the

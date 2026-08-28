@@ -1033,6 +1033,36 @@ class TestScaffoldFreshness:
 
 
 class TestGreedySetCover:
+    def test_sentence_review_queue_suspends_maintenance_passages(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(
+            db_session,
+            1,
+            "الكتاب في القصة الطويلة",
+            "The book is in the longer story",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("الكتاب", 1)],
+            source="passage",
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "هذا كتاب",
+            "This is a book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("كتاب", 1)],
+            source="llm",
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert [item["sentence_id"] for item in result["items"]] == [2]
+
     def test_single_sentence_covers_word(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
@@ -2845,6 +2875,37 @@ class TestBookSentenceAcquiringGate:
             "corpus sentence must not be served for an acquiring target"
         )
         assert picked_sources == {"llm"}
+
+    def test_pregenerated_fill_suspends_maintenance_passages(self, db_session):
+        _, knowledge = _seed_word(
+            db_session,
+            1,
+            "كتاب",
+            "book",
+            state="known",
+            stability=5.0,
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "الكتاب في القصة الطويلة",
+            "The book is in the longer story",
+            1,
+            [("الكتاب", 1)],
+            source="passage",
+        )
+        db_session.commit()
+
+        items = _find_pregenerated_sentences_for_words(
+            db_session,
+            {1},
+            {1: 5.0},
+            {1: knowledge},
+            [knowledge],
+            limit=5,
+        )
+
+        assert items == []
 
     def test_pregenerated_fill_allows_corpus_for_known_target(self, db_session):
         _, k1 = _seed_word(db_session, 1, "كناس", "sweeper", state="known",
