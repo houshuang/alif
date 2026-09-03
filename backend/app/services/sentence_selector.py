@@ -2595,7 +2595,11 @@ def build_session(
                 pair,
                 candidate,
             ))
-    confusion_options.sort(key=lambda row: row[:3])
+    # Spend the single rescue slot on the newest named confusion. Within that
+    # pair, prefer the strongest existing candidate and then a stable ID tie-break.
+    confusion_options.sort(
+        key=lambda row: (-row[0].timestamp(), row[1], row[2])
+    )
     reserved_confusion_slots = 0
     for _, _, _, pair, candidate in confusion_options:
         target_id = pair["target_lemma_id"]

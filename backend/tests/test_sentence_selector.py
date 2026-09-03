@@ -1269,6 +1269,49 @@ class TestGreedySetCover:
         assert info["reason"] == "confusion_context_rescue_v1"
         assert info["components"]["confusor_absent"] is True
 
+    def test_named_confusion_rescue_spends_slot_on_newest_pair(
+        self,
+        db_session,
+    ):
+        now = datetime.now(timezone.utc)
+        words = ((1, "قديم"), (2, "منافس"), (3, "حديث"), (4, "شبيه"))
+        for lemma_id, bare in words:
+            _seed_word(db_session, lemma_id, bare, bare, due_hours=-1)
+        _seed_sentence(db_session, 11, "قديم", "old", 1, [("قديم", 1)])
+        _seed_sentence(db_session, 13, "حديث", "recent", 3, [("حديث", 3)])
+        db_session.add_all([
+            ConfusionCapture(
+                failed_lemma_id=1,
+                sentence_id=10,
+                session_id="older-confusion",
+                rating=2,
+                captured_at=now - timedelta(days=5),
+                capture_method="suggested_pick",
+                confused_with_lemma_id=2,
+            ),
+            ConfusionCapture(
+                failed_lemma_id=3,
+                sentence_id=12,
+                session_id="newer-confusion",
+                rating=2,
+                captured_at=now - timedelta(days=1),
+                capture_method="suggested_pick",
+                confused_with_lemma_id=4,
+            ),
+        ])
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 3
+        assert result["items"][0]["selection_info"]["reason"] == (
+            "confusion_context_rescue_v1"
+        )
+
     def test_single_sentence_covers_word(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=24)

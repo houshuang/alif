@@ -364,8 +364,7 @@ def evaluate_signals(
         _signal(
             "stop",
             "density_cap_breach",
-            interactions["density_cap_breaches"] > 0
-            or retention["cards_with_5plus_scheduled_judgments"] > 0,
+            interactions["density_cap_breaches"] > 0,
             "No automatic sentence card may contain five or more actionable scheduled words.",
         ),
         _signal(

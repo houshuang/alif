@@ -250,6 +250,10 @@ def test_next_sentences_prefetch_skips_logging(client, db_session, monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert "items" in data
+    assert data["selection_diagnostics"]["learning_policy_version"] == (
+        "low_energy_maintenance_v1"
+    )
+    assert data["selection_diagnostics"]["low_energy_maintenance_enabled"] is True
     assert "session_start" not in router_events
     assert "sentence_selected" not in selector_events
 

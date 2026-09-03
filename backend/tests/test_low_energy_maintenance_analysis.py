@@ -87,7 +87,7 @@ def test_evaluation_triggers_hard_and_directional_signals():
         },
     }
     interactions = {
-        "density_cap_breaches": 0,
+        "density_cap_breaches": 1,
         "exposure_invariant_breaches": 0,
         "automatic_passage_cards": 0,
     }
@@ -111,3 +111,47 @@ def test_evaluation_triggers_hard_and_directional_signals():
         "daily_volume_below_maintenance_target",
     } <= triggered
     assert BASELINE["strict_main_fsrs_due"] == 749
+
+
+def test_nondue_scheduled_scaffolds_do_not_fake_density_breach():
+    current = {
+        "recovery": {
+            "values": {
+                "strict_main_fsrs_due": BASELINE["strict_main_fsrs_due"],
+                "box1_actionable": BASELINE["box1_actionable"],
+                "box2_due": 0,
+            }
+        }
+    }
+    workload = {
+        "max_true_new_intake_on_day": 0,
+        "active_days": 0,
+        "median_cards_per_active_day": None,
+    }
+    retention = {
+        # A long sentence can schedule lower-R, not-due scaffolds. The selector
+        # ceiling is specifically about words that were already actionable.
+        "cards_with_5plus_scheduled_judgments": 1,
+        "old_scheduled_by_prior_gap": {
+            ">=7d": {"judgments": 0, "clean_pct": None},
+            ">=14d": {"judgments": 0, "clean_pct": None},
+        },
+    }
+    interactions = {
+        "density_cap_breaches": 0,
+        "exposure_invariant_breaches": 0,
+        "automatic_passage_cards": 0,
+    }
+
+    signals = evaluate_signals(
+        elapsed_days=3,
+        current=current,
+        workload=workload,
+        retention=retention,
+        interactions=interactions,
+    )
+
+    density = next(
+        signal for signal in signals if signal["code"] == "density_cap_breach"
+    )
+    assert density["triggered"] is False
