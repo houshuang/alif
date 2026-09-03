@@ -1,8 +1,10 @@
 # Low-energy maintenance experiment v1
 
-**Preregistered:** 2026-09-03  
-**Policy:** `low_energy_maintenance_v1`  
-**Planned duration:** 60 days after production activation  
+**Preregistered:** 2026-09-03
+
+**Policy:** `low_energy_maintenance_v1`
+
+**Planned duration:** 60 days after production activation
 **Rollback:** set `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` and restart the
 backend. This restores the legacy intake, collateral scheduling, ordering,
 density, and maintenance-passage policy. The policy version is emitted with
