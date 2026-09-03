@@ -59,8 +59,8 @@ function mockErrorResponse(status: number, body = "error") {
 }
 
 const store = (AsyncStorage as any)._store;
-const REVIEWED_KEY = "@alif/reviewed/v3";
-const SESSION_CACHE_KEY = "@alif/sessions/v3/reading";
+const REVIEWED_KEY = "@alif/reviewed/v2";
+const SESSION_CACHE_KEY = "@alif/sessions/v2/reading";
 
 beforeEach(() => {
   mockFetch.mockReset();

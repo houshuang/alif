@@ -4,13 +4,15 @@
 
 Keep the learner's sustainable ~30-card daily rhythm while making the cards
 less obligation-dense and the evidence more honest. `low_energy_maintenance_v1`
-caps ordinary automatic cards at four actionable due words, suspends automatic
-maintenance passages, treats only clean known/not-due reading collateral at
+caps ordinary automatic cards at four actionable due words, treats only clean
+known/not-due reading collateral at
 R≥0.97 as exposure-only, orders due work by observed lapse risk before
 frequency, reserves one workload-neutral different context for a recent named
 confusion, and limits true-new intake to two/day with recovery earn-in 0/1/2.
 Evaluate at days 3, 7, 14, 30, and 60 with the frozen baseline and danger
 signals in `research/low-energy-maintenance-experiment-2026-09-03.md`.
+The independent 2026-08-28 maintenance-passage suspension is held constant and
+is not controlled by this experiment's rollback switch.
 
 **Deferred decision, not part of v1:** after day 14, if named confusion rescues
 are frequently blocked only by missing verified inventory, consider a bounded

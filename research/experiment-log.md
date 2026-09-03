@@ -32,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Confusion capture / confusors** — `2026-09-03 "Low-energy maintenance v1"` · `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-09-03 "Low-energy maintenance v1"` (automatic maintenance passages suspended) · `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-08-28 "Suspend embedded stories from sentence review"` · `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -67,14 +67,15 @@ due stock less directly tested.
 
 **Preregistered package.** Activate `low_energy_maintenance_v1` for 60 days:
 (1) cap ordinary automatic cards at four actionable due canonicals, counting
-the full pre-cohort due stock; (2) suspend automatic maintenance passages; (3)
-classify only clean, `known`, not-due reading collateral at R≥0.97 as
-exposure-only while retaining encounters and protocol-v3 token evidence; (4)
-rank due work by history-based lapse risk before frequency; (5) reserve at most
+the full pre-cohort due stock; (2) classify only clean, `known`, not-due reading
+collateral at R≥0.97 as exposure-only while retaining encounters and protocol-v3
+token evidence; (3) rank due work by history-based lapse risk before frequency;
+(4) reserve at most
 one existing different-context sentence for a recent named confusion, omitting
-the confusor and adding no card; and (6) cap true-new intake at two/day with
+the confusor and adding no card; and (5) cap true-new intake at two/day with
 recovery earn-in 0/1/2. Primary, due, failed, acquiring, learning, lapsed,
 listening, and lower/unknown-R evidence keeps normal scheduling credit.
+The independent Aug-28 passage suspension is held constant during the trial.
 
 **Evaluation.** Day 3 is an operational/invariant check, day 7 checks workload
 and debt direction, day 14 gives the first useful delayed-retention/confusion
@@ -93,7 +94,8 @@ variant resolution, intro filters, listening readiness, mapping gates, and
 function/proper-name exclusion were audited. Density intentionally uses the due
 set before cohort/lane filtering; exposure classification runs after canonical
 resolution and is reading-only. The selector remains DB-only. Set
-`ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` to restore all legacy behavior.
+`ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` to restore the legacy experiment
+behavior; the independent passage suspension remains in force.
 Complete protocol: `research/low-energy-maintenance-experiment-2026-09-03.md`.
 
 ## 2026-08-28: Suspend embedded stories from sentence review

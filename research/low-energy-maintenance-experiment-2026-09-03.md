@@ -5,10 +5,11 @@
 **Policy:** `low_energy_maintenance_v1`
 
 **Planned duration:** 60 days after production activation
+
 **Rollback:** set `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` and restart the
 backend. This restores the legacy intake, collateral scheduling, ordering,
-density, and maintenance-passage policy. The policy version is emitted with
-every session so the frontend follows the same passage setting.
+density, and risk-priority policy. Maintenance passages were independently
+suspended on 2026-08-28 and are not controlled by this experiment switch.
 
 ## Why this experiment exists
 
@@ -35,8 +36,7 @@ what those cards contain and what evidence is allowed to move a schedule.
 
 1. **Four-obligation ceiling.** An automatic ordinary sentence card may contain
    at most four actionable due words. The count includes due collateral outside
-   the active cohort or frequency lane. Automatic maintenance passages are
-   suspended; longer reading remains available through explicit reading modes.
+   the active cohort or frequency lane.
 2. **Exposure-only mature collateral.** A word appearance does not update FSRS
    only when all of these are true: reading mode, clean rating, collateral rather
    than primary, state `known`, card not due, and current retrievability at least
@@ -58,6 +58,10 @@ what those cards contain and what evidence is allowed to move a schedule.
    accuracy, and two after 100 cards with at least 85% primary accuracy. On a
    healthy low-debt day the ceiling is two.
 
+**Held constant, not attributed to v1:** automatic maintenance passages were
+already suspended by the independent 2026-08-28 delivery switch. They remain
+absent during this trial, and explicit long-form reading remains available.
+
 ## What the experiment is testing
 
 This is intentionally a **bundled policy experiment**, because the practical
@@ -65,7 +69,8 @@ question is whether the whole daily routine becomes sustainable while old
 knowledge holds. It cannot identify the isolated causal effect of each component.
 
 - **Feasibility hypothesis:** thirty cards feel materially less draining when
-  dense cards and automatic passages are removed.
+  five-plus-obligation cards are removed, with the existing passage suspension
+  held constant.
 - **Retention-validity hypothesis:** converting only trivial mature collateral
   to exposure will make scheduled tests harder but more meaningful, while old
   word retention remains stable.
@@ -152,7 +157,7 @@ events; a modest drop can mean that the measurement became more honest.
 - any exposure-only event that is primary, due, red/yellow, not `known`, in
   listening mode, or below 0.97 retrievability;
 - more than two true-new acquisitions in one UTC day;
-- an automatic maintenance-passage card while the policy is active;
+- an automatic maintenance-passage card while the independent suspension is active;
 - strict main FSRS due reaching 1,000 after the first week;
 - errors that prevent sessions or reviews from being built or saved.
 

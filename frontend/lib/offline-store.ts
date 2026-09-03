@@ -7,7 +7,7 @@ import type {
   WordLookupResult,
 } from "./types";
 
-const SESSION_CACHE_VERSION = 3;
+const SESSION_CACHE_VERSION = 2;
 const WORD_LOOKUP_CACHE_VERSION = 5;
 const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // Mirror the backend's temporary delivery suspension so sessions downloaded
@@ -70,9 +70,7 @@ function normalizeSessionEntries(
     const entry = item.session
       ? (item as CachedSessionEntry)
       : { session: item as SentenceReviewSession, cached_at: 0 };
-    if (!entry.session.selection_diagnostics?.low_energy_maintenance_enabled) {
-      return entry;
-    }
+    if (MAINTENANCE_PASSAGE_REVIEW_ENABLED) return entry;
     return {
       ...entry,
       session: {

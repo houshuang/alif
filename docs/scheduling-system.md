@@ -1142,9 +1142,9 @@ allocation and evidence mix:
   canonicals** appear anywhere in the sentence. The actionable set is captured
   before focus-cohort/frequency-lane filtering, so off-lane due collateral cannot
   escape the ceiling;
-- automatic `source="passage"` maintenance cards are excluded at every main,
-  rescue, and fill query. The existing passage inventory and explicit long-form
-  reading modes remain intact;
+- the independent 2026-08-28 switch continues to exclude automatic
+  `source="passage"` maintenance cards at every main, rescue, and fill query.
+  It is held constant during v1, not controlled by the experiment flag;
 - eligible due candidates receive a transparent history-risk multiplier derived
   from recent failure, lifetime failure, lapsed/acquiring state, overdue pressure
   relative to stability, and distributed-success deficit. The opening sort uses
@@ -1153,11 +1153,12 @@ allocation and evidence mix:
   reading sentence. It targets the failed due lemma in a different sentence,
   omits the named confusor, contains no cold word, and adds no card;
 - `selection_diagnostics` exposes policy version, active flag, intro and density
-  ceilings, maximum actionable due count, breaches, and selection-reason counts.
-  The API returns this field so cache behavior follows the same rollback switch.
+  ceilings, maximum actionable due count, breaches, and selection-reason counts
+  for checkpoint analysis.
 
-The single switch is `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0`; absent or true
-activates the experiment. See
+The single experiment switch is `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0`;
+absent or true activates v1. It does not change the independent passage switch.
+See
 `research/low-energy-maintenance-experiment-2026-09-03.md` for baseline,
 checkpoints, and danger signals.
 
