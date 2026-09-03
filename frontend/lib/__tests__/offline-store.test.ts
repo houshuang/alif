@@ -18,7 +18,7 @@ import {
 } from "../offline-store";
 
 const store = (AsyncStorage as any)._store;
-const REVIEWED_KEY = "@alif/reviewed/v2";
+const REVIEWED_KEY = "@alif/reviewed/v3";
 
 beforeEach(async () => {
   for (const key of Object.keys(store)) delete store[key];
@@ -111,8 +111,39 @@ describe("cacheSessions / getCachedSession", () => {
   });
 
   it("filters suspended maintenance passages from an existing cached session", async () => {
-    const session = makeSession("s-1", [
-      {
+    const session = {
+      ...makeSession("s-1", [
+        {
+          card_type: "passage",
+          sentence_id: 1,
+          sentence_ids: [1, 2, 3],
+          passage_sentences: [
+            { sentence_id: 1 },
+            { sentence_id: 2 },
+            { sentence_id: 3 },
+          ],
+          primary_lemma_id: 10,
+          words: [],
+        },
+        { card_type: "sentence", sentence_id: 4, primary_lemma_id: 20, words: [] },
+      ]),
+      selection_diagnostics: {
+        learning_policy_version: "low_energy_maintenance_v1",
+        low_energy_maintenance_enabled: true,
+      },
+    };
+    await cacheSessions("reading", [session]);
+
+    const result = await getCachedSession("reading");
+
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(1);
+    expect(result!.items[0].sentence_id).toBe(4);
+  });
+
+  it("retains passage cards when the low-energy policy is rolled back", async () => {
+    const session = {
+      ...makeSession("s-1", [{
         card_type: "passage",
         sentence_id: 1,
         sentence_ids: [1, 2, 3],
@@ -123,16 +154,19 @@ describe("cacheSessions / getCachedSession", () => {
         ],
         primary_lemma_id: 10,
         words: [],
+      }]),
+      selection_diagnostics: {
+        learning_policy_version: "legacy",
+        low_energy_maintenance_enabled: false,
       },
-      { card_type: "sentence", sentence_id: 4, primary_lemma_id: 20, words: [] },
-    ]);
+    };
     await cacheSessions("reading", [session]);
 
     const result = await getCachedSession("reading");
 
     expect(result).not.toBeNull();
     expect(result!.items).toHaveLength(1);
-    expect(result!.items[0].sentence_id).toBe(4);
+    expect(result!.items[0].card_type).toBe("passage");
   });
 
   it("filters a reviewed sentence even when a cached copy has a different primary lemma", async () => {
@@ -229,7 +263,7 @@ describe("cacheSessions / getCachedSession", () => {
       ])]);
     }
 
-    const raw = JSON.parse(store["@alif/sessions/v2/reading"]);
+    const raw = JSON.parse(store["@alif/sessions/v3/reading"]);
     expect(raw).toHaveLength(40);
     expect(raw[0].session.session_id).toBe("flight-1");
     expect(raw[39].session.session_id).toBe("flight-40");
@@ -247,7 +281,7 @@ describe("cacheSessions / getCachedSession", () => {
       { sentence_id: 2, primary_lemma_id: 20, words: [] },
     ])]);
 
-    const raw = JSON.parse(store["@alif/sessions/v2/reading"]);
+    const raw = JSON.parse(store["@alif/sessions/v3/reading"]);
     expect(raw.map((entry: any) => entry.session.session_id)).toEqual([
       "flight-1",
       "background-later",

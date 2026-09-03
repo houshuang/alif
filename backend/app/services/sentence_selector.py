@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, joinedload
 
@@ -968,6 +968,7 @@ def _history_lapse_risk_scores(
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     stability_map: dict[int, float],
     overdue_days_map: dict[int, float],
+    at: datetime,
 ) -> dict[int, float]:
     """Rank due obligations using evidence available before this session.
 
@@ -979,6 +980,25 @@ def _history_lapse_risk_scores(
     """
     if not due_lemma_ids:
         return {}
+    # Keep lifetime distribution aggregation in SQLite, but fetch individual
+    # observations only from the recent window. Lifetime success/failure is
+    # already represented by ULK counters; pulling every historical log row
+    # added ~0.6s to a cold production-snapshot session build.
+    distribution_rows = (
+        db.query(
+            ReviewLog.lemma_id,
+            func.count(ReviewLog.id),
+            func.count(func.distinct(func.date(ReviewLog.reviewed_at))),
+        )
+        .filter(ReviewLog.lemma_id.in_(due_lemma_ids))
+        .group_by(ReviewLog.lemma_id)
+        .all()
+    )
+    distribution_by_lemma = {
+        int(lemma_id): (int(review_count), int(distinct_days))
+        for lemma_id, review_count, distinct_days in distribution_rows
+    }
+
     rows = (
         db.query(
             ReviewLog.lemma_id,
@@ -986,7 +1006,12 @@ def _history_lapse_risk_scores(
             ReviewLog.reviewed_at,
             ReviewLog.fsrs_log_json,
         )
-        .filter(ReviewLog.lemma_id.in_(due_lemma_ids))
+        .filter(
+            ReviewLog.lemma_id.in_(due_lemma_ids),
+            ReviewLog.reviewed_at >= (at - timedelta(days=60)).replace(
+                tzinfo=None
+            ),
+        )
         .order_by(ReviewLog.lemma_id, ReviewLog.reviewed_at, ReviewLog.id)
         .all()
     )
@@ -1024,8 +1049,8 @@ def _history_lapse_risk_scores(
             if lifetime_seen
             else 0.5
         )
-        distinct_days = len({reviewed_at.date() for _, reviewed_at in history})
-        evidence_target = min(8, len(history))
+        review_count, distinct_days = distribution_by_lemma.get(lemma_id, (0, 0))
+        evidence_target = min(8, review_count)
         distribution_deficit = (
             1.0 - min(1.0, distinct_days / evidence_target)
             if evidence_target
@@ -1846,6 +1871,7 @@ def build_session(
             knowledge_by_id,
             stability_map,
             overdue_days_map,
+            now,
         )
         if low_energy_maintenance_enabled()
         else {}

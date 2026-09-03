@@ -622,6 +622,7 @@ class SentenceSessionOut(BaseModel):
     grammar_intro_needed: list[str] = []
     grammar_refresher_needed: list[str] = []
     verse_cards: list[VerseCardOut] = []
+    selection_diagnostics: dict = {}
 
 
 class ConfusionCaptureIn(BaseModel):

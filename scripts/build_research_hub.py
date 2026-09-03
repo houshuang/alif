@@ -32,6 +32,7 @@ CATEGORY_RULES = [
     ("algorithm-implications", "science"),
     ("arabic-learning-challenges", "science"),
     ("learning-analysis", "analytics"),
+    ("low-energy-maintenance", "analytics"),
     ("context-diversity", "analytics"),
     ("established-lapse-recovery", "analytics"),
     ("lapse-followup", "analytics"),
@@ -96,6 +97,7 @@ STATUS_OVERRIDES = {
     "analysis-2026-07-09-return-recovery-next-phase": "deployed",
     "analysis-2026-07-28-learning-update": "active",
     "context-diversity-decision-2026-07-31": "reference",
+    "low-energy-maintenance-experiment-2026-09-03": "active",
     "established-lapse-recovery-validation-2026-07-26": "deployed",
     "analysis-2026-02-09": "archived",
     "analysis-2026-02-10": "archived",
@@ -524,6 +526,11 @@ def build_html(docs: list[dict]) -> str:
             mobile_links.append(f'<a onclick="scrollToSection(\'cat-{cat}\')">{_esc(short)}</a>')
 
     now = datetime.now().strftime("%B %d, %Y")
+    # Keep the replacement outside the f-string expression for Python 3.11,
+    # which rejects backslashes inside f-string expression source.
+    docs_json_script = json.dumps(docs_json, ensure_ascii=False).replace(
+        "</script>", "<\\/script>"
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -658,7 +665,7 @@ def build_html(docs: list[dict]) -> str:
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script>
 // Embedded document data
-const DOCS = {json.dumps(docs_json, ensure_ascii=False).replace("</script>", "<\\/script>")};
+const DOCS = {docs_json_script};
 
 {JS}
 </script>

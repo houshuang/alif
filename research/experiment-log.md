@@ -8,11 +8,11 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
 
-**Word lifecycle — acquisition / graduation / intro cap** — `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL collateral-credit invariant) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-09-03 "Low-energy maintenance v1"` · `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL evidence invariant; narrow mature/high-R exposure exception added 2026-09-03) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
 **FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
-**Session building / selection / comprehensibility** — `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
+**Session building / selection / comprehensibility** — `2026-09-03 "Low-energy maintenance v1"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
 **Sentence generation pipeline** — `2026-03-21 "Unify Sentence Generation Through Verified Pipeline"` (single-pipeline invariant) · `2026-05-10 "Batch material now has a mandatory quality gate"` · `2026-04-20 "Self-correcting batch sentence generation"` (⚠ later gated OFF — current default is legacy batch, `ALIF_USE_LEGACY_BATCH=1`) · `2026-05-04 "Backoff-aware multi-target"` · `2026-05-03 "Generation-pipeline investigation — three concurrent bugs"`.
 
@@ -30,9 +30,9 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Root showcase** — `2026-05-28 "Root-showcase Phase 6"` / `"Phase 7 trust_palette_mappings"` / `"Phase 8 link textbook_scan verb conjugations"`.
 
-**Confusion capture / confusors** — `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
+**Confusion capture / confusors** — `2026-09-03 "Low-energy maintenance v1"` · `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-10 "Form-aware confusor candidates"` · `2026-05-27 "Confusion capture — ground truth"` · `2026-06-01 "First confusion-capture analysis (21 captures)"`.
 
-**Stories / podcast / listening / maintenance passages** — `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
+**Stories / podcast / listening / maintenance passages** — `2026-09-03 "Low-energy maintenance v1"` (automatic maintenance passages suspended) · `2026-08-09 "Embedded-story first word-level readout"` · `2026-08-02 "Durable embedded-story supply"` · `2026-08-02 "Short-story v2 cohort completion"` · `2026-08-02 "Short-story v2 seed correction"` · `2026-08-01 "Embedded short stories v2"` · `2026-03-22 "Passive Listening Podcast System"` + `"Story System Enhancements"` · `2026-04-07 "Repetition-Focused Podcast Episodes"` · `2026-05-18 "Require denser maintenance passage reviews"` + `2026-06-03 "Demand-scale the maintenance-passage generation cap"`.
 
 **Display — tashkeel / fonts** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Token-level form/tashkeel evidence"` · `2026-03-27 "Graduated Tashkeel Fading"` · `2026-03-20 "Tashkeel Fading (Front/Back Split)"` · `2026-03-21 "3-State Tashkeel Toggle"`.
 
@@ -47,6 +47,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-09-03: Low-energy maintenance v1 — sustainable reps and honest old-word validation
+
+**Learner constraint and question.** The learner can usually sustain about 30
+cards/day but often lacks energy for deep work. The goal is first to prevent
+backsliding and second to progress slowly. Retention appears broadly intact, but
+some cards contain many uncertainties and many errors are confusions among two
+or three plausible candidates. The system therefore needs to validate old words
+systematically without turning daily practice into dense multi-obligation work.
+
+**Baseline diagnosis.** On the latest snapshot, strict main FSRS debt was 749
+(890 raw), actionable Box 1 was 41, and total acquiring was 56. Recent scheduled
+clean rate was 89.0%; old-word clean rates were 85.8% after ≥7 days, 81.5% after
+≥14 days, and 73.6% after ≥30 days. Knowledge is mostly holding, but dense 5+
+due-word cards underperform and 63.5% of FSRS judgments were early collateral.
+That latter flow overvalidates strong words incidentally while leaving the old
+due stock less directly tested.
+
+**Preregistered package.** Activate `low_energy_maintenance_v1` for 60 days:
+(1) cap ordinary automatic cards at four actionable due canonicals, counting
+the full pre-cohort due stock; (2) suspend automatic maintenance passages; (3)
+classify only clean, `known`, not-due reading collateral at R≥0.97 as
+exposure-only while retaining encounters and protocol-v3 token evidence; (4)
+rank due work by history-based lapse risk before frequency; (5) reserve at most
+one existing different-context sentence for a recent named confusion, omitting
+the confusor and adding no card; and (6) cap true-new intake at two/day with
+recovery earn-in 0/1/2. Primary, due, failed, acquiring, learning, lapsed,
+listening, and lower/unknown-R evidence keeps normal scheduling credit.
+
+**Evaluation.** Day 3 is an operational/invariant check, day 7 checks workload
+and debt direction, day 14 gives the first useful delayed-retention/confusion
+readout, and days 30/60 decide efficacy. The immutable-snapshot analyzer reports
+daily cards/time, intake, Box-1/2 and strict-main debt, old scheduled retention by
+gap, actual scheduled-card density, exposure invariants, passage delivery, and
+confusion rescue. Raw scheduled accuracy is expected to become harder because
+trivial easy collateral leaves its denominator; do not call that regression by
+itself. Stop immediately on a density/exposure/intake/passage invariant breach,
+session failure, or main debt ≥1,000 after week one. Warn on +100/+15% main debt,
+old ≥7-day clean <80%, old ≥14-day clean <78%, or median active-day volume <24.
+
+**Gate audit and rollback.** No new state or transition is introduced. Both
+comprehensibility gates, unknown-scaffold cap, focus cohort, frequency lanes,
+variant resolution, intro filters, listening readiness, mapping gates, and
+function/proper-name exclusion were audited. Density intentionally uses the due
+set before cohort/lane filtering; exposure classification runs after canonical
+resolution and is reading-only. The selector remains DB-only. Set
+`ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` to restore all legacy behavior.
+Complete protocol: `research/low-energy-maintenance-experiment-2026-09-03.md`.
 
 ## 2026-08-28: Suspend embedded stories from sentence review
 

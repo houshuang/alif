@@ -346,8 +346,9 @@ def submit_sentence_review(
         # Skip if canonical is suspended (or the variant itself)
         if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
             continue
-        # Auto-introduce encountered words on collateral appearance —
-        # every word in every sentence earns review credit, no exceptions.
+        # Auto-introduce encountered words on collateral appearance. The only
+        # no-scheduling exception is the narrow mature/high-R exposure policy
+        # below; new and acquiring words continue through ordinary credit.
         # Familiar words graduate instantly via Tier 0 (first correct → FSRS).
         # The daily intro cap inside start_acquisition may defer promotion
         # (leaves the word encountered); track the "deferred" state so we
@@ -525,6 +526,10 @@ def submit_sentence_review(
                 sentence_id=primary_sentence_id,
                 lemma_id=effective_lemma_id,
                 rating=rating,
+                credit_type=credit_type,
+                knowledge_state=knowledge.knowledge_state,
+                review_mode=review_mode,
+                was_due=False,
                 retrievability=round(exposure_retrievability, 6),
                 due_at=(exposure_due_at.isoformat() if exposure_due_at else None),
             )
