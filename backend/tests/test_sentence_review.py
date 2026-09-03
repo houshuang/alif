@@ -110,6 +110,111 @@ def _evidence(
 
 
 class TestUnderstood:
+    def test_trivial_not_due_known_collateral_is_exposure_only(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(
+            db_session,
+            1,
+            "الولد الكتاب",
+            "the boy the book",
+            target_lemma_id=1,
+            word_ids=[2, 1],
+        )
+        now = datetime.now(timezone.utc)
+        collateral = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+        collateral.knowledge_state = "known"
+        card = create_new_card()
+        card.update({
+            "state": 2,
+            "step": None,
+            "stability": 100.0,
+            "difficulty": 3.0,
+            "last_review": (now - timedelta(days=1)).isoformat(),
+            "due": (now + timedelta(days=90)).isoformat(),
+        })
+        collateral.fsrs_card_json = card
+        collateral.last_reviewed = now - timedelta(days=1)
+        before_card = dict(card)
+        before_seen = collateral.times_seen
+        before_correct = collateral.times_correct
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            session_id="exposure-only",
+            client_review_id="exposure-only-review",
+        )
+
+        by_id = {row["lemma_id"]: row for row in result["word_results"]}
+        assert by_id[1]["credit_type"] == "primary"
+        assert by_id[2]["credit_type"] == "exposure"
+        assert by_id[2]["scheduling_credit"] is False
+        db_session.refresh(collateral)
+        assert collateral.fsrs_card_json == before_card
+        assert collateral.times_seen == before_seen
+        assert collateral.times_correct == before_correct
+        assert collateral.total_encounters == 1
+        assert db_session.query(ReviewLog).filter_by(lemma_id=2).count() == 0
+
+    @pytest.mark.parametrize(
+        ("primary_lemma_id", "comprehension_signal", "missed_ids", "due_hours"),
+        [
+            (2, "understood", [], 24 * 90),
+            (1, "partial", [2], 24 * 90),
+            (1, "understood", [], -1),
+        ],
+    )
+    def test_primary_failure_and_due_collateral_keep_scheduling_credit(
+        self,
+        db_session,
+        primary_lemma_id,
+        comprehension_signal,
+        missed_ids,
+        due_hours,
+    ):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(
+            db_session,
+            1,
+            "الولد الكتاب",
+            "the boy the book",
+            target_lemma_id=primary_lemma_id,
+            word_ids=[2, 1],
+        )
+        now = datetime.now(timezone.utc)
+        tested = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+        tested.knowledge_state = "known"
+        card = create_new_card()
+        card.update({
+            "state": 2,
+            "step": None,
+            "stability": 100.0,
+            "difficulty": 3.0,
+            "last_review": (now - timedelta(days=1)).isoformat(),
+            "due": (now + timedelta(hours=due_hours)).isoformat(),
+        })
+        tested.fsrs_card_json = card
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=primary_lemma_id,
+            comprehension_signal=comprehension_signal,
+            missed_lemma_ids=missed_ids,
+            session_id=f"full-credit-{primary_lemma_id}-{due_hours}",
+        )
+
+        by_id = {row["lemma_id"]: row for row in result["word_results"]}
+        assert by_id[2]["credit_type"] in {"primary", "collateral"}
+        assert by_id[2]["scheduling_credit"] is True
+        assert db_session.query(ReviewLog).filter_by(lemma_id=2).count() == 1
+
     def test_all_words_get_rating_3(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy")

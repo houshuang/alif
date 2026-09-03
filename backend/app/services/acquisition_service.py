@@ -43,6 +43,10 @@ from app.services.fsrs_service import (
     scheduler as fsrs_scheduler,
 )
 from app.services.interaction_logger import log_interaction
+from app.services.learning_policy import (
+    active_daily_intro_cap,
+    low_energy_maintenance_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +163,11 @@ def _reviews_span_calendar_days(
     return len(dates) >= min_days
 
 
-DAILY_INTRO_CAP = 30  # ceiling on new acquiring promotions per UTC day; see start_acquisition
+# During the low-energy maintenance trial, healthy days admit at most two new
+# words. Recovery days still require earned practice and admit 0/1/2 rather
+# than the legacy 0/8/30. The master flag is evaluated at process start; a
+# restart with it disabled restores the complete legacy ladder.
+DAILY_INTRO_CAP = active_daily_intro_cap()
 ACQUISITION_EPISODE_NEW = "new"
 ACQUISITION_EPISODE_LEECH_REINTRO = "leech_reintro"
 _ACQUISITION_EPISODE_KINDS = {
@@ -167,17 +175,9 @@ _ACQUISITION_EPISODE_KINDS = {
     ACQUISITION_EPISODE_LEECH_REINTRO,
 }
 
-# Recovery-mode intro budget. These gates only bind when the acquisition
-# pipeline is overloaded; normal low-debt days keep the hard 30/day ceiling.
-#
-# The earned FULL budget is the lever for fast vocabulary growth: a learner who
-# does 100+ sentence reviews/day at >=85% word accuracy has demonstrated they can
-# absorb new words, so they earn the full daily cap. The 2026-06-03 throttle
-# simulation (research/analysis-2026-06-03-throttle-simulation.md) showed raising
-# FULL 8->30 gives a high-accuracy learner +53% known growth at ~3pt comprehension
-# cost, while low-accuracy learners (kept at the modest MID budget by the accuracy
-# floors) see no growth benefit and only backlog — so the raise lives in FULL, NOT
-# in the trigger or the accuracy floors, which are the safety gate.
+# Recovery-mode intro budget. The original accuracy-gated 0/8/30 ladder remains
+# available when the experiment is disabled. The low-energy trial changes only
+# the earned amounts to 0/1/2; triggers and evidence rules stay unchanged.
 RECOVERY_BOX1_UNREVIEWED_LIMIT = 5
 RECOVERY_BOX2_DUE_LIMIT = 30
 RECOVERY_FSRS_MAIN_DUE_LIMIT = 750
@@ -185,8 +185,8 @@ RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO = 40
 RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET = 100
 RECOVERY_LOW_ACCURACY_FLOOR = 0.80
 RECOVERY_GOOD_ACCURACY_FLOOR = 0.85
-RECOVERY_MID_INTRO_BUDGET = 8
-RECOVERY_FULL_INTRO_BUDGET = DAILY_INTRO_CAP  # 30 — full cap, earned by accuracy+volume
+RECOVERY_MID_INTRO_BUDGET = 1 if low_energy_maintenance_enabled() else 8
+RECOVERY_FULL_INTRO_BUDGET = DAILY_INTRO_CAP
 _FSRS_DUE_CACHE_TTL = timedelta(seconds=5)
 _FSRS_DUE_CACHE_KEY = "alif_main_fsrs_due_count"
 

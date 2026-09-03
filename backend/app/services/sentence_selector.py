@@ -21,6 +21,7 @@ from app.services.fsrs_service import parse_json_column
 from app.services.transliteration import transliterate_arabic, transliterate_forms
 
 from app.models import (
+    ConfusionCapture,
     FrequencyCoreEntry,
     GrammarFeature,
     LearnerSettings,
@@ -64,6 +65,15 @@ from app.services.form_recovery_service import (
     form_family,
     open_form_recovery_episodes,
 )
+from app.services.learning_policy import (
+    CONFUSION_CONTEXT_MAX_SLOTS_PER_SESSION,
+    CONFUSION_CONTEXT_WINDOW_DAYS,
+    MAX_DUE_WORDS_PER_SENTENCE_CARD,
+    TRIVIAL_COLLATERAL_RETRIEVABILITY,
+    active_daily_intro_cap,
+    active_learning_policy_version,
+    low_energy_maintenance_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +87,7 @@ BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 FORM_RECOVERY_MAX_SLOTS_PER_SESSION = 1
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
-DAILY_AUTO_INTRO_TARGET = 30  # aggressive 2026-05-04 trial target
+DAILY_AUTO_INTRO_TARGET = active_daily_intro_cap()
 HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200  # allow daily intros while retention is strong
 MID_ACCURACY_INTRO_BACKLOG_CAP = 120  # keep daily intros flowing at acceptable accuracy
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
@@ -293,6 +303,11 @@ class SentenceCandidate:
     sentence: object
     words_meta: list[WordMeta] = field(default_factory=list)
     due_words_covered: set[int] = field(default_factory=set)
+    # Every currently actionable obligation that appears on the card, including
+    # due words outside the selector's active cohort/lane.  This is deliberately
+    # broader than ``due_words_covered``: the review endpoint will still schedule
+    # credit for those words, so they contribute to the learner's real workload.
+    actionable_due_words_present: set[int] = field(default_factory=set)
     score: float = 0.0
     score_components: dict = field(default_factory=dict)
     selection_reason: str = ""
@@ -947,6 +962,190 @@ def _overdue_escalation(due_word_ids: set[int], overdue_days_map: dict[int, floa
     return min(escalation, OVERDUE_ESCALATION_MAX)
 
 
+def _history_lapse_risk_scores(
+    db: Session,
+    due_lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+    stability_map: dict[int, float],
+    overdue_days_map: dict[int, float],
+) -> dict[int, float]:
+    """Rank due obligations using evidence available before this session.
+
+    This is intentionally an interpretable risk index, not a claim that the
+    July full-history model's coefficients remain calibrated forever. It uses
+    the same signals that made full history outperform recency alone: recent
+    and lifetime failures, practice distributed across days, state, and
+    overdue pressure relative to stability.
+    """
+    if not due_lemma_ids:
+        return {}
+    rows = (
+        db.query(
+            ReviewLog.lemma_id,
+            ReviewLog.rating,
+            ReviewLog.reviewed_at,
+            ReviewLog.fsrs_log_json,
+        )
+        .filter(ReviewLog.lemma_id.in_(due_lemma_ids))
+        .order_by(ReviewLog.lemma_id, ReviewLog.reviewed_at, ReviewLog.id)
+        .all()
+    )
+    histories: dict[int, list[tuple[int, datetime]]] = {}
+    for lemma_id, rating, reviewed_at, metadata in rows:
+        payload = parse_json_column(metadata)
+        if isinstance(payload, dict) and payload.get("form_recovery_protected"):
+            continue
+        if reviewed_at is None:
+            continue
+        if reviewed_at.tzinfo is None:
+            reviewed_at = reviewed_at.replace(tzinfo=timezone.utc)
+        histories.setdefault(lemma_id, []).append((int(rating), reviewed_at))
+
+    scores: dict[int, float] = {}
+    for lemma_id in due_lemma_ids:
+        knowledge = knowledge_by_id.get(lemma_id)
+        history = histories.get(lemma_id, [])
+        recent = history[-8:]
+        recent_failure_rate = (
+            sum(1 for rating, _ in recent if rating <= 2) / len(recent)
+            if recent
+            else 0.5
+        )
+        lifetime_seen = max(0, int((knowledge.times_seen if knowledge else 0) or 0))
+        lifetime_correct = max(
+            0,
+            min(
+                lifetime_seen,
+                int((knowledge.times_correct if knowledge else 0) or 0),
+            ),
+        )
+        lifetime_failure_rate = (
+            (lifetime_seen - lifetime_correct + 1) / (lifetime_seen + 4)
+            if lifetime_seen
+            else 0.5
+        )
+        distinct_days = len({reviewed_at.date() for _, reviewed_at in history})
+        evidence_target = min(8, len(history))
+        distribution_deficit = (
+            1.0 - min(1.0, distinct_days / evidence_target)
+            if evidence_target
+            else 0.5
+        )
+        stability = max(0.25, float(stability_map.get(lemma_id, 0.25)))
+        overdue_pressure = min(
+            1.0,
+            max(0.0, float(overdue_days_map.get(lemma_id, 0.0))) / stability,
+        )
+        risk = (
+            0.45 * recent_failure_rate
+            + 0.25 * lifetime_failure_rate
+            + 0.20 * overdue_pressure
+            + 0.10 * distribution_deficit
+        )
+        state = knowledge.knowledge_state if knowledge else None
+        if state == "lapsed":
+            risk = max(risk, 0.95)
+        elif state == "acquiring":
+            risk = max(risk, 0.90)
+        elif state == "learning":
+            risk = max(risk, 0.60)
+        scores[lemma_id] = round(min(1.0, max(0.0, risk)), 4)
+    return scores
+
+
+def _history_risk_multiplier(
+    due_word_ids: set[int],
+    risk_scores: dict[int, float],
+) -> float:
+    if not due_word_ids or not risk_scores:
+        return 1.0
+    return 1.0 + 1.25 * max(risk_scores.get(lid, 0.0) for lid in due_word_ids)
+
+
+def _due_priority_sort_key(
+    lemma_id: int,
+    frequency_rank_map: dict[int, int],
+    overdue_days_map: dict[int, float],
+    risk_scores: dict[int, float],
+) -> tuple:
+    if not low_energy_maintenance_enabled():
+        return frequency_priority_sort_key(
+            lemma_id,
+            frequency_rank_map,
+            overdue_days_map,
+        )
+    frequency_rank = frequency_rank_map.get(lemma_id, 1_000_000_000)
+    return (
+        -risk_scores.get(lemma_id, 0.0),
+        -overdue_days_map.get(lemma_id, 0.0),
+        frequency_rank,
+        lemma_id,
+    )
+
+
+def _within_due_density_cap(due_word_ids: set[int]) -> bool:
+    return (
+        not low_energy_maintenance_enabled()
+        or len(due_word_ids) <= MAX_DUE_WORDS_PER_SENTENCE_CARD
+    )
+
+
+def _recent_named_confusion_pairs(
+    db: Session,
+    due_lemma_ids: set[int],
+    canonical_by_id: dict[int, int],
+    now: datetime,
+) -> list[dict]:
+    """Return the newest actionable named confusion for each due canonical."""
+    if not due_lemma_ids:
+        return []
+    cutoff = (now - timedelta(days=CONFUSION_CONTEXT_WINDOW_DAYS)).replace(
+        tzinfo=None
+    )
+    rows = (
+        db.query(ConfusionCapture)
+        .filter(ConfusionCapture.captured_at >= cutoff)
+        .order_by(ConfusionCapture.captured_at.desc(), ConfusionCapture.id.desc())
+        .all()
+    )
+    pairs: list[dict] = []
+    seen_targets: set[int] = set()
+    for row in rows:
+        target_id = resolve_canonical_via_map(
+            row.failed_lemma_id,
+            canonical_by_id,
+        )
+        confusor_raw = row.resolved_lemma_id or row.confused_with_lemma_id
+        if target_id not in due_lemma_ids or not confusor_raw:
+            continue
+        confusor_id = resolve_canonical_via_map(confusor_raw, canonical_by_id)
+        if confusor_id == target_id or target_id in seen_targets:
+            continue
+        captured_at = row.captured_at
+        if captured_at.tzinfo is None:
+            captured_at = captured_at.replace(tzinfo=timezone.utc)
+        seen_targets.add(target_id)
+        pairs.append({
+            "capture_id": row.id,
+            "target_lemma_id": target_id,
+            "confusor_lemma_id": confusor_id,
+            "trigger_sentence_id": row.sentence_id,
+            "captured_at": captured_at,
+        })
+    return pairs
+
+
+def _candidate_effective_lemma_ids(
+    candidate: SentenceCandidate,
+    canonical_by_id: dict[int, int],
+) -> set[int]:
+    return {
+        resolve_canonical_via_map(word.lemma_id, canonical_by_id)
+        for word in candidate.words_meta
+        if word.lemma_id is not None
+    }
+
+
 def _relax_due_dense_penalty(value: float, due_overlap_count: int) -> float:
     """Relax freshness/diversity penalties for genuinely due-dense sentences."""
     if due_overlap_count >= 2:
@@ -1475,6 +1674,11 @@ def build_session(
                 due_lemma_ids.add(k.lemma_id)
                 overdue_days_map[k.lemma_id] = (now - due_dt).total_seconds() / 86400
 
+    # Preserve the full actionable set before focus-cohort and frequency-lane
+    # filtering.  A word outside today's selected lane is still reviewed if it
+    # appears on a sentence card, and therefore must count toward the density cap.
+    all_actionable_due_lemma_ids = set(due_lemma_ids)
+
     # Filter through focus cohort — only review words in the active cohort
     from app.services.cohort_service import get_focus_cohort
     cohort = get_focus_cohort(db, at=now)
@@ -1545,6 +1749,7 @@ def build_session(
         # Refresh cohort to include newly acquiring words
         cohort = get_focus_cohort(db, at=now)
         due_lemma_ids &= cohort
+        all_actionable_due_lemma_ids.update(auto_introduced_ids)
 
     due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids, due_frequency_ranks = _filter_due_ids_for_frequency_lanes(
         db, due_lemma_ids, knowledge_by_id, overdue_days_map, limit
@@ -1595,6 +1800,7 @@ def build_session(
         preview_ids = [lid for lid, _ in almost_due[:limit * 3]]
         if preview_ids:
             due_lemma_ids = set(preview_ids) & cohort
+            all_actionable_due_lemma_ids.update(due_lemma_ids)
             for lid in due_lemma_ids:
                 if lid not in stability_map:
                     k = knowledge_by_id.get(lid)
@@ -1632,6 +1838,18 @@ def build_session(
             "reintro_cards": reintro_cards,
             "experiment_intro_cards": [],
         }
+
+    history_risk_scores = (
+        _history_lapse_risk_scores(
+            db,
+            due_lemma_ids,
+            knowledge_by_id,
+            stability_map,
+            overdue_days_map,
+        )
+        if low_energy_maintenance_enabled()
+        else {}
+    )
 
     # 2. Fetch candidate sentences containing at least one due word
     sentence_words = (
@@ -1905,6 +2123,7 @@ def build_session(
     for sent in sentences:
         sws = sw_by_sentence.get(sent.id, [])
         due_covered: set[int] = set()
+        actionable_due_present: set[int] = set()
         exact_surface_lemma_ids: set[int] = set()
         form_recovery_matches: dict[int, dict] = {}
         word_metas: list[WordMeta] = []
@@ -2026,6 +2245,16 @@ def build_session(
             elif effective_id and stab is not None:
                 scaffold_stabilities.append(stab)
 
+            if (
+                effective_id
+                and not is_name
+                and (
+                    effective_id in all_actionable_due_lemma_ids
+                    or sw.lemma_id in all_actionable_due_lemma_ids
+                )
+            ):
+                actionable_due_present.add(effective_id)
+
         # Outcome recording requires one unambiguous surface key for the tested
         # lemma. Do not reserve a sentence that also contains a different form
         # of that lemma: it could be selected but could not yield a clean pilot
@@ -2046,6 +2275,13 @@ def build_session(
             and sent.story_id in passage_story_ids
         )
         if not due_covered and not is_passage_context:
+            continue
+
+        # Dense sentence cards create a disproportionate number of multi-word
+        # failures and take much longer to finish. Passage cards are already
+        # excluded from this experiment; ordinary cards have a strict delivery
+        # cap so the learner never receives a 5+-obligation pile-up.
+        if actionable_due_present and not _within_due_density_cap(actionable_due_present):
             continue
 
         quality_multiplier = _quality_multiplier_for_sentence(sent)
@@ -2085,6 +2321,7 @@ def build_session(
                 sentence=sent,
                 words_meta=word_metas,
                 due_words_covered=set(),
+                actionable_due_words_present=actionable_due_present,
                 score=0.0,
             ))
             continue
@@ -2120,6 +2357,10 @@ def build_session(
         lapsed_boost = LAPSED_BOOST if (due_covered & lapsed_lemma_ids) else 1.0
         overdue_boost = _overdue_escalation(due_covered, overdue_days_map)
         frequency_boost = frequency_priority_multiplier(due_covered, due_frequency_ranks)
+        history_risk_boost = _history_risk_multiplier(
+            due_covered,
+            history_risk_scores,
+        )
         score = (
             (len(due_covered) ** 1.5)
             * dmq
@@ -2133,6 +2374,7 @@ def build_session(
             * lapsed_boost
             * overdue_boost
             * frequency_boost
+            * history_risk_boost
         )
 
         candidates.append(SentenceCandidate(
@@ -2140,7 +2382,25 @@ def build_session(
             sentence=sent,
             words_meta=word_metas,
             due_words_covered=due_covered,
+            actionable_due_words_present=actionable_due_present,
             score=score,
+            score_components={
+                "due_coverage": len(due_covered),
+                "actionable_due_words_present": len(actionable_due_present),
+                "history_risk_boost": round(history_risk_boost, 2),
+                "max_history_lapse_risk": round(
+                    max(
+                        (history_risk_scores.get(x, 0.0) for x in due_covered),
+                        default=0.0,
+                    ),
+                    4,
+                ),
+                "due_density_cap": (
+                    MAX_DUE_WORDS_PER_SENTENCE_CARD
+                    if low_energy_maintenance_enabled()
+                    else None
+                ),
+            },
             exact_surface_lemma_ids=exact_surface_lemma_ids,
             form_recovery_matches=form_recovery_matches,
         ))
@@ -2158,8 +2418,11 @@ def build_session(
     ] = []
     recovery_opening_due_ids = set(sorted(
         due_lemma_ids,
-        key=lambda lid: frequency_priority_sort_key(
-            lid, due_frequency_ranks, overdue_days_map
+        key=lambda lid: _due_priority_sort_key(
+            lid,
+            due_frequency_ranks,
+            overdue_days_map,
+            history_risk_scores,
         ),
     )[:min(OLDEST_DUE_FIRST_BLOCK, limit)])
     for candidate in candidates:
@@ -2266,6 +2529,90 @@ def build_session(
             if word.lemma_id and not word.is_due and not word.is_function_word and not word.is_proper_name:
                 session_scaffold_counts[word.lemma_id] = session_scaffold_counts.get(word.lemma_id, 0) + 1
 
+    # A named A/B confusion gets one workload-neutral retrieval opportunity in
+    # a different context that excludes the competing lemma. This first phase
+    # uses existing verified short sentences; it does not manufacture a longer
+    # passage or add a card. The 14-day checkpoint will decide whether richer
+    # two-sentence generation is warranted.
+    confusion_pairs = (
+        _recent_named_confusion_pairs(
+            db,
+            due_lemma_ids,
+            variant_to_canonical,
+            now,
+        )
+        if low_energy_maintenance_enabled() and mode == "reading"
+        else []
+    )
+    confusion_options: list[tuple[datetime, float, int, dict, SentenceCandidate]] = []
+    for pair in confusion_pairs:
+        target_id = pair["target_lemma_id"]
+        confusor_id = pair["confusor_lemma_id"]
+        for candidate in candidates:
+            if (
+                target_id not in candidate.due_words_covered
+                or candidate.sentence_id == pair["trigger_sentence_id"]
+                or _candidate_has_cold_content(
+                    candidate,
+                    canonical_by_id=variant_to_canonical,
+                )
+                or confusor_id in _candidate_effective_lemma_ids(
+                    candidate,
+                    variant_to_canonical,
+                )
+            ):
+                continue
+            confusion_options.append((
+                pair["captured_at"],
+                -candidate.score,
+                candidate.sentence_id,
+                pair,
+                candidate,
+            ))
+    confusion_options.sort(key=lambda row: row[:3])
+    reserved_confusion_slots = 0
+    for _, _, _, pair, candidate in confusion_options:
+        target_id = pair["target_lemma_id"]
+        if (
+            reserved_confusion_slots >= CONFUSION_CONTEXT_MAX_SLOTS_PER_SESSION
+            or len(selected) >= limit
+        ):
+            break
+        if candidate not in candidates or target_id not in remaining_due:
+            continue
+        if _is_near_duplicate_candidate(candidate, selected):
+            continue
+        candidate.primary_override_lemma_id = target_id
+        candidate.selection_reason = "confusion_context_rescue_v1"
+        candidate.selection_order = len(selected) + 1
+        candidate.score_components = dict(candidate.score_components)
+        candidate.score_components.update({
+            "confusion_context_rescue_v1": True,
+            "confusion_capture_id": pair["capture_id"],
+            "confused_lemma_id": target_id,
+            "confusor_lemma_id": pair["confusor_lemma_id"],
+            "confusion_age_days": round(
+                (now - pair["captured_at"]).total_seconds() / 86400,
+                3,
+            ),
+            "different_trigger_sentence": True,
+            "confusor_absent": True,
+        })
+        selected.append(candidate)
+        reserved_confusion_slots += 1
+        candidates.remove(candidate)
+        remaining_due -= candidate.due_words_covered
+        for word in candidate.words_meta:
+            if (
+                word.lemma_id
+                and not word.is_due
+                and not word.is_function_word
+                and not word.is_proper_name
+            ):
+                session_scaffold_counts[word.lemma_id] = (
+                    session_scaffold_counts.get(word.lemma_id, 0) + 1
+                )
+
     if mode == "reading":
         max_passage_cards = PASSAGE_MAX_CARDS_PER_SESSION if limit >= 12 else 1
         passage_seeds = _best_generated_passage_seeds(
@@ -2294,7 +2641,12 @@ def build_session(
 
     priority_due_ids = sorted(
         due_lemma_ids,
-        key=lambda lid: frequency_priority_sort_key(lid, due_frequency_ranks, overdue_days_map),
+        key=lambda lid: _due_priority_sort_key(
+            lid,
+            due_frequency_ranks,
+            overdue_days_map,
+            history_risk_scores,
+        ),
     )
     opening_quota = min(OLDEST_DUE_FIRST_BLOCK, limit)
     if selector_policy in {
@@ -2361,6 +2713,10 @@ def build_session(
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
             frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
+            history_risk_boost = _history_risk_multiplier(
+                overlap,
+                history_risk_scores,
+            )
             cand.score = (
                 (len(overlap) ** 1.5)
                 * dmq
@@ -2375,6 +2731,7 @@ def build_session(
                 * lapsed_boost
                 * overdue_boost
                 * frequency_boost
+                * history_risk_boost
             )
             cand.score_components = {
                 "due_coverage": len(overlap),
@@ -2390,6 +2747,11 @@ def build_session(
                 "lapsed_boost": lapsed_boost,
                 "overdue_boost": round(overdue_boost, 2),
                 "frequency_boost": round(frequency_boost, 2),
+                "history_risk_boost": round(history_risk_boost, 2),
+                "max_history_lapse_risk": round(
+                    max((history_risk_scores.get(x, 0.0) for x in overlap), default=0.0),
+                    4,
+                ),
             }
         options.sort(key=lambda c: c.score, reverse=True)
         for cand in options:
@@ -2491,6 +2853,10 @@ def build_session(
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
             frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
+            history_risk_boost = _history_risk_multiplier(
+                overlap,
+                history_risk_scores,
+            )
             c.score = (
                 (len(overlap) ** 1.5)
                 * dmq
@@ -2505,6 +2871,7 @@ def build_session(
                 * lapsed_boost
                 * overdue_boost
                 * frequency_boost
+                * history_risk_boost
             )
             c.score_components = {
                 "due_coverage": len(overlap),
@@ -2520,6 +2887,11 @@ def build_session(
                 "lapsed_boost": lapsed_boost,
                 "overdue_boost": round(overdue_boost, 2),
                 "frequency_boost": round(frequency_boost, 2),
+                "history_risk_boost": round(history_risk_boost, 2),
+                "max_history_lapse_risk": round(
+                    max((history_risk_scores.get(x, 0.0) for x in overlap), default=0.0),
+                    4,
+                ),
             }
 
         candidates.sort(key=lambda c: c.score, reverse=True)
@@ -2696,6 +3068,23 @@ def build_session(
                     ),
                     lapse_age_days=recovery_evidence.get("lapse_age_days"),
                 )
+            if candidate.selection_reason == "confusion_context_rescue_v1":
+                log_interaction(
+                    event="confusion_context_rescue_selected",
+                    session_id=session_id,
+                    sentence_id=candidate.sentence_id,
+                    capture_id=candidate.score_components.get(
+                        "confusion_capture_id"
+                    ),
+                    lemma_id=candidate.primary_override_lemma_id,
+                    confusor_lemma_id=candidate.score_components.get(
+                        "confusor_lemma_id"
+                    ),
+                    confusion_age_days=candidate.score_components.get(
+                        "confusion_age_days"
+                    ),
+                    due_words_covered=len(candidate.due_words_covered),
+                )
 
     # Note: mapping verification happens in warm_sentence_cache (background),
     # not here. Sentences already pass generation-time verification.
@@ -2837,6 +3226,9 @@ def build_session(
                 "word_reason": _word_reason_for_lid(primary_lid),
                 "components": cand.score_components,
                 "due_lemma_ids": sorted(cand.due_words_covered),
+                "actionable_due_lemma_ids": sorted(
+                    cand.actionable_due_words_present
+                ),
             },
         }
 
@@ -2849,6 +3241,7 @@ def build_session(
         transliteration_parts: list[str] = []
         grammar_features: set[str] = set()
         due_ids: set[int] = set()
+        actionable_due_ids: set[int] = set()
 
         for cand in group:
             sent = sentence_map[cand.sentence_id]
@@ -2871,6 +3264,7 @@ def build_session(
                 transliteration_parts.append(sent.transliteration)
             grammar_features.update(grammar_by_sentence.get(cand.sentence_id, []))
             due_ids |= cand.due_words_covered
+            actionable_due_ids |= cand.actionable_due_words_present
 
         primary_source = next((c for c in group if c.due_words_covered), group[0])
         primary_lid = _primary_lid_for_candidate(primary_source)
@@ -2922,9 +3316,11 @@ def build_session(
                     "passage": True,
                     "sentence_count": len(group),
                     "due_coverage": len(due_ids),
+                    "actionable_due_words_present": len(actionable_due_ids),
                     "due_per_sentence": round(due_per_sentence, 2),
                 },
                 "due_lemma_ids": sorted(due_ids),
+                "actionable_due_lemma_ids": sorted(actionable_due_ids),
             },
         }
 
@@ -3408,12 +3804,33 @@ def _find_pregenerated_sentences_for_words(
                 needed.add(lo.canonical_lemma_id)
     knowledge_map = {k.lemma_id: k for k in all_knowledge} if all_knowledge else {}
 
+    # The target set contains the intended fill obligations.  Add every other
+    # obligation that is actually due now, because collateral words still earn
+    # scheduling credit at the review endpoint and therefore add real work.
+    all_actionable_due_ids = set(target_lemma_ids)
+    for knowledge in all_knowledge or []:
+        if knowledge.knowledge_state == "acquiring":
+            due_at = knowledge.acquisition_next_due
+            if due_at is not None:
+                if due_at.tzinfo is None:
+                    due_at = due_at.replace(tzinfo=timezone.utc)
+                if due_at <= now:
+                    all_actionable_due_ids.add(knowledge.lemma_id)
+        elif (
+            knowledge.knowledge_state in {"known", "learning", "lapsed"}
+            and knowledge.fsrs_card_json
+        ):
+            due_at = _get_due_dt(knowledge)
+            if due_at is not None and due_at <= now:
+                all_actionable_due_ids.add(knowledge.lemma_id)
+
     # Build candidates with comprehensibility gate
     today_start_fb = now.replace(hour=0, minute=0, second=0, microsecond=0)
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
         sws = sw_by_sentence.get(sent.id, [])
         due_covered: set[int] = set()
+        actionable_due_present: set[int] = set()
         word_metas: list[WordMeta] = []
         scaffold_stabilities: list[float] = []
 
@@ -3474,7 +3891,20 @@ def _find_pregenerated_sentences_for_words(
             elif sw.lemma_id and stab is not None:
                 scaffold_stabilities.append(stab)
 
+            effective_id = _canonical_id_for_word(sw.lemma_id, lemma_map)
+            if (
+                effective_id
+                and not is_name
+                and (
+                    effective_id in all_actionable_due_ids
+                    or sw.lemma_id in all_actionable_due_ids
+                )
+            ):
+                actionable_due_present.add(effective_id)
+
         if not due_covered:
+            continue
+        if not _within_due_density_cap(actionable_due_present):
             continue
 
         # Comprehensibility gate (same logic as main gate; fresh-today acquiring counts as unknown).
@@ -3505,7 +3935,12 @@ def _find_pregenerated_sentences_for_words(
             sentence=sent,
             words_meta=word_metas,
             due_words_covered=due_covered,
+            actionable_due_words_present=actionable_due_present,
             score=score,
+            score_components={
+                "due_coverage": len(due_covered),
+                "actionable_due_words_present": len(actionable_due_present),
+            },
         ))
 
     # Greedy set cover
@@ -3580,8 +4015,11 @@ def _find_pregenerated_sentences_for_words(
                 "order": len(items) + 1,
                 "score": round(cand.score, 2),
                 "word_reason": "Auto-introduced (pre-generated)",
-                "components": {},
+                "components": cand.score_components,
                 "due_lemma_ids": sorted(cand.due_words_covered),
+                "actionable_due_lemma_ids": sorted(
+                    cand.actionable_due_words_present
+                ),
             },
         })
 
@@ -4112,6 +4550,19 @@ def _with_fallbacks(
                 maintenance_due_ids.add(effective_id)
     acquisition_repeat_cards = reason_counts.get("acquisition_repeat", 0)
     selection_diagnostics = {
+        "learning_policy_version": active_learning_policy_version(),
+        "low_energy_maintenance_enabled": low_energy_maintenance_enabled(),
+        "daily_intro_cap": DAILY_AUTO_INTRO_TARGET,
+        "max_due_words_per_sentence_card": (
+            MAX_DUE_WORDS_PER_SENTENCE_CARD
+            if low_energy_maintenance_enabled()
+            else None
+        ),
+        "trivial_collateral_retrievability": (
+            TRIVIAL_COLLATERAL_RETRIEVABILITY
+            if low_energy_maintenance_enabled()
+            else None
+        ),
         "selector_policy": selector_policy,
         "base_card_count": len(items) - acquisition_repeat_cards,
         "acquisition_repeat_card_count": acquisition_repeat_cards,
@@ -4124,6 +4575,35 @@ def _with_fallbacks(
         "established_lapse_recovery_cards": reason_counts.get(
             "established_lapse_recovery_v1",
             0,
+        ),
+        "confusion_context_rescue_cards": reason_counts.get(
+            "confusion_context_rescue_v1",
+            0,
+        ),
+        "max_due_words_on_card": max(
+            (
+                len(
+                    (item.get("selection_info") or {}).get(
+                        "actionable_due_lemma_ids"
+                    )
+                    or (item.get("selection_info") or {}).get("due_lemma_ids")
+                    or []
+                )
+                for item in items
+            ),
+            default=0,
+        ),
+        "cards_over_due_density_cap": sum(
+            1
+            for item in items
+            if len(
+                (item.get("selection_info") or {}).get(
+                    "actionable_due_lemma_ids"
+                )
+                or (item.get("selection_info") or {}).get("due_lemma_ids")
+                or []
+            )
+            > MAX_DUE_WORDS_PER_SENTENCE_CARD
         ),
         "selection_reason_counts": dict(sorted(reason_counts.items())),
     }

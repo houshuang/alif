@@ -65,6 +65,26 @@ def create_new_card() -> dict:
     return card.to_dict()
 
 
+def card_retrievability(
+    card_data: dict | str | None,
+    at: datetime | None = None,
+) -> float | None:
+    """Return current FSRS retrievability for a persisted card, if valid."""
+    parsed = parse_json_column(card_data)
+    if not isinstance(parsed, dict) or not parsed:
+        return None
+    try:
+        return float(
+            scheduler.get_card_retrievability(
+                Card.from_dict(parsed),
+                at or datetime.now(timezone.utc),
+            )
+        )
+    except (KeyError, TypeError, ValueError):
+        logger.warning("Invalid FSRS card while computing retrievability")
+        return None
+
+
 def reactivate_if_suspended(db: Session, lemma_id: int, source: str) -> bool:
     """Reactivate a suspended word with a fresh FSRS card. Returns True if reactivated."""
     from app.services.interaction_logger import log_interaction
