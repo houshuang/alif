@@ -57,9 +57,10 @@ some cards contain many uncertainties and many errors are confusions among two
 or three plausible candidates. The system therefore needs to validate old words
 systematically without turning daily practice into dense multi-obligation work.
 
-**Baseline diagnosis.** On the latest snapshot, strict main FSRS debt was 749
-(890 raw), actionable Box 1 was 41, and total acquiring was 56. Recent scheduled
-clean rate was 89.0%; old-word clean rates were 85.8% after ≥7 days, 81.5% after
+**Baseline diagnosis.** On the immutable 2026-09-03T09:31:44Z production
+snapshot, strict main FSRS debt was 744 (827 raw actionable), actionable Box 1
+was 41, and total acquiring was 56. Recent scheduled clean rate was 89.0%;
+old-word clean rates were 85.8% after ≥7 days, 81.5% after
 ≥14 days, and 73.6% after ≥30 days. Knowledge is mostly holding, but dense 5+
 due-word cards underperform and 63.5% of FSRS judgments were early collateral.
 That latter flow overvalidates strong words incidentally while leaving the old

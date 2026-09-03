@@ -4,6 +4,8 @@
 
 **Policy:** `low_energy_maintenance_v1`
 
+**Measurement start:** 2026-09-03T10:00:00Z
+
 **Planned duration:** 60 days after production activation
 
 **Rollback:** set `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` and restart the
@@ -83,12 +85,12 @@ knowledge holds. It cannot identify the isolated causal effect of each component
 
 ## Frozen pre-experiment baseline
 
-The latest analysis available on 2026-09-03 found:
+The immutable production snapshot captured at 2026-09-03T09:31:44Z found:
 
 | Measure | Baseline |
 |---|---:|
-| Strict main-lane FSRS due | 749 |
-| Raw FSRS due | 890 |
+| Strict main-lane FSRS due | 744 |
+| Raw actionable FSRS due | 827 |
 | Actionable Box 1 | 41 |
 | Total acquiring | 56 |
 | Recent scheduled clean rate | 89.0% |
@@ -96,9 +98,12 @@ The latest analysis available on 2026-09-03 found:
 | Old-word clean after ≥14 days | 81.5% |
 | Old-word clean after ≥30 days | 73.6% |
 
-The retention estimates use scheduled reading evidence. “Old” means first
-learning at least 90 days before experiment start. The exact baseline values are
-also frozen in `analyze_low_energy_maintenance_experiment.py`.
+The snapshot report is committed at
+`research/baselines/low-energy-maintenance-2026-09-03/pre-activation.json`; its
+before/after SHA-256 is identical. The retention estimates use scheduled reading
+evidence. “Old” means first learning at least 90 days before experiment start.
+The exact baseline values are also frozen in
+`analyze_low_energy_maintenance_experiment.py`.
 
 ## Checkpoint schedule and decisions
 
@@ -110,7 +115,7 @@ cd backend
 .venv/bin/python scripts/analyze_low_energy_maintenance_experiment.py \
   --db /path/to/alif-checkpoint.db \
   --interaction-log-dir /path/to/logs \
-  --start 2026-09-03T00:00:00Z \
+  --start 2026-09-03T10:00:00Z \
   --output ../research/baselines/low-energy-maintenance-checkpoint.json
 ```
 
@@ -134,7 +139,7 @@ Keep the package if all of the following are broadly true:
 - the learner normally completes about 30 cards on active days without greater
   perceived effort;
 - no automatic card breaches the four-obligation ceiling;
-- strict main FSRS debt trends down from 749 rather than stabilizing in the
+- strict main FSRS debt trends down from 744 rather than stabilizing in the
   750–900 range, and actionable Box 1 moves toward fewer than 10;
 - old-word clean rate after ≥7 days remains at least 80% and preferably near the
   85.8% baseline;

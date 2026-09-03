@@ -110,7 +110,7 @@ def test_evaluation_triggers_hard_and_directional_signals():
         "old_14d_retention_low",
         "daily_volume_below_maintenance_target",
     } <= triggered
-    assert BASELINE["strict_main_fsrs_due"] == 749
+    assert BASELINE["strict_main_fsrs_due"] == 744
 
 
 def test_nondue_scheduled_scaffolds_do_not_fake_density_breach():
