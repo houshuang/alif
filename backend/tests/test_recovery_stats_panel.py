@@ -75,14 +75,14 @@ class TestRecoveryAwareDailyGoal:
 
     def test_full_target_not_flagged(self, db_session):
         goal = _get_daily_goal(db_session, new_word_target=DAILY_INTRO_CAP)
-        assert goal.new_words_target == 30
+        assert goal.new_words_target == DAILY_INTRO_CAP
         assert goal.intake_gated is False
 
     def test_default_target_comes_from_recovery_budget(self, db_session):
-        # Quiet DB: budget is the full cap, so behavior matches the old static
-        # target and nothing is flagged as gated.
+        # Quiet DB: budget is the active policy's full cap, so nothing is
+        # flagged as gated.
         goal = _get_daily_goal(db_session)
-        assert goal.new_words_target == 30
+        assert goal.new_words_target == DAILY_INTRO_CAP
         assert goal.intake_gated is False
 
 
