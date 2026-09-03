@@ -32,10 +32,11 @@ from app.services.acquisition_service import (
     true_new_acquisition_episode_filter,
     recovery_status,
 )
+from app.services.learning_policy import active_daily_intro_cap
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
-DAILY_NEW_WORD_TARGET = 30
+DAILY_NEW_WORD_TARGET = active_daily_intro_cap()
 
 PRIMARY_COLD_RECALL_BANDS = (
     ("<1d", 0.0, 1.0),
@@ -249,9 +250,9 @@ def _get_daily_goal(db: Session, new_word_target: int | None = None) -> DailyGoa
     become due, which makes the countdown conservative instead of pretending
     the morning queue was the whole day.
 
-    The new-word target is the *effective* intro budget from the recovery gate
-    (0/8/30), not the static cap: during post-hiatus recovery, intake is
-    intentionally gated to ~zero, and a fixed 30/day target would pin the
+    The new-word target is the *effective* intro budget from the recovery gate,
+    not the active policy cap: during post-hiatus recovery, intake is
+    intentionally gated to ~zero, and showing the full policy cap would pin the
     headline at 0% on days the learner is doing exactly the right thing.
     It can also grow during the day as reading volume earns budget back.
     """

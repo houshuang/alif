@@ -498,6 +498,13 @@ export interface SentenceReviewSession {
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
   verse_cards?: VerseCard[];
+  selection_diagnostics?: {
+    learning_policy_version?: string;
+    low_energy_maintenance_enabled?: boolean;
+    daily_intro_cap?: number;
+    max_due_words_per_sentence_card?: number | null;
+    [key: string]: unknown;
+  };
 }
 
 export interface GrammarLesson {

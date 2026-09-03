@@ -203,14 +203,13 @@ def test_daily_intro_count_uses_episode_kind_and_legacy_fallback(db_session):
 
 
 def test_recovery_trigger_throttles_in_cold_db(db_session):
-    # With no sentence practice today, promotions stop once unseen box-1 debt
-    # reaches the recovery limit — well before the daily cap.
+    # The low-energy cap now binds before the legacy five-word recovery trigger.
     promoted = 0
     for i in range(DAILY_INTRO_CAP):
         ulk = start_acquisition(db_session, _lemma(db_session, f"كلمة{i}").lemma_id)
         if ulk.knowledge_state == "acquiring":
             promoted += 1
-    assert promoted < DAILY_INTRO_CAP
+    assert promoted == DAILY_INTRO_CAP
 
 
 def _add_primary_reading_reviews(db, ratings):

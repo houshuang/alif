@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-07-28
+> **Last updated**: 2026-09-03
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -169,7 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro cap and return recovery (2026-07-09)**: All paths through `start_acquisition()` share `DAILY_INTRO_CAP = 30`. `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Historical NULL-kind rows use the conservative legacy `source='leech_reintro'` fallback—meaningful-source historical restarts remain ambiguous until a separately approved repair. On normal low-debt days the budget is 30. Recovery mode activates at 5 actionable/protected Box-1 words, 30 due Box-2 words, **or 750 strict main-lane FSRS words due**. The FSRS count excludes function/inert words and variants shadowed by a known/learning canonical; a five-second request-session cache avoids reparsing the queue for a burst of introductions. Box-1 debt includes never-reviewed words plus previously-seen words once due, so recycled leeches cannot disappear after their first attempt; inert categories and Box-1 generation backoff remain excluded. The earned budget is based on one primary reading `ReviewLog` per answered card, not collateral word rows or passage child `SentenceReviewLog` rows: 0 below 40 cards or below 80% primary accuracy, 8 after 40+ cards at acceptable accuracy, and the full 30 after 100+ cards at ≥85%. This preserves the 2026-06-03 high-accuracy growth lever without letting easy collateral manufacture permission for new intake. Evidence: `research/analysis-2026-07-09-return-recovery-next-phase.md`.
+- **Daily intro cap and low-energy recovery (2026-09-03)**: All paths through `start_acquisition()` share the active policy cap. `low_energy_maintenance_v1` sets it to **2 true-new words/day** (legacy rollback: 30). `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Recovery still activates at 5 actionable/protected Box-1 words, 30 due Box-2 words, **or 750 strict main-lane FSRS words due**. The earned budget uses one primary reading `ReviewLog` per answered card: 0 below 40 cards or below 80% primary accuracy, 1 after 40+ cards at acceptable accuracy, and 2 after 100+ cards at ≥85%. Collateral rows and passage child logs cannot manufacture permission. The rollback values remain 0/8/30. Full protocol and stop rules: `research/low-energy-maintenance-experiment-2026-09-03.md`.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -318,18 +318,26 @@ now should create `encountered` ULK.
 via `start_acquisition(source="collateral")`, then gets its first acquisition review
 **Code**: `sentence_review_service.py` → `acquisition_service.py:start_acquisition()`
 
-**Foundational principle**: Every word in every sentence earns review credit, regardless
-of prior knowledge state. This applies to:
+**Foundational principle**: Every word in every sentence remains visible to the
+learning engine and produces encounter/token evidence. Scheduling credit applies to:
 - **Words with no ULK**: auto-introduced + first review submitted
 - **Encountered words**: auto-introduced + first review submitted (with the
   distributed-day policy, first correct → Box 2 and next-day confirmation)
 - **Acquiring words**: routed through `submit_acquisition_review()` (advances boxes, graduation tiers fire)
-- **Learning/known words**: routed through FSRS `submit_review()`
+- **Learning/lapsed words and due/failed/primary known words**: routed through FSRS `submit_review()`
 
-There are **no artificial throttles** on collateral introductions. If a sentence has 5
-encountered words and the user understands it, all 5 get introduced and graduated in one
-review. Sentence difficulty should be adjusted at generation time, not by capping the
-review engine.
+`low_energy_maintenance_v1` adds one narrow evidence classification after
+canonical resolution. A clean reading-mode collateral appearance of a `known`,
+not-due FSRS word at current retrievability ≥0.97 is stored as exposure-only:
+`total_encounters`, variant stats, and protocol-v3 token evidence still advance,
+but FSRS, `times_seen`, and `times_correct` do not. Primary words, anything due,
+ratings 1/2, acquiring/learning/lapsed words, listening, and lower/unknown R retain
+normal credit. This prevents incidental easy context from indefinitely replacing
+a real scheduled validation.
+
+The true-new chokepoint remains the only throttle on encountered collateral:
+2/day during the experiment, 30/day under the legacy rollback. A dense card is
+prevented at selection time instead of silently dropping evidence at review time.
 
 ### 3.9 Quran Verse Review (Lemma Promotion)
 
@@ -1121,8 +1129,38 @@ filtering.
 This lane does not replace retry-v2. Retry-v2 provides the rapid few-minute
 retest of the failed sentence; the selector lane improves later delivery of
 older FSRS lapses without adding cards. Primary and collateral labels have no
-effect on validity or eligibility—every word in the selected sentence earns
-the same review credit.
+effect on this lane's validity or eligibility. The later low-energy overlay
+classifies only clean, far-early mature collateral as exposure rather than a
+scheduled review.
+
+#### Low-Energy Maintenance Overlay (2026-09-03)
+
+`low_energy_maintenance_v1` keeps the visible 30-card habit but changes the
+allocation and evidence mix:
+
+- ordinary automatic cards are rejected when **more than four actionable due
+  canonicals** appear anywhere in the sentence. The actionable set is captured
+  before focus-cohort/frequency-lane filtering, so off-lane due collateral cannot
+  escape the ceiling;
+- the independent 2026-08-28 switch continues to exclude automatic
+  `source="passage"` maintenance cards at every main, rescue, and fill query.
+  It is held constant during v1, not controlled by the experiment flag;
+- eligible due candidates receive a transparent history-risk multiplier derived
+  from recent failure, lifetime failure, lapsed/acquiring state, overdue pressure
+  relative to stability, and distributed-success deficit. The opening sort uses
+  this risk before overdue age/frequency while the experiment is active;
+- at most one recent named confusion may reserve an already-existing eligible
+  reading sentence. It targets the failed due lemma in a different sentence,
+  omits the named confusor, contains no cold word, and adds no card;
+- `selection_diagnostics` exposes policy version, active flag, intro and density
+  ceilings, maximum actionable due count, breaches, and selection-reason counts
+  for checkpoint analysis.
+
+The single experiment switch is `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0`;
+absent or true activates v1. It does not change the independent passage switch.
+See
+`research/low-energy-maintenance-experiment-2026-09-03.md` for baseline,
+checkpoints, and danger signals.
 
 #### Whole-Sentence Near-Duplicate Veto (2026-04-27)
 
@@ -1251,13 +1289,14 @@ User submits: {sentence_id, comprehension_signal, missed_lemma_ids, confused_lem
 └─────────────────────────────────────────────┘
 ```
 
-### All Words Get Equal Credit
+### All Words Produce Evidence; Fragile and Due Words Get Full Credit
 
-This is a deliberate design choice, backed by research: **every non-function-word in
-a reviewed sentence gets a full review**, regardless of why the sentence was selected.
-The `credit_type` field (`"primary"` or `"collateral"`) is metadata only — it tracks
-which word caused the sentence to be selected, but both receive identical FSRS
-treatment.
+Every non-function word in a reviewed sentence remains observable and records an
+encounter plus exact-token evidence. Ordinarily it also gets a full review. During
+`low_energy_maintenance_v1`, `credit_type` participates in one deliberately narrow
+exception: a clean, not-due, `known` reading collateral at R≥0.97 is exposure-only.
+It does not move FSRS or canonical accuracy counters. All primary, due, fragile,
+failed, acquisition, and listening evidence retains full scheduling credit.
 
 ### Exact-Surface Retrieval Pilot (2026-07-09)
 
@@ -1991,14 +2030,14 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MIN_ACQUISITION_EXPOSURES` | 2 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
-| `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions (used by `_auto_introduce_words` accuracy throttling) |
-| `DAILY_INTRO_CAP` | 30 | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
+| `DAILY_AUTO_INTRO_TARGET` | 2 active / 30 rollback | Daily cap for automatic new-word introductions; resolved from `learning_policy.py` |
+| `DAILY_INTRO_CAP` | 2 active / 30 rollback | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
 | `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: protected never-reviewed plus actionable due previously-seen Box-1 words at or above this count switch intros to earned-budget mode |
 | `RECOVERY_BOX2_DUE_LIMIT` | 30 | Overload trigger: due Box-2 acquiring words at or above this count switch intros to earned-budget mode |
 | `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day primary reading cards |
 | `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day primary reading cards |
-| `RECOVERY_MID_INTRO_BUDGET` | 8 | Recovery-mode budget after the 40-primary-card threshold with acceptable accuracy (modest by design—protects sub-85% learners) |
-| `RECOVERY_FULL_INTRO_BUDGET` | 30 | Recovery-mode budget after 100+ primary reading cards and ≥85% primary accuracy (= `DAILY_INTRO_CAP`; raised 8→30 on 2026-06-03, accuracy-gated) |
+| `RECOVERY_MID_INTRO_BUDGET` | 1 active / 8 rollback | Recovery-mode budget after the 40-primary-card threshold with acceptable accuracy |
+| `RECOVERY_FULL_INTRO_BUDGET` | 2 active / 30 rollback | Recovery-mode budget after 100+ primary reading cards and ≥85% primary accuracy (= active `DAILY_INTRO_CAP`) |
 | `RECOVERY_LOW_ACCURACY_FLOOR` / `RECOVERY_GOOD_ACCURACY_FLOOR` | 0.80 / 0.85 | Primary-reading accuracy gates. <80% pauses intros; 80–85% keeps the mid budget; ≥85% can unlock the full budget after enough card practice |
 | `INTRO_NEW_CARDS_PER_SESSION` | 6 | Per-session cap on first-time intro cards in `_build_intro_cards` and on cold-promoter promotions in `_ensure_session_words_have_intro_state` (2026-05-15) |
 | `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 200 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
@@ -2026,6 +2065,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | FSRS `desired_retention` | 0.95 | Current interval target. July segmented calibration found FSRS recall below prediction overall, especially for legacy/Relearning cards; do not change until clean rolling-origin replay |
 | Assisted-lapse `desired_retention` | 0.90 | Rating-2-only target with no relearning steps; standard scheduler parameters remain unchanged |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
+| `MAX_DUE_WORDS_PER_SENTENCE_CARD` | 4 | Active low-energy ceiling across all actionable due canonicals present, including off-cohort/off-lane collateral |
+| `TRIVIAL_COLLATERAL_RETRIEVABILITY` | 0.97 | Minimum current R for a clean, known, not-due reading collateral to become exposure-only |
+| `CONFUSION_CONTEXT_WINDOW_DAYS` / `MAX_CONFUSION_CONTEXT_CARDS_PER_SESSION` | 14 / 1 | Window and workload-neutral reservation cap for named-confusion context rescue |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
@@ -2043,6 +2085,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 Bundled multi-sentence "passage" cards for FSRS maintenance words. Only sentence rows authored as one cohesive `source="passage"` story (sharing a `story_id`) are bundled — standalone generated/book/corpus rows are never opportunistically grouped. Acquisition cards always stay single-sentence. Replaced the old `PASSAGE_MIN_DUE_PER_SENTENCE = 1.25` density check with explicit min/preferred due-word floors (commit `ddf3bc44`, "Require denser maintenance passage reviews", 2026-05-18).
 
 **Temporarily suspended from sentence review (2026-08-28).** `MAINTENANCE_PASSAGE_REVIEW_ENABLED = False` excludes `source="passage"` rows from both ordinary selection and pre-generated fill/rescue selection. The matching frontend cache gate filters passage cards from sessions downloaded before the suspension, including offline sessions, without invalidating their ordinary sentence cards. Stored stories and all generation, grouping, rendering, credit, and analysis code remain intact for a later re-enable.
+This independent suspension is held constant during `low_energy_maintenance_v1`;
+rolling back that experiment does not re-enable passages.
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
@@ -2494,6 +2538,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 | Comprehensibility gate | `sentence_selector.py` (×2: build_session + fill) | knowledge_state, stability |
 | Book/corpus acquiring gate | `sentence_selector.py` `_book_sentence_blocked_for_acquiring` (×2: build_session + fill) | source, knowledge_state (due words) |
 | Unknown scaffold cap | `sentence_selector.py` | knowledge_state |
+| Actionable due-density cap | `sentence_selector.py` (main + fill) | full pre-cohort due set, canonical identity |
 | Pipeline backlog gate | `sentence_selector.py` | acquiring count |
 | Focus cohort | `cohort_service.py` | knowledge_state |
 | Variant resolution | `sentence_selector.py` | canonical_lemma_id |
@@ -2501,6 +2546,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 | Intro card filter | `sentence_selector.py` | times_seen, experiment_group |
 | Listening readiness | `sentence_selector.py` | listening_ready set |
 | Function word exclusion | `sentence_selector.py` | lemma_ar_bare + function_word_override |
+| Mature-collateral exposure classifier | `sentence_review_service.py` | canonical state/card, primary/collateral, mode, rating, due, retrievability |
 
 **Checklist for any lifecycle/state change**:
 1. List all gates that reference the affected state field

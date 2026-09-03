@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from app.models import (
+    ConfusionCapture,
     Lemma,
     ReviewLog,
     Sentence,
@@ -234,6 +235,11 @@ class TestFilledOpeningPolicy:
             == 0
         )
         assert result["selection_diagnostics"] == {
+            "learning_policy_version": "low_energy_maintenance_v1",
+            "low_energy_maintenance_enabled": True,
+            "daily_intro_cap": 2,
+            "max_due_words_per_sentence_card": 4,
+            "trivial_collateral_retrievability": 0.97,
             "base_card_count": 4,
             "acquisition_repeat_card_count": 0,
             "returned_card_count": 4,
@@ -243,6 +249,9 @@ class TestFilledOpeningPolicy:
             "maintenance_due_words": 6,
             "distinct_all_words_presented": 6,
             "established_lapse_recovery_cards": 0,
+            "confusion_context_rescue_cards": 0,
+            "max_due_words_on_card": 3,
+            "cards_over_due_density_cap": 0,
             "selector_policy": SELECTOR_POLICY_S1B,
             "selection_reason_counts": {
                 "frequency_due_first_s1b": 1,
@@ -281,7 +290,15 @@ class TestFilledOpeningPolicy:
         assert not _candidate_has_cold_content(known)
         assert _candidate_has_cold_content(cold_collateral)
 
-    def test_default_policy_does_not_replace_protected_opening_card(self, db_session):
+    def test_legacy_policy_does_not_replace_protected_opening_card(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "app.services.sentence_selector.low_energy_maintenance_enabled",
+            lambda: False,
+        )
         _seed_word(
             db_session,
             1,
@@ -513,7 +530,15 @@ class TestFilledOpeningPolicy:
         assert swapped is None
         assert selected[0].sentence_id == 1
 
-    def test_recovery_lane_ignores_low_pre_lapse_stability(self, db_session):
+    def test_recovery_lane_ignores_low_pre_lapse_stability(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "app.services.sentence_selector.low_energy_maintenance_enabled",
+            lambda: False,
+        )
         _seed_word(
             db_session,
             1,
@@ -588,7 +613,12 @@ class TestFilledOpeningPolicy:
         self,
         db_session,
         payload,
+        monkeypatch,
     ):
+        monkeypatch.setattr(
+            "app.services.sentence_selector.low_energy_maintenance_enabled",
+            lambda: False,
+        )
         _seed_word(db_session, 1, "frequent", "frequent", frequency_rank=1)
         _seed_word(
             db_session,
@@ -1063,6 +1093,225 @@ class TestGreedySetCover:
 
         assert [item["sentence_id"] for item in result["items"]] == [2]
 
+    def test_low_energy_policy_caps_due_density_at_four(self, db_session):
+        for lemma_id in range(1, 6):
+            _seed_word(
+                db_session,
+                lemma_id,
+                f"dense-{lemma_id}",
+                f"dense {lemma_id}",
+                due_hours=-1,
+            )
+        _seed_sentence(
+            db_session,
+            1,
+            "all-five",
+            "all five",
+            1,
+            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 6)],
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "only-four",
+            "only four",
+            1,
+            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 5)],
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert [item["sentence_id"] for item in result["items"]] == [2]
+        assert result["selection_diagnostics"]["max_due_words_on_card"] == 4
+        assert result["selection_diagnostics"]["cards_over_due_density_cap"] == 0
+
+    def test_density_cap_counts_due_words_outside_active_cohort(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        for lemma_id in range(1, 6):
+            _seed_word(
+                db_session,
+                lemma_id,
+                f"due-{lemma_id}",
+                f"due {lemma_id}",
+                due_hours=-1,
+            )
+        _seed_sentence(
+            db_session,
+            1,
+            "one-plus-four-off-cohort",
+            "one plus four off cohort",
+            1,
+            [(f"due-{lemma_id}", lemma_id) for lemma_id in range(1, 6)],
+        )
+        _seed_sentence(
+            db_session,
+            2,
+            "one-only",
+            "one only",
+            1,
+            [("due-1", 1)],
+        )
+        monkeypatch.setattr(
+            "app.services.cohort_service.get_focus_cohort",
+            lambda db, at=None: {1},
+        )
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert [item["sentence_id"] for item in result["items"]] == [2]
+        assert result["selection_diagnostics"]["max_due_words_on_card"] == 1
+        assert result["selection_diagnostics"]["cards_over_due_density_cap"] == 0
+
+    def test_low_energy_policy_prioritizes_history_risk_over_frequency(
+        self,
+        db_session,
+    ):
+        _seed_word(
+            db_session,
+            1,
+            "frequent-clean",
+            "frequent clean",
+            frequency_rank=1,
+        )
+        _seed_word(
+            db_session,
+            2,
+            "fragile",
+            "fragile",
+            state="lapsed",
+            stability=0.5,
+            frequency_rank=50000,
+        )
+        _seed_sentence(
+            db_session, 1, "frequent-clean", "frequent clean", 1,
+            [("frequent-clean", 1)],
+        )
+        _seed_sentence(
+            db_session, 2, "fragile", "fragile", 2,
+            [("fragile", 2)],
+        )
+        db_session.add(ReviewLog(
+            lemma_id=2,
+            rating=1,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            is_acquisition=False,
+            review_mode="reading",
+            fsrs_log_json={"pre_card": {"stability": 30.0}},
+        ))
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 2
+        assert result["items"][0]["selection_info"]["components"][
+            "max_history_lapse_risk"
+        ] >= 0.95
+
+    def test_named_confusion_gets_different_context_without_confusor(
+        self,
+        db_session,
+    ):
+        _seed_word(db_session, 1, "هدف", "aim", due_hours=-1)
+        _seed_word(db_session, 2, "هتف", "shout", due_hours=24)
+        _seed_word(db_session, 3, "فريق", "team", due_hours=24)
+        _seed_sentence(
+            db_session,
+            10,
+            "هدف هتف",
+            "aim shout",
+            1,
+            [("هدف", 1), ("هتف", 2)],
+        )
+        _seed_sentence(
+            db_session,
+            11,
+            "حقق الفريق هدفا",
+            "the team achieved an aim",
+            1,
+            [("فريق", 3), ("هدفا", 1)],
+        )
+        db_session.add(ConfusionCapture(
+            failed_lemma_id=1,
+            sentence_id=10,
+            session_id="confusion-trigger",
+            rating=2,
+            captured_at=datetime.now(timezone.utc) - timedelta(days=1),
+            capture_method="suggested_pick",
+            confused_with_lemma_id=2,
+        ))
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert [item["sentence_id"] for item in result["items"]] == [11]
+        info = result["items"][0]["selection_info"]
+        assert info["reason"] == "confusion_context_rescue_v1"
+        assert info["components"]["confusor_absent"] is True
+
+    def test_named_confusion_rescue_spends_slot_on_newest_pair(
+        self,
+        db_session,
+    ):
+        now = datetime.now(timezone.utc)
+        words = ((1, "قديم"), (2, "منافس"), (3, "حديث"), (4, "شبيه"))
+        for lemma_id, bare in words:
+            _seed_word(db_session, lemma_id, bare, bare, due_hours=-1)
+        _seed_sentence(db_session, 11, "قديم", "old", 1, [("قديم", 1)])
+        _seed_sentence(db_session, 13, "حديث", "recent", 3, [("حديث", 3)])
+        db_session.add_all([
+            ConfusionCapture(
+                failed_lemma_id=1,
+                sentence_id=10,
+                session_id="older-confusion",
+                rating=2,
+                captured_at=now - timedelta(days=5),
+                capture_method="suggested_pick",
+                confused_with_lemma_id=2,
+            ),
+            ConfusionCapture(
+                failed_lemma_id=3,
+                sentence_id=12,
+                session_id="newer-confusion",
+                rating=2,
+                captured_at=now - timedelta(days=1),
+                capture_method="suggested_pick",
+                confused_with_lemma_id=4,
+            ),
+        ])
+        db_session.commit()
+
+        result = build_session(
+            db_session,
+            limit=1,
+            allow_intro_mutations=False,
+        )
+
+        assert result["items"][0]["primary_lemma_id"] == 3
+        assert result["items"][0]["selection_info"]["reason"] == (
+            "confusion_context_rescue_v1"
+        )
+
     def test_single_sentence_covers_word(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
@@ -1261,7 +1510,15 @@ class TestGreedySetCover:
         assert len(result["items"]) == 1
         assert result["items"][0]["sentence_id"] == 2
 
-    def test_tight_session_prefers_high_frequency_due_word(self, db_session):
+    def test_legacy_tight_session_prefers_high_frequency_due_word(
+        self,
+        db_session,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "app.services.sentence_selector.low_energy_maintenance_enabled",
+            lambda: False,
+        )
         _seed_word(
             db_session, 1, "نادر", "rare",
             due_hours=-24 * 30, frequency_rank=50000,
@@ -2299,7 +2556,8 @@ class TestIntroCardsForSessionWords:
             )
         }
         assert len(acquired) <= INTRO_NEW_CARDS_PER_SESSION
-        assert textbook_ids <= acquired
+        assert len(acquired) == 2
+        assert acquired <= textbook_ids
 
     def test_legacy_textbook_preserve_group_does_not_get_card(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
@@ -2810,6 +3068,37 @@ class TestIntroCardTotalCap:
 
 
 class TestBookSentenceAcquiringGate:
+    def test_pregenerated_fill_suspends_maintenance_passages(self, db_session):
+        _, knowledge = _seed_word(
+            db_session,
+            1,
+            "كتاب",
+            "book",
+            state="known",
+            stability=5.0,
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "الكتاب في القصة الطويلة",
+            "The book is in the longer story",
+            1,
+            [("الكتاب", 1)],
+            source="passage",
+        )
+        db_session.commit()
+
+        items = _find_pregenerated_sentences_for_words(
+            db_session,
+            {1},
+            {1: 5.0},
+            {1: knowledge},
+            [knowledge],
+            limit=5,
+        )
+
+        assert items == []
+
     """Authentic book/corpus sentences must never practice acquiring-state words.
 
     Durable user rule (2026-05-26): book sentences are written for fluent

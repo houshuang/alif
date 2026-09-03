@@ -6,6 +6,21 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-09-03
+
+- Start the reversible 60-day `low_energy_maintenance_v1` experiment: keep the
+  ~30-card habit while capping automatic sentence cards at four actionable due
+  words and limiting true-new intake to two/day with recovery earn-in 0/1/2.
+- Make old-word validation more deliberate: clean known, not-due reading
+  collateral at R≥0.97 records exposure evidence without advancing FSRS; every
+  due, primary, fragile, failed, acquisition, listening, or lower-R word keeps
+  ordinary scheduling credit.
+- Prioritize due words with observed lapse risk ahead of frequency and reserve
+  at most one workload-neutral different-context follow-up for a recent named
+  confusion.
+- Add policy diagnostics and a read-only day-3/7/14/30/60 checkpoint report with
+  explicit danger signals; the independent Aug-28 passage suspension remains.
+
 ## 2026-08-28
 
 - Temporarily suspend embedded maintenance stories from the sentence review

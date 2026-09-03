@@ -27,7 +27,12 @@ from app.services.confusion_service import (
     classify_surface_morphology,
     normalize_surface_form,
 )
-from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_review
+from app.services.fsrs_service import (
+    STATE_MAP,
+    card_retrievability,
+    parse_json_column,
+    submit_review,
+)
 from app.services.form_recovery_service import (
     FORM_RECOVERY_CAUSES,
     FORM_RECOVERY_VERSION,
@@ -44,6 +49,12 @@ from app.services.surface_form_experiment import (
     process_surface_experiment_review,
     undo_surface_experiment_reviews,
 )
+from app.services.interaction_logger import log_interaction
+from app.services.learning_policy import (
+    LOW_ENERGY_MAINTENANCE_VERSION,
+    TRIVIAL_COLLATERAL_RETRIEVABILITY,
+    low_energy_maintenance_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +66,55 @@ _WORD_FAILURE_CAUSES = {
     "unfamiliar_form",
     "missing_tashkeel",
 }
+
+
+def _parse_card_datetime(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _trivial_collateral_exposure(
+    knowledge: UserLemmaKnowledge | None,
+    *,
+    rating: int,
+    credit_type: str,
+    review_mode: str,
+    now: datetime,
+) -> tuple[bool, float | None, datetime | None]:
+    """Classify a clean, high-R, not-due scaffold appearance as exposure.
+
+    Anything fragile or diagnostic remains a normal review: primary targets,
+    due cards, failures, acquisition, learning/relearning states, listening,
+    malformed cards, and R below the preregistered threshold.
+    """
+    if (
+        not low_energy_maintenance_enabled()
+        or knowledge is None
+        or rating < 3
+        or credit_type != "collateral"
+        or review_mode != "reading"
+        or knowledge.knowledge_state != "known"
+        or not knowledge.fsrs_card_json
+    ):
+        return False, None, None
+    card = parse_json_column(knowledge.fsrs_card_json)
+    due_at = _parse_card_datetime(card.get("due") if isinstance(card, dict) else None)
+    if due_at is None or due_at <= now:
+        return False, None, due_at
+    retrievability = card_retrievability(card, at=now)
+    if (
+        retrievability is None
+        or retrievability < TRIVIAL_COLLATERAL_RETRIEVABILITY
+    ):
+        return False, retrievability, due_at
+    return True, retrievability, due_at
 
 
 def submit_sentence_review(
@@ -286,8 +346,9 @@ def submit_sentence_review(
         # Skip if canonical is suspended (or the variant itself)
         if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
             continue
-        # Auto-introduce encountered words on collateral appearance —
-        # every word in every sentence earns review credit, no exceptions.
+        # Auto-introduce encountered words on collateral appearance. The only
+        # no-scheduling exception is the narrow mature/high-R exposure policy
+        # below; new and acquiring words continue through ordinary credit.
         # Familiar words graduate instantly via Tier 0 (first correct → FSRS).
         # The daily intro cap inside start_acquisition may defer promotion
         # (leaves the word encountered); track the "deferred" state so we
@@ -417,6 +478,9 @@ def submit_sentence_review(
             continue
 
         # Route acquiring words through acquisition service
+        exposure_only = False
+        exposure_retrievability: float | None = None
+        exposure_due_at: datetime | None = None
         if effective_lemma_id in acquiring_lemma_ids:
             from app.services.acquisition_service import submit_acquisition_review
             result = submit_acquisition_review(
@@ -434,6 +498,42 @@ def submit_sentence_review(
                 review_metadata=review_metadata,
             )
         else:
+            knowledge = knowledge_map.get(effective_lemma_id)
+            (
+                exposure_only,
+                exposure_retrievability,
+                exposure_due_at,
+            ) = _trivial_collateral_exposure(
+                knowledge,
+                rating=rating,
+                credit_type=credit_type,
+                review_mode=review_mode,
+                now=now,
+            )
+        if exposure_only:
+            card = parse_json_column(knowledge.fsrs_card_json)
+            result = {
+                "lemma_id": effective_lemma_id,
+                "new_state": knowledge.knowledge_state,
+                "next_due": card.get("due", ""),
+                "duplicate": False,
+            }
+            log_interaction(
+                event="mature_collateral_exposure",
+                policy_version=LOW_ENERGY_MAINTENANCE_VERSION,
+                session_id=session_id,
+                client_review_id=review_client_id,
+                sentence_id=primary_sentence_id,
+                lemma_id=effective_lemma_id,
+                rating=rating,
+                credit_type=credit_type,
+                knowledge_state=knowledge.knowledge_state,
+                review_mode=review_mode,
+                was_due=False,
+                retrievability=round(exposure_retrievability, 6),
+                due_at=(exposure_due_at.isoformat() if exposure_due_at else None),
+            )
+        elif effective_lemma_id not in acquiring_lemma_ids:
             result = submit_review(
                 db,
                 lemma_id=effective_lemma_id,
@@ -450,12 +550,14 @@ def submit_sentence_review(
             )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
-        latest_log = (
-            db.query(ReviewLog)
-            .filter(ReviewLog.lemma_id == effective_lemma_id)
-            .order_by(ReviewLog.id.desc())
-            .first()
-        )
+        latest_log = None
+        if not exposure_only:
+            latest_log = (
+                db.query(ReviewLog)
+                .filter(ReviewLog.lemma_id == effective_lemma_id)
+                .order_by(ReviewLog.id.desc())
+                .first()
+            )
         if latest_log and not is_duplicate:
             latest_log.sentence_id = primary_sentence_id
             latest_log.credit_type = credit_type
@@ -545,7 +647,8 @@ def submit_sentence_review(
             word_results.append({
                 "lemma_id": effective_lemma_id,
                 "rating": rating,
-                "credit_type": credit_type,
+                "credit_type": "exposure" if exposure_only else credit_type,
+                "scheduling_credit": not exposure_only,
                 "form_recovery_protected": form_recovery_protected,
                 "new_state": result["new_state"],
                 "next_due": result["next_due"],
@@ -557,7 +660,8 @@ def submit_sentence_review(
     # correct one and flip the window into leech territory.
     from app.services.leech_service import check_single_word_leech
     for wr in word_results:
-        check_single_word_leech(db, wr["lemma_id"])
+        if wr.get("scheduling_credit", True):
+            check_single_word_leech(db, wr["lemma_id"])
 
     # Log the sentence-level review
     if review_sentence_ids:
