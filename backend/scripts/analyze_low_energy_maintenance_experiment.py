@@ -10,7 +10,7 @@ Example:
     .venv/bin/python scripts/analyze_low_energy_maintenance_experiment.py \
       --db /tmp/alif-checkpoint.db \
       --interaction-log-dir /tmp/alif-interactions \
-      --start 2026-09-03T00:00:00Z \
+      --start 2026-09-03T10:00:00Z \
       --output ../research/baselines/low-energy-maintenance-day-3.json
 """
 
@@ -44,9 +44,9 @@ from analyze_learning_system import (  # noqa: E402
 
 POLICY_VERSION = "low_energy_maintenance_v1"
 BASELINE = {
-    "captured_at": "2026-09-03",
-    "strict_main_fsrs_due": 749,
-    "raw_fsrs_due": 890,
+    "captured_at": "2026-09-03T09:31:44Z",
+    "strict_main_fsrs_due": 744,
+    "raw_fsrs_due": 827,
     "box1_actionable": 41,
     "acquiring_total": 56,
     "scheduled_clean_30d_pct": 89.0,
@@ -516,13 +516,16 @@ def render_markdown(report: dict[str, Any]) -> str:
     recovery = current["recovery"]["values"]
     gap7 = retention["old_scheduled_by_prior_gap"][">=7d"]
     gap14 = retention["old_scheduled_by_prior_gap"][">=14d"]
+    median_cards = workload["median_cards_per_active_day"]
+    median_response = workload["median_response_seconds"]
+    p90_response = workload["p90_response_seconds"]
     lines = [
         f"# Low-energy maintenance — {window['checkpoint']}",
         "",
         f"Window: {window['start']} to {window['cutoff']} ({window['elapsed_days']} days)",
         "",
-        f"- Sentence cards: {workload['reading_sentence_cards']} across {workload['active_days']} active days; median {workload['median_cards_per_active_day']} per active day.",
-        f"- Response time: median {workload['median_response_seconds']}s; p90 {workload['p90_response_seconds']}s.",
+        f"- Sentence cards: {workload['reading_sentence_cards']} across {workload['active_days']} active days; median {median_cards if median_cards is not None else 'n/a'} per active day.",
+        f"- Response time: median {f'{median_response}s' if median_response is not None else 'n/a'}; p90 {f'{p90_response}s' if p90_response is not None else 'n/a'}.",
         f"- New intake: {workload['true_new_intake']} total; maximum {workload['max_true_new_intake_on_day']} in one day.",
         f"- Debt: strict main FSRS {recovery['strict_main_fsrs_due']} (baseline {BASELINE['strict_main_fsrs_due']}), Box 1 actionable {recovery['box1_actionable']}, Box 2 due {recovery['box2_due']}.",
         f"- Scheduled judgments: {retention['scheduled']['judgments']}; clean {retention['scheduled']['clean_pct']}%.",

@@ -1,0 +1,250 @@
+{
+  "baseline": {
+    "acquiring_total": 56,
+    "box1_actionable": 41,
+    "captured_at": "2026-09-03T09:31:44Z",
+    "old_gap_14d_clean_pct": 81.5,
+    "old_gap_30d_clean_pct": 73.6,
+    "old_gap_7d_clean_pct": 85.8,
+    "raw_fsrs_due": 827,
+    "scheduled_clean_30d_pct": 89.0,
+    "strict_main_fsrs_due": 744
+  },
+  "confusions": {
+    "captures_with_full_14d_service_window": 0,
+    "distinct_captures_served": 0,
+    "named_captures": 0,
+    "note": "Service events are counted from interaction telemetry; a 14-day rate is only interpretable once captures mature.",
+    "rescues_selected": 0
+  },
+  "current_state": {
+    "acquisition": {
+      "1": {
+        "age_max_days": 99.49,
+        "age_median_days": 57.25,
+        "age_p90_days": 83.91,
+        "box": 1,
+        "due": 42,
+        "total": 42,
+        "zero_correct": 0
+      },
+      "2": {
+        "age_max_days": 119.03,
+        "age_median_days": 50.08,
+        "age_p90_days": 83.28,
+        "box": 2,
+        "due": 12,
+        "total": 12,
+        "zero_correct": 0
+      },
+      "3": {
+        "age_max_days": 73.0,
+        "age_median_days": 70.37,
+        "age_p90_days": 72.47,
+        "box": 3,
+        "due": 2,
+        "total": 2,
+        "zero_correct": 0
+      }
+    },
+    "acquisition_total": 56,
+    "fsrs": {
+      "raw_actionable_due": 827,
+      "shadowed_due_variants": 11,
+      "stability_bands": {
+        "7-30d": 241,
+        "<7d": 309,
+        ">=30d": 259,
+        "unknown": 18
+      },
+      "strict_main_due": 744
+    },
+    "recovery": {
+      "active": true,
+      "limits": {
+        "box1_actionable": 5,
+        "box2_due": 30,
+        "strict_main_fsrs_due": 750
+      },
+      "tripped": [
+        "box1_actionable"
+      ],
+      "values": {
+        "box1_actionable": 41,
+        "box2_due": 12,
+        "strict_main_fsrs_due": 744
+      }
+    },
+    "state_counts": {
+      "acquiring": 56,
+      "encountered": 343,
+      "known": 2686,
+      "lapsed": 66,
+      "learning": 53,
+      "suspended": 204
+    }
+  },
+  "danger_signals": [
+    {
+      "code": "density_cap_breach",
+      "detail": "No automatic sentence card may contain five or more actionable scheduled words.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "exposure_invariant_breach",
+      "detail": "Exposure-only must remain clean, known, collateral, reading, not-due, and R>=0.97.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "daily_intake_cap_breach",
+      "detail": "Automatic true-new intake must never exceed two words in a UTC day.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "automatic_passage_delivery",
+      "detail": "Maintenance passages are suspended from the automatic review queue.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "severe_debt_growth",
+      "detail": "Strict main FSRS due is 744; stop threshold is 1000 after day 7.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "debt_not_burning_down",
+      "detail": "Strict main FSRS due is 744 vs 744 at baseline.",
+      "level": "warn",
+      "triggered": false
+    },
+    {
+      "code": "old_7d_retention_low",
+      "detail": "Old >=7d clean rate is None% across 0 scheduled tests.",
+      "level": "warn",
+      "triggered": false
+    },
+    {
+      "code": "old_14d_retention_low",
+      "detail": "Old >=14d clean rate is None% across 0 scheduled tests.",
+      "level": "warn",
+      "triggered": false
+    },
+    {
+      "code": "daily_volume_below_maintenance_target",
+      "detail": "Median volume is None cards per active day; intended floor is about 30.",
+      "level": "warn",
+      "triggered": false
+    }
+  ],
+  "integrity": {
+    "database_sha256_after": "0c34c83eca3d032e1da494ed7e40403859c49127ccffb3ba26cb22a08722c41e",
+    "database_sha256_before": "0c34c83eca3d032e1da494ed7e40403859c49127ccffb3ba26cb22a08722c41e",
+    "database_unchanged": true
+  },
+  "interaction_telemetry": {
+    "automatic_passage_cards": 0,
+    "confusion_context_rescues": 0,
+    "daily_peak_selector_due": {},
+    "daily_sentence_cards": {},
+    "density_cap_breaches": 0,
+    "distinct_confusion_captures_served": 0,
+    "distinct_exposure_lemmas": 0,
+    "exposure_breach_samples": [],
+    "exposure_invariant_breaches": 0,
+    "mature_collateral_exposures": 0,
+    "policy_session_count": 0,
+    "selection_reason_counts": {}
+  },
+  "interpretation_limits": [
+    "This is a bundled policy experiment; it tests the package, not the isolated causal effect of each component.",
+    "Scheduled accuracy will usually look harder than legacy accuracy because trivial high-R collateral judgments become exposure-only.",
+    "Day 3 checks operation and safety; it cannot establish retention efficacy.",
+    "A confusion service rate needs captures with a full 14-day opportunity window."
+  ],
+  "policy_version": "low_energy_maintenance_v1",
+  "scheduled_retention": {
+    "cards_with_5plus_scheduled_judgments": 0,
+    "distinct_scheduled_lemmas": 0,
+    "exposure_only_evidence_rows": 0,
+    "old_cohort_definition": "first learning timestamp at least 90 days before experiment start",
+    "old_scheduled": {
+      "clean": 0,
+      "clean_pct": null,
+      "judgments": 0,
+      "rating_counts": {}
+    },
+    "old_scheduled_by_prior_gap": {
+      ">=14d": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      },
+      ">=30d": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      },
+      ">=7d": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      }
+    },
+    "scheduled": {
+      "clean": 0,
+      "clean_pct": null,
+      "judgments": 0,
+      "rating_counts": {}
+    },
+    "scheduled_by_card_density": {
+      "1-2": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      },
+      "3-4": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      },
+      "5+": {
+        "clean": 0,
+        "clean_pct": null,
+        "judgments": 0,
+        "rating_counts": {}
+      }
+    }
+  },
+  "schema_version": 1,
+  "triggered_signals": [],
+  "warnings": [
+    "1 active FSRS rows had missing/invalid card JSON"
+  ],
+  "window": {
+    "checkpoint": "pre-day-3: instrumentation only",
+    "cutoff": "2026-09-03T09:31:44+00:00",
+    "elapsed_days": 0.0,
+    "start": "2026-09-03T09:31:44+00:00"
+  },
+  "workload": {
+    "active_days": 0,
+    "comprehension_counts": {},
+    "daily_cards": {},
+    "daily_true_new_intake": {},
+    "max_true_new_intake_on_day": 0,
+    "median_cards_per_active_day": null,
+    "median_response_seconds": null,
+    "p90_response_seconds": null,
+    "reading_sentence_cards": 0,
+    "true_new_intake": 0
+  }
+}
