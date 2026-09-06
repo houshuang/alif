@@ -11,6 +11,7 @@ from app.database import get_db
 from app.schemas import ProcessedBookImportIn, StoryDetailOut
 from app.services.book_import_service import import_book, import_processed_book
 from app.services.story_service import get_story_detail
+from app.services.reading_pilot import ReadingPilotEventIn, get_reading_pilot, record_reading_event
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,16 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB per image
 UPLOAD_DIR = Path("data/book-uploads")
+
+
+@router.get("/reading-pilot")
+def reading_pilot():
+    return get_reading_pilot()
+
+
+@router.post("/reading-pilot/events")
+def reading_pilot_event(body: ReadingPilotEventIn, db: Session = Depends(get_db)):
+    return record_reading_event(db, body)
 
 
 def _save_uploads(images: list[bytes]) -> Path:

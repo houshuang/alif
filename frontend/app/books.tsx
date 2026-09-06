@@ -70,6 +70,18 @@ export default function BooksScreen() {
         </Pressable>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open Momo supported reading"
+        style={[styles.bookCard, { marginBottom: 18 }]}
+        onPress={() => router.push("/book-page?pilot=momo-wings")}
+      >
+        <Text style={styles.eyebrow}>A LITTLE READING · MOMO</Text>
+        <Text style={styles.titleEn}>When stories grew wings</Text>
+        <Text style={styles.subtitle}>Three short readings with English and phrase help. Pick up where you left off.</Text>
+        <Text style={[styles.continueText, { marginTop: 12 }]}>Open reading →</Text>
+      </Pressable>
+
       {loadError && (
         <View style={styles.errorCard}>
           <Ionicons name="cloud-offline-outline" size={22} color={colors.stateLearning} />

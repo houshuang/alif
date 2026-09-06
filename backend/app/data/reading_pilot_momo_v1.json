@@ -1,0 +1,237 @@
+{
+  "id": "momo-wings",
+  "version": 1,
+  "title": "When stories grew wings",
+  "author": "Michael Ende",
+  "source": {
+    "path": "backend/data/momo_chapter_05.json",
+    "sha256": "355324dcf518af253a3de4bad3257bae0e04e0a1d38d18bc6756fe52e5aaa6c7",
+    "chapter": 5,
+    "printed_pages": [
+      67,
+      68
+    ],
+    "note": "Exact excerpts from the project transcription; aligned English, phrase notes and simpler retellings prepared for this pilot. Source spelling retained. These are supported readings, not vocabulary tests."
+  },
+  "sessions": [
+    {
+      "id": "wings-1",
+      "title": "Stories with wings",
+      "orientation": "Gigi loves telling stories. Since meeting Momo, something has changed in him. Here the narrator describes that change.",
+      "source_pages": [
+        67
+      ],
+      "blocks": [
+        {
+          "id": "1-1",
+          "arabic": "فقد كانت حكايات فيما مضى أحيانًا ضحلة بعض الشيء، ولم يكن يخطر على باله شيء ذو قيمة،",
+          "english": "His stories used to be rather shallow at times, and nothing worthwhile would occur to him.",
+          "help": [
+            {
+              "id": "1-1-1",
+              "anchor": "فيما مضى",
+              "form": "فِيمَا مَضَى",
+              "meaning": "in the past",
+              "explanation": "A time phrase: read these two words together as “formerly.”"
+            },
+            {
+              "id": "1-1-2",
+              "anchor": "ضحلة بعض الشيء",
+              "form": "ضَحْلَةً بَعْضَ الشَّيْءِ",
+              "meaning": "rather shallow",
+              "explanation": "ضَحْل means shallow. بَعْضَ الشَّيْءِ softens the description: “somewhat.”"
+            },
+            {
+              "id": "1-1-3",
+              "anchor": "يخطر على باله",
+              "form": "يَخْطُرُ عَلَى بَالِهِ",
+              "meaning": "occur to him",
+              "explanation": "The thing occurring to him comes afterwards: شَيْءٌ ذُو قِيمَةٍ, “something of value.” لَمْ يَكُنْ makes this a description of what did not happen in the past."
+            }
+          ]
+        },
+        {
+          "id": "1-2",
+          "arabic": "وكان يكرر بعض الأشياء أو يرجع إلى فيلم من الأفلام التى رآها أو قصة فى جريدة قرأها؛",
+          "english": "He would repeat things, or fall back on a film he had seen or a story he had read in a newspaper.",
+          "help": [
+            {
+              "id": "1-2-1",
+              "anchor": "رآها",
+              "form": "رَآهَا",
+              "meaning": "he had seen it",
+              "explanation": "From رَأَى, “see.” The ending ـها points back to الأفلام, the films; nonhuman plurals can take feminine singular agreement."
+            },
+            {
+              "id": "1-2-2",
+              "anchor": "قرأها",
+              "form": "قَرَأَهَا",
+              "meaning": "he had read it",
+              "explanation": "From قَرَأَ, “read.” Here ـها refers to قِصَّة, the story."
+            }
+          ]
+        },
+        {
+          "id": "1-3",
+          "arabic": "فلنقل إن حكاياته كانت تسير على الأقدام، ولكن فجأة نبتت لها أجنحة منذ أن عرف مومو،",
+          "english": "Let us say his stories used to walk on foot. But suddenly, after he met Momo, they grew wings.",
+          "help": [
+            {
+              "id": "1-3-1",
+              "anchor": "فلنقل",
+              "form": "فَلْنَقُلْ",
+              "meaning": "so let us say",
+              "explanation": "فَـ “so” + لْـ “let” + نَقُلْ “we say.” This introduces the narrator’s image."
+            },
+            {
+              "id": "1-3-2",
+              "anchor": "نبتت لها أجنحة",
+              "form": "نَبَتَتْ لَهَا أَجْنِحَةٌ",
+              "meaning": "they grew wings",
+              "explanation": "Literally, “wings sprouted for them.” لَها refers to the stories. أَجْنِحَة is the plural of جَنَاح, wing."
+            }
+          ]
+        }
+      ],
+      "simpler_arabic": "كَانَتْ حِكَايَاتُ جِيجِي فِي الْمَاضِي بَسِيطَةً. كَانَ يُكَرِّرُ أَشْيَاءَ رَآهَا فِي الْأَفْلَامِ أَوْ قَرَأَهَا فِي الْجَرَائِدِ. وَلَكِنْ بَعْدَ أَنْ عَرَفَ مُومُو، تَغَيَّرَتْ حِكَايَاتُهُ. صَارَتْ كَأَنَّ لَهَا أَجْنِحَةً.",
+      "simpler_english": "Gigi’s stories used to be simple. He repeated things he had seen in films or read in newspapers. But after he met Momo, his stories changed. It was as if they had wings."
+    },
+    {
+      "id": "wings-2",
+      "title": "An imagination in bloom",
+      "orientation": "Gigi’s stories have grown wings. Now we see what happens when Momo sits and listens.",
+      "source_pages": [
+        67,
+        68
+      ],
+      "blocks": [
+        {
+          "id": "2-1",
+          "arabic": "وخاصة عندما تكون مومو موجودة تستمع إليه فإن خياله يزدهر كما فى مروج الربيع فيتزاحم حوله الأطفال والكبار.",
+          "english": "Especially when Momo was there listening to him, his imagination blossomed like a spring meadow, and children and grown-ups crowded around him.",
+          "help": [
+            {
+              "id": "2-1-1",
+              "anchor": "فإن خياله يزدهر",
+              "form": "فَإِنَّ خَيَالَهُ يَزْدَهِرُ",
+              "meaning": "then his imagination blossoms",
+              "explanation": "Follow the frame عِنْدَمَا ... فَإِنَّ ... : “when …, then …”. ـهُ in خَيَالَهُ means “his,” referring to Gigi."
+            },
+            {
+              "id": "2-1-2",
+              "anchor": "مروج الربيع",
+              "form": "مُرُوجِ الرَّبِيعِ",
+              "meaning": "spring meadows",
+              "explanation": "مُرُوج is the plural of مَرْج, meadow. The image continues the stories growing wings."
+            },
+            {
+              "id": "2-1-3",
+              "anchor": "فيتزاحم حوله",
+              "form": "فَيَتَزَاحَمُ حَوْلَهُ",
+              "meaning": "so they crowd around him",
+              "explanation": "تَزَاحَمَ means crowd together. The people doing it follow the verb: children and grown-ups."
+            }
+          ]
+        },
+        {
+          "id": "2-2",
+          "arabic": "لقد استطاع حينئذ أن يحكى قصصًا تمتد إلى أيام وأسابيع فى حلقات عديدة، وخواطر لا تنضب، وبالمناسبة فإنه كان يستمع إلى نفسه بشوق كذلك؛ لأنه لم يكن يعرف إلى أى مدى سيقوده خياله،",
+          "english": "Now he could tell stories that went on for days and weeks in many installments, with ideas that never ran dry. And he listened to himself eagerly too, because he never knew how far his imagination would lead him.",
+          "help": [
+            {
+              "id": "2-2-1",
+              "anchor": "لا تنضب",
+              "form": "لَا تَنْضَبُ",
+              "meaning": "never run dry",
+              "explanation": "From نَضَبَ, “run dry.” It describes خَوَاطِر, the ideas that keep coming."
+            },
+            {
+              "id": "2-2-2",
+              "anchor": "إلى أى مدى سيقوده خياله",
+              "form": "إِلَى أَيِّ مَدًى سَيَقُودُهُ خَيَالُهُ",
+              "meaning": "how far his imagination would lead him",
+              "explanation": "سَـ marks what comes next; يَقُودُهُ is “leads him.” خَيَالُهُ, “his imagination,” is the subject after the verb."
+            }
+          ]
+        }
+      ],
+      "simpler_arabic": "عِنْدَمَا تَسْتَمِعُ مُومُو إِلَى جِيجِي، تَأْتِيهِ أَفْكَارٌ كَثِيرَةٌ. يَجْتَمِعُ الْأَطْفَالُ وَالْكِبَارُ حَوْلَهُ. يَحْكِي قِصَصًا طَوِيلَةً، وَيَسْتَمِعُ إِلَى نَفْسِهِ أَيْضًا. فَهُوَ لَا يَعْرِفُ مَاذَا سَيَحْدُثُ فِي قِصَّتِهِ.",
+      "simpler_english": "When Momo listens to Gigi, many ideas come to him. Children and grown-ups gather around him. He tells long stories and listens to himself too. He does not know what will happen in his story."
+    },
+    {
+      "id": "wings-3",
+      "title": "The empress and the golden fish",
+      "orientation": "Gigi can now surprise even himself. A group of tourists arrives, and he begins an extravagant tale. The empress, peoples, and king have invented names—let those names pass.",
+      "source_pages": [
+        68
+      ],
+      "blocks": [
+        {
+          "id": "3-1",
+          "arabic": "وعندما أتى سياح مرة أخرى يريدون مشاهدة المسرح الدائرى (وكانت مومو تجلس بعيدة قليلاً على السلالم الحجرية)،",
+          "english": "When another group of tourists came to see the round amphitheatre (Momo was sitting a little way off on the stone steps),",
+          "help": [
+            {
+              "id": "3-1-1",
+              "anchor": "المسرح الدائرى",
+              "form": "الْمَسْرَحِ الدَّائِرِيِّ",
+              "meaning": "the round amphitheatre",
+              "explanation": "This is where Momo lives and where Gigi tells his stories. The printed spelling here uses ى in الدائرى."
+            }
+          ]
+        },
+        {
+          "id": "3-2",
+          "arabic": "بدأ كلامه كما يلى: \"حضرات السيدات والسادة المبجلين! فكما هو أكيد معلوم لديكم، أن الإمبراطورة شترابتسيا أوجستينا قد قامت بحروب لا تعد ولا تحصى لتدافع عن مملكتها ضد الهجمات المستمرة للتسيترن والتساجن(*).",
+          "english": "he began: “Most honored ladies and gentlemen! As you surely know, Empress Strapatsia Augustina fought countless wars to defend her kingdom against the constant attacks of the Tsittern and Tsagen.",
+          "help": [
+            {
+              "id": "3-2-1",
+              "anchor": "الإمبراطورة شترابتسيا أوجستينا",
+              "form": "الْإِمْبِرَاطُورَة",
+              "meaning": "Empress Strapatsia Augustina",
+              "explanation": "The empress and the two peoples, Tsittern and Tsagen, are imaginary names. Let the names pass; there is no need to memorize them."
+            },
+            {
+              "id": "3-2-2",
+              "anchor": "لا تعد ولا تحصى",
+              "form": "لَا تُعَدُّ وَلَا تُحْصَى",
+              "meaning": "countless",
+              "explanation": "Literally “cannot be counted or enumerated.” A paired expression describing the wars."
+            }
+          ]
+        },
+        {
+          "id": "3-3",
+          "arabic": "وعندما هزمت هذه الأقوام مرة أخرى كان الغضب قد تملكها من هذه المضايقات التى لا تنتهى لدرجة أنها هددت بإبادة هؤلاء المهاجمين جميعًا صغيرًا وكبيرًا إذا لم يتنازل لها ملكهم كساكسوتراكسولس عن سمكته ذهبية اللون على سبيل العقاب.",
+          "english": "After defeating these peoples once again, she became so angry at their endless harassment that she threatened to wipe out every one of the attackers, young and old, unless their king, Xaxotraxolus, surrendered his golden-colored fish to her as punishment.",
+          "help": [
+            {
+              "id": "3-3-1",
+              "anchor": "لدرجة أنها هددت",
+              "form": "لِدَرَجَةِ أَنَّهَا هَدَّدَتْ",
+              "meaning": "so much that she threatened",
+              "explanation": "Connect the anger earlier in the sentence to its consequence here."
+            },
+            {
+              "id": "3-3-2",
+              "anchor": "إذا لم يتنازل لها ملكهم",
+              "form": "إِذَا لَمْ يَتَنَازَلْ لَهَا مَلِكُهُمْ",
+              "meaning": "unless their king surrendered to her",
+              "explanation": "Literally “if their king did not give up to her.” The thing to surrender comes after عَنْ: his golden-colored fish. The long word following مَلِكُهُمْ is the king’s invented name."
+            },
+            {
+              "id": "3-3-3",
+              "anchor": "على سبيل العقاب",
+              "form": "عَلَى سَبِيلِ الْعِقَابِ",
+              "meaning": "as punishment",
+              "explanation": "Treat this as one phrase explaining why she demands the fish."
+            }
+          ]
+        }
+      ],
+      "simpler_arabic": "جَاءَ سُيَّاحٌ، فَبَدَأَ جِيجِي يَحْكِي لَهُمْ قِصَّةً عَنْ إِمْبِرَاطُورَةٍ غَاضِبَةٍ. كَانَتْ تُحَارِبُ شُعُوبًا أُخْرَى. أَرَادَتْ مِنْ مَلِكِهِمْ أَنْ يُعْطِيَهَا سَمَكَتَهُ الذَّهَبِيَّةَ، وَهَدَّدَتْ بِقَتْلِهِمْ إِذَا رَفَضَ.",
+      "simpler_english": "Tourists arrived, and Gigi began telling them a story about an angry empress. She was fighting other peoples. She wanted their king to give her his golden fish, and threatened to kill them if he refused."
+    }
+  ]
+}

@@ -48,6 +48,11 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+### 2026-09-06 — Supported reading pilot prepared (not a learner result)
+
+Implemented the first three Momo readings of the proposed ten-session bridge: exact source excerpts, aligned English, phrase/form help, labeled simpler retellings, and Arabic rereading. A separate retry-safe event journal records supported reading without word-review credit or intake. Continuation and events persist offline after content download. First actual learner use will mark a new phase alongside the September 3 maintenance policy; neither motivation nor retention benefit is established yet. [Protocol and evidence semantics](../docs/supported-reading-pilot.md).
+
+
 ## 2026-09-03: Low-energy maintenance v1 — sustainable reps and honest old-word validation
 
 **Learner constraint and question.** The learner can usually sustain about 30
