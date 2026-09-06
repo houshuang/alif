@@ -527,6 +527,14 @@ class ContentFlag(Base):
     sentence = relationship("Sentence")
 
 
+class ReadingPilotEvent(Base):
+    __tablename__ = "reading_pilot_events"
+
+    client_event_id = Column(String(100), primary_key=True)
+    payload_json = Column(JSON, nullable=False)
+    received_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
 class ActivityLog(Base):
     __tablename__ = "activity_log"
 

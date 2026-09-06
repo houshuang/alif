@@ -12,6 +12,7 @@ export type QueueEntryType =
   | "introduce_word"
   | "reintro_result"
   | "experiment_intro_ack"
+  | "reading_pilot_event"
   | "grammar_intro"
   | "verse";
 
@@ -98,6 +99,10 @@ const INDIVIDUAL_ACTIONS: Record<string, {
   url: (p: Record<string, unknown>) => string;
   body: (p: Record<string, unknown>) => Record<string, unknown>;
 }> = {
+  reading_pilot_event: {
+    url: () => `${BASE_URL}/api/books/reading-pilot/events`,
+    body: (p) => p,
+  },
   introduce_word: {
     url: () => `${BASE_URL}/api/learn/introduce`,
     body: (p) => ({ lemma_id: p.lemma_id }),

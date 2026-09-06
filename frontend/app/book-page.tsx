@@ -33,6 +33,7 @@ import {
 import { stripDiacritics } from "../lib/review/tashkeel-evidence";
 import { BookPageDetail, BookPageToken, WordLookupResult } from "../lib/types";
 import { fontFamily } from "../lib/theme";
+import ReadingPilotReader from "../components/reading-pilot-reader";
 
 const PAPER = "#F3E8D2";
 const PAPER_DEEP = "#E8D8BA";
@@ -74,6 +75,11 @@ function emptyDraft(
 }
 
 export default function BookPageScreen() {
+  const params = useLocalSearchParams<{ pilot?: string }>();
+  return params.pilot === "momo-wings" ? <ReadingPilotReader /> : <StandardBookPageScreen />;
+}
+
+function StandardBookPageScreen() {
   const params = useLocalSearchParams<{ storyId: string; page: string; atEnd?: string }>();
   const storyId = Number(params.storyId);
   const pageNumber = Number(params.page || 1);
