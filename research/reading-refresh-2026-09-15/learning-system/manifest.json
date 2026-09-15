@@ -1,0 +1,84 @@
+{
+  "definitions": {
+    "calibration": "stored pre-card at actual review timestamp",
+    "metric_spec": "research/learning-metrics-spec.md",
+    "primary_collateral": "equal word-memory validity; primary-only recovery effort gate",
+    "session_completion": "final planned display followed by sentence review"
+  },
+  "inputs": {
+    "database": {
+      "bytes": 145715200,
+      "filename": "alif_20260915_092255.db",
+      "sha256": "4f63984a41554ec81c895f38fe4b1f2b0083f4e2de9410af266f865ca1309f05"
+    },
+    "fsrs_version": "6.3.1",
+    "git_commit": "2d859666042aa02054f1ff6434ac7cf68ba949db",
+    "interaction_logs": [
+      {
+        "bytes": 170681,
+        "filename": "interactions_2026-09-07.jsonl",
+        "sha256": "9ecd8405a68c82264975e47c34a696b99d5267357050ecc9a672f004e49855e8"
+      },
+      {
+        "bytes": 98461,
+        "filename": "interactions_2026-09-08.jsonl",
+        "sha256": "a4269fb10f5b9358f5b68765e3ff135577b4bb4365390aba58d2c566cb29b079"
+      },
+      {
+        "bytes": 55957,
+        "filename": "interactions_2026-09-09.jsonl",
+        "sha256": "1f0b3eacb29c29f778656199c458f74dbb8623b3ebb5bad62f233f266220493f"
+      },
+      {
+        "bytes": 73471,
+        "filename": "interactions_2026-09-10.jsonl",
+        "sha256": "3aee3d10f3ffe2564982de96a399b54c6c46ccdb0254dd63ccaecb2e585e65f4"
+      },
+      {
+        "bytes": 91232,
+        "filename": "interactions_2026-09-11.jsonl",
+        "sha256": "5ef6e880763c6c61ef8b1ca8376f95f457c26b49fce697199a56084c836a4576"
+      },
+      {
+        "bytes": 194933,
+        "filename": "interactions_2026-09-12.jsonl",
+        "sha256": "1c07870aba8f081bc322a52432d978df439f98bf96ba03673ec508aa0d25d37e"
+      },
+      {
+        "bytes": 568050,
+        "filename": "interactions_2026-09-13.jsonl",
+        "sha256": "71b8e22168c8e6bbdfe18a6c8e83335a6ffd6e45f90149d0c863391992408afe"
+      },
+      {
+        "bytes": 105769,
+        "filename": "interactions_2026-09-14.jsonl",
+        "sha256": "ac5caf7427eb2361aeb0991b1b24b6306bf1047092cadd1e940d0137b8855f4c"
+      },
+      {
+        "bytes": 101119,
+        "filename": "interactions_2026-09-15.jsonl",
+        "sha256": "70f14d284d42a252358c62dbe3a85edae65852c28a4d6ad3afd642b193bbba6e"
+      }
+    ],
+    "metric_spec": {
+      "bytes": 7447,
+      "filename": "learning-metrics-spec.md",
+      "sha256": "43874463b725aebc370f95fe47aa1aa56333ac51515b02289f5af1fedfa55b9f"
+    },
+    "python_version": "3.11.6",
+    "script": {
+      "bytes": 44866,
+      "filename": "analyze_learning_system.py",
+      "sha256": "e52a4de87613a11b1fdb9d6b54e0c340d2e42b53bb03614dc7cd69284db07dc3"
+    },
+    "sqlite_version": "3.42.0",
+    "strict_read_only": true
+  },
+  "schema_version": 1,
+  "window": {
+    "cutoff": "2026-09-15T07:22:55Z",
+    "semantics": "half-open [start, cutoff)",
+    "session_start": "2026-09-06T00:00:00Z",
+    "start": "2026-09-06T00:00:00Z"
+  }
+}

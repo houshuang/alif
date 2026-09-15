@@ -1,0 +1,5 @@
+dimension,group,reviews,predicted_recall,observed_recall,brier_score,median_lateness_days
+stability,<7d,294,0.7972,0.7177,0.1752,6.95
+stability,7-30d,193,0.8971,0.8238,0.1417,6.21
+stability,>=30d,116,0.9325,0.8017,0.1733,7.63
+month,2026-09,603,0.8552,0.7678,0.1641,7.0

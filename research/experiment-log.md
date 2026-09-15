@@ -48,6 +48,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-15 — Reading refresh: smaller backlog, delayed-recognition caution, restart portions
+
+Read-only refresh from a new verified production SQLite backup. Production still
+runs September 3 maintenance; the merged Momo pilot is not deployed. Actionable
+Box 1 is 19 (41 at activation), strict main FSRS due 718 (744), with zero new
+acquisition starts and 255 persisted sentence reviews since September 6.
+
+The standard checkpoint warns on old-word delayed recognition and low recorded
+median card volume. Full-history sensitivity analysis shows that sample composition
+matters: the same 124 older words with qualifying >=7-day gaps went from 84 to 108
+clean last observations. This is selected, noncausal evidence and does not erase
+the aggregate warning. Do not mistake offered cards/raw events for persisted
+completions or submission latency for reading speed.
+
+[Full report and reproducible evidence](analysis-2026-09-15-reading-refresh.md).
+Prepared [three small Momo restart portions](reading-refresh-2026-09-15/reading-next.md)
+with immediate help, optional rereading and explicit uncompleted status. Continue
+within existing Arabic time; preserve maintenance and restricted intake. No app,
+scheduler, learning-data or deployment changes. Energy remains partly an outcome
+of the reading experience, not a fixed capacity inferred from review counts.
+
+
 ### 2026-09-06 — Supported reading pilot prepared (not a learner result)
 
 Implemented the first three Momo readings of the proposed ten-session bridge: exact source excerpts, aligned English, phrase/form help, labeled simpler retellings, and Arabic rereading. A separate retry-safe event journal records supported reading without word-review credit or intake. Continuation and events persist offline after content download. First actual learner use will mark a new phase alongside the September 3 maintenance policy; neither motivation nor retention benefit is established yet. [Protocol and evidence semantics](../docs/supported-reading-pilot.md).

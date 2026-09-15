@@ -1,0 +1,341 @@
+{
+  "baseline": {
+    "acquiring_total": 56,
+    "box1_actionable": 41,
+    "captured_at": "2026-09-03T09:31:44Z",
+    "old_gap_14d_clean_pct": 81.5,
+    "old_gap_30d_clean_pct": 73.6,
+    "old_gap_7d_clean_pct": 85.8,
+    "raw_fsrs_due": 827,
+    "scheduled_clean_30d_pct": 89.0,
+    "strict_main_fsrs_due": 744
+  },
+  "confusions": {
+    "captures_with_full_14d_service_window": 0,
+    "distinct_captures_served": 4,
+    "named_captures": 1,
+    "note": "Service events are counted from interaction telemetry; a 14-day rate is only interpretable once captures mature.",
+    "rescues_selected": 14
+  },
+  "current_state": {
+    "acquisition": {
+      "1": {
+        "age_max_days": 103.89,
+        "age_median_days": 77.91,
+        "age_p90_days": 103.89,
+        "box": 1,
+        "due": 20,
+        "total": 20,
+        "zero_correct": 0
+      },
+      "2": {
+        "age_max_days": 130.94,
+        "age_median_days": 44.4,
+        "age_p90_days": 84.27,
+        "box": 2,
+        "due": 13,
+        "total": 14,
+        "zero_correct": 0
+      },
+      "3": {
+        "age_max_days": 96.66,
+        "age_median_days": 88.28,
+        "age_p90_days": 94.98,
+        "box": 3,
+        "due": 0,
+        "total": 3,
+        "zero_correct": 0
+      }
+    },
+    "acquisition_total": 37,
+    "fsrs": {
+      "raw_actionable_due": 807,
+      "shadowed_due_variants": 11,
+      "stability_bands": {
+        "7-30d": 197,
+        "<7d": 274,
+        ">=30d": 319,
+        "unknown": 17
+      },
+      "strict_main_due": 718
+    },
+    "recovery": {
+      "active": true,
+      "limits": {
+        "box1_actionable": 5,
+        "box2_due": 30,
+        "strict_main_fsrs_due": 750
+      },
+      "tripped": [
+        "box1_actionable"
+      ],
+      "values": {
+        "box1_actionable": 19,
+        "box2_due": 13,
+        "strict_main_fsrs_due": 718
+      }
+    },
+    "state_counts": {
+      "acquiring": 37,
+      "encountered": 344,
+      "known": 2705,
+      "lapsed": 60,
+      "learning": 48,
+      "suspended": 215
+    }
+  },
+  "danger_signals": [
+    {
+      "code": "density_cap_breach",
+      "detail": "No automatic sentence card may contain five or more actionable scheduled words.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "exposure_invariant_breach",
+      "detail": "Exposure-only must remain clean, known, collateral, reading, not-due, and R>=0.97.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "daily_intake_cap_breach",
+      "detail": "Automatic true-new intake must never exceed two words in a UTC day.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "automatic_passage_delivery",
+      "detail": "Maintenance passages are suspended from the automatic review queue.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "severe_debt_growth",
+      "detail": "Strict main FSRS due is 718; stop threshold is 1000 after day 7.",
+      "level": "stop",
+      "triggered": false
+    },
+    {
+      "code": "debt_not_burning_down",
+      "detail": "Strict main FSRS due is 718 vs 744 at baseline.",
+      "level": "warn",
+      "triggered": false
+    },
+    {
+      "code": "old_7d_retention_low",
+      "detail": "Old >=7d clean rate is 77.2% across 346 scheduled tests.",
+      "level": "warn",
+      "triggered": true
+    },
+    {
+      "code": "old_14d_retention_low",
+      "detail": "Old >=14d clean rate is 69.6% across 207 scheduled tests.",
+      "level": "warn",
+      "triggered": false
+    },
+    {
+      "code": "daily_volume_below_maintenance_target",
+      "detail": "Median volume is 16 cards per active day; intended floor is about 30.",
+      "level": "warn",
+      "triggered": true
+    }
+  ],
+  "integrity": {
+    "database_sha256_after": "4f63984a41554ec81c895f38fe4b1f2b0083f4e2de9410af266f865ca1309f05",
+    "database_sha256_before": "4f63984a41554ec81c895f38fe4b1f2b0083f4e2de9410af266f865ca1309f05",
+    "database_unchanged": true
+  },
+  "interaction_telemetry": {
+    "automatic_passage_cards": 0,
+    "confusion_context_rescues": 14,
+    "daily_peak_selector_due": {
+      "2026-09-03": 811,
+      "2026-09-04": 784,
+      "2026-09-07": 925,
+      "2026-09-08": 891,
+      "2026-09-09": 889,
+      "2026-09-10": 920,
+      "2026-09-11": 939,
+      "2026-09-12": 963,
+      "2026-09-13": 892,
+      "2026-09-14": 736,
+      "2026-09-15": 786
+    },
+    "daily_sentence_cards": {
+      "2026-09-03": 94,
+      "2026-09-04": 76,
+      "2026-09-07": 34,
+      "2026-09-08": 24,
+      "2026-09-09": 33,
+      "2026-09-10": 23,
+      "2026-09-11": 22,
+      "2026-09-12": 51,
+      "2026-09-13": 115,
+      "2026-09-14": 77,
+      "2026-09-15": 28
+    },
+    "density_cap_breaches": 0,
+    "distinct_confusion_captures_served": 4,
+    "distinct_exposure_lemmas": 509,
+    "exposure_breach_samples": [],
+    "exposure_invariant_breaches": 0,
+    "mature_collateral_exposures": 941,
+    "policy_session_count": 49,
+    "selection_reason_counts": {
+      "acquisition_repeat": 87,
+      "confusion_context_rescue_v1": 14,
+      "established_lapse_recovery_v1": 22,
+      "exact_surface_v1": 7,
+      "frequency_due_first": 30,
+      "greedy_cover": 417
+    }
+  },
+  "interpretation_limits": [
+    "This is a bundled policy experiment; it tests the package, not the isolated causal effect of each component.",
+    "Scheduled accuracy will usually look harder than legacy accuracy because trivial high-R collateral judgments become exposure-only.",
+    "Day 3 checks operation and safety; it cannot establish retention efficacy.",
+    "A confusion service rate needs captures with a full 14-day opportunity window."
+  ],
+  "policy_version": "low_energy_maintenance_v1",
+  "scheduled_retention": {
+    "cards_with_5plus_scheduled_judgments": 49,
+    "distinct_scheduled_lemmas": 748,
+    "exposure_only_evidence_rows": 975,
+    "old_cohort_definition": "first learning timestamp at least 90 days before experiment start",
+    "old_scheduled": {
+      "clean": 482,
+      "clean_pct": 76.1,
+      "judgments": 633,
+      "rating_counts": {
+        "1": 107,
+        "2": 44,
+        "3": 482
+      }
+    },
+    "old_scheduled_by_prior_gap": {
+      ">=14d": {
+        "clean": 144,
+        "clean_pct": 69.6,
+        "judgments": 207,
+        "rating_counts": {
+          "1": 47,
+          "2": 16,
+          "3": 144
+        }
+      },
+      ">=30d": {
+        "clean": 56,
+        "clean_pct": 62.2,
+        "judgments": 90,
+        "rating_counts": {
+          "1": 26,
+          "2": 8,
+          "3": 56
+        }
+      },
+      ">=7d": {
+        "clean": 267,
+        "clean_pct": 77.2,
+        "judgments": 346,
+        "rating_counts": {
+          "1": 57,
+          "2": 22,
+          "3": 267
+        }
+      }
+    },
+    "scheduled": {
+      "clean": 808,
+      "clean_pct": 74.6,
+      "judgments": 1083,
+      "rating_counts": {
+        "1": 198,
+        "2": 77,
+        "3": 808
+      }
+    },
+    "scheduled_by_card_density": {
+      "1-2": {
+        "clean": 113,
+        "clean_pct": 68.1,
+        "judgments": 166,
+        "rating_counts": {
+          "1": 40,
+          "2": 13,
+          "3": 113
+        }
+      },
+      "3-4": {
+        "clean": 506,
+        "clean_pct": 76.2,
+        "judgments": 664,
+        "rating_counts": {
+          "1": 115,
+          "2": 43,
+          "3": 506
+        }
+      },
+      "5+": {
+        "clean": 189,
+        "clean_pct": 74.7,
+        "judgments": 253,
+        "rating_counts": {
+          "1": 43,
+          "2": 21,
+          "3": 189
+        }
+      }
+    }
+  },
+  "schema_version": 1,
+  "triggered_signals": [
+    {
+      "code": "old_7d_retention_low",
+      "detail": "Old >=7d clean rate is 77.2% across 346 scheduled tests.",
+      "level": "warn",
+      "triggered": true
+    },
+    {
+      "code": "daily_volume_below_maintenance_target",
+      "detail": "Median volume is 16 cards per active day; intended floor is about 30.",
+      "level": "warn",
+      "triggered": true
+    }
+  ],
+  "warnings": [
+    "1 active FSRS rows had missing/invalid card JSON"
+  ],
+  "window": {
+    "checkpoint": "week-1 direction check",
+    "cutoff": "2026-09-15T07:22:55+00:00",
+    "elapsed_days": 11.89,
+    "start": "2026-09-03T10:00:00+00:00"
+  },
+  "workload": {
+    "active_days": 11,
+    "comprehension_counts": {
+      "partial": 200,
+      "understood": 131
+    },
+    "daily_cards": {
+      "2026-09-03": 49,
+      "2026-09-04": 27,
+      "2026-09-07": 32,
+      "2026-09-08": 16,
+      "2026-09-09": 13,
+      "2026-09-10": 5,
+      "2026-09-11": 13,
+      "2026-09-12": 32,
+      "2026-09-13": 119,
+      "2026-09-14": 10,
+      "2026-09-15": 15
+    },
+    "daily_true_new_intake": {},
+    "max_true_new_intake_on_day": 0,
+    "median_cards_per_active_day": 16,
+    "median_response_seconds": 32.6,
+    "p90_response_seconds": 81.4,
+    "reading_sentence_cards": 331,
+    "true_new_intake": 0
+  }
+}
