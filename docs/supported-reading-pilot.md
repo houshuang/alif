@@ -40,3 +40,14 @@ If the first three work, prepare the rest of the sequence. At ten sessions, revi
 Backend tests verify source fidelity, content/help identities, retry idempotency, rejected invalid evidence and the absence of vocabulary/review writes. Frontend tests cover reread support reset, continuation/checkpoint behavior, offline journal recovery, concurrent saves, corrupt-state preservation, cached content and retry routing. TypeScript and web export are checked, followed by a phone-sized browser walkthrough against an isolated local database.
 
 Deploy the backend migration before releasing the frontend. The app can queue events while a connection is unavailable; a successful first content download is required before offline use. This is a web/React Native shared implementation; the browser walkthrough does not substitute for checking it on the learner's physical iPhone.
+
+## September 15 read-only checkpoint and restart
+
+Production remains at the September 3 maintenance baseline: this reader has not
+been deployed. The [fresh checkpoint](../research/analysis-2026-09-15-reading-refresh.md)
+found no instrumented operational stop signal, but older-word recognition and
+recorded workload merit caution. It does not authorize a deployment or relax the
+maintenance guardrails. [Three smaller prepared portions](../research/reading-refresh-2026-09-15/reading-next.md)
+are available for conversation-based continuation, with vowel support and optional
+rereading. They are prepared curriculum, not completed learner sessions; retain
+the first actual reading as the phase boundary.

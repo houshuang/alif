@@ -1,5 +1,9 @@
 # Alif — Research Index
 
+## Current reading checkpoint — September 15, 2026
+
+[Updated analytics and reading process](analysis-2026-09-15-reading-refresh.md): fresh production snapshot, maintenance guardrails, matched older-word checks, and [three prepared restart portions](reading-refresh-2026-09-15/reading-next.md).
+
 ## Algorithm Redesign (2026-02-12) — START HERE
 
 After OCR import of ~100 textbook pages caused accuracy to crash from 78% to 25%, a comprehensive research effort was conducted to redesign the learning algorithm. **Read these files in this order:**
