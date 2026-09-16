@@ -91,3 +91,12 @@ def test_event_collision_cannot_overwrite_reflection(client, db_session):
 
 def test_missing_audio_returns_404(client):
     assert client.get("/api/books/chapters/voice/chapter:missing").status_code == 404
+
+
+def test_voice_collision_does_not_replace_or_leave_a_second_recording(client, db_session, tmp_path, monkeypatch):
+    monkeypatch.setattr(reading_chapters, "VOICE_DIR", tmp_path)
+    assert client.post("/api/books/chapters/voice", json=voice()).status_code == 200
+    changed = base64.b64encode(b"\x1a\x45\xdf\xa3different-note").decode()
+    assert client.post("/api/books/chapters/voice", json=voice(audio_base64=changed)).status_code == 422
+    assert len(list(tmp_path.iterdir())) == 1
+    assert client.get("/api/books/chapters/voice/chapter:test:1").content == base64.b64decode(voice()["audio_base64"])

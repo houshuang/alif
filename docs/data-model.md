@@ -40,6 +40,7 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 - `variant_decisions` — LLM variant cache: word_bare, base_bare, is_variant, reason
 - `chat_messages` — AI conversations: conversation_id, role, content
 - `learner_settings` — Singleton row: active_topic, topic_started_at, words_introduced_in_topic, topic_history_json, tashkeel_mode (always/fade/never), tashkeel_stability_threshold (float, default 30.0)
-# Supported reading journal
+
+## Supported reading journal
 
 `ReadingPilotEvent` / `reading_pilot_events` stores immutable JSON payloads keyed by `client_event_id`, with a server `received_at`. It holds both the existing `momo-wings` pilot and `library-bridge` chapter events. Chapter voice feedback references content-addressed files in `backend/data/reading-voice/`; those files need backup alongside the DB. These are supported-reading observations, not lemma recall or scheduling evidence. No schema change for chapters; see [supported-reading-chapters.md](supported-reading-chapters.md).

@@ -78,6 +78,11 @@ def record_chapter_event(db: Session, event: ChapterEventIn, **extra) -> dict:
         client_event_id=event.client_event_id, payload_json=payload,
     ).on_conflict_do_nothing(index_elements=["client_event_id"]))
     db.commit()
+    if not result.rowcount:
+        # Another request may have inserted between the read and the insert.
+        stored = db.get(ReadingPilotEvent, event.client_event_id)
+        if stored is None or stored.payload_json != payload:
+            raise ValueError("Event ID already used for different feedback")
     return {"status": "recorded" if result.rowcount else "duplicate"}
 
 
@@ -111,6 +116,13 @@ def record_chapter_voice(db: Session, body: ChapterVoiceIn) -> dict:
     digest = hashlib.sha256(audio).hexdigest()
     extension = {"audio/webm": "webm", "audio/mp4": "m4a", "audio/ogg": "ogg"}[body.mime_type]
     name = f"{digest}.{extension}"
+    extra = dict(voice_file=name, voice_mime_type=body.mime_type, voice_duration_ms=body.duration_ms)
+    existing = db.get(ReadingPilotEvent, body.event.client_event_id)
+    if existing is not None:
+        if existing.payload_json != body.event.model_dump(mode="json") | extra:
+            raise ValueError("Event ID already used for different feedback")
+        # Rewriting a missing blob also repairs an interrupted file restore.
+    db.rollback()  # release the read transaction before filesystem work
     # Store the complete blob before its journal reference. Retrying after a
     # crash reuses the same content-addressed file; no partial audio is exposed.
     VOICE_DIR.mkdir(parents=True, exist_ok=True)
@@ -125,5 +137,4 @@ def record_chapter_voice(db: Session, body: ChapterVoiceIn) -> dict:
             os.replace(temp, target)
         finally:
             Path(temp).unlink(missing_ok=True)
-    return record_chapter_event(db, body.event, voice_file=name,
-                                voice_mime_type=body.mime_type, voice_duration_ms=body.duration_ms)
+    return record_chapter_event(db, body.event, **extra)

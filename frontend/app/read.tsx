@@ -119,7 +119,7 @@ export default function ChapterReader() {
 
   const index = book.chapters.findIndex(c => c.id === chapter.id);
   return <View style={[s.screen, { paddingTop: insets.top }]}>
-    <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={s.screen}
+    <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={s.screen}
       contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 40 }]}
       scrollEventThrottle={200} onScroll={e => saveScroll(e.nativeEvent.contentOffset.y)}
       onContentSizeChange={(_, height) => {
