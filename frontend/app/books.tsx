@@ -72,6 +72,18 @@ export default function BooksScreen() {
 
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel="Open supported chapters"
+        style={[styles.bookCard, { marginBottom: 18 }]}
+        onPress={() => router.push("/read")}
+      >
+        <Text style={styles.eyebrow}>SHORT CHAPTERS · READ AT YOUR OWN PACE</Text>
+        <Text style={styles.titleEn}>The bridge in the book</Text>
+        <Text style={styles.subtitle}>A few word reminders, Arabic with help when you want it, and space for a voice reflection. No review obligations.</Text>
+        <Text style={[styles.continueText, { marginTop: 12 }]}>Continue reading →</Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel="Open Momo supported reading"
         style={[styles.bookCard, { marginBottom: 18 }]}
         onPress={() => router.push("/book-page?pilot=momo-wings")}

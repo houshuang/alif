@@ -1,0 +1,1534 @@
+{
+  "id": "library-bridge",
+  "version": 1,
+  "title": "The bridge in the book",
+  "source": "Original graded fiction prepared for Alif. Chapter 1 gathers the three library scenes already read in conversation; chapter 2 continues the story.",
+  "chapters": [
+    {
+      "id": "drawing",
+      "title": "The drawing in the book",
+      "orientation": "Return to the library. These familiar scenes now make one short chapter.",
+      "preview": [
+        {
+          "form": "أَمِينُ الْمَكْتَبَةِ",
+          "meaning": "the librarian",
+          "note": ""
+        },
+        {
+          "form": "جِسْرٌ",
+          "meaning": "a bridge",
+          "note": ""
+        },
+        {
+          "form": "فَيْضَانٌ",
+          "meaning": "a flood",
+          "note": ""
+        },
+        {
+          "form": "جَرَفَ",
+          "meaning": "swept away",
+          "note": ""
+        },
+        {
+          "form": "الضَّفَّةُ",
+          "meaning": "the riverbank",
+          "note": ""
+        },
+        {
+          "form": "وَرَقَةٌ",
+          "meaning": "a sheet of paper",
+          "note": "The و is part of the word."
+        }
+      ],
+      "paragraphs": [
+        {
+          "id": "drawing-1",
+          "arabic": "دَخَلَ شَابٌّ إِلَى مَكْتَبَةٍ قَدِيمَةٍ، وَسَأَلَ عَنْ كِتَابٍ يَصِفُ مَدِينَتَهُ قَبْلَ مِئَةِ عَامٍ. بَحَثَ أَمِينُ الْمَكْتَبَةِ بَيْنَ الرُّفُوفِ، ثُمَّ عَادَ بِكِتَابٍ صَغِيرٍ. فَتَحَهُ الشَّابُ، فَوَجَدَ اسْمَ جَدِّهِ عَلَى الصَّفْحَةِ الْأُولَى، مَكْتُوبًا بِخَطِّ الْيَدِ. نَظَرَ إِلَى الِاسْمِ مَرَّةً أُخْرَى. ثُمَّ جَلَسَ قُرْبَ النَّافِذَةِ وَبَدَأَ يَقْرَأُ.",
+          "english": "A young man entered an old library and asked for a book describing his city a hundred years ago. The librarian searched among the shelves, then returned with a small book. The young man opened it and found his grandfather’s name handwritten on the first page. He looked at the name again. Then he sat near the window and began to read.",
+          "tokens": [
+            {
+              "id": "drawing-1-1",
+              "surface": "دَخَلَ",
+              "gloss": "entered"
+            },
+            {
+              "id": "drawing-1-2",
+              "surface": "شَابٌّ",
+              "gloss": "a young man"
+            },
+            {
+              "id": "drawing-1-3",
+              "surface": "إِلَى",
+              "gloss": "into"
+            },
+            {
+              "id": "drawing-1-4",
+              "surface": "مَكْتَبَةٍ",
+              "gloss": "a library"
+            },
+            {
+              "id": "drawing-1-5",
+              "surface": "قَدِيمَةٍ،",
+              "gloss": "old"
+            },
+            {
+              "id": "drawing-1-6",
+              "surface": "وَسَأَلَ",
+              "gloss": "and asked"
+            },
+            {
+              "id": "drawing-1-7",
+              "surface": "عَنْ",
+              "gloss": "about / for"
+            },
+            {
+              "id": "drawing-1-8",
+              "surface": "كِتَابٍ",
+              "gloss": "a book"
+            },
+            {
+              "id": "drawing-1-9",
+              "surface": "يَصِفُ",
+              "gloss": "describes"
+            },
+            {
+              "id": "drawing-1-10",
+              "surface": "مَدِينَتَهُ",
+              "gloss": "his city"
+            },
+            {
+              "id": "drawing-1-11",
+              "surface": "قَبْلَ",
+              "gloss": "before / ago"
+            },
+            {
+              "id": "drawing-1-12",
+              "surface": "مِئَةِ",
+              "gloss": "a hundred"
+            },
+            {
+              "id": "drawing-1-13",
+              "surface": "عَامٍ.",
+              "gloss": "years"
+            },
+            {
+              "id": "drawing-1-14",
+              "surface": "بَحَثَ",
+              "gloss": "searched"
+            },
+            {
+              "id": "drawing-1-15",
+              "surface": "أَمِينُ",
+              "gloss": "keeper; here: librarian",
+              "note": "أَمِينُ الْمَكْتَبَةِ together means “the librarian”."
+            },
+            {
+              "id": "drawing-1-16",
+              "surface": "الْمَكْتَبَةِ",
+              "gloss": "the library"
+            },
+            {
+              "id": "drawing-1-17",
+              "surface": "بَيْنَ",
+              "gloss": "among"
+            },
+            {
+              "id": "drawing-1-18",
+              "surface": "الرُّفُوفِ،",
+              "gloss": "the shelves"
+            },
+            {
+              "id": "drawing-1-19",
+              "surface": "ثُمَّ",
+              "gloss": "then"
+            },
+            {
+              "id": "drawing-1-20",
+              "surface": "عَادَ",
+              "gloss": "returned"
+            },
+            {
+              "id": "drawing-1-21",
+              "surface": "بِكِتَابٍ",
+              "gloss": "with a book"
+            },
+            {
+              "id": "drawing-1-22",
+              "surface": "صَغِيرٍ.",
+              "gloss": "small"
+            },
+            {
+              "id": "drawing-1-23",
+              "surface": "فَتَحَهُ",
+              "gloss": "he opened it",
+              "note": "The ف belongs to فَتَحَ (opened). فَتَحَهُ means “he opened it”."
+            },
+            {
+              "id": "drawing-1-24",
+              "surface": "الشَّابُ،",
+              "gloss": "the young man"
+            },
+            {
+              "id": "drawing-1-25",
+              "surface": "فَوَجَدَ",
+              "gloss": "and found",
+              "note": "Here فَـ joins the clauses: “and / then he found”."
+            },
+            {
+              "id": "drawing-1-26",
+              "surface": "اسْمَ",
+              "gloss": "the name"
+            },
+            {
+              "id": "drawing-1-27",
+              "surface": "جَدِّهِ",
+              "gloss": "of his grandfather"
+            },
+            {
+              "id": "drawing-1-28",
+              "surface": "عَلَى",
+              "gloss": "on"
+            },
+            {
+              "id": "drawing-1-29",
+              "surface": "الصَّفْحَةِ",
+              "gloss": "the page"
+            },
+            {
+              "id": "drawing-1-30",
+              "surface": "الْأُولَى،",
+              "gloss": "first"
+            },
+            {
+              "id": "drawing-1-31",
+              "surface": "مَكْتُوبًا",
+              "gloss": "written"
+            },
+            {
+              "id": "drawing-1-32",
+              "surface": "بِخَطِّ",
+              "gloss": "in the handwriting"
+            },
+            {
+              "id": "drawing-1-33",
+              "surface": "الْيَدِ.",
+              "gloss": "of the hand; بِخَطِّ الْيَدِ = handwritten"
+            },
+            {
+              "id": "drawing-1-34",
+              "surface": "نَظَرَ",
+              "gloss": "looked"
+            },
+            {
+              "id": "drawing-1-35",
+              "surface": "إِلَى",
+              "gloss": "at"
+            },
+            {
+              "id": "drawing-1-36",
+              "surface": "الِاسْمِ",
+              "gloss": "the name"
+            },
+            {
+              "id": "drawing-1-37",
+              "surface": "مَرَّةً",
+              "gloss": "a time"
+            },
+            {
+              "id": "drawing-1-38",
+              "surface": "أُخْرَى.",
+              "gloss": "another; مَرَّةً أُخْرَى = again"
+            },
+            {
+              "id": "drawing-1-39",
+              "surface": "ثُمَّ",
+              "gloss": "then"
+            },
+            {
+              "id": "drawing-1-40",
+              "surface": "جَلَسَ",
+              "gloss": "sat"
+            },
+            {
+              "id": "drawing-1-41",
+              "surface": "قُرْبَ",
+              "gloss": "near"
+            },
+            {
+              "id": "drawing-1-42",
+              "surface": "النَّافِذَةِ",
+              "gloss": "the window"
+            },
+            {
+              "id": "drawing-1-43",
+              "surface": "وَبَدَأَ",
+              "gloss": "and began"
+            },
+            {
+              "id": "drawing-1-44",
+              "surface": "يَقْرَأُ.",
+              "gloss": "to read"
+            }
+          ]
+        },
+        {
+          "id": "drawing-2",
+          "arabic": "قَرَأَ الشَّابُ صَفَحَاتٍ قَلِيلَةً، ثُمَّ تَوَقَّفَ عِنْدَ رَسْمٍ لِجِسْرٍ قَدِيمٍ فَوْقَ نَهْرٍ. كَانَ تَحْتَ الرَّسْمِ كَلَامٌ بِخَطِّ جَدِّهِ: «كُنْتُ أَلْعَبُ هُنَا مَعَ أَخِي عِنْدَمَا كُنَّا صِغَارًا». عَرَفَ الشَّابُ النَّهْرَ، لَكِنَّهُ لَمْ يَرَ هَذَا الْجِسْرَ مِنْ قَبْلُ. حَمَلَ الْكِتَابَ إِلَى أَمِينِ الْمَكْتَبَةِ وَسَأَلَهُ: «مَتَى اخْتَفَى هَذَا الْجِسْرُ؟»",
+          "english": "The young man read a few pages, then stopped at a drawing of an old bridge over a river. Beneath the drawing were words in his grandfather’s handwriting: “I used to play here with my brother when we were little.” The young man recognized the river, but he had never seen this bridge before. He carried the book to the librarian and asked him, “When did this bridge disappear?”",
+          "tokens": [
+            {
+              "id": "drawing-2-1",
+              "surface": "قَرَأَ",
+              "gloss": "read"
+            },
+            {
+              "id": "drawing-2-2",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "drawing-2-3",
+              "surface": "صَفَحَاتٍ",
+              "gloss": "pages"
+            },
+            {
+              "id": "drawing-2-4",
+              "surface": "قَلِيلَةً،",
+              "gloss": "a few"
+            },
+            {
+              "id": "drawing-2-5",
+              "surface": "ثُمَّ",
+              "gloss": "then"
+            },
+            {
+              "id": "drawing-2-6",
+              "surface": "تَوَقَّفَ",
+              "gloss": "stopped"
+            },
+            {
+              "id": "drawing-2-7",
+              "surface": "عِنْدَ",
+              "gloss": "at"
+            },
+            {
+              "id": "drawing-2-8",
+              "surface": "رَسْمٍ",
+              "gloss": "a drawing"
+            },
+            {
+              "id": "drawing-2-9",
+              "surface": "لِجِسْرٍ",
+              "gloss": "of a bridge"
+            },
+            {
+              "id": "drawing-2-10",
+              "surface": "قَدِيمٍ",
+              "gloss": "old"
+            },
+            {
+              "id": "drawing-2-11",
+              "surface": "فَوْقَ",
+              "gloss": "over",
+              "note": "The ف is part of فَوْقَ (“above / over”), not a connector."
+            },
+            {
+              "id": "drawing-2-12",
+              "surface": "نَهْرٍ.",
+              "gloss": "a river"
+            },
+            {
+              "id": "drawing-2-13",
+              "surface": "كَانَ",
+              "gloss": "there was"
+            },
+            {
+              "id": "drawing-2-14",
+              "surface": "تَحْتَ",
+              "gloss": "under"
+            },
+            {
+              "id": "drawing-2-15",
+              "surface": "الرَّسْمِ",
+              "gloss": "the drawing"
+            },
+            {
+              "id": "drawing-2-16",
+              "surface": "كَلَامٌ",
+              "gloss": "writing / words"
+            },
+            {
+              "id": "drawing-2-17",
+              "surface": "بِخَطِّ",
+              "gloss": "in the handwriting"
+            },
+            {
+              "id": "drawing-2-18",
+              "surface": "جَدِّهِ:",
+              "gloss": "of his grandfather"
+            },
+            {
+              "id": "drawing-2-19",
+              "surface": "«كُنْتُ",
+              "gloss": "I used to"
+            },
+            {
+              "id": "drawing-2-20",
+              "surface": "أَلْعَبُ",
+              "gloss": "play"
+            },
+            {
+              "id": "drawing-2-21",
+              "surface": "هُنَا",
+              "gloss": "here",
+              "note": "هُنَا = here. Compare هُنَاكَ = there."
+            },
+            {
+              "id": "drawing-2-22",
+              "surface": "مَعَ",
+              "gloss": "with"
+            },
+            {
+              "id": "drawing-2-23",
+              "surface": "أَخِي",
+              "gloss": "my brother"
+            },
+            {
+              "id": "drawing-2-24",
+              "surface": "عِنْدَمَا",
+              "gloss": "when"
+            },
+            {
+              "id": "drawing-2-25",
+              "surface": "كُنَّا",
+              "gloss": "we were"
+            },
+            {
+              "id": "drawing-2-26",
+              "surface": "صِغَارًا».",
+              "gloss": "little"
+            },
+            {
+              "id": "drawing-2-27",
+              "surface": "عَرَفَ",
+              "gloss": "recognized"
+            },
+            {
+              "id": "drawing-2-28",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "drawing-2-29",
+              "surface": "النَّهْرَ،",
+              "gloss": "the river"
+            },
+            {
+              "id": "drawing-2-30",
+              "surface": "لَكِنَّهُ",
+              "gloss": "but he"
+            },
+            {
+              "id": "drawing-2-31",
+              "surface": "لَمْ",
+              "gloss": "did not"
+            },
+            {
+              "id": "drawing-2-32",
+              "surface": "يَرَ",
+              "gloss": "see"
+            },
+            {
+              "id": "drawing-2-33",
+              "surface": "هَذَا",
+              "gloss": "this"
+            },
+            {
+              "id": "drawing-2-34",
+              "surface": "الْجِسْرَ",
+              "gloss": "bridge"
+            },
+            {
+              "id": "drawing-2-35",
+              "surface": "مِنْ",
+              "gloss": "from; مِنْ قَبْلُ = before"
+            },
+            {
+              "id": "drawing-2-36",
+              "surface": "قَبْلُ.",
+              "gloss": "before"
+            },
+            {
+              "id": "drawing-2-37",
+              "surface": "حَمَلَ",
+              "gloss": "carried"
+            },
+            {
+              "id": "drawing-2-38",
+              "surface": "الْكِتَابَ",
+              "gloss": "the book"
+            },
+            {
+              "id": "drawing-2-39",
+              "surface": "إِلَى",
+              "gloss": "to"
+            },
+            {
+              "id": "drawing-2-40",
+              "surface": "أَمِينِ",
+              "gloss": "the keeper / librarian"
+            },
+            {
+              "id": "drawing-2-41",
+              "surface": "الْمَكْتَبَةِ",
+              "gloss": "of the library"
+            },
+            {
+              "id": "drawing-2-42",
+              "surface": "وَسَأَلَهُ:",
+              "gloss": "and asked him"
+            },
+            {
+              "id": "drawing-2-43",
+              "surface": "«مَتَى",
+              "gloss": "when"
+            },
+            {
+              "id": "drawing-2-44",
+              "surface": "اخْتَفَى",
+              "gloss": "disappeared"
+            },
+            {
+              "id": "drawing-2-45",
+              "surface": "هَذَا",
+              "gloss": "this"
+            },
+            {
+              "id": "drawing-2-46",
+              "surface": "الْجِسْرُ؟»",
+              "gloss": "bridge"
+            }
+          ]
+        },
+        {
+          "id": "drawing-3",
+          "arabic": "نَظَرَ أَمِينُ الْمَكْتَبَةِ إِلَى الرَّسْمِ وَقَالَ: «جَاءَ فَيْضَانٌ كَبِيرٌ قَبْلَ سِتِّينَ عَامًا، وَجَرَفَ الْجِسْرَ. لَكِنْ بَقِيَ بَيْتٌ صَغِيرٌ عَلَى الضَّفَّةِ الْأُخْرَى». نَظَرَ الشَّابُ إِلَى الرَّسْمِ مَرَّةً أُخْرَى، فَرَأَى الْبَيْتَ بَيْنَ الْأَشْجَارِ. سَأَلَ: «هَلْ يُمْكِنُ أَنْ أَذْهَبَ إِلَيْهِ؟» أَخَذَ أَمِينُ الْمَكْتَبَةِ وَرَقَةً وَرَسَمَ لَهُ الطَّرِيقَ. شَكَرَهُ الشَّابُ وَخَرَجَ مِنَ الْمَكْتَبَةِ.",
+          "english": "The librarian looked at the drawing and said, “A great flood came sixty years ago and swept the bridge away. But a small house remained on the other bank.” The young man looked at the drawing again and saw the house among the trees. He asked, “Can I go there?” The librarian took a sheet of paper and drew the route for him. The young man thanked him and left the library.",
+          "tokens": [
+            {
+              "id": "drawing-3-1",
+              "surface": "نَظَرَ",
+              "gloss": "looked"
+            },
+            {
+              "id": "drawing-3-2",
+              "surface": "أَمِينُ",
+              "gloss": "the keeper / librarian"
+            },
+            {
+              "id": "drawing-3-3",
+              "surface": "الْمَكْتَبَةِ",
+              "gloss": "of the library"
+            },
+            {
+              "id": "drawing-3-4",
+              "surface": "إِلَى",
+              "gloss": "at"
+            },
+            {
+              "id": "drawing-3-5",
+              "surface": "الرَّسْمِ",
+              "gloss": "the drawing"
+            },
+            {
+              "id": "drawing-3-6",
+              "surface": "وَقَالَ:",
+              "gloss": "and said"
+            },
+            {
+              "id": "drawing-3-7",
+              "surface": "«جَاءَ",
+              "gloss": "came"
+            },
+            {
+              "id": "drawing-3-8",
+              "surface": "فَيْضَانٌ",
+              "gloss": "a flood"
+            },
+            {
+              "id": "drawing-3-9",
+              "surface": "كَبِيرٌ",
+              "gloss": "great / large"
+            },
+            {
+              "id": "drawing-3-10",
+              "surface": "قَبْلَ",
+              "gloss": "before / ago"
+            },
+            {
+              "id": "drawing-3-11",
+              "surface": "سِتِّينَ",
+              "gloss": "sixty"
+            },
+            {
+              "id": "drawing-3-12",
+              "surface": "عَامًا،",
+              "gloss": "years"
+            },
+            {
+              "id": "drawing-3-13",
+              "surface": "وَجَرَفَ",
+              "gloss": "and swept away"
+            },
+            {
+              "id": "drawing-3-14",
+              "surface": "الْجِسْرَ.",
+              "gloss": "the bridge"
+            },
+            {
+              "id": "drawing-3-15",
+              "surface": "لَكِنْ",
+              "gloss": "but"
+            },
+            {
+              "id": "drawing-3-16",
+              "surface": "بَقِيَ",
+              "gloss": "remained"
+            },
+            {
+              "id": "drawing-3-17",
+              "surface": "بَيْتٌ",
+              "gloss": "a house"
+            },
+            {
+              "id": "drawing-3-18",
+              "surface": "صَغِيرٌ",
+              "gloss": "small"
+            },
+            {
+              "id": "drawing-3-19",
+              "surface": "عَلَى",
+              "gloss": "on"
+            },
+            {
+              "id": "drawing-3-20",
+              "surface": "الضَّفَّةِ",
+              "gloss": "the riverbank"
+            },
+            {
+              "id": "drawing-3-21",
+              "surface": "الْأُخْرَى».",
+              "gloss": "other"
+            },
+            {
+              "id": "drawing-3-22",
+              "surface": "نَظَرَ",
+              "gloss": "looked"
+            },
+            {
+              "id": "drawing-3-23",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "drawing-3-24",
+              "surface": "إِلَى",
+              "gloss": "at"
+            },
+            {
+              "id": "drawing-3-25",
+              "surface": "الرَّسْمِ",
+              "gloss": "the drawing"
+            },
+            {
+              "id": "drawing-3-26",
+              "surface": "مَرَّةً",
+              "gloss": "a time"
+            },
+            {
+              "id": "drawing-3-27",
+              "surface": "أُخْرَى،",
+              "gloss": "another; again"
+            },
+            {
+              "id": "drawing-3-28",
+              "surface": "فَرَأَى",
+              "gloss": "and saw"
+            },
+            {
+              "id": "drawing-3-29",
+              "surface": "الْبَيْتَ",
+              "gloss": "the house"
+            },
+            {
+              "id": "drawing-3-30",
+              "surface": "بَيْنَ",
+              "gloss": "among"
+            },
+            {
+              "id": "drawing-3-31",
+              "surface": "الْأَشْجَارِ.",
+              "gloss": "the trees"
+            },
+            {
+              "id": "drawing-3-32",
+              "surface": "سَأَلَ:",
+              "gloss": "asked"
+            },
+            {
+              "id": "drawing-3-33",
+              "surface": "«هَلْ",
+              "gloss": "question marker"
+            },
+            {
+              "id": "drawing-3-34",
+              "surface": "يُمْكِنُ",
+              "gloss": "is it possible"
+            },
+            {
+              "id": "drawing-3-35",
+              "surface": "أَنْ",
+              "gloss": "to"
+            },
+            {
+              "id": "drawing-3-36",
+              "surface": "أَذْهَبَ",
+              "gloss": "I go"
+            },
+            {
+              "id": "drawing-3-37",
+              "surface": "إِلَيْهِ؟»",
+              "gloss": "to it"
+            },
+            {
+              "id": "drawing-3-38",
+              "surface": "أَخَذَ",
+              "gloss": "took"
+            },
+            {
+              "id": "drawing-3-39",
+              "surface": "أَمِينُ",
+              "gloss": "the keeper / librarian"
+            },
+            {
+              "id": "drawing-3-40",
+              "surface": "الْمَكْتَبَةِ",
+              "gloss": "of the library"
+            },
+            {
+              "id": "drawing-3-41",
+              "surface": "وَرَقَةً",
+              "gloss": "a sheet of paper",
+              "note": "وَرَقَةً = a sheet of paper (waraqa). The و belongs to the word."
+            },
+            {
+              "id": "drawing-3-42",
+              "surface": "وَرَسَمَ",
+              "gloss": "and drew",
+              "note": "وَ + رَسَمَ = and he drew. Here وَ is the attached connector."
+            },
+            {
+              "id": "drawing-3-43",
+              "surface": "لَهُ",
+              "gloss": "for him"
+            },
+            {
+              "id": "drawing-3-44",
+              "surface": "الطَّرِيقَ.",
+              "gloss": "the route"
+            },
+            {
+              "id": "drawing-3-45",
+              "surface": "شَكَرَهُ",
+              "gloss": "thanked him"
+            },
+            {
+              "id": "drawing-3-46",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "drawing-3-47",
+              "surface": "وَخَرَجَ",
+              "gloss": "and left"
+            },
+            {
+              "id": "drawing-3-48",
+              "surface": "مِنَ",
+              "gloss": "from"
+            },
+            {
+              "id": "drawing-3-49",
+              "surface": "الْمَكْتَبَةِ.",
+              "gloss": "the library"
+            }
+          ]
+        }
+      ],
+      "word_count": 139
+    },
+    {
+      "id": "bank",
+      "title": "On the other bank",
+      "orientation": "The young man follows the librarian’s directions. This is the new part of the story.",
+      "preview": [
+        {
+          "form": "عَبَرَ",
+          "meaning": "crossed",
+          "note": ""
+        },
+        {
+          "form": "قَرَعَ الْبَابَ",
+          "meaning": "knocked on the door",
+          "note": ""
+        },
+        {
+          "form": "مُسِنَّةٌ",
+          "meaning": "elderly (woman)",
+          "note": ""
+        },
+        {
+          "form": "لِطِفْلَيْنِ",
+          "meaning": "of two children",
+          "note": ""
+        },
+        {
+          "form": "وَضَعَ",
+          "meaning": "put / placed",
+          "note": "The و is part of the verb."
+        }
+      ],
+      "paragraphs": [
+        {
+          "id": "bank-1",
+          "arabic": "مَشَى الشَّابُ بِجَانِبِ النَّهْرِ حَتَّى وَصَلَ إِلَى جِسْرٍ جَدِيدٍ. عَبَرَ الْجِسْرَ، ثُمَّ نَظَرَ إِلَى الْوَرَقَةِ وَتَابَعَ الْمَشْيَ. بَعْدَ قَلِيلٍ، رَأَى بَيْتًا صَغِيرًا بَيْنَ الْأَشْجَارِ. كَانَ الْبَابُ أَزْرَقَ، وَكَانَتِ النَّوَافِذُ مَفْتُوحَةً. قَرَعَ الْبَابَ وَانْتَظَرَ.",
+          "english": "The young man walked beside the river until he reached a new bridge. He crossed the bridge, then looked at the sheet of paper and kept walking. A little later, he saw a small house among the trees. The door was blue, and the windows were open. He knocked on the door and waited.",
+          "tokens": [
+            {
+              "id": "bank-1-1",
+              "surface": "مَشَى",
+              "gloss": "walked"
+            },
+            {
+              "id": "bank-1-2",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "bank-1-3",
+              "surface": "بِجَانِبِ",
+              "gloss": "beside"
+            },
+            {
+              "id": "bank-1-4",
+              "surface": "النَّهْرِ",
+              "gloss": "the river"
+            },
+            {
+              "id": "bank-1-5",
+              "surface": "حَتَّى",
+              "gloss": "until"
+            },
+            {
+              "id": "bank-1-6",
+              "surface": "وَصَلَ",
+              "gloss": "reached",
+              "note": "وَصَلَ = he reached / arrived. The و belongs to the verb."
+            },
+            {
+              "id": "bank-1-7",
+              "surface": "إِلَى",
+              "gloss": "to"
+            },
+            {
+              "id": "bank-1-8",
+              "surface": "جِسْرٍ",
+              "gloss": "a bridge"
+            },
+            {
+              "id": "bank-1-9",
+              "surface": "جَدِيدٍ.",
+              "gloss": "new"
+            },
+            {
+              "id": "bank-1-10",
+              "surface": "عَبَرَ",
+              "gloss": "crossed"
+            },
+            {
+              "id": "bank-1-11",
+              "surface": "الْجِسْرَ،",
+              "gloss": "the bridge"
+            },
+            {
+              "id": "bank-1-12",
+              "surface": "ثُمَّ",
+              "gloss": "then"
+            },
+            {
+              "id": "bank-1-13",
+              "surface": "نَظَرَ",
+              "gloss": "looked"
+            },
+            {
+              "id": "bank-1-14",
+              "surface": "إِلَى",
+              "gloss": "at"
+            },
+            {
+              "id": "bank-1-15",
+              "surface": "الْوَرَقَةِ",
+              "gloss": "the sheet of paper",
+              "note": "الـ + وَرَقَة = the sheet of paper. The و still belongs to the noun."
+            },
+            {
+              "id": "bank-1-16",
+              "surface": "وَتَابَعَ",
+              "gloss": "and continued"
+            },
+            {
+              "id": "bank-1-17",
+              "surface": "الْمَشْيَ.",
+              "gloss": "walking"
+            },
+            {
+              "id": "bank-1-18",
+              "surface": "بَعْدَ",
+              "gloss": "after"
+            },
+            {
+              "id": "bank-1-19",
+              "surface": "قَلِيلٍ،",
+              "gloss": "a little while"
+            },
+            {
+              "id": "bank-1-20",
+              "surface": "رَأَى",
+              "gloss": "saw"
+            },
+            {
+              "id": "bank-1-21",
+              "surface": "بَيْتًا",
+              "gloss": "a house"
+            },
+            {
+              "id": "bank-1-22",
+              "surface": "صَغِيرًا",
+              "gloss": "small"
+            },
+            {
+              "id": "bank-1-23",
+              "surface": "بَيْنَ",
+              "gloss": "among"
+            },
+            {
+              "id": "bank-1-24",
+              "surface": "الْأَشْجَارِ.",
+              "gloss": "the trees"
+            },
+            {
+              "id": "bank-1-25",
+              "surface": "كَانَ",
+              "gloss": "was"
+            },
+            {
+              "id": "bank-1-26",
+              "surface": "الْبَابُ",
+              "gloss": "the door"
+            },
+            {
+              "id": "bank-1-27",
+              "surface": "أَزْرَقَ،",
+              "gloss": "blue"
+            },
+            {
+              "id": "bank-1-28",
+              "surface": "وَكَانَتِ",
+              "gloss": "and were"
+            },
+            {
+              "id": "bank-1-29",
+              "surface": "النَّوَافِذُ",
+              "gloss": "the windows"
+            },
+            {
+              "id": "bank-1-30",
+              "surface": "مَفْتُوحَةً.",
+              "gloss": "open"
+            },
+            {
+              "id": "bank-1-31",
+              "surface": "قَرَعَ",
+              "gloss": "knocked on"
+            },
+            {
+              "id": "bank-1-32",
+              "surface": "الْبَابَ",
+              "gloss": "the door"
+            },
+            {
+              "id": "bank-1-33",
+              "surface": "وَانْتَظَرَ.",
+              "gloss": "and waited"
+            }
+          ]
+        },
+        {
+          "id": "bank-2",
+          "arabic": "فَتَحَتْ لَهُ امْرَأَةٌ مُسِنَّةٌ. قَالَ: «وَجَدْتُ اسْمَ جَدِّي فِي كِتَابٍ عَنِ الْمَدِينَةِ، وَأُرِيدُ أَنْ أَعْرِفَ الْمَزِيدَ عَنْ هَذَا الْبَيْتِ». سَأَلَتْهُ عَنِ اسْمِ جَدِّهِ. وَعِنْدَمَا سَمِعَتِ الِاسْمَ، ابْتَسَمَتْ وَقَالَتْ: «كَانَ أَخُو جَدِّكَ يَعِيشُ هُنَا. وَأَنَا ابْنَتُهُ. تَفَضَّلْ، عِنْدِي شَيْءٌ أُرِيدُ أَنْ أُرِيَكَ إِيَّاهُ».",
+          "english": "An elderly woman opened the door for him. He said, “I found my grandfather’s name in a book about the city, and I want to know more about this house.” She asked him his grandfather’s name. When she heard it, she smiled and said, “Your grandfather’s brother used to live here. I am his daughter. Come in. I have something I want to show you.”",
+          "tokens": [
+            {
+              "id": "bank-2-1",
+              "surface": "فَتَحَتْ",
+              "gloss": "she opened",
+              "note": "فَتَحَتْ = she opened. The ف belongs to the verb."
+            },
+            {
+              "id": "bank-2-2",
+              "surface": "لَهُ",
+              "gloss": "for him"
+            },
+            {
+              "id": "bank-2-3",
+              "surface": "امْرَأَةٌ",
+              "gloss": "a woman"
+            },
+            {
+              "id": "bank-2-4",
+              "surface": "مُسِنَّةٌ.",
+              "gloss": "elderly"
+            },
+            {
+              "id": "bank-2-5",
+              "surface": "قَالَ:",
+              "gloss": "he said"
+            },
+            {
+              "id": "bank-2-6",
+              "surface": "«وَجَدْتُ",
+              "gloss": "I found",
+              "note": "وَجَدْتُ = I found. The و belongs to the verb."
+            },
+            {
+              "id": "bank-2-7",
+              "surface": "اسْمَ",
+              "gloss": "the name"
+            },
+            {
+              "id": "bank-2-8",
+              "surface": "جَدِّي",
+              "gloss": "of my grandfather"
+            },
+            {
+              "id": "bank-2-9",
+              "surface": "فِي",
+              "gloss": "in"
+            },
+            {
+              "id": "bank-2-10",
+              "surface": "كِتَابٍ",
+              "gloss": "a book"
+            },
+            {
+              "id": "bank-2-11",
+              "surface": "عَنِ",
+              "gloss": "about"
+            },
+            {
+              "id": "bank-2-12",
+              "surface": "الْمَدِينَةِ،",
+              "gloss": "the city"
+            },
+            {
+              "id": "bank-2-13",
+              "surface": "وَأُرِيدُ",
+              "gloss": "and I want"
+            },
+            {
+              "id": "bank-2-14",
+              "surface": "أَنْ",
+              "gloss": "to"
+            },
+            {
+              "id": "bank-2-15",
+              "surface": "أَعْرِفَ",
+              "gloss": "know"
+            },
+            {
+              "id": "bank-2-16",
+              "surface": "الْمَزِيدَ",
+              "gloss": "more"
+            },
+            {
+              "id": "bank-2-17",
+              "surface": "عَنْ",
+              "gloss": "about"
+            },
+            {
+              "id": "bank-2-18",
+              "surface": "هَذَا",
+              "gloss": "this"
+            },
+            {
+              "id": "bank-2-19",
+              "surface": "الْبَيْتِ».",
+              "gloss": "house"
+            },
+            {
+              "id": "bank-2-20",
+              "surface": "سَأَلَتْهُ",
+              "gloss": "she asked him"
+            },
+            {
+              "id": "bank-2-21",
+              "surface": "عَنِ",
+              "gloss": "about"
+            },
+            {
+              "id": "bank-2-22",
+              "surface": "اسْمِ",
+              "gloss": "the name"
+            },
+            {
+              "id": "bank-2-23",
+              "surface": "جَدِّهِ.",
+              "gloss": "of his grandfather"
+            },
+            {
+              "id": "bank-2-24",
+              "surface": "وَعِنْدَمَا",
+              "gloss": "and when"
+            },
+            {
+              "id": "bank-2-25",
+              "surface": "سَمِعَتِ",
+              "gloss": "she heard"
+            },
+            {
+              "id": "bank-2-26",
+              "surface": "الِاسْمَ،",
+              "gloss": "the name"
+            },
+            {
+              "id": "bank-2-27",
+              "surface": "ابْتَسَمَتْ",
+              "gloss": "she smiled"
+            },
+            {
+              "id": "bank-2-28",
+              "surface": "وَقَالَتْ:",
+              "gloss": "and said"
+            },
+            {
+              "id": "bank-2-29",
+              "surface": "«كَانَ",
+              "gloss": "used to"
+            },
+            {
+              "id": "bank-2-30",
+              "surface": "أَخُو",
+              "gloss": "the brother"
+            },
+            {
+              "id": "bank-2-31",
+              "surface": "جَدِّكَ",
+              "gloss": "of your grandfather"
+            },
+            {
+              "id": "bank-2-32",
+              "surface": "يَعِيشُ",
+              "gloss": "live"
+            },
+            {
+              "id": "bank-2-33",
+              "surface": "هُنَا.",
+              "gloss": "here"
+            },
+            {
+              "id": "bank-2-34",
+              "surface": "وَأَنَا",
+              "gloss": "and I"
+            },
+            {
+              "id": "bank-2-35",
+              "surface": "ابْنَتُهُ.",
+              "gloss": "his daughter"
+            },
+            {
+              "id": "bank-2-36",
+              "surface": "تَفَضَّلْ،",
+              "gloss": "come in / please"
+            },
+            {
+              "id": "bank-2-37",
+              "surface": "عِنْدِي",
+              "gloss": "I have"
+            },
+            {
+              "id": "bank-2-38",
+              "surface": "شَيْءٌ",
+              "gloss": "something"
+            },
+            {
+              "id": "bank-2-39",
+              "surface": "أُرِيدُ",
+              "gloss": "I want"
+            },
+            {
+              "id": "bank-2-40",
+              "surface": "أَنْ",
+              "gloss": "to"
+            },
+            {
+              "id": "bank-2-41",
+              "surface": "أُرِيَكَ",
+              "gloss": "show you"
+            },
+            {
+              "id": "bank-2-42",
+              "surface": "إِيَّاهُ».",
+              "gloss": "it"
+            }
+          ]
+        },
+        {
+          "id": "bank-3",
+          "arabic": "جَلَسَ الشَّابُ قُرْبَ النَّافِذَةِ. عَادَتِ الْمَرْأَةُ بِصُورَةٍ قَدِيمَةٍ لِطِفْلَيْنِ عَلَى الْجِسْرِ. قَالَتْ: «هَذَا أَبِي، وَهَذَا جَدُّكَ». نَظَرَ إِلَى الصُّورَةِ طَوِيلًا، ثُمَّ قَالَ: «لَمْ أَرَ جَدِّي وَهُوَ طِفْلٌ مِنْ قَبْلُ». تَحَدَّثَا عَنِ الْعَائِلَةِ وَالْبَيْتِ وَالنَّهْرِ. وَقَبْلَ أَنْ يَخْرُجَ، قَالَتْ لَهُ: «خُذِ الصُّورَةَ مَعَكَ. عِنْدِي صُورَةٌ أُخْرَى مِثْلُهَا».",
+          "english": "The young man sat near the window. The woman returned with an old photograph of two children on the bridge. She said, “This is my father, and this is your grandfather.” He looked at the photograph for a long time, then said, “I’ve never seen my grandfather as a child before.” They talked about the family, the house, and the river. Before he left, she said, “Take the photograph with you. I have another one like it.”",
+          "tokens": [
+            {
+              "id": "bank-3-1",
+              "surface": "جَلَسَ",
+              "gloss": "sat"
+            },
+            {
+              "id": "bank-3-2",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "bank-3-3",
+              "surface": "قُرْبَ",
+              "gloss": "near"
+            },
+            {
+              "id": "bank-3-4",
+              "surface": "النَّافِذَةِ.",
+              "gloss": "the window"
+            },
+            {
+              "id": "bank-3-5",
+              "surface": "عَادَتِ",
+              "gloss": "she returned"
+            },
+            {
+              "id": "bank-3-6",
+              "surface": "الْمَرْأَةُ",
+              "gloss": "the woman"
+            },
+            {
+              "id": "bank-3-7",
+              "surface": "بِصُورَةٍ",
+              "gloss": "with a photograph"
+            },
+            {
+              "id": "bank-3-8",
+              "surface": "قَدِيمَةٍ",
+              "gloss": "old"
+            },
+            {
+              "id": "bank-3-9",
+              "surface": "لِطِفْلَيْنِ",
+              "gloss": "of two children"
+            },
+            {
+              "id": "bank-3-10",
+              "surface": "عَلَى",
+              "gloss": "on"
+            },
+            {
+              "id": "bank-3-11",
+              "surface": "الْجِسْرِ.",
+              "gloss": "the bridge"
+            },
+            {
+              "id": "bank-3-12",
+              "surface": "قَالَتْ:",
+              "gloss": "she said"
+            },
+            {
+              "id": "bank-3-13",
+              "surface": "«هَذَا",
+              "gloss": "this"
+            },
+            {
+              "id": "bank-3-14",
+              "surface": "أَبِي،",
+              "gloss": "my father"
+            },
+            {
+              "id": "bank-3-15",
+              "surface": "وَهَذَا",
+              "gloss": "and this"
+            },
+            {
+              "id": "bank-3-16",
+              "surface": "جَدُّكَ».",
+              "gloss": "your grandfather"
+            },
+            {
+              "id": "bank-3-17",
+              "surface": "نَظَرَ",
+              "gloss": "looked"
+            },
+            {
+              "id": "bank-3-18",
+              "surface": "إِلَى",
+              "gloss": "at"
+            },
+            {
+              "id": "bank-3-19",
+              "surface": "الصُّورَةِ",
+              "gloss": "the photograph"
+            },
+            {
+              "id": "bank-3-20",
+              "surface": "طَوِيلًا،",
+              "gloss": "for a long time"
+            },
+            {
+              "id": "bank-3-21",
+              "surface": "ثُمَّ",
+              "gloss": "then"
+            },
+            {
+              "id": "bank-3-22",
+              "surface": "قَالَ:",
+              "gloss": "said"
+            },
+            {
+              "id": "bank-3-23",
+              "surface": "«لَمْ",
+              "gloss": "did not"
+            },
+            {
+              "id": "bank-3-24",
+              "surface": "أَرَ",
+              "gloss": "I see"
+            },
+            {
+              "id": "bank-3-25",
+              "surface": "جَدِّي",
+              "gloss": "my grandfather"
+            },
+            {
+              "id": "bank-3-26",
+              "surface": "وَهُوَ",
+              "gloss": "while he"
+            },
+            {
+              "id": "bank-3-27",
+              "surface": "طِفْلٌ",
+              "gloss": "a child"
+            },
+            {
+              "id": "bank-3-28",
+              "surface": "مِنْ",
+              "gloss": "from; مِنْ قَبْلُ = before"
+            },
+            {
+              "id": "bank-3-29",
+              "surface": "قَبْلُ».",
+              "gloss": "before"
+            },
+            {
+              "id": "bank-3-30",
+              "surface": "تَحَدَّثَا",
+              "gloss": "the two talked"
+            },
+            {
+              "id": "bank-3-31",
+              "surface": "عَنِ",
+              "gloss": "about"
+            },
+            {
+              "id": "bank-3-32",
+              "surface": "الْعَائِلَةِ",
+              "gloss": "the family"
+            },
+            {
+              "id": "bank-3-33",
+              "surface": "وَالْبَيْتِ",
+              "gloss": "and the house"
+            },
+            {
+              "id": "bank-3-34",
+              "surface": "وَالنَّهْرِ.",
+              "gloss": "and the river"
+            },
+            {
+              "id": "bank-3-35",
+              "surface": "وَقَبْلَ",
+              "gloss": "and before"
+            },
+            {
+              "id": "bank-3-36",
+              "surface": "أَنْ",
+              "gloss": "that / to"
+            },
+            {
+              "id": "bank-3-37",
+              "surface": "يَخْرُجَ،",
+              "gloss": "he leaves"
+            },
+            {
+              "id": "bank-3-38",
+              "surface": "قَالَتْ",
+              "gloss": "she said"
+            },
+            {
+              "id": "bank-3-39",
+              "surface": "لَهُ:",
+              "gloss": "to him"
+            },
+            {
+              "id": "bank-3-40",
+              "surface": "«خُذِ",
+              "gloss": "take"
+            },
+            {
+              "id": "bank-3-41",
+              "surface": "الصُّورَةَ",
+              "gloss": "the photograph"
+            },
+            {
+              "id": "bank-3-42",
+              "surface": "مَعَكَ.",
+              "gloss": "with you"
+            },
+            {
+              "id": "bank-3-43",
+              "surface": "عِنْدِي",
+              "gloss": "I have"
+            },
+            {
+              "id": "bank-3-44",
+              "surface": "صُورَةٌ",
+              "gloss": "a photograph"
+            },
+            {
+              "id": "bank-3-45",
+              "surface": "أُخْرَى",
+              "gloss": "another"
+            },
+            {
+              "id": "bank-3-46",
+              "surface": "مِثْلُهَا».",
+              "gloss": "like it"
+            }
+          ]
+        },
+        {
+          "id": "bank-4",
+          "arabic": "فِي الْمَسَاءِ، وَضَعَ الشَّابُ الصُّورَةَ عَلَى مَكْتَبِهِ. خَرَجَ فِي الصَّبَاحِ لِيَبْحَثَ عَنْ كِتَابٍ، وَعَادَ بِحِكَايَةٍ جَدِيدَةٍ عَنْ عَائِلَتِهِ.",
+          "english": "That evening, the young man put the photograph on his desk. He had gone out that morning to look for a book, and returned with a new story about his family.",
+          "tokens": [
+            {
+              "id": "bank-4-1",
+              "surface": "فِي",
+              "gloss": "in"
+            },
+            {
+              "id": "bank-4-2",
+              "surface": "الْمَسَاءِ،",
+              "gloss": "the evening"
+            },
+            {
+              "id": "bank-4-3",
+              "surface": "وَضَعَ",
+              "gloss": "put / placed",
+              "note": "وَضَعَ = he put / placed. The و is part of the verb."
+            },
+            {
+              "id": "bank-4-4",
+              "surface": "الشَّابُ",
+              "gloss": "the young man"
+            },
+            {
+              "id": "bank-4-5",
+              "surface": "الصُّورَةَ",
+              "gloss": "the photograph"
+            },
+            {
+              "id": "bank-4-6",
+              "surface": "عَلَى",
+              "gloss": "on"
+            },
+            {
+              "id": "bank-4-7",
+              "surface": "مَكْتَبِهِ.",
+              "gloss": "his desk"
+            },
+            {
+              "id": "bank-4-8",
+              "surface": "خَرَجَ",
+              "gloss": "went out"
+            },
+            {
+              "id": "bank-4-9",
+              "surface": "فِي",
+              "gloss": "in"
+            },
+            {
+              "id": "bank-4-10",
+              "surface": "الصَّبَاحِ",
+              "gloss": "the morning"
+            },
+            {
+              "id": "bank-4-11",
+              "surface": "لِيَبْحَثَ",
+              "gloss": "to look"
+            },
+            {
+              "id": "bank-4-12",
+              "surface": "عَنْ",
+              "gloss": "for"
+            },
+            {
+              "id": "bank-4-13",
+              "surface": "كِتَابٍ،",
+              "gloss": "a book"
+            },
+            {
+              "id": "bank-4-14",
+              "surface": "وَعَادَ",
+              "gloss": "and returned"
+            },
+            {
+              "id": "bank-4-15",
+              "surface": "بِحِكَايَةٍ",
+              "gloss": "with a story"
+            },
+            {
+              "id": "bank-4-16",
+              "surface": "جَدِيدَةٍ",
+              "gloss": "new"
+            },
+            {
+              "id": "bank-4-17",
+              "surface": "عَنْ",
+              "gloss": "about"
+            },
+            {
+              "id": "bank-4-18",
+              "surface": "عَائِلَتِهِ.",
+              "gloss": "his family"
+            }
+          ]
+        }
+      ],
+      "word_count": 139
+    }
+  ]
+}

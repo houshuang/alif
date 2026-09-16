@@ -327,6 +327,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="story/[id]" options={{ href: null, title: "Story" }} />
         <Tabs.Screen name="book-import" options={{ href: null, title: "Import Book" }} />
         <Tabs.Screen name="books" options={{ href: null, title: "Book Library" }} />
+        <Tabs.Screen name="read" options={{ href: null, title: "Supported reading", headerShown: false, tabBarStyle: { display: "none" } }} />
         <Tabs.Screen
           name="book-page"
           options={{

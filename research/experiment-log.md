@@ -48,6 +48,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+
+## 2026-09-16 — Supported chapters: temporary preview, connected reading, optional reflection
+
+User requested an Alif-native reader with a web bookmark, word/English help and
+voice feedback after the conversation trial. Implemented two 139-word chapters
+of original library fiction: a familiar chapter gathering three earlier scenes,
+then a fresh continuation. Six/five temporary vocabulary reminders, vowel marks
+on by default, continuous scrolling, paragraph English and exact-form word help.
+Completion is independent of feedback and rereading; no acquisition, review or
+exposure credit. Isolated events reuse the pilot journal; stopped voice recordings
+and typed drafts persist locally before sending through the durable queue.
+
+Conversation observations motivating this design: supported passages became very
+fluent, familiar context helped, and a quick reparse of وَرَقَة recovered the
+ending. The learner reports systematic ambiguity between attached connectors
+and word-initial letters, plus effort resolving unvowelled forms. These are
+self-reports, not controlled estimates; familiarity with the library scenes must
+not be counted as fresh-text transfer. This entry records implementation, not a
+completed learner trial or deployment. No scheduler policy changes.
+
+Protocol, data boundaries and next decisions: [supported chapters](../docs/supported-reading-chapters.md).
+After three to five short sittings, use effort/reflections and exact help locations
+to choose the next content length and support budget. Do not automatically remove
+vowels, increase difficulty or enroll looked-up words.
+
+
 ## 2026-09-15 — Reading refresh: smaller backlog, delayed-recognition caution, restart portions
 
 Read-only refresh from a new verified production SQLite backup. Production still

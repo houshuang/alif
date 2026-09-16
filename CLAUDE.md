@@ -59,6 +59,8 @@ npx expo start --web  # opens on localhost:8081
 | `~/src/bookifier/bilingual/RUNBOOK.md` | Bilingual EPUB build pipeline (AR + tashkīl + faithful EN). Use when generating reader-grade bilingual material from raw Arabic text rather than studying it inside alif. |
 
 ## Review Modes
+Supported chapter reading (`/read`) is a separate, scheduler-inert reader with temporary vocabulary reminders and optional voice/text feedback. See `docs/supported-reading-chapters.md`; do not route its help/completion through review-credit APIs.
+
 See `docs/review-modes.md` for full UX flows. Modes: Sentence-First Review (primary), Reading Mode, Listening Mode, Learn Mode, Story Mode, Quran Reading Mode (suspended 2026-04-07), Podcast Mode. The bilingual Book Reader is deliberately passage-first rather than a review card: opening and drafting are inert; only a successful Next commits exact-range evidence. Clean policy uses Box-2 recognition floors and authoritative rating-1 misses. Guided policy leaves unintroduced words inert behind inline glosses unless explicitly opted into ordinary Box 1; already introduced taps remain rating-1 misses.
 
 ## Hard Invariants
