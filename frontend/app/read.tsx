@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fontFamily, ltr } from "../lib/theme";
 import ReadingVoiceNote from "../components/reading-voice-note";
@@ -71,6 +71,7 @@ export default function ChapterReader() {
     const id = chapterId;
     const checkpoint = () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
       const y = positions.current[id] ?? 0;
       void updateChapterProgress(id, p => ({ ...p, scrollY: y }), "pause").catch(() => {
         if (mounted.current) setError("Couldn’t save your place. Please retry before leaving.");
@@ -79,6 +80,11 @@ export default function ChapterReader() {
     const subscription = AppState.addEventListener("change", state => { if (state !== "active") checkpoint(); });
     return () => { subscription.remove(); checkpoint(); };
   }, [chapterId]);
+  useFocusEffect(useCallback(() => () => {
+    if (!chapterId) return;
+    const y = positions.current[chapterId] ?? 0;
+    void updateChapterProgress(chapterId, p => ({ ...p, scrollY: y }), "pause").catch(() => {});
+  }, [chapterId]));
 
   function saveScroll(y: number) {
     scrollY.current = Math.max(0, Math.round(y));

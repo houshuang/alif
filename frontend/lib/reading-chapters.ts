@@ -111,7 +111,8 @@ export function updateChapterProgress(id: string, change: (p: ChapterProgress) =
         payload: voice ? { event, audio_base64: voice.base64, mime_type: voice.mimeType, duration_ms: voice.durationMs } : event });
       if (kind === "feedback") { next.voice = null; next.feedbackSaved = true; }
     }
-    const updated = { ...journal, lastChapter: id, chapters: { ...journal.chapters, [id]: next } };
+    const lastChapter = kind === "open" || kind === "start" || kind === "reread" ? id : journal.lastChapter;
+    const updated = { ...journal, lastChapter, chapters: { ...journal.chapters, [id]: next } };
     // Progress, draft and unsent evidence commit atomically before the UI advances.
     await AsyncStorage.setItem(CHAPTER_STORAGE_KEY, JSON.stringify(updated));
     if (kind) await drain(updated).catch(() => {});

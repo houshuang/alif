@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { Audio } from "expo-av";
 import { VoiceDraft } from "../lib/reading-chapters";
 
@@ -11,6 +12,7 @@ export default function ReadingVoiceNote({ draft, onDraft, onBusy }: {
   const sound = useRef<Audio.Sound | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
+  const focused = useRef(true);
   const operating = useRef(false);
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,7 +68,7 @@ export default function ReadingVoiceNote({ draft, onDraft, onBusy }: {
       }
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) throw new Error("Microphone access wasn’t allowed. Enable it in settings, or type below.");
-      if (!mounted.current) return;
+      if (!mounted.current || !focused.current) return;
       await sound.current?.unloadAsync(); sound.current = null; setPlaying(false);
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const webMime = Platform.OS === "web" ? ["audio/webm", "audio/mp4", "audio/ogg"].find(m => MediaRecorder.isTypeSupported(m)) : "audio/webm";
@@ -78,7 +80,7 @@ export default function ReadingVoiceNote({ draft, onDraft, onBusy }: {
         web: { mimeType: webMime, bitsPerSecond: 48000 },
       });
       recording.current = rec;
-      if (!mounted.current) { await stop(); return; }
+      if (!mounted.current || !focused.current) { await stop(); return; }
       setActive(true); timer.current = setTimeout(() => { void stop(); }, 60_000);
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : "Couldn’t start recording. You can type below.");
@@ -100,10 +102,20 @@ export default function ReadingVoiceNote({ draft, onDraft, onBusy }: {
       const result = await Audio.Sound.createAsync({ uri }, { shouldPlay: true }, status => {
         if (mounted.current && status.isLoaded && status.didJustFinish) setPlaying(false);
       });
+      if (!mounted.current || !focused.current) { await result.sound.unloadAsync(); return; }
       sound.current = result.sound; setPlaying(true);
     } catch { setError("Couldn’t play the note. Your saved recording is still here."); }
   }
   const stopLatest = useRef(stop); stopLatest.current = stop;
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    return () => {
+      focused.current = false;
+      void stopLatest.current(); void sound.current?.unloadAsync();
+      sound.current = null;
+      if (mounted.current) setPlaying(false);
+    };
+  }, []));
   useEffect(() => {
     mounted.current = true;
     const sub = AppState.addEventListener("change", state => { if (state !== "active") void stopLatest.current(); });

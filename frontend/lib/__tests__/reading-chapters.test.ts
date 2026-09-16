@@ -31,11 +31,14 @@ it("saves independent places, supports offline draft recovery and never queues d
   const voice = { base64: "AA==", mimeType: "audio/mp4" as const, durationMs: 1000 };
   await updateChapterProgress("drawing", p => ({ ...p, stage: "reading", scrollY: 630, text: "A slow word", voice }));
   await updateChapterProgress("bank", p => ({ ...p, stage: "reading", scrollY: 180 }));
+  await updateChapterProgress("bank", p => p, "open");
+  // A previous screen's deferred scroll/draft save must not hijack the bookmark.
+  await updateChapterProgress("drawing", p => ({ ...p, scrollY: 630 }));
   const j = await loadChapterProgress();
   expect(j.lastChapter).toBe("bank");
   expect(j.chapters.drawing).toMatchObject({ scrollY: 630, text: "A slow word", voice });
   expect(j.chapters.bank.scrollY).toBe(180);
-  expect(enqueueReview).not.toHaveBeenCalled();
+  expect(enqueueReview).toHaveBeenCalledTimes(1);
 });
 
 it("atomically retains feedback through queue failure and replays the same event ID", async () => {
