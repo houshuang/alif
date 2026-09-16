@@ -55,3 +55,9 @@ All frontend in `frontend/`. The Expo app serves **two languages** (Arabic via t
 - `lib/topic-labels.ts` — Human-readable labels + icons for 20 thematic domains
 - `lib/mock-data.ts` — Mock words, stats, learn candidates for testing
 - `lib/__tests__/` — Jest tests for sync, store, smart-filters, API, typechecks
+
+## Supported chapters
+
+- `app/read.tsx` — Bookmarkable chapter reader, bounded vocabulary preview, contextual word help, paragraph English, optional vowels, scroll resume and reflections. Linked from `app/books.tsx`.
+- `lib/reading-chapters.ts` — Versioned content cache and serialized device-local progress/draft/outbox journal; uses the existing durable sync queue without review-credit actions.
+- `components/reading-voice-note.tsx` — Existing Expo AV recording/playback, one-minute limit, durable stopped-recording draft and text fallback. See [supported-reading-chapters.md](supported-reading-chapters.md).

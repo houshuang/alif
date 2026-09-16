@@ -143,3 +143,12 @@ External-service integration guide (request/response schemas, flow, CORS, cURL):
 | POST | `/api/chat/ask` | Ask AI a question (with learning context) |
 | GET | `/api/chat/conversations` | List conversation summaries |
 | GET | `/api/chat/conversations/{id}` | Full conversation messages |
+
+## Supported chapter reader
+
+- `GET /api/books/chapters` — Versioned content, bounded word reminders, paired paragraphs and contextual token glosses.
+- `POST /api/books/chapters/events` — Retry-safe reading/feedback journal; no vocabulary credit.
+- `POST /api/books/chapters/voice` — Bounded base64 audio plus feedback event; stores a private voice note.
+- `GET /api/books/chapters/voice/{event_id}` — Retrieve a saved voice note through the existing private API.
+
+Payloads, offline behavior and release constraints: [supported-reading-chapters.md](supported-reading-chapters.md).

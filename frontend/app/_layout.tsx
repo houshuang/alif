@@ -133,12 +133,18 @@ function LayoutInner({ online }: { online: boolean }) {
   // surface. A polyglot route matches both el and la actives (routeMatchesLanguage).
   useEffect(() => {
     if (!ready) return;
+    // A direct supported-reading bookmark explicitly selects Arabic, even if
+    // the previous app visit was Greek/Latin. This screen has no language picker.
+    if (pathname === "/read" && language !== "ar") {
+      setLanguage("ar");
+      return;
+    }
     const r = routeLanguage(pathname);
     if (r === "shared") return;
     if (!routeMatchesLanguage(r, language)) {
       router.replace(homePathFor(language) as any);
     }
-  }, [ready, language, pathname, router]);
+  }, [ready, language, pathname, router, setLanguage]);
 
   // NOTE: do NOT early-return a non-navigator (e.g. a bare spinner) while
   // `!ready`. The language-sync effect above calls router.replace(homePathFor)
@@ -327,6 +333,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="story/[id]" options={{ href: null, title: "Story" }} />
         <Tabs.Screen name="book-import" options={{ href: null, title: "Import Book" }} />
         <Tabs.Screen name="books" options={{ href: null, title: "Book Library" }} />
+        <Tabs.Screen name="read" options={{ href: null, title: "Supported reading", headerShown: false, tabBarStyle: { display: "none" } }} />
         <Tabs.Screen
           name="book-page"
           options={{

@@ -13,6 +13,8 @@ export type QueueEntryType =
   | "reintro_result"
   | "experiment_intro_ack"
   | "reading_pilot_event"
+  | "reading_chapter_event"
+  | "reading_chapter_voice"
   | "grammar_intro"
   | "verse";
 
@@ -99,6 +101,14 @@ const INDIVIDUAL_ACTIONS: Record<string, {
   url: (p: Record<string, unknown>) => string;
   body: (p: Record<string, unknown>) => Record<string, unknown>;
 }> = {
+  reading_chapter_event: {
+    url: () => `${BASE_URL}/api/books/chapters/events`,
+    body: (p) => p,
+  },
+  reading_chapter_voice: {
+    url: () => `${BASE_URL}/api/books/chapters/voice`,
+    body: (p) => p,
+  },
   reading_pilot_event: {
     url: () => `${BASE_URL}/api/books/reading-pilot/events`,
     body: (p) => p,

@@ -12,6 +12,9 @@ from app.schemas import ProcessedBookImportIn, StoryDetailOut
 from app.services.book_import_service import import_book, import_processed_book
 from app.services.story_service import get_story_detail
 from app.services.reading_pilot import ReadingPilotEventIn, get_reading_pilot, record_reading_event
+from app.services import reading_chapters
+from app.models import ReadingPilotEvent
+from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,40 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB per image
 UPLOAD_DIR = Path("data/book-uploads")
+
+
+@router.get("/chapters")
+def reading_chapter_content():
+    return reading_chapters.get_reading_chapters()
+
+
+@router.post("/chapters/events")
+def chapter_event(body: reading_chapters.ChapterEventIn, db: Session = Depends(get_db)):
+    try:
+        return reading_chapters.record_chapter_event(db, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post("/chapters/voice")
+def chapter_voice(body: reading_chapters.ChapterVoiceIn, db: Session = Depends(get_db)):
+    try:
+        return reading_chapters.record_chapter_voice(db, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/chapters/voice/{event_id}")
+def chapter_voice_audio(event_id: str, db: Session = Depends(get_db)):
+    event = db.get(ReadingPilotEvent, event_id)
+    payload = event.payload_json if event else {}
+    name = payload.get("voice_file")
+    if not name or Path(name).name != name:
+        raise HTTPException(404, "Voice note not found")
+    path = reading_chapters.VOICE_DIR / name
+    if not path.is_file():
+        raise HTTPException(404, "Voice note not found")
+    return FileResponse(path, media_type=payload["voice_mime_type"], filename=name)
 
 
 @router.get("/reading-pilot")

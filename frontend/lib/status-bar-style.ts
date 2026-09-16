@@ -8,7 +8,7 @@ import type { StatusBarStyle } from "expo-status-bar";
  */
 export function statusBarStyleForPath(pathname: string): StatusBarStyle {
   const usesLightSurface =
-    pathname === "/book-page" || pathname.startsWith("/polyglot");
+    pathname === "/book-page" || pathname === "/read" || pathname.startsWith("/polyglot");
 
   return usesLightSurface ? "dark" : "light";
 }
