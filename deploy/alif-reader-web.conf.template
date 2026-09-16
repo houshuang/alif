@@ -1,0 +1,19 @@
+# Render __ALIF_CAPABILITY__ locally/server-side; never commit the rendered file.
+# Include alongside alif-private-api.conf in the existing HTTPS server block.
+# Export with ALIF_WEB_BASE_PATH=/__ALIF_CAPABILITY__/reader and ALIF_API_URL
+# pointing to the same private API prefix. All bundle assets stay behind it.
+location = /__ALIF_CAPABILITY__/reader {
+    access_log off;
+    return 302 /__ALIF_CAPABILITY__/reader/;
+}
+
+location ^~ /__ALIF_CAPABILITY__/reader/ {
+    access_log off;
+    root /opt/alif-web/current;
+    rewrite ^/__ALIF_CAPABILITY__/reader/(.*)$ /$1 break;
+    try_files $uri /index.html =404;
+    add_header Cache-Control "private, no-cache" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}

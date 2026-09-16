@@ -120,3 +120,21 @@ development exception). Do not give the existing plain-HTTP Metro URL as a worki
 voice-enabled bookmark. Production needs the private HTTPS web entry and backend
 routes before web/OTA release. The existing reading-pilot migration must already be
 applied; this feature adds no schema change.
+
+### Private HTTPS web release
+
+The HTTPS host already serves other applications at its root. Export this app
+with `ALIF_WEB_BASE_PATH=/<private-capability>/reader` and the usual private
+`ALIF_API_URL`, then install the output under `/opt/alif-web/releases/<commit>`.
+Point `/opt/alif-web/current` at that release. Render
+`deploy/alif-reader-web.conf.template` into a root-readable nginx snippet with
+the existing capability, include it in the HTTPS server, run `nginx -t`, and
+reload. Back up the previous nginx config before changing it. Keep export logs
+private: Expo prints its base path. Never expose these bundles at public asset
+paths: their configuration contains the API capability.
+
+The bookmark is `https://<host>/<private-capability>/reader/read` (append
+`?chapter=bank` to start the new second chapter). Client routing and font/JS asset
+paths must all retain this prefix. Verify direct deep links, reloads, library
+navigation and paragraph/word help after publishing. Leave `ALIF_WEB_BASE_PATH`
+unset for `scripts/publish-ios-update.sh`; native routing stays unchanged.
