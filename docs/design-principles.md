@@ -20,7 +20,7 @@ Feature-level design decisions and implementation details. For bug-preventing in
 ## Graduation & Acquisition
 
 - **Tiered graduation** — acquisition uses aggressive graduation tiers with a distributed-day guard in production: (0) first correct advances to Box 2 due next day, then a second-day success with >=80% cumulative accuracy graduates; (E) a success after a real gap of >=3 days graduates; (1) 100% accuracy + 3 reviews and (2) >=80% accuracy + 4 reviews + box >=2 may graduate only after evidence spans another UTC day; (3) standard is box >=3 + 5 reviews + >=60% accuracy + 2 calendar days. Reviews count equally whether a word is primary or collateral. Tier 3 alone requires the word to be due.
-- **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). Graduation uses the same 95% retention scheduler as subsequent FSRS reviews, producing an initial interval around 2–4 days after fuzzing; before 2026-07-27 a local default scheduler silently used 90% and produced ~8 days. `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
+- **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). Graduation uses the same policy-selected retention scheduler as subsequent FSRS reviews (`standard_scheduler()`): about 6–11 days after fuzzing at the maintenance 90% target, 2–5 days at the legacy 95% rollback. Before 2026-07-27 a local default scheduler silently ignored the production target. `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
 
 ## Review UX
 

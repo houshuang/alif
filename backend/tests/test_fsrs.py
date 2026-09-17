@@ -10,10 +10,13 @@ from app.services.fsrs_service import (
     FSRS_LIBRARY_VERSION,
     FSRS_PARAMETERS_SHA256,
     FSRS_SCHEDULER_POLICY_VERSION,
+    LEGACY_FSRS_DESIRED_RETENTION,
+    MAINTENANCE_FSRS_DESIRED_RETENTION,
     create_new_card,
-    scheduler,
+    standard_scheduler,
     submit_review,
 )
+from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV
 
 
 def test_create_new_card():
@@ -63,12 +66,75 @@ def test_submit_review_good(db_session):
     assert log.fsrs_log_json["fsrs_library_version"] == FSRS_LIBRARY_VERSION
     assert (
         log.fsrs_log_json["fsrs_desired_retention"]
-        == scheduler.desired_retention
+        == standard_scheduler().desired_retention
+        == MAINTENANCE_FSRS_DESIRED_RETENTION
     )
     assert log.fsrs_log_json["fsrs_parameters_sha256"] == FSRS_PARAMETERS_SHA256
     assert log.fsrs_log_json["fsrs_policy"] == "standard_v2"
     assert log.fsrs_log_json["fsrs_assisted_lapse"] is False
     assert log.fsrs_log_json["fsrs_rating_applied"] == 3
+
+
+def test_maintenance_switch_selects_standard_retention(monkeypatch):
+    assert MAINTENANCE_FSRS_DESIRED_RETENTION == 0.90
+    assert standard_scheduler().desired_retention == MAINTENANCE_FSRS_DESIRED_RETENTION
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
+    assert standard_scheduler().desired_retention == LEGACY_FSRS_DESIRED_RETENTION == 0.95
+    # Both targets share one parameter set, so retrievability and the stamped
+    # parameter hash do not depend on the switch.
+    assert list(standard_scheduler().parameters) == list(
+        fsrs_service.maintenance_scheduler.parameters
+    )
+
+
+def _mature_known_card(db, arabic, now):
+    lemma = Lemma(lemma_ar=arabic, lemma_ar_bare=arabic, gloss_en="word")
+    db.add(lemma)
+    db.flush()
+    card = Card(
+        state=State.Review,
+        stability=30.0,
+        difficulty=5.0,
+        due=now - timedelta(hours=1),
+        last_review=now - timedelta(days=12),
+    )
+    db.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="known",
+        fsrs_card_json=card.to_dict(),
+        source="encountered",
+        times_seen=8,
+        times_correct=8,
+    ))
+    db.commit()
+    return lemma
+
+
+def test_maintenance_retention_spaces_successful_reviews_further(
+    db_session, monkeypatch
+):
+    """2026-09-17: at 90% a mature card waits its stability; at 95% about 40% of it."""
+    now = datetime.now(timezone.utc)
+    maintenance = _mature_known_card(db_session, "بعيد", now)
+    legacy = _mature_known_card(db_session, "قريب", now)
+
+    maintenance_due = datetime.fromisoformat(
+        submit_review(db_session, maintenance.lemma_id, rating_int=3)["next_due"]
+    )
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
+    legacy_due = datetime.fromisoformat(
+        submit_review(db_session, legacy.lemma_id, rating_int=3)["next_due"]
+    )
+
+    assert (maintenance_due - now) > 1.8 * (legacy_due - now)
+    retention_stamps = {
+        row.lemma_id: row.fsrs_log_json["fsrs_desired_retention"]
+        for row in db_session.query(ReviewLog).all()
+    }
+    assert retention_stamps == {
+        maintenance.lemma_id: MAINTENANCE_FSRS_DESIRED_RETENTION,
+        legacy.lemma_id: LEGACY_FSRS_DESIRED_RETENTION,
+    }
 
 
 def test_submit_review_again(db_session):

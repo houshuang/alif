@@ -1037,9 +1037,13 @@ def _graduate_word(db_session, lemma_id):
     submit_acquisition_review(db_session, lemma_id, rating_int=3)
 
 
-def test_root_boost_graduation_easy_rating(db_session):
+def test_root_boost_graduation_easy_rating(db_session, monkeypatch):
     """Words with 2+ known root siblings get Rating.Easy (higher initial stability)."""
     from fsrs import Scheduler, Card, Rating
+    from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV
+
+    # Legacy 95% policy; the maintenance 90% interval is covered below.
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
 
     root, lemmas = _create_root_family(db_session)
     target_lemma = lemmas[2]  # "library"
@@ -1075,7 +1079,8 @@ def test_root_boost_graduation_easy_rating(db_session):
     due = datetime.fromisoformat(fsrs_data["due"])
     # Production's 95% retention target schedules initial Easy near three days;
     # the former local default scheduler silently produced about eight days.
-    assert timedelta(hours=47) <= due - datetime.now(timezone.utc) <= timedelta(days=4)
+    # FSRS fuzz spreads a three-day interval across 2–5 whole days.
+    assert timedelta(hours=47) <= due - datetime.now(timezone.utc) <= timedelta(days=5, hours=1)
     log = (
         db_session.query(ReviewLog)
         .filter_by(lemma_id=target_lemma.lemma_id)
@@ -1090,6 +1095,37 @@ def test_root_boost_graduation_easy_rating(db_session):
     assert initialization["desired_retention"] == 0.95
     assert initialization["applied_rating"] == 4
     assert initialization["root_boost"] is True
+
+
+def test_root_boost_graduation_uses_maintenance_retention(db_session):
+    """Graduation initializes FSRS with the same active target as later reviews."""
+    root, lemmas = _create_root_family(db_session)
+    for lemma in lemmas[:2]:
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            times_seen=10,
+            times_correct=9,
+        ))
+    db_session.flush()
+
+    _graduate_word(db_session, lemmas[2].lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemmas[2].lemma_id).one()
+    fsrs_data = ulk.fsrs_card_json
+    if isinstance(fsrs_data, str):
+        import json
+        fsrs_data = json.loads(fsrs_data)
+    due = datetime.fromisoformat(fsrs_data["due"])
+    # Easy initial stability is about 8.3 days, which is the 90% interval;
+    # FSRS fuzz spreads it across 6–11 whole days.
+    assert (
+        timedelta(days=5, hours=23)
+        <= due - datetime.now(timezone.utc)
+        <= timedelta(days=11, hours=1)
+    )
+    log = db_session.query(ReviewLog).filter_by(lemma_id=lemmas[2].lemma_id).one()
+    assert log.fsrs_log_json["graduation_fsrs_initialization"]["desired_retention"] == 0.90
 
 
 def test_no_root_boost_without_siblings(db_session):

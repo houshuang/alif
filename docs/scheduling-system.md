@@ -537,9 +537,10 @@ def _graduate(ulk, now):
 
 The initial FSRS stability after ordinary graduation is S₀(Good) ≈ 2.3 days,
 with the standard 10-minute learning step first. Root-boost Easy graduation
-skips into Review with S₀(Easy) ≈ 8.3 days and, under the shared 95% retention
-policy, is due in about 3 days. Before 2026-07-27 that path accidentally used a
-local 90% scheduler and waited about 8 days. For standard graduates, the word
+skips into Review with S₀(Easy) ≈ 8.3 days and uses the same retention target as
+later reviews: about 8 days under low-energy maintenance v1.1 (90%), about 3
+days under the legacy 95% rollback. Before 2026-07-27 that path accidentally used
+a local 90% scheduler regardless of the production target. For standard graduates, the word
 has been seen 5+ times with 60%+ accuracy over 4+ days — a genuine learning
 signal.
 
@@ -2073,7 +2074,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
 | `OVERDUE_ESCALATION_MAX` | 6.0 | Max score multiplier for severely overdue words (linear ramp over 14 days) |
 | FSRS package | `6.3.1` exact | Scheduler defaults are model state; exact pin plus per-review library/parameter hash prevents silent compatible-release drift |
-| FSRS `desired_retention` | 0.95 | Current interval target. July segmented calibration found FSRS recall below prediction overall, especially for legacy/Relearning cards; do not change until clean rolling-origin replay |
+| FSRS `desired_retention` | 0.90 maintenance / 0.95 rollback | `standard_scheduler()` in `fsrs_service.py` selects it from the maintenance switch for ordinary reviews and graduation initialization. 0.95 scheduled a mature card at ~40% of its stability; at 0.90 it waits the full stability. Changed 2026-09-17 after six weeks of due reviews showed FSRS calibrated up to 14 days late but recall of 65% (predicted 79%) beyond, with 22% of due reviews that late. Supersedes the 2026-07-26 hold, whose "recall trails prediction" premise now holds only in that backlog bucket |
 | Assisted-lapse `desired_retention` | 0.90 | Rating-2-only target with no relearning steps; standard scheduler parameters remain unchanged |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
 | `MAX_DUE_WORDS_PER_SENTENCE_CARD` | 4 | Active low-energy ceiling across all actionable due canonicals present, including off-cohort/off-lane collateral |
