@@ -244,8 +244,8 @@ through seven or more learner-active days while still counting as debt.
   learner break cannot hide real debt.
 
 Nothing else in the package changes: the 2/day true-new cap, 0/1/2 earn-in,
-density ceiling, exposure-only predicate, risk ordering, confusion rescue, and
-FSRS desired retention (0.95) are as preregistered. Rollback is unchanged:
+density ceiling, exposure-only predicate, risk ordering, and confusion rescue
+are as preregistered; FSRS desired retention is amended separately (v1.1b). Rollback is unchanged:
 `ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` restores the legacy 20-row actionable
 limit and counts unserved words again.
 

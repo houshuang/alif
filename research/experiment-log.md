@@ -107,11 +107,9 @@ the accepted cost), and Box-1 words excluded as unserved. Stop if actionable Box
 1 rises despite zero reintroductions, or if the unserved exclusion exceeds ten
 words (that would mean a selector starvation defect needing its own fix).
 
-**Not changed here.** FSRS desired retention stays 0.95. Lowering it was
-proposed from the same probe, but the 2026-07-26 calibration entry rejected
-lowering retention while recall trails prediction; that decision is held for the
-learner rather than bundled into this amendment. Sentence-supply quality (dense
-low-frequency word salad) is a separate follow-up.
+**Not changed here.** FSRS desired retention is a separate amendment (v1.1b,
+same date) so each change can be reverted independently. Sentence-supply
+quality (dense low-frequency word salad) is a separate follow-up.
 
 
 ## 2026-09-16 — Supported chapters: temporary preview, connected reading, optional reflection
