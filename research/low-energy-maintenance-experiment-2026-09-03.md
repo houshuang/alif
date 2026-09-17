@@ -255,3 +255,27 @@ log `box1_occupancy` with `box1_load`/`box1_limit`. Add to the day-30 readout:
 suspended-leech queue size and admission delay (expected to grow), and the
 number of Box-1 words excluded as unserved. More than ten excluded words points
 to selector starvation that needs its own fix, not a larger exclusion.
+## Amendment v1.1b (2026-09-17): FSRS desired retention 0.90
+
+**Why.** The debt hypothesis expected main due stock to fall; at day 14 it moved
+744 → 629 but rebounds after any light day, because ~50 main-lane FSRS words
+arrive daily while ~27 cards/day only breaks even. The 95% target schedules a
+mature card at ~40% of its stability. Across 3,133 due reading reviews from
+Aug 3–Sep 17, FSRS recall matched prediction up to 14 days late (<1d 93.8% vs
+93.9%; 7–14d 82.4% vs 82.8%) but was 65.1% against 79.3% predicted beyond 14
+days, and 22% of due reviews were that late. Lateness, not the retention target,
+is now the main retention loss.
+
+**What changes under the same master switch.** Ordinary FSRS reviews and
+graduation initialization schedule at 0.90 (`standard_scheduler()`). Assisted
+lapses keep 0.90 without relearning steps. Parameters, the parameter hash, and
+retrievability (including the 0.97 exposure-only threshold) are unchanged.
+Already scheduled due dates are not rewritten; each card adopts the new target
+at its next review, so arrivals fall gradually over several weeks.
+
+**Analysis boundary and guardrails.** Every FSRS row stamps
+`fsrs_desired_retention`; split all post-amendment retention readouts on it.
+Warn if FSRS recall (rating ≥2) on reviews within three days of due falls below
+85% over at least 150 such reviews, or if the existing old-word ≥7-day clean
+rate falls below 80%. Rollback of the whole package still uses the master
+switch; reverting only this target requires a code change.

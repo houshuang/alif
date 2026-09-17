@@ -48,6 +48,65 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-17 — Maintenance v1.1b: FSRS desired retention 0.95 → 0.90
+
+**Learner question.** Main review debt hovers at 600–700 regardless of reps.
+Is the learner behind, or is the metric misleading?
+
+**Read-only production evidence (snapshot 2026-09-17T17:35Z, deployed
+`f901a1b`).** Strict main FSRS due was 629 and not flat: it dropped from ~960
+on Sep 12 to 676 after a 119-card day, then rebounded after a 10-card day.
+About 50 main-lane FSRS words arrive per day (346 over the next seven days),
+while the last week cleared 1.83 successful due-word reviews per card, so ~27
+cards/day only breaks even. Median lateness of the due stock was 16.2 days and
+270 of 630 due rows had stability ≥30 days.
+
+Matched calibration on 3,133 due reading FSRS reviews from Aug 3 to Sep 17
+(prediction from the pre-review card at the actual review time, FSRS-6 decay
+0.1542):
+
+| Late by | n | Strict (≥3) | FSRS recall (≥2) | Predicted |
+|---|---:|---:|---:|---:|
+| <1 day | 599 | 90.7% | 93.8% | 93.9% |
+| 1–3 days | 547 | 85.6% | 89.6% | 90.1% |
+| 3–7 days | 653 | 85.3% | 87.7% | 86.8% |
+| 7–14 days | 652 | 78.2% | 82.4% | 82.8% |
+| ≥14 days | 682 | 60.6% | 65.1% | 79.3% |
+| All | 3,133 | 79.5% | 83.2% | 86.2% |
+
+**Interpretation.** FSRS is now well calibrated for reviews up to two weeks
+late. The overall shortfall comes from the 22% of due reviews that are more
+than 14 days late, which is backlog, not a mis-set target. At 0.95 a card falls
+due after ~40% of its stability; at 0.90 after all of it, so the same
+vocabulary produces materially fewer arrivals. On-time reviews at 0.90 should
+land near 90% FSRS recall and ~86% strict success, above the 79.5% strict rate
+currently realized through lateness. Summing 1/interval over current main-lane
+cards falls 43% (0.95 → 0.90); realized arrivals will fall less because
+stability grows after each review.
+
+**Relation to 2026-07-26.** That entry held retention because "recall trails
+prediction." On current data that premise holds only for the backlog bucket this
+change targets. This entry supersedes the hold; the rolling-origin replay
+remains useful but is no longer a precondition.
+
+**Change (under the `low_energy_maintenance_v1` switch).** `standard_scheduler()`
+selects 0.90 for ordinary FSRS reviews and graduation initialization (legacy
+rollback 0.95). Root-boost Easy graduates now wait ~8 days instead of ~3.
+Assisted lapses stay at 0.90 without steps. Parameters, parameter hash, and
+retrievability (so the 0.97 exposure-only predicate) are unchanged. No stored
+due date is rewritten; each card adopts the target at its next review.
+
+**Gate audit.** No state or transition changes. Stability-based gates (focus
+cohort ordering, fragile/mature debt buckets, history-risk ordering, passage
+candidates) read stability, which the target does not directly change; they see
+longer intervals through due dates.
+
+**Evaluation and guardrails.** Split readouts on the stamped
+`fsrs_desired_retention`. Expected within 3–4 active weeks: fewer daily
+arrivals, falling strict main debt at ~30 cards/day, and a shrinking ≥14-day-late
+share. Warn if FSRS recall within three days of due drops below 85% over ≥150
+reviews, or if old-word ≥7-day clean falls below the protocol's 80% floor.
+Protocol amendment: `research/low-energy-maintenance-experiment-2026-09-03.md`.
 ## 2026-09-17 — Maintenance v1.1: leech reintroduction yields Box-1 room to new words
 
 **Learner report.** The main review debt “hovers between 600 and 700 no matter

@@ -9,16 +9,35 @@ from fsrs import Scheduler, Card, Rating, State
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, UserLemmaKnowledge, ReviewLog
+from app.services.learning_policy import low_energy_maintenance_enabled
 
 logger = logging.getLogger(__name__)
 
 # Standard successful-retrieval policy. Rating 2 is handled separately below:
 # in this product it means retrieval failed before reveal, followed by recognition.
-scheduler = Scheduler(desired_retention=0.95)
+# At low-energy review volume a 95% target keeps due words weeks late, and that
+# lateness costs more recall than the higher target buys, so maintenance
+# schedules at 90% (experiment log 2026-09-17, v1.1b).
+LEGACY_FSRS_DESIRED_RETENTION = 0.95
+MAINTENANCE_FSRS_DESIRED_RETENTION = 0.90
+legacy_scheduler = Scheduler(desired_retention=LEGACY_FSRS_DESIRED_RETENTION)
+maintenance_scheduler = Scheduler(
+    parameters=legacy_scheduler.parameters,
+    desired_retention=MAINTENANCE_FSRS_DESIRED_RETENTION,
+)
+
+
+def standard_scheduler() -> Scheduler:
+    """Scheduler for ordinary FSRS reviews and graduation under the active policy."""
+    if low_energy_maintenance_enabled():
+        return maintenance_scheduler
+    return legacy_scheduler
+
+
 FSRS_ASSISTED_LAPSE_ENABLED = True
 FSRS_ASSISTED_LAPSE_DESIRED_RETENTION = 0.90
 assisted_lapse_scheduler = Scheduler(
-    parameters=scheduler.parameters,
+    parameters=legacy_scheduler.parameters,
     desired_retention=FSRS_ASSISTED_LAPSE_DESIRED_RETENTION,
     # The normal 10-minute relearning step would duplicate the sentence-level
     # checkpoint experiment. Rating 2 gets a short FSRS interval but no
@@ -28,7 +47,7 @@ assisted_lapse_scheduler = Scheduler(
 FSRS_SCHEDULER_POLICY_VERSION = 2
 FSRS_LIBRARY_VERSION = package_version("fsrs")
 FSRS_PARAMETERS_SHA256 = hashlib.sha256(
-    json.dumps(list(scheduler.parameters), separators=(",", ":")).encode("utf-8")
+    json.dumps(list(legacy_scheduler.parameters), separators=(",", ":")).encode("utf-8")
 ).hexdigest()
 
 
@@ -75,7 +94,7 @@ def card_retrievability(
         return None
     try:
         return float(
-            scheduler.get_card_retrievability(
+            standard_scheduler().get_card_retrievability(
                 Card.from_dict(parsed),
                 at or datetime.now(timezone.utc),
             )
@@ -175,7 +194,9 @@ def submit_review(
         and rating_int == 2
         and FSRS_ASSISTED_LAPSE_ENABLED
     )
-    selected_scheduler = assisted_lapse_scheduler if assisted_lapse else scheduler
+    selected_scheduler = (
+        assisted_lapse_scheduler if assisted_lapse else standard_scheduler()
+    )
     # Rating 2 is not successful unaided retrieval: update memory as a lapse,
     # while preserving the user's original rating in ReviewLog.
     fsrs_rating = (

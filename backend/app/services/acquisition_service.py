@@ -40,7 +40,7 @@ from app.services.fsrs_service import (
     STATE_MAP,
     create_new_card,
     parse_json_column,
-    scheduler as fsrs_scheduler,
+    standard_scheduler,
 )
 from app.services.interaction_logger import log_interaction
 from app.services.learning_policy import (
@@ -86,7 +86,7 @@ ACQUISITION_GRADUATION_POLICY_VERSION = 2
 DISTRIBUTED_DAY_GRADUATION_POLICY_VERSION = 1
 DISTRIBUTED_DAY_GRADUATION_ENV = "ALIF_DISTRIBUTED_DAY_GRADUATION"
 # First explicit boundary for the FSRS card created at graduation. Version 1
-# aligns root-boost Easy intervals with the production 95% retention policy.
+# aligns root-boost Easy intervals with the active production retention policy.
 FSRS_GRADUATION_INITIALIZATION_POLICY_VERSION = 1
 MIXED_UP_TOTAL_LAPSE_VERSION = "mixed_up_total_lapse_v1"
 
@@ -1105,8 +1105,8 @@ def _graduate(
 
     card = Card()
     # Use the same scheduler policy as every subsequent FSRS review. The old
-    # local Scheduler() silently used 90% retention, making root-boost Easy
-    # graduates wait about eight days instead of the production policy's three.
+    # local Scheduler() silently ignored the production retention target.
+    fsrs_scheduler = standard_scheduler()
     new_card, _ = fsrs_scheduler.review_card(card, rating, now)
     ulk.fsrs_card_json = new_card.to_dict()
 
