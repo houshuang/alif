@@ -639,6 +639,7 @@ export interface RecoveryStatus {
   active: boolean;
   box1_actionable: number;
   box1_trigger_limit: number;
+  box1_reintro_load: number;
   box1_reintro_admission_limit: number;
   box2_due: number;
   box2_limit: number;

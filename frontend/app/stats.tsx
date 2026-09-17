@@ -1122,8 +1122,14 @@ function RecoveryCard({ recovery: r }: { recovery: RecoveryStatus }) {
       <RecoveryGateRow
         label="Box 1 backlog"
         value={r.box1_actionable}
+        limit={r.box1_trigger_limit}
+        goal={`intros open < ${r.box1_trigger_limit}`}
+      />
+      <RecoveryGateRow
+        label="Box 1 places in use"
+        value={r.box1_reintro_load ?? r.box1_actionable}
         limit={r.box1_reintro_admission_limit}
-        goal={`reintro opens < ${r.box1_reintro_admission_limit}`}
+        goal={`leech restarts open < ${r.box1_reintro_admission_limit}`}
       />
       <RecoveryGateRow
         label="Box 2 due"

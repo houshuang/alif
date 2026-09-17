@@ -53,6 +53,7 @@ class TestRecoveryStatus:
         assert status["box1_reintro_admission_limit"] == (
             RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
         )
+        assert status["box1_reintro_load"] == 0
 
     def test_legacy_reports_legacy_reintro_admission_limit(self, db_session, monkeypatch):
         from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV

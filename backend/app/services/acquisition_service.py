@@ -464,6 +464,13 @@ def recovery_status(db: Session, now: datetime | None = None) -> dict:
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     box1_actionable, box2_due = _recovery_backlog_counts(db, now)
+    # Reintroduction is gated on occupancy under maintenance, which can exceed
+    # the actionable count; report the load its own limit is compared against.
+    box1_reintro_load = (
+        _box1_reintro_occupancy(db, now)
+        if low_energy_maintenance_enabled()
+        else box1_actionable
+    )
     main_fsrs_due = _main_fsrs_due_count(db, now)
     active = (
         box1_actionable >= RECOVERY_BOX1_UNREVIEWED_LIMIT
@@ -485,6 +492,7 @@ def recovery_status(db: Session, now: datetime | None = None) -> dict:
         "active": active,
         "box1_actionable": box1_actionable,
         "box1_trigger_limit": RECOVERY_BOX1_UNREVIEWED_LIMIT,
+        "box1_reintro_load": box1_reintro_load,
         "box1_reintro_admission_limit": leech_reintro_box1_admission_limit(),
         "box2_due": box2_due,
         "box2_limit": RECOVERY_BOX2_DUE_LIMIT,
