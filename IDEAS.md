@@ -1,5 +1,40 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED 2026-09-17 — v1.1 amendments; follow-ups open] Unblock intake and shrink review debt
+
+The learner reported debt stuck at 600–700, strange sentences, and no new words.
+v1.1 lets leech reintroduction yield Box-1 room to new words and stops starved
+Box-1 words from counting as debt. v1.1b schedules FSRS at 90% retention. Both
+are logged on 2026-09-17 in `research/experiment-log.md`.
+
+**Open follow-ups found in the same investigation:**
+
+- **Sentence supply produces word salad.** Generation samples the vocabulary it
+  shows the model with inverse-sentence-count weighting plus an at-risk boost
+  (`sample_known_words_weighted`). Rare, slangy, fragile words (طيز, مؤخرة,
+  زعلان, متثاقل) have few sentences, so they keep being offered and get packed
+  four at a time into incoherent cards. The quality gate passed one as "vulgar
+  and odd, but it could plausibly be said." Ideas: cap rare/unranked words per
+  prompt, add a "would anyone say this?" coherence verdict, and keep
+  dialect/vulgar glossary words out of generated review sentences.
+- **Box-1 starvation is a selection problem, not supply.** فَرَغَ, رَاوَدَ and
+  مُقَلِّدَة stayed due for weeks while each had reviewable sentences that were
+  never shown (صَرَعَ has one partial sentence, due since June 9). Something in
+  `build_session` scoring or gating (due-density cap counting the full due
+  stock, comprehensibility, unknown-scaffold cap) keeps rejecting or outscoring
+  them. v1.1 only stops such words blocking intake; replay `build_session` on a
+  snapshot to find the gate, then consider a guaranteed Box-1 slot.
+- **The "fast" suite makes real LLM calls on a dev machine.** With `claude` and
+  `codex` on PATH (and `OPENAI_API_KEY` exported for the fallback chain), a
+  plain `pytest` spawns real generation subprocesses: 30+ minutes instead of
+  ~2, and paid API calls. Tests that exercise generation should mock the
+  provider layer, or a session-scoped autouse fixture should fail closed on any
+  unmocked provider call.
+- **Frequency-core mislinks keep obscure leeches at high priority.** دَنّ “wine
+  jug” carries core rank 816 and خَمَّ “to rot” 1914, so they bypass the
+  low-priority reintroduction delay. ذَكَرِيّ is glossed “memory”. Feeds the
+  existing frequency-core rebuild initiative below.
+
 ## 🟢 [IMPLEMENTED 2026-09-03 — 60-day trial] Low-energy maintenance policy
 
 Keep the learner's sustainable ~30-card daily rhythm while making the cards

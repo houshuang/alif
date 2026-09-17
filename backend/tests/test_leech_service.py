@@ -16,9 +16,13 @@ from app.services.leech_service import (
 )
 from app.services.acquisition_service import (
     ACQUISITION_EPISODE_LEECH_REINTRO,
+    RECOVERY_BOX1_UNREVIEWED_LIMIT,
+    _box1_reintro_occupancy,
     _daily_intro_count,
+    _recovery_backlog_counts,
     submit_acquisition_review,
 )
+from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV
 
 
 def _create_lemma(db, arabic="كتاب", english="book", frequency_rank=100):
@@ -716,6 +720,8 @@ def test_tier_e_graduation_does_not_immediately_resuspend_reintroduced_leech(
 
 
 def test_reintro_daily_cap_defers_excess_ready_words(db_session, monkeypatch):
+    # Legacy policy: maintenance headroom (4) would bind before the daily cap.
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
     _disable_reintro_enrichment(monkeypatch)
     now = datetime.now(timezone.utc)
     lemma_ids = []
@@ -783,6 +789,7 @@ def test_reintro_admission_closes_under_box1_recovery_debt(db_session, monkeypat
 
 
 def test_reintro_admission_uses_remaining_box1_headroom(db_session, monkeypatch):
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
     _disable_reintro_enrichment(monkeypatch)
     now = datetime.now(timezone.utc)
     ready_ids = []
@@ -812,6 +819,66 @@ def test_reintro_admission_uses_remaining_box1_headroom(db_session, monkeypatch)
     db_session.commit()
 
     assert check_leech_reintroductions(db_session) == ready_ids[:1]
+
+
+def _ready_leeches(db, count, now, prefix="عائد"):
+    ids = []
+    for i in range(count):
+        lemma = _create_lemma(
+            db, arabic=f"{prefix}{i}", english=f"returning{i}", frequency_rank=100 + i,
+        )
+        ids.append(lemma.lemma_id)
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="suspended",
+            leech_suspended_at=now - timedelta(days=4),
+            leech_count=1,
+            times_seen=10,
+            times_correct=2,
+        ))
+    return ids
+
+
+def test_maintenance_reintro_admission_stays_below_intake_trigger(
+    db_session, monkeypatch
+):
+    """2026-09-17: reintroductions may not refill Box 1 into true-new recovery."""
+    _disable_reintro_enrichment(monkeypatch)
+    now = datetime.now(timezone.utc)
+    ready_ids = _ready_leeches(db_session, 5, now)
+    for i in range(2):
+        debt = _create_lemma(db_session, arabic=f"دين{i}", english=f"debt{i}")
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=debt.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=now - timedelta(hours=1),
+            times_seen=1,
+            times_correct=0,
+        ))
+    db_session.commit()
+
+    assert check_leech_reintroductions(db_session) == ready_ids[:2]
+    later = datetime.now(timezone.utc) + timedelta(hours=5)
+    box1_actionable, _ = _recovery_backlog_counts(db_session, later)
+    assert box1_actionable == RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
+
+
+def test_maintenance_reintro_second_pass_sees_admitted_rows_before_they_are_due(
+    db_session, monkeypatch
+):
+    """Admitted rows wait four hours before becoming due; they still occupy Box 1."""
+    _disable_reintro_enrichment(monkeypatch)
+    now = datetime.now(timezone.utc)
+    ready_ids = _ready_leeches(db_session, LEECH_REINTRO_DAILY_CAP, now)
+    db_session.commit()
+
+    first = check_leech_reintroductions(db_session)
+    assert first == ready_ids[:RECOVERY_BOX1_UNREVIEWED_LIMIT - 1]
+    assert _box1_reintro_occupancy(
+        db_session, datetime.now(timezone.utc)
+    ) == RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
+    assert check_leech_reintroductions(db_session) == []
 
 
 def test_reintro_admission_closes_under_main_fsrs_hiatus_debt(

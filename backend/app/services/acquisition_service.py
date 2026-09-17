@@ -31,7 +31,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
@@ -179,6 +179,12 @@ _ACQUISITION_EPISODE_KINDS = {
 # available when the experiment is disabled. The low-energy trial changes only
 # the earned amounts to 0/1/2; triggers and evidence rules stay unchanged.
 RECOVERY_BOX1_UNREVIEWED_LIMIT = 5
+# Maintenance v1.1: leech reintroduction may fill Box 1 only below the true-new
+# trigger, so restarting old words can never by itself close new-word intake.
+RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT = RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
+# Maintenance v1.1: a due Box-1 word the selector has not served through this
+# many learner-active UTC days stops counting as intake-blocking debt.
+RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS = 7
 RECOVERY_BOX2_DUE_LIMIT = 30
 RECOVERY_FSRS_MAIN_DUE_LIMIT = 750
 RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO = 40
@@ -228,6 +234,87 @@ def _daily_intro_count(db: Session, today_start: datetime) -> int:
     )
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=timezone.utc)
+
+
+def _box1_backlog_rows(
+    db: Session, now: datetime
+) -> list[tuple[int | None, datetime | None]]:
+    """Return (times_seen, next_due) for Box-1 rows that can occupy practice.
+
+    Shared by the recovery trigger and reintroduction occupancy so both apply
+    the same inert, backoff, and unserved exclusions.
+    """
+    rows = [
+        (times_seen, _as_utc(next_due))
+        for times_seen, next_due in (
+            db.query(
+                UserLemmaKnowledge.times_seen,
+                UserLemmaKnowledge.acquisition_next_due,
+            )
+            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                UserLemmaKnowledge.knowledge_state == "acquiring",
+                UserLemmaKnowledge.acquisition_box == 1,
+                Lemma.word_category.is_(None)
+                | Lemma.word_category.notin_(["proper_name", "onomatopoeia"]),
+                UserLemmaKnowledge.generation_backoff_until.is_(None)
+                | (UserLemmaKnowledge.generation_backoff_until <= now),
+            )
+            .all()
+        )
+    ]
+    if not low_energy_maintenance_enabled():
+        return rows
+
+    # Seven active days need at least seven calendar dates since the due date.
+    long_overdue = [
+        next_due
+        for _times_seen, next_due in rows
+        if next_due is not None
+        and (now.date() - next_due.date()).days
+        >= RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS - 1
+    ]
+    if not long_overdue:
+        return rows
+    latest_card_by_day = [
+        _as_utc(latest)
+        for _day, latest in (
+            db.query(
+                func.date(ReviewLog.reviewed_at),
+                func.max(ReviewLog.reviewed_at),
+            )
+            .filter(
+                ReviewLog.reviewed_at >= min(long_overdue).replace(tzinfo=None),
+                ReviewLog.review_mode == "reading",
+                ReviewLog.credit_type == "primary",
+            )
+            .group_by(func.date(ReviewLog.reviewed_at))
+            .all()
+        )
+    ]
+
+    def unserved(next_due: datetime | None) -> bool:
+        if next_due is None or next_due > now:
+            return False
+        active_days = sum(1 for latest in latest_card_by_day if latest >= next_due)
+        return active_days >= RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS
+
+    return [row for row in rows if not unserved(row[1])]
+
+
+def _box1_reintro_occupancy(db: Session, now: datetime) -> int:
+    """Box-1 rows that already hold a practice place, due or not.
+
+    Reintroduced rows first fall due four hours after admission, so the
+    actionable count cannot bound repeated same-day admission passes.
+    """
+    return len(_box1_backlog_rows(db, now))
+
+
 def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
     """Return (actionable/protected box-1 count, due box-2 count).
 
@@ -243,31 +330,23 @@ def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
       word selection and earn no review credit, so they can never advance;
     - words inside a generation backoff window have no sentence and cannot
       get one until the backoff expires (box-1 only: box-2 words were already
-      served at least once, so their debt is real even while backed off).
+      served at least once, so their debt is real even while backed off);
+    - under maintenance, due words left unserved through
+      RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS learner-active days (2026-09-17: five
+      such words, one due since June, held intake at zero while still
+      selectable).
     """
     inert_or_null_category = Lemma.word_category.is_(None) | Lemma.word_category.notin_(
         ["proper_name", "onomatopoeia"]
     )
-    box1_actionable = (
-        db.query(UserLemmaKnowledge)
-        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
-            UserLemmaKnowledge.acquisition_box == 1,
-            # Never-reviewed words stay protected even before their first due
-            # time. Previously-seen Box-1 words count once they are due; this is
-            # where failed/reintroduced leeches otherwise disappeared from the
-            # recovery trigger.
-            (
-                (UserLemmaKnowledge.times_seen == 0)
-                | (UserLemmaKnowledge.times_seen.is_(None))
-                | (UserLemmaKnowledge.acquisition_next_due <= now)
-            ),
-            inert_or_null_category,
-            UserLemmaKnowledge.generation_backoff_until.is_(None)
-            | (UserLemmaKnowledge.generation_backoff_until <= now),
-        )
-        .count()
+    box1_actionable = sum(
+        1
+        for times_seen, next_due in _box1_backlog_rows(db, now)
+        # Never-reviewed words stay protected even before their first due
+        # time. Previously-seen Box-1 words count once they are due; this is
+        # where failed/reintroduced leeches otherwise disappeared from the
+        # recovery trigger.
+        if not times_seen or (next_due is not None and next_due <= now)
     )
     box2_due = (
         db.query(UserLemmaKnowledge)
@@ -378,13 +457,20 @@ def recovery_status(db: Session, now: datetime | None = None) -> dict:
     that gate intake, plus the earn-in progress numbers, so the learner can see
     how far the backlog is from re-opening intros and leech reintroduction.
     """
-    from app.services.leech_service import LEECH_REINTRO_BOX1_ADMISSION_LIMIT
+    from app.services.leech_service import leech_reintro_box1_admission_limit
 
     if now is None:
         now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     box1_actionable, box2_due = _recovery_backlog_counts(db, now)
+    # Reintroduction is gated on occupancy under maintenance, which can exceed
+    # the actionable count; report the load its own limit is compared against.
+    box1_reintro_load = (
+        _box1_reintro_occupancy(db, now)
+        if low_energy_maintenance_enabled()
+        else box1_actionable
+    )
     main_fsrs_due = _main_fsrs_due_count(db, now)
     active = (
         box1_actionable >= RECOVERY_BOX1_UNREVIEWED_LIMIT
@@ -406,7 +492,8 @@ def recovery_status(db: Session, now: datetime | None = None) -> dict:
         "active": active,
         "box1_actionable": box1_actionable,
         "box1_trigger_limit": RECOVERY_BOX1_UNREVIEWED_LIMIT,
-        "box1_reintro_admission_limit": LEECH_REINTRO_BOX1_ADMISSION_LIMIT,
+        "box1_reintro_load": box1_reintro_load,
+        "box1_reintro_admission_limit": leech_reintro_box1_admission_limit(),
         "box2_due": box2_due,
         "box2_limit": RECOVERY_BOX2_DUE_LIMIT,
         "main_fsrs_due": main_fsrs_due,

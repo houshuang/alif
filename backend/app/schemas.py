@@ -242,6 +242,7 @@ class RecoveryStatusOut(BaseModel):
     active: bool
     box1_actionable: int
     box1_trigger_limit: int
+    box1_reintro_load: int
     box1_reintro_admission_limit: int
     box2_due: int
     box2_limit: int
