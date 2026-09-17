@@ -48,6 +48,71 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-17 — Maintenance v1.1: leech reintroduction yields Box-1 room to new words
+
+**Learner report.** The main review debt “hovers between 600 and 700 no matter
+how many reps”, many sentences are strange, and new words have effectively
+stopped. The learner asked whether the metric is misleading or whether more new
+words should be injected.
+
+**Read-only production probe (2026-09-17T16:53Z, deployed `f901a1b`).** Strict
+main FSRS due was 629 (session counter 680–712). It fell from ~960 on Sep 12 to
+676 after a 119-card day and rebounded after a 10-card day: work does move it,
+but ~50 main-lane FSRS words arrive per day (346 over the next seven days) while
+the last week cleared 1.83 successful due-word reviews per reading card, so ~27
+cards/day only breaks even. Median due-word lateness was 16.2 days; 270 of the
+630 due rows had stability ≥30 days. True-new acquisition starts were 2 in
+September (50 in August). Recovery stayed active only through Box 1: 23 acquiring
+Box-1 rows, 17 actionable (trigger 5), box2_due 7, strict main 629 (<750).
+
+Two mechanisms pin that trigger. **(1) Reintroduction refills Box 1 far past the
+intake trigger.** Admission closes only at 20 actionable, so seven leeches
+(including دَنّ “wine jug” and ذَرَّة “speck”) re-entered Box 1 on Sep 16–17 while
+the same Box 1 held true-new intake at 0–1/day. Reintroduced rows are due only
+after four hours, so same-day passes also saw headroom that was already spent.
+The 20-row limit was tuned on 2026-07-09 for return recovery under a 30/day
+legacy intake cap; under the 2/day maintenance cap the two flows now compete for
+the same few Box-1 places. **(2) Unserved Box-1 words count as actionable debt
+indefinitely.** صَرَعَ (due since Jun 9), سَمَّى (Aug 10), مُقَلِّدَة (Aug 24), فَرَغَ
+(Sep 1) and رَاوَدَ (Sep 7) stayed due through seven or more learner-active days
+without one selection. They are not generation-backed-off, so the 2026-06-10
+unservable exclusion does not apply, yet the learner cannot clear them.
+
+**Change (`low_energy_maintenance_v1` switch; legacy rollback unchanged).**
+(a) Leech reintroduction admits words only into Box-1 *occupancy* headroom below
+the true-new trigger: at most `RECOVERY_BOX1_UNREVIEWED_LIMIT − 1 = 4` occupied
+Box-1 places, counting non-inert, non-backed-off Box-1 rows whether or not they
+are due yet. A reintroduction can therefore never by itself switch new-word
+intake into recovery, and repeated same-day passes cannot overshoot. The 8/day
+cap, Box-2/strict-FSRS closures, priority order, and fresh-episode evidence are
+unchanged. (b) An acquiring Box-1 word that has stayed due through at least
+seven distinct UTC days with primary reading cards is excluded from both the
+recovery count and reintroduction occupancy. It remains acquiring, due, in the
+cohort, and fully selectable; only its ability to block intake ends. A learner
+break does not qualify because inactive days do not count.
+
+**Gate audit.** No state, transition, or ULK write is added. Comprehensibility
+(both), unknown-scaffold cap, due-density cap, pipeline backlog gate
+(`LOW_TIER_BLOCK_BACKLOG`, independent count), focus cohort, variant resolution,
+intro-card filter, listening readiness, and function-word exclusion are
+unchanged. The stats panel reports the effective reintroduction limit (4 under
+maintenance, 20 legacy).
+
+**Expected effect and evaluation.** No new reintroductions until Box-1
+occupancy is ≤3; Box 1 should drain toward the trigger within one to two active
+weeks, after which true-new intake can reach the preregistered 2/day. Measure at
+the day-30 checkpoint: actionable Box 1 (target <10 per protocol), true-new
+starts/day, suspended-leech queue size and admission delay (expected to grow —
+the accepted cost), and Box-1 words excluded as unserved. Stop if actionable Box
+1 rises despite zero reintroductions, or if the unserved exclusion exceeds ten
+words (that would mean a selector starvation defect needing its own fix).
+
+**Not changed here.** FSRS desired retention stays 0.95. Lowering it was
+proposed from the same probe, but the 2026-07-26 calibration entry rejected
+lowering retention while recall trails prediction; that decision is held for the
+learner rather than bundled into this amendment. Sentence-supply quality (dense
+low-frequency word salad) is a separate follow-up.
+
 
 ## 2026-09-16 — Supported chapters: temporary preview, connected reading, optional reflection
 

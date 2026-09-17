@@ -24,6 +24,7 @@ from app.models import FrequencyCoreEntry, Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.activity_log import log_activity
 from app.services.frequency_lanes import is_low_priority_lemma
 from app.services.interaction_logger import log_interaction
+from app.services.learning_policy import low_energy_maintenance_enabled
 from app.services.form_recovery_service import is_form_recovery_protected_log
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,23 @@ REINTRO_DELAYS = {
 }
 LOW_PRIORITY_LEECH_DELAY_MULTIPLIER = 4
 LOW_PRIORITY_LEECH_MAX_DELAY = timedelta(days=60)
+
+
+def leech_reintro_box1_admission_limit() -> int:
+    """Box-1 load at which reintroduction admission closes.
+
+    Legacy recovery measures actionable Box 1 against 20. Maintenance v1.1
+    measures occupancy (due or not) and stops one place below the true-new
+    intake trigger, because under a 2/day intake cap the two flows compete for
+    the same few Box-1 places.
+    """
+    if low_energy_maintenance_enabled():
+        from app.services.acquisition_service import (
+            RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT,
+        )
+
+        return RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT
+    return LEECH_REINTRO_BOX1_ADMISSION_LIMIT
 
 
 def _get_reintro_delay(
@@ -191,6 +209,7 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         ACQUISITION_EPISODE_LEECH_REINTRO,
         RECOVERY_BOX2_DUE_LIMIT,
         RECOVERY_FSRS_MAIN_DUE_LIMIT,
+        _box1_reintro_occupancy,
         _main_fsrs_due_count,
         _recovery_backlog_counts,
         start_acquisition,
@@ -250,10 +269,17 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         return []
 
     box1_actionable, box2_due = _recovery_backlog_counts(db, now)
+    box1_limit = leech_reintro_box1_admission_limit()
+    if low_energy_maintenance_enabled():
+        box1_load = _box1_reintro_occupancy(db, now)
+        box1_reason = "box1_occupancy"
+    else:
+        box1_load = box1_actionable
+        box1_reason = "box1_actionable"
     main_fsrs_due = _main_fsrs_due_count(db, now)
     admission_reasons = []
-    if box1_actionable >= LEECH_REINTRO_BOX1_ADMISSION_LIMIT:
-        admission_reasons.append("box1_actionable")
+    if box1_load >= box1_limit:
+        admission_reasons.append(box1_reason)
     if box2_due >= RECOVERY_BOX2_DUE_LIMIT:
         admission_reasons.append("box2_due")
     if main_fsrs_due >= RECOVERY_FSRS_MAIN_DUE_LIMIT:
@@ -264,7 +290,7 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     # Reintroductions enter Box 1. Respect the debt ceiling as a capacity, not
     # just a pre-flight check, so 19 actionable words cannot admit eight more
     # and overshoot the intended limit in one batch.
-    box1_capacity = max(0, LEECH_REINTRO_BOX1_ADMISSION_LIMIT - box1_actionable)
+    box1_capacity = max(0, box1_limit - box1_load)
     remaining_capacity = min(daily_capacity, box1_capacity)
     selected = [] if admission_reasons else eligible[:remaining_capacity]
     deferred_count = len(eligible) - len(selected)
@@ -283,6 +309,8 @@ def check_leech_reintroductions(db: Session) -> list[int]:
             deferred=deferred_count,
             admission_reasons=deferred_reasons,
             box1_actionable=box1_actionable,
+            box1_load=box1_load,
+            box1_limit=box1_limit,
             box2_due=box2_due,
             main_fsrs_due=main_fsrs_due,
         )

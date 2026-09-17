@@ -49,6 +49,18 @@ class TestRecoveryStatus:
         assert status["intro_budget_today"] == DAILY_INTRO_CAP
         assert status["box1_trigger_limit"] == RECOVERY_BOX1_UNREVIEWED_LIMIT
         assert status["main_fsrs_limit"] == 750
+        # Reintroductions stop one place below the true-new intake trigger.
+        assert status["box1_reintro_admission_limit"] == (
+            RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
+        )
+
+    def test_legacy_reports_legacy_reintro_admission_limit(self, db_session, monkeypatch):
+        from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV
+        from app.services.leech_service import LEECH_REINTRO_BOX1_ADMISSION_LIMIT
+
+        monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
+        status = recovery_status(db_session)
+        assert status["box1_reintro_admission_limit"] == LEECH_REINTRO_BOX1_ADMISSION_LIMIT
 
     def test_box1_debt_activates_and_gates_intros(self, db_session):
         for i in range(RECOVERY_BOX1_UNREVIEWED_LIMIT + 1):

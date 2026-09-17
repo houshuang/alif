@@ -15,13 +15,16 @@ from app.services.acquisition_service import (
     DAILY_INTRO_CAP,
     RECOVERY_FSRS_MAIN_DUE_LIMIT,
     RECOVERY_MID_INTRO_BUDGET,
+    RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS,
     RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO,
+    _box1_reintro_occupancy,
     _daily_intro_count,
     _main_fsrs_due_count,
     _recovery_backlog_counts,
     _recovery_mode_intro_budget,
     start_acquisition,
 )
+from app.services.learning_policy import LOW_ENERGY_MAINTENANCE_ENV
 
 
 def _lemma(db, arabic, category=None, gloss="word"):
@@ -121,6 +124,79 @@ def test_box2_due_still_counts_backed_off_word(db_session):
                next_due=now - timedelta(hours=2), backoff_until=now + timedelta(days=7))
     _, box2 = _recovery_backlog_counts(db_session, now)
     assert box2 == 1
+
+
+def _review_card(db, lemma, at, mode="reading", credit_type="primary"):
+    db.add(ReviewLog(
+        lemma_id=lemma.lemma_id,
+        rating=3,
+        reviewed_at=at.astimezone(timezone.utc).replace(tzinfo=None),
+        review_mode=mode,
+        credit_type=credit_type,
+    ))
+    db.flush()
+
+
+def test_box1_excludes_word_left_unserved_through_seven_active_days(db_session):
+    """2026-09-17: words the selector never reaches must not pin intake shut."""
+    now = datetime.now(timezone.utc)
+    _acquiring(db_session, _lemma(db_session, "عالق"), times_seen=4,
+               next_due=now - timedelta(days=10))
+    _acquiring(db_session, _lemma(db_session, "جديد"), times_seen=4,
+               next_due=now - timedelta(hours=1))
+    other = _lemma(db_session, "مراجعة")
+    for day in range(RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS):
+        _review_card(db_session, other, now - timedelta(days=day))
+
+    box1, _ = _recovery_backlog_counts(db_session, now)
+    assert box1 == 1
+
+
+def test_box1_keeps_overdue_word_when_learner_was_not_practicing(db_session):
+    """A break, collateral rows, or listening days are not evidence of starvation."""
+    now = datetime.now(timezone.utc)
+    due = now - timedelta(days=20)
+    _acquiring(db_session, _lemma(db_session, "عالق"), times_seen=4, next_due=due)
+    other = _lemma(db_session, "مراجعة")
+    # Practice before the word fell due does not count.
+    for day in range(21, 28):
+        _review_card(db_session, other, now - timedelta(days=day))
+    for day in range(RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS - 1):
+        _review_card(db_session, other, now - timedelta(days=day))
+    _review_card(db_session, other, now - timedelta(days=12), credit_type="collateral")
+    _review_card(db_session, other, now - timedelta(days=13), mode="listening")
+
+    box1, _ = _recovery_backlog_counts(db_session, now)
+    assert box1 == 1
+
+
+def test_box1_unserved_exclusion_is_part_of_the_maintenance_switch(
+    db_session, monkeypatch
+):
+    monkeypatch.setenv(LOW_ENERGY_MAINTENANCE_ENV, "0")
+    now = datetime.now(timezone.utc)
+    _acquiring(db_session, _lemma(db_session, "عالق"), times_seen=4,
+               next_due=now - timedelta(days=10))
+    other = _lemma(db_session, "مراجعة")
+    for day in range(RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS):
+        _review_card(db_session, other, now - timedelta(days=day))
+
+    box1, _ = _recovery_backlog_counts(db_session, now)
+    assert box1 == 1
+
+
+def test_box1_reintro_occupancy_counts_rows_not_yet_due(db_session):
+    now = datetime.now(timezone.utc)
+    _acquiring(db_session, _lemma(db_session, "مستحق"), times_seen=3,
+               next_due=now - timedelta(minutes=5))
+    _acquiring(db_session, _lemma(db_session, "لاحق"), times_seen=3,
+               next_due=now + timedelta(hours=4))
+    _acquiring(db_session, _lemma(db_session, "اسم", category="proper_name"),
+               times_seen=3, next_due=now + timedelta(hours=4))
+
+    box1, _ = _recovery_backlog_counts(db_session, now)
+    assert box1 == 1
+    assert _box1_reintro_occupancy(db_session, now) == 2
 
 
 # --- daily intro cap ---
