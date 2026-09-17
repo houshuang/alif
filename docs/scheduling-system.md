@@ -169,7 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro cap and low-energy recovery (2026-09-03)**: All paths through `start_acquisition()` share the active policy cap. `low_energy_maintenance_v1` sets it to **2 true-new words/day** (legacy rollback: 30). `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Recovery still activates at 5 actionable/protected Box-1 words, 30 due Box-2 words, **or 750 strict main-lane FSRS words due**. The earned budget uses one primary reading `ReviewLog` per answered card: 0 below 40 cards or below 80% primary accuracy, 1 after 40+ cards at acceptable accuracy, and 2 after 100+ cards at ≥85%. Collateral rows and passage child logs cannot manufacture permission. The rollback values remain 0/8/30. Full protocol and stop rules: `research/low-energy-maintenance-experiment-2026-09-03.md`.
+- **Daily intro cap and low-energy recovery (2026-09-03)**: All paths through `start_acquisition()` share the active policy cap. `low_energy_maintenance_v1` sets it to **2 true-new words/day** (legacy rollback: 30). `source` remains curriculum provenance, while `acquisition_episode_kind` records `new` versus `leech_reintro`; only true-new episodes consume the cap. Recovery still activates at 5 actionable/protected Box-1 words, 30 due Box-2 words, **or 750 strict main-lane FSRS words due**. The earned budget uses one primary reading `ReviewLog` per answered card: 0 below 40 cards or below 80% primary accuracy, 1 after 40+ cards at acceptable accuracy, and 2 after 100+ cards at ≥85%. Collateral rows and passage child logs cannot manufacture permission. The rollback values remain 0/8/30. **v1.1 (2026-09-17):** the Box-1 trigger no longer counts a due word left unserved through seven learner-active days, and leech reintroduction stops one Box-1 place below the trigger (see Leech Management). Full protocol and stop rules: `research/low-energy-maintenance-experiment-2026-09-03.md`.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -1728,6 +1728,15 @@ Normal word → Leech detected → Auto-suspended
   Eligible words sort by lower `leech_count`, stronger effective frequency rank, then oldest
   suspension. Deferred words remain suspended and are logged; they do not consume true-new
   intake capacity.
+- **Maintenance v1.1 admission yields to new words (2026-09-17)**: while
+  `low_energy_maintenance_v1` is active, the Box-1 closure measures *occupancy* — every
+  non-inert, non-backed-off Box-1 row whether due or not — and closes at
+  `RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT` (4, one below the true-new trigger). Reintroduced
+  rows first fall due four hours after admission, so the actionable count let repeated
+  same-day passes overshoot; occupancy cannot. A reintroduction therefore never by itself
+  switches true-new intake into recovery. The deferral reason is `box1_occupancy`; the 8/day
+  cap and Box-2/strict-FSRS closures are unchanged. Legacy rollback keeps actionable Box 1
+  against 20.
 - Fresh sentences are generated because the old sentences clearly didn't work for this word.
 - Memory hooks (mnemonic, cognates, usage context) are generated on first failure
   (rating ≤ 2), not on word introduction. For leeches being reintroduced, hooks
@@ -2033,6 +2042,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `DAILY_AUTO_INTRO_TARGET` | 2 active / 30 rollback | Daily cap for automatic new-word introductions; resolved from `learning_policy.py` |
 | `DAILY_INTRO_CAP` | 2 active / 30 rollback | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
 | `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: protected never-reviewed plus actionable due previously-seen Box-1 words at or above this count switch intros to earned-budget mode |
+| `RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS` | 7 (maintenance only) | A due Box-1 word that stayed due through this many distinct UTC days with primary reading cards is excluded from the Box-1 trigger and reintroduction occupancy. It stays acquiring, due, and selectable; inactive days never qualify |
+| `RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT` | 4 (maintenance only) | Leech reintroduction admission closes at this Box-1 occupancy (due or not), one below the true-new trigger |
 | `RECOVERY_BOX2_DUE_LIMIT` | 30 | Overload trigger: due Box-2 acquiring words at or above this count switch intros to earned-budget mode |
 | `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day primary reading cards |
 | `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day primary reading cards |
@@ -2174,7 +2185,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `LEECH_MAX_ACCURACY` | 0.50 | Accuracy threshold (below = leech) |
 | `LEECH_WINDOW_SIZE` | 8 | Sliding window size for recent accuracy |
 | `LEECH_REINTRO_DAILY_CAP` | 8 | Maximum reintroduction episodes admitted per UTC day |
-| `LEECH_REINTRO_BOX1_ADMISSION_LIMIT` | 20 | Close/limit reintroduction admission at this actionable Box-1 load |
+| `LEECH_REINTRO_BOX1_ADMISSION_LIMIT` | 20 (legacy rollback) | Close/limit reintroduction admission at this actionable Box-1 load. Under maintenance, `leech_reintro_box1_admission_limit()` returns `RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT` (4) measured against occupancy |
 | `RECOVERY_FSRS_MAIN_DUE_LIMIT` | 750 | Shared strict main-lane FSRS recovery/admission threshold |
 | Reintro delay (1st) | 3 days | First leech suspension |
 | Reintro delay (2nd) | 7 days | Second suspension |

@@ -223,3 +223,35 @@ current bands. Progress in distinct new words will be much slower—initially
 zero, later at most one or two per day—but the old vocabulary evidence should be
 more trustworthy because validation is concentrated on actual due and risky
 items rather than easy early collateral.
+
+## Amendment v1.1 (2026-09-17): leech reintroduction yields Box-1 room
+
+**Why.** At day 14, Box 1 had not declined (17 actionable, trigger 5), which is
+the protocol's own "Box 1 fails to decline despite intake remaining zero"
+warning. True-new intake was 2 words in September. Two mechanisms held the
+trigger shut: leech reintroduction refilled Box 1 up to its legacy limit of 20
+(seven reintroductions on Sep 16–17), and five due Box-1 words went unselected
+through seven or more learner-active days while still counting as debt.
+
+**What changes under the same master switch.**
+
+- Reintroduction admission measures Box-1 occupancy (due or not) and closes at
+  4, one place below the true-new trigger. Reintroduced rows are not due for
+  four hours, so occupancy also stops repeated same-day passes overshooting.
+- A due Box-1 word left unserved through seven distinct UTC days with primary
+  reading cards no longer counts toward the trigger or occupancy. It remains
+  acquiring, due, in the cohort, and selectable. Inactive days never count, so a
+  learner break cannot hide real debt.
+
+Nothing else in the package changes: the 2/day true-new cap, 0/1/2 earn-in,
+density ceiling, exposure-only predicate, risk ordering, confusion rescue, and
+FSRS desired retention (0.95) are as preregistered. Rollback is unchanged:
+`ALIF_LOW_ENERGY_MAINTENANCE_EXPERIMENT=0` restores the legacy 20-row actionable
+limit and counts unserved words again.
+
+**Analysis boundary.** Treat the first deployment of this amendment as a phase
+boundary for Box-1, intake, and leech-queue outcomes. Reintroduction deferrals
+log `box1_occupancy` with `box1_load`/`box1_limit`. Add to the day-30 readout:
+suspended-leech queue size and admission delay (expected to grow), and the
+number of Box-1 words excluded as unserved. More than ten excluded words points
+to selector starvation that needs its own fix, not a larger exclusion.
