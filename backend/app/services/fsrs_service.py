@@ -15,10 +15,9 @@ logger = logging.getLogger(__name__)
 
 # Standard successful-retrieval policy. Rating 2 is handled separately below:
 # in this product it means retrieval failed before reveal, followed by recognition.
-# The 95% target dates from April, when most reviews happened before due. Under
-# low-energy maintenance the learner reviews ~30 cards/day and due words ran a
-# median 16 days late; recall matched FSRS up to 14 days late but fell to 65%
-# beyond. Maintenance v1.1 (2026-09-17) therefore schedules at 90%.
+# At low-energy review volume a 95% target keeps due words weeks late, and that
+# lateness costs more recall than the higher target buys, so maintenance
+# schedules at 90% (experiment log 2026-09-17, v1.1b).
 LEGACY_FSRS_DESIRED_RETENTION = 0.95
 MAINTENANCE_FSRS_DESIRED_RETENTION = 0.90
 legacy_scheduler = Scheduler(desired_retention=LEGACY_FSRS_DESIRED_RETENTION)
