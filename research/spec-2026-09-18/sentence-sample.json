@@ -1,0 +1,785 @@
+{
+ "description": "Sentences reviewed in reading mode 2026-09-04..2026-09-18 (production, read-only). Rating by Claude, single rater, mostly from the English gloss: N natural, O forced but coherent, S word salad. Rare = effective frequency rank >5000 or unranked. Content words approximate function words by POS.",
+ "population": {
+  "sentences": 384,
+  "rare_word_share": 0.185,
+  "with_2plus_rare": 149,
+  "with_3plus_rare": 55,
+  "multi_target": 83
+ },
+ "sample_counts": {
+  "O": 20,
+  "N": 33,
+  "S": 7
+ },
+ "sample_seed": 20260918,
+ "sample": [
+  {
+   "sentence_id": 55783,
+   "rating": "O",
+   "arabic": "اِسْتَيْقَظَ أُسَامَةُ مُتَلَهِّفًا، فَتَلَقَّطَ فِنْجَانًا وَحَقَّقَ فَحْصًا دَقِيقًا.",
+   "english": "Usama woke up eager, then picked up a cup and carried out a careful examination.",
+   "quality_reason": "The Arabic is grammatical and could plausibly occur in a simple story: Usama wakes eagerly, picks up a cup, and performs a careful inspection. The English accurately reflects the meaning.",
+   "content_words": 7,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "مُتَلَهِّف (eager)",
+    "تَلَقَّطَ (to pick up, gather)"
+   ]
+  },
+  {
+   "sentence_id": 56343,
+   "rating": "O",
+   "arabic": "تَخْلِيصٌ سِحْرِيٌّ فِي القِصَّةِ، وَلَكِنَّ الرُّعْبَ لَمْ يَضْمَحِلَّ.",
+   "english": "There is a magical rescue in the story, but the terror did not fade.",
+   "quality_reason": "الجملة سليمة نحويًا ومفهومة، ويمكن أن تُقال بأسلوب قصصي/تعليمي: «تخليص سحري في القصة، ولكن الرعب لم يضمحل». الترجمة دقيقة لمعنى الجملة.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 2,
+   "rare": [
+    "تَخْلِيص (freeing, rescuing)",
+    "سِحْرِيّ (magical)"
+   ]
+  },
+  {
+   "sentence_id": 51635,
+   "rating": "O",
+   "arabic": "المُتَجَوِّلُ إِسْرَائِيلِيٌّ، وَمِزَاجُهُ زَعْلانُ اللَّيْلَةَ.",
+   "english": "The wanderer is Israeli, and his mood is upset tonight.",
+   "quality_reason": "The sentence is grammatically acceptable and plausible, though slightly colloquial because of زعلان. The English accurately reflects the Arabic meaning.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55258,
+   "rating": "N",
+   "arabic": "حَطَّ الرَّاكِبُ حِزَامَهُ عَلَى الأَرْضِ.",
+   "english": "The rider put down his belt on the ground.",
+   "quality_reason": "Grammatical and plausible; حزامه can mean his belt/strap, and the translation is accurate.",
+   "content_words": 4,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "حَطَّ (to put down, to lower)"
+   ]
+  },
+  {
+   "sentence_id": 55882,
+   "rating": "N",
+   "arabic": "اِلْتَقَيْنَا صُدْفَةً فِي المَصْرِفِ وَكَانَ لُزُومٌ أَنْ نَتَحَدَّثَ.",
+   "english": "We met by chance at the bank and it was necessary that we talk.",
+   "quality_reason": "The wording is somewhat formal and less idiomatic than كان لازمًا أن نتحدث, but it is grammatical and plausibly means there was a need for us to talk.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 2,
+   "rare": [
+    "صُدْفَة (coincidence, chance)",
+    "لُزُوم (necessity, need)"
+   ]
+  },
+  {
+   "sentence_id": 55393,
+   "rating": "N",
+   "arabic": "هَلْ تَتَصَوَّرُ أَنَّ الطَّلَلَ المَهْجُورَ كَانَ صَرْحاً عَظِيماً ذَا بَهَاءٍ وَجَوْهَرٍ؟",
+   "english": "Do you imagine that the abandoned ruin was once a great edifice of splendor and substance?",
+   "quality_reason": "Grammatically sound and plausible in a literary or reflective context. The English accurately matches the Arabic meaning.",
+   "content_words": 11,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "طَلَل (ruin)",
+    "بَهَاء (splendor, brilliance)"
+   ]
+  },
+  {
+   "sentence_id": 56103,
+   "rating": "S",
+   "arabic": "لَمَعَ العَاجُ تَحْتَ سَحَرٍ رَطْبٍ، فَشَعَرَتْ حَائِرَةٌ بِغِبْطَةٍ وَعَطْفٍ.",
+   "english": "Ivory gleamed under a moist dawn, so a perplexed woman felt delight and compassion.",
+   "quality_reason": "The Arabic is grammatical and reads as literary/poetic. حائرةٌ can function substantively as 'a perplexed woman/female person,' and سَحَرٍ means dawn/pre-dawn. The English accurately reflects the meaning.",
+   "content_words": 9,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "حَائِرَة (perplexed)",
+    "غِبْطَةٌ (joy, delight)",
+    "عَطْف (compassion)"
+   ]
+  },
+  {
+   "sentence_id": 55433,
+   "rating": "N",
+   "arabic": "أَسْدَلَ الغُلَامُ رِدَاءَهُ عَلَى كَتِفَيْهِ بِهُدُوءٍ.",
+   "english": "The boy lowered his cloak over his shoulders quietly.",
+   "quality_reason": "Grammatically correct and plausible. أسدل رداءه على كتفيه means he let down or draped his cloak over his shoulders; the English is acceptable.",
+   "content_words": 5,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "رِدَاء (robe, garment, cloak)"
+   ]
+  },
+  {
+   "sentence_id": 49979,
+   "rating": "O",
+   "arabic": "أَوْصَى المُصَوِّرُ بِتَجَنُّبِ الشُّحُوبِ بِالإِضَاءَةِ.",
+   "english": "The photographer advised avoiding pallor with lighting.",
+   "quality_reason": "Grammatical and plausible in a photography context, meaning the photographer advised avoiding pallor by/with lighting. The English is accurate enough.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 54903,
+   "rating": "O",
+   "arabic": "حَقيبَتُكَ مُؤَنِّبَةٌ لَكَ؛ لِأَنَّكَ تَرَكْتَ مِقْلَمَةً هُنَاكَ.",
+   "english": "Your bag is reproaching you, because you left a pencil case there.",
+   "quality_reason": "Grammatically acceptable. The bag reproaching someone is personification, but it is plausible in a story or playful context. The English matches the Arabic.",
+   "content_words": 5,
+   "rare_words": 1,
+   "targets": 2,
+   "rare": [
+    "مُؤَنِّبَة (reproaching)"
+   ]
+  },
+  {
+   "sentence_id": 54719,
+   "rating": "N",
+   "arabic": "طَابَ الطَّعَامُ لِلْجَمِيعِ بَعْدَ أَنْ أَضَافَتِ الخَرْدَلَ وَالبَصَلَ وَكَانَ المَذَاقُ رَائِعاً.",
+   "english": "The food was good for everyone after she added the mustard and onions, and the taste was wonderful.",
+   "quality_reason": "The Arabic is grammatical and describes a plausible situation: the food became pleasing/tasty after she added mustard and onions. The English translation accurately conveys the meaning, though 'was good for everyone' is slightly less idiomatic than 'everyone liked it.'",
+   "content_words": 10,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "طَابَ (to be good)"
+   ]
+  },
+  {
+   "sentence_id": 45922,
+   "rating": "N",
+   "arabic": "بَيْنَمَا كُنْتُ أَتَغَدَّى بِالشَّوَارْمَةِ، خَطَرَ لِي سُؤَالٌ عَنِ المَعْدِنِ المُسْتَخْدَمِ فِي الشِّيشِ.",
+   "english": "While I was having lunch with shawarma, a question about the metal used in the skewer occurred to me.",
+   "quality_reason": "The Arabic is grammatically sound. The verb بَيْنَمَا كُنْتُ أَتَغَدَّى correctly uses the imperfect with كان to express a past continuous action. خَطَرَ لِي is a natural idiomatic construction meaning 'it occurred to me.' The prepositional phrase with المعدن is correctly constructed. The scenario (wondering about the metal skewer while eating shawarma) is plausible and coherent. The English translation accurately captures the meaning.",
+   "content_words": 10,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "تَغَدَّى (to eat lunch)",
+    "شَوارْمَة (Shawarma)"
+   ]
+  },
+  {
+   "sentence_id": 56044,
+   "rating": "N",
+   "arabic": "كَفَرَ الرَّجُلُ بِالآلِهَةِ القَدِيمَةِ وَاتَّبَعَ طَرِيقاً جَدِيداً.",
+   "english": "The man disbelieved in the old gods and followed a new path.",
+   "quality_reason": "The Arabic is grammatical and plausible in a religious, historical, or narrative context. The English accurately matches the meaning.",
+   "content_words": 7,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "اِتَّبَعَ (to follow, adopt)"
+   ]
+  },
+  {
+   "sentence_id": 56091,
+   "rating": "N",
+   "arabic": "اِعْتَدَلَ الطَّقْسُ بَعْدَ أُسْبُوعٍ مِنَ الْحَرَارَةِ الشَّدِيدَةِ وَصَارَ مُعْتَدِلًا.",
+   "english": "The weather became moderate after a week of intense heat and became mild.",
+   "quality_reason": "The Arabic is grammatical and plausible, though redundant because اِعْتَدَلَ and صار معتدلًا express nearly the same idea. The English accurately reflects that redundancy and meaning.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "اِعْتَدَلَ (to straighten up; to be moderate)",
+    "شَدِيد (severe; intense)"
+   ]
+  },
+  {
+   "sentence_id": 56163,
+   "rating": "N",
+   "arabic": "اِنْتَدَبَ قَائِدٌ قَلِقٌ لِلدِّفَاعِ عَنِ السُّورِ.",
+   "english": "An anxious leader volunteered to defend the wall.",
+   "quality_reason": "Grammatical and plausible. انتدب للدفاع can mean volunteered or was assigned for defense, so the translation is acceptable.",
+   "content_words": 5,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "اِنْتَدَبَ (to volunteer, nominate)"
+   ]
+  },
+  {
+   "sentence_id": 53865,
+   "rating": "N",
+   "arabic": "اعْتَمَدَتِ الفَتاةُ عَلى رَفِيقَتِها أَثْناءَ السَّفَرِ.",
+   "english": "The girl relied on her companion during the journey.",
+   "quality_reason": "Grammatically correct and plausible; the translation matches the Arabic.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55308,
+   "rating": "N",
+   "arabic": "اِشْتَرَى الرَّجُلُ مُؤْنَةً كَثِيرَةً لِلرِّحْلَةِ لِأَنَّهُ كَانَ مُبَالِيًا بِالتَّحْضِيرِ.",
+   "english": "The man bought abundant provisions for the trip because he was caring about the preparation.",
+   "quality_reason": "The sentence is grammatical and coherent: the man bought many provisions because he cared about preparation. The English is literal and a bit unnatural, but the meaning matches.",
+   "content_words": 8,
+   "rare_words": 1,
+   "targets": 2,
+   "rare": [
+    "مُؤْنَة (provisions, supplies)"
+   ]
+  },
+  {
+   "sentence_id": 56083,
+   "rating": "O",
+   "arabic": "المُتَصَدِّقُ وَزَّعَ عُلَبَ الطَّعَامِ وَالمَاءِ بِاسْتِعْدَادٍ كَامِلٍ.",
+   "english": "The charitable one distributed boxes of food and water with full preparation.",
+   "quality_reason": "The Arabic is grammatically coherent and plausible in a charity or relief-distribution context, though slightly formal. The translation accurately reflects the meaning; 'with full preparation' is acceptable for بِاسْتِعْدَادٍ كَامِلٍ.",
+   "content_words": 7,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55651,
+   "rating": "N",
+   "arabic": "الحُبُّ يَجْعَلُ القَلْبَ يَتَوَهَّجُ.",
+   "english": "Love makes the heart glow.",
+   "quality_reason": "The Arabic is grammatical and natural, with a poetic but plausible meaning. The English accurately translates it.",
+   "content_words": 4,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 46909,
+   "rating": "N",
+   "arabic": "الرَّمَادُ غَطَّى الفَوَّهَةَ بَعْدَ الإِحْرَاقِ.",
+   "english": "The ash covered the crater after the burning.",
+   "quality_reason": "Grammatically correct with proper subject-verb agreement and word order. Describes a plausible natural scenario (ash after volcanic/burning events). Translation is accurate and natural.",
+   "content_words": 4,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56319,
+   "rating": "S",
+   "arabic": "اِسْتَتَرَ الجَانِي، وَزَعَمَ أَنَّ اِخْتِرَاقَ الدَّائِرَةِ صُدْفَةٌ، فَجَادَلْتُهُ بِحِسَابٍ دَقِيقٍ.",
+   "english": "The culprit hid and claimed the department’s breach was a coincidence, so I argued with him using precise calculation.",
+   "quality_reason": "The Arabic is grammatical and forms a plausible, if slightly formal/textbook-like, scenario. 'بِحِسَابٍ دَقِيقٍ' is a bit stiff but understandable as using precise calculation. The translation matches the meaning.",
+   "content_words": 10,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "اِسْتَتَرَ (to hide, to conceal)",
+    "زَعَمَ (to claim, assert; say)",
+    "صُدْفَة (coincidence, chance)"
+   ]
+  },
+  {
+   "sentence_id": 55933,
+   "rating": "N",
+   "arabic": "العِبْءُ الثَّقِيلُ أَرْهَقَ القَائِدَ بَعْدَ صُعُودِ الجَبَلِ.",
+   "english": "The heavy burden exhausted the leader after climbing the mountain.",
+   "quality_reason": "The Arabic is grammatical and plausible in a narrative or formal context. The translation accurately conveys that the heavy burden exhausted the leader after climbing the mountain.",
+   "content_words": 6,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56014,
+   "rating": "S",
+   "arabic": "يُبَارِكُ القَائِدُ العَهْدَ، فَيَرْضَى المُغْتَبِطُ.",
+   "english": "The leader blesses the covenant, so the delighted one is satisfied.",
+   "quality_reason": "الجملة فصيحة ومترابطة، ومعناها ممكن ولو كان أسلوبها رسميًا أو قصصيًا. الترجمة تطابق المعنى.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56004,
+   "rating": "O",
+   "arabic": "هَلْ يُمْكِنُ اِسْتِعَادَةُ الْغِبْطَةِ بَعْدَ فَقْدِ الْحَلَاوَةِ الَّتِي عَاشَتْهَا سَابِقاً؟",
+   "english": "Is it possible to restore delight after the loss of the sweetness she previously lived?",
+   "quality_reason": "The Arabic is grammatical and plausible, though formal and somewhat abstract. 'عاشتها' means 'experienced/lived through it,' so the English is accurate in meaning, even if 'previously lived' is less idiomatic than 'previously experienced.'",
+   "content_words": 8,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "أَمْكَنَ (to be possible; can)",
+    "غِبْطَةٌ (joy, delight)",
+    "حَلَاوَة (sweetness, pleasantness)"
+   ]
+  },
+  {
+   "sentence_id": 56195,
+   "rating": "N",
+   "arabic": "صَدَّ الحَارِسُ الطَّرِيقَ، فَحَجَرَ حَرَكَةَ النَّاسِ سَاعَةً وَاحِدَةً.",
+   "english": "The guard blocked the road, so he hindered people’s movement for one hour.",
+   "quality_reason": "الجملة فصيحة ومفهومة، وإن كان استعمال «حجر حركة الناس» رسميًا/قديمًا قليلًا مقارنةً بـ«أعاق» أو «قيّد». المعنى أن الحارس سدّ الطريق فقيّد حركة الناس لمدة ساعة، والترجمة تنقل ذلك بدقة مقبولة.",
+   "content_words": 8,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 54664,
+   "rating": "O",
+   "arabic": "أَذَابَ الوَلَدُ العَسَلَ فِي الدَّوَاءِ وَٱِنْكَشَفَ مَذَاقُهُ الحُلْوُ.",
+   "english": "The boy melted the honey in the medicine, and its sweet taste was revealed.",
+   "quality_reason": "The sentence is grammatically correct and describes a plausible situation: a boy dissolves honey in medicine and its sweet taste becomes noticeable. The English accurately matches the Arabic.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 2,
+   "rare": [
+    "أَذَابَ (melt; enrapture)",
+    "ٱِنْكَشَف (to be revealed)"
+   ]
+  },
+  {
+   "sentence_id": 44555,
+   "rating": "N",
+   "arabic": "آبَ الجَزَائِرِيُّ بَعْدَ شَهْرٍ، فَاسْتَقَرَّ بِجَانِبِ المِينَاءِ.",
+   "english": "The Algerian returned after a month, and he settled beside the port.",
+   "quality_reason": "Grammatically sound. The verb 'آب' (returned) is correct, and the scenario of someone returning after a month and settling by a port is plausible for narrative or conversation. Translation is accurate.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56332,
+   "rating": "S",
+   "arabic": "ٱلْحِسَابُ مُعَقَّدٌ، وَٱلْتَمْرِيرُ ٱِنْقَطَعَ بَعْدَ ثَانِيَةٍ.",
+   "english": "The bill is complicated, and the scrolling was interrupted after a second.",
+   "quality_reason": "The Arabic is grammatical and plausible, especially in a context like discussing an app or webpage. الحساب can mean bill/account/calculation, and التمرير means scrolling; the English matches the Arabic meaning.",
+   "content_words": 5,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "تَمْرِير (scrolling)"
+   ]
+  },
+  {
+   "sentence_id": 54693,
+   "rating": "N",
+   "arabic": "شَاهَدَ الزَّائِرُونَ نَمِرًا يَتَحَرَّكُ بِبُطْءٍ.",
+   "english": "The visitors saw a tiger moving slowly.",
+   "quality_reason": "Grammatically correct with proper agreement and case marking. Natural, plausible scenario (visitors observing an animal). Translation is accurate and conveys the exact meaning.",
+   "content_words": 5,
+   "rare_words": 1,
+   "targets": 0,
+   "rare": [
+    "تَحَرَّكَ (to move, stir (intransitive))"
+   ]
+  },
+  {
+   "sentence_id": 56121,
+   "rating": "S",
+   "arabic": "فِي الفُنْدُقِ تَأْخِيرٌ فِي الاِسْتِقْبَالِ، وَلُغْزٌ فِي المَمَرِّ.",
+   "english": "At the hotel there is a delay in reception, and a riddle in the corridor.",
+   "quality_reason": "Grammatically correct and plausible, especially in a context like a hotel, game, or story where there is a puzzle/riddle in a corridor. The English accurately reflects the Arabic.",
+   "content_words": 8,
+   "rare_words": 1,
+   "targets": 2,
+   "rare": [
+    "لُغْز (riddle)"
+   ]
+  },
+  {
+   "sentence_id": 55430,
+   "rating": "N",
+   "arabic": "تَرَكَتِ المُشْرِفَةُ سِيرَتَهَا المُفَضَّلَةَ فَوْقَ البِسَاطِ بِجَانِبِ الكِيسِ.",
+   "english": "The supervisor left her favorite biography on the carpet next to the bag.",
+   "quality_reason": "The Arabic is grammatical and describes a plausible simple action. The English translation is accurate.",
+   "content_words": 6,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "بِساط (carpet, mat)"
+   ]
+  },
+  {
+   "sentence_id": 54500,
+   "rating": "O",
+   "arabic": "الْقَائِدُ يَأْكُلُ اللَّحْمَ بِالْخَرْدَلِ وَيُكَرِّرُ شِرَاءَهُ كُلَّ أُسْبُوعٍ.",
+   "english": "The leader eats meat with mustard and repeats buying it every week.",
+   "quality_reason": "The Arabic is grammatical and describes a plausible habit. The English accurately conveys that he eats meat with mustard and buys it repeatedly every week, though the English phrasing is a bit stiff.",
+   "content_words": 8,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "كَرَّرَ (to repeat)"
+   ]
+  },
+  {
+   "sentence_id": 55473,
+   "rating": "O",
+   "arabic": "حُبُّهَا لِلْمُسَاوَاةِ فَاقَ مَوْقِفَ الحُكُومَةِ فَتَحَرَّكَتْ لِتَغْيِيرِ القَانُونِ.",
+   "english": "Her love for equality exceeded the government's stance, so she moved to change the law.",
+   "quality_reason": "The sentence is grammatical and plausibly formal Arabic. The wording فاق موقف الحكومة is a little abstract, but it can mean her commitment/love for equality went beyond the government's position, leading her to act. The English translation matches the Arabic meaning.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "فَاقَ (to exceed, to surpass)",
+    "تَحَرَّكَ (to move, stir (intransitive))"
+   ]
+  },
+  {
+   "sentence_id": 56275,
+   "rating": "O",
+   "arabic": "أَصْغَى الْجُنْدُ إِلَى قِدِّيسٍ، فَسَالَمُوا بَعْدَ جَدَلٍ وَبُغْضٍ.",
+   "english": "The troops listened closely to a saint, and they made peace after dispute and hatred.",
+   "quality_reason": "The sentence is grammatical and plausible in a story or moral/religious context. The translation accurately captures the troops listening to a saint and making peace after dispute and hatred.",
+   "content_words": 6,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "جُنْد (army, troops, soldiery)",
+    "قِدِّيس (saint)"
+   ]
+  },
+  {
+   "sentence_id": 54691,
+   "rating": "O",
+   "arabic": "أَدَّى الجُرْحُ العَمِيقُ لِٱنْتِشَارِ الشَّلِّ فَٱسْتَدْعَى الأَطِبَّاءُ مُتَطَوِّعِينَ لِمُسَاعَدَتِهِ.",
+   "english": "The deep wound led to the spread of paralysis, so the doctors summoned volunteers to help him.",
+   "quality_reason": "The sentence is grammatically acceptable and coherent, though somewhat formal and medically awkward; a speaker could plausibly say it in a narrative or report. The English accurately reflects the Arabic meaning.",
+   "content_words": 9,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56043,
+   "rating": "N",
+   "arabic": "أَشْبَعَتِ الشَّحَّاذَةُ عَطَشَهَا بِشُرْبِ المَاءِ البَارِدِ الَّذِي فَاضَ مِنَ الإِبْرِيقِ.",
+   "english": "The beggar woman quenched her thirst by drinking the cold water that overflowed from the pitcher.",
+   "quality_reason": "The sentence is formal but grammatical and plausible in a narrative context. The English accurately translates the beggar woman quenching her thirst by drinking cold water that overflowed from the pitcher.",
+   "content_words": 9,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "أَشْبَعَ (to satiate)",
+    "إِبْرِيق (pitcher, jug)"
+   ]
+  },
+  {
+   "sentence_id": 48281,
+   "rating": "N",
+   "arabic": "هَلْ حَرُمَ الإِنْفَاقُ؟",
+   "english": "Did spending become forbidden?",
+   "quality_reason": "الجملة صحيحة نحويًا ومعناها معقول في سياق ديني أو قانوني أو نقاش عن منع الإنفاق. الترجمة دقيقة: حَرُمَ تعني صار ممنوعًا أو محرّمًا، والإنفاق هو spending.",
+   "content_words": 3,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 49068,
+   "rating": "N",
+   "arabic": "صَدِيقِي المِثْلِيُّ يُحِبُّ السَّفَرَ وَاكْتِشَافَ ثَقَافَاتٍ جَدِيدَةٍ.",
+   "english": "My gay friend loves traveling and discovering new cultures.",
+   "quality_reason": "The Arabic is grammatical and plausible: صديقي المثلي means 'my gay friend,' and the rest accurately says he loves traveling and discovering new cultures. The English translation matches.",
+   "content_words": 7,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55297,
+   "rating": "O",
+   "arabic": "يَنْمُو شَعْرُهَا الكَثِيفُ بِسُرْعَةٍ رَغْمَ اسْتِخْدَامِهَا لِلكَتَمِ كُلَّ شَهْرٍ.",
+   "english": "Her dense hair grows quickly despite her using hair dye plant every month.",
+   "quality_reason": "The Arabic is grammatical and plausible: it says her thick hair grows quickly despite her using katam every month. The English meaning is accurate, though “hair dye plant” is a bit awkward.",
+   "content_words": 9,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "شَعْر (hair)",
+    "كَثِيف (dense, thick)",
+    "سُرْعَة (speed, quickness)"
+   ]
+  },
+  {
+   "sentence_id": 56100,
+   "rating": "S",
+   "arabic": "أَكْتَفِي بِمُقْتَنًى وَاحِدٍ، وَأُسْتَهْلِكُ البَاقِيَ بِلامُبَالَاةٍ مُتَثَاقِلَةٍ.",
+   "english": "I make do with one possession, and I use up the rest with sluggish indifference.",
+   "quality_reason": "Grammatically sound and somewhat literary/stilted, but a real speaker could plausibly say it in a reflective or critical context. The English matches the Arabic.",
+   "content_words": 7,
+   "rare_words": 5,
+   "targets": 1,
+   "rare": [
+    "اِكْتَفَى (to be satisfied)",
+    "مُقْتَنَى (possession, acquisition)",
+    "اِسْتَهْلَكَ (to consume, use up)",
+    "لَامُبَالَاة (indifference)",
+    "مُتَثَاقِل (sluggish, heavy)"
+   ]
+  },
+  {
+   "sentence_id": 56226,
+   "rating": "O",
+   "arabic": "بَاعَ الحَمَّالُ الفِرَاشَ بِثَمَنٍ ضَئِيلٍ، فَشَعَرَ بِعَجْزٍ وَوَحْدَةٍ.",
+   "english": "The porter sold the bedding for a small price, so he felt incapacity and loneliness.",
+   "quality_reason": "الجملة عربية سليمة ومشهدها معقول: حمّال باع الفراش بثمن قليل ثم شعر بالعجز والوحدة. الترجمة مطابقة إجمالًا؛ عجز يمكن أن تُترجم إلى incapacity أو helplessness.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "ضَئِيل (tiny, slight)",
+    "وَحْدَة (loneliness, solitude; unit)"
+   ]
+  },
+  {
+   "sentence_id": 54170,
+   "rating": "N",
+   "arabic": "الحِمَارُ فِي الحَقْلِ مِزَاجُهُ جَيِّدٌ اليَوْمَ وَيَأْكُلُ العُشْبَ.",
+   "english": "The donkey in the field is in a good mood today and is eating grass.",
+   "quality_reason": "The sentence is grammatically correct and plausible, especially in a simple learner or story context. The English accurately conveys that the donkey is in the field, in a good mood today, and eating grass.",
+   "content_words": 8,
+   "rare_words": 0,
+   "targets": 2,
+   "rare": []
+  },
+  {
+   "sentence_id": 56317,
+   "rating": "O",
+   "arabic": "اِسْتَطاعَ الجُنْدُ أَنْ يَدَافِعَ عَنِ السُّورِ، وَبَقِيَتِ الغُيُومُ غَائِمَةً.",
+   "english": "The troops were able to defend the wall, and the clouds remained overcast.",
+   "quality_reason": "The Arabic is grammatical; الجند can function as a collective noun with singular agreement. The clause about the clouds is repetitive but still plausibly sayable, and the English matches the Arabic.",
+   "content_words": 8,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "جُنْد (army, troops, soldiery)",
+    "دَافَعَ (to defend)",
+    "بَقِيَ (to remain, stay)"
+   ]
+  },
+  {
+   "sentence_id": 53638,
+   "rating": "N",
+   "arabic": "المُنَسَّقُ بَاحَ بِالحَقِيقَةِ أَمَامَ المَحْكَمَةِ.",
+   "english": "The coordinator revealed the truth before the court.",
+   "quality_reason": "Grammatically correct and plausible. باح بالحقيقة means 'revealed/disclosed the truth,' and أمام المحكمة means 'before the court.'",
+   "content_words": 4,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 53846,
+   "rating": "N",
+   "arabic": "تَسَاءَلَ الخَبِيرُ عَنِ الإِمْكَانِ لِتَوْفِيرِ الدَّوَاءِ.",
+   "english": "The expert wondered about the possibility of providing the medicine.",
+   "quality_reason": "Grammatically acceptable though slightly formal/less idiomatic than إمكان/إمكانية توفير الدواء; the English matches the meaning.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55226,
+   "rating": "N",
+   "arabic": "أَحَاطَ الحَرَسُ بِالقَاضِي لِحِمَايَتِهِ أَثْنَاءَ تَنَقُّلِهِ بَيْنَ المَحَاكِمِ.",
+   "english": "The guards surrounded the judge to protect him during his movement between the courts.",
+   "quality_reason": "The sentence is grammatical and natural in a formal/news-like context. The translation matches the Arabic meaning; 'movement between the courts' is literal but accurate.",
+   "content_words": 7,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "تَنَقَّلَ (movement/migration)"
+   ]
+  },
+  {
+   "sentence_id": 56219,
+   "rating": "O",
+   "arabic": "الْمُتَصَدِّقُ أَذَابَ عِنَادَ الجَارَةِ بِقُبْلَةٍ، فَأَصْبَحَتْ مَمْنُونَةً وَفَرِحَانَةً.",
+   "english": "The charitable man melted the neighbor woman’s stubbornness with a kiss, and she became grateful and happy.",
+   "quality_reason": "The sentence is grammatically coherent, with correct feminine agreement for الجارة / أصبحت ممنونة وفرحانة. The image of melting stubbornness with a kiss is somewhat literary or story-like, but plausible. The English translation accurately reflects the Arabic meaning.",
+   "content_words": 8,
+   "rare_words": 3,
+   "targets": 1,
+   "rare": [
+    "أَذَابَ (melt; enrapture)",
+    "عِنَاد (stubbornness)",
+    "أَصْبَحَ (to become)"
+   ]
+  },
+  {
+   "sentence_id": 54811,
+   "rating": "N",
+   "arabic": "تَوَجَّهَ الطَّيَّارُ الشُّجَاعُ نَحْوَ المَطَارِ بَعْدَ المُحَاضَرَةِ.",
+   "english": "The brave pilot headed toward the airport after the lecture.",
+   "quality_reason": "Grammatically correct and natural as a simple sentence; the English accurately matches the Arabic meaning.",
+   "content_words": 6,
+   "rare_words": 0,
+   "targets": 2,
+   "rare": []
+  },
+  {
+   "sentence_id": 56364,
+   "rating": "N",
+   "arabic": "خَطَبَ بَكْرٌ بِالإِذَاعَةِ، فَذَاعَ رَأْيُهُ بَيْنَ بَشَرٍ.",
+   "english": "Bakr delivered a speech on the radio, so his opinion spread among people.",
+   "quality_reason": "The sentence is grammatical and plausible, though 'بين بشر' is less idiomatic than 'بين الناس'. Bakr is a real Arabic name, and the meaning matches the English.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 55546,
+   "rating": "O",
+   "arabic": "سَاقَ الرَّجُلُ سَيَّارَتَهُ بِعَطْفٍ شَدِيدٍ عَلَى الغُلَامِ المُتْعِبِ.",
+   "english": "The man drove his car with great compassion for the tired boy.",
+   "quality_reason": "The sentence is grammatically correct and, while a bit formal or unusual in wording, it can plausibly mean the man drove out of compassion for the tired boy.",
+   "content_words": 7,
+   "rare_words": 2,
+   "targets": 2,
+   "rare": [
+    "عَطْف (compassion)",
+    "شَدِيد (severe; intense)"
+   ]
+  },
+  {
+   "sentence_id": 54406,
+   "rating": "N",
+   "arabic": "القَائِدُ وَحَاشِيَتُهُ عَاهَدُوا الشَّعْبَ بِالوَفَاءِ وَالإِخْلَاصِ.",
+   "english": "The leader and his entourage pledged to the people loyalty and sincerity.",
+   "quality_reason": "The Arabic is grammatical and plausible in a formal or political context. The English accurately conveys that the leader and his entourage pledged loyalty and sincerity to the people.",
+   "content_words": 6,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "حاشِيَة (retinue, entourage)"
+   ]
+  },
+  {
+   "sentence_id": 56284,
+   "rating": "S",
+   "arabic": "فَقْدُ الشَّهَادَةِ مُعَقَّدٌ، وَالإِعْرَابُ مُعَقَّدٌ أَيْضًا، فَتَمْتَمْتُ بِمَعْذِرَةٍ.",
+   "english": "The loss of the certificate is complicated, and parsing is complicated too, so I muttered an excuse.",
+   "quality_reason": "The sentence is somewhat textbook-like and unusual in combining loss of a certificate with grammar parsing, but it is grammatical and could plausibly be said in a learner or classroom context. The translation matches.",
+   "content_words": 8,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "تَمْتَمَ (to mutter, mumble)",
+    "مَعْذِرَة (excuse; pardon me (interjection))"
+   ]
+  },
+  {
+   "sentence_id": 56305,
+   "rating": "O",
+   "arabic": "المُجَاوِرُ ضَمَّ مَقَرًّا مُجَاوِرًا، فَتَخَاصَمَتِ المَجْمُوعَةُ وَنَقَضَتِ القَاعِدَةَ.",
+   "english": "The neighboring party annexed a neighboring headquarters, so the group quarreled and broke the rule.",
+   "quality_reason": "The sentence is grammatically correct and forms a plausible simple scenario. The translation accurately reflects the Arabic.",
+   "content_words": 8,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 56347,
+   "rating": "N",
+   "arabic": "تَمْتَمَ الوَلَدُ، ثُمَّ قَالَ: دَعَكَ مِنَ الكَرَاهِيَةِ.",
+   "english": "The boy muttered, then said: Leave hatred aside.",
+   "quality_reason": "سليم نحويًا ودلاليًا: «تمتم الولد ثم قال» طبيعي، و«دعك من الكراهية» تعبير فصيح بمعنى اترك الكراهية/تجنبها. الترجمة الإنجليزية تنقل المعنى بشكل صحيح.",
+   "content_words": 6,
+   "rare_words": 2,
+   "targets": 2,
+   "rare": [
+    "تَمْتَمَ (to mutter, mumble)",
+    "دَعَكَ (leave aside)"
+   ]
+  },
+  {
+   "sentence_id": 51551,
+   "rating": "N",
+   "arabic": "قَرَّبَ الخَبَّازُ الفَاكِهَةَ مِنَ النَّارِ فَأَذَابَ السُّكَّرَ عَلَيْهَا.",
+   "english": "The baker brought the fruit close to the fire and melted the sugar on it.",
+   "quality_reason": "الجملة سليمة ومشهدها معقول: الخباز قرّب الفاكهة من النار فأذاب السكر فوقها أو عليها. الترجمة مطابقة للمعنى.",
+   "content_words": 7,
+   "rare_words": 1,
+   "targets": 2,
+   "rare": [
+    "أَذَابَ (melt; enrapture)"
+   ]
+  },
+  {
+   "sentence_id": 54395,
+   "rating": "N",
+   "arabic": "التِّينَةُ الَّتِي قَطَفَهَا الزَّائِرُ مِنَ الشَّجَرَةِ كَانَتْ نَاضِجَةً وَلَذِيذَةً.",
+   "english": "The fig that the visitor picked from the tree was ripe and delicious.",
+   "quality_reason": "الجملة صحيحة وطبيعية: تصف تينة قطفها زائر من الشجرة وكانت ناضجة ولذيذة. الترجمة الإنجليزية مطابقة للمعنى.",
+   "content_words": 8,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 53702,
+   "rating": "N",
+   "arabic": "يَطُولُ الشِّتَاءُ حَتَّى يَأْتِيَ الرَّبِيعُ.",
+   "english": "Winter lengthens until spring comes.",
+   "quality_reason": "Grammatical and plausible, especially in a descriptive or poetic context; the translation matches.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  },
+  {
+   "sentence_id": 54785,
+   "rating": "O",
+   "arabic": "لَمْ يَبْقَ مَتَاعٌ لَدَى الجَزَّارِ لِأَنَّ قَارِبَهُ غَرِقَ.",
+   "english": "No goods remained with the butcher because his boat sank.",
+   "quality_reason": "Grammatically correct and plausible enough: a butcher could have goods or supplies lost because his boat sank. The translation is accurate.",
+   "content_words": 7,
+   "rare_words": 2,
+   "targets": 1,
+   "rare": [
+    "بَقِيَ (to remain, stay)",
+    "غَرِقَ (sink)"
+   ]
+  },
+  {
+   "sentence_id": 55825,
+   "rating": "O",
+   "arabic": "اِنْطَلَقَ المَسِيرُ وَسَطَ الدَّائِرَةِ وَاسْتَمَرَّ سَاعَةً.",
+   "english": "The march set off in the middle of the circle and continued for an hour.",
+   "quality_reason": "الجملة سليمة نحويًا ومفهومة؛ قد تُقال في سياق مسيرة أو نشاط داخل دائرة/ساحة دائرية. الترجمة مطابقة للمعنى.",
+   "content_words": 6,
+   "rare_words": 1,
+   "targets": 1,
+   "rare": [
+    "مَسِير (procession, march)"
+   ]
+  },
+  {
+   "sentence_id": 50058,
+   "rating": "N",
+   "arabic": "إِيقَادُ النَّارِ يَحْتَاجُ بَارُوداً وَحَطَباً.",
+   "english": "Kindling the fire requires gunpowder and firewood.",
+   "quality_reason": "Grammatically correct. The use of gunpowder for starting a fire is unusual but still a plausible statement in a specific context.",
+   "content_words": 5,
+   "rare_words": 0,
+   "targets": 1,
+   "rare": []
+  }
+ ]
+}

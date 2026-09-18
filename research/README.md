@@ -1,5 +1,9 @@
 # Alif — Research Index
 
+## Open spec — September 18, 2026
+
+[Hermetic tests, coherent review sentences, and next steps](spec-2026-09-18-test-isolation-sentence-quality.md): the fast suite made 396 real provider calls; 45% of sampled review sentences were forced or word salad, tracking rare-word density; ordered plan after maintenance v1.1/v1.1b. Evidence in [spec-2026-09-18/](spec-2026-09-18/).
+
 ## Current reading checkpoint — September 15, 2026
 
 [Updated analytics and reading process](analysis-2026-09-15-reading-refresh.md): fresh production snapshot, maintenance guardrails, matched older-word checks, and [three prepared restart portions](reading-refresh-2026-09-15/reading-next.md).

@@ -7,7 +7,8 @@ v1.1 lets leech reintroduction yield Box-1 room to new words and stops starved
 Box-1 words from counting as debt. v1.1b schedules FSRS at 90% retention. Both
 are logged on 2026-09-17 in `research/experiment-log.md`.
 
-**Open follow-ups found in the same investigation:**
+**Open follow-ups found in the same investigation** (specified with evidence and acceptance
+criteria in `research/spec-2026-09-18-test-isolation-sentence-quality.md`):
 
 - **Sentence supply produces word salad.** Generation samples the vocabulary it
   shows the model with inverse-sentence-count weighting plus an at-risk boost
