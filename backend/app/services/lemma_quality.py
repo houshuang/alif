@@ -26,7 +26,15 @@ logger = logging.getLogger(__name__)
 
 # Lazy-loaded frequency rank map
 _rank_map: Optional[dict[str, int]] = None
-_CAMEL_CACHE = Path(__file__).resolve().parent.parent / "data" / "MSA_freq_lists.tsv"
+# backend/data, shared with scripts/build_frequency_core.py and scripts/backfill_frequency.py.
+_CAMEL_CACHE = Path(__file__).resolve().parents[2] / "data" / "MSA_freq_lists.tsv"
+# The full list has 10.5M forms (~2 GB in memory). Ranks past this cap already
+# count as "not in the list" for every consumer (frequency_lanes weights,
+# discover's OOV rank), so only the head of the list is kept.
+RANK_MAP_MAX_RANK = 100_000
+# The file is sorted by descending count. Forms this rare cannot reach the head;
+# dropping them shifts head ranks by a few places through alef-variant merging.
+_RANK_MAP_MIN_COUNT = 50
 
 ARABIC_PUNCT = re.compile(r'[،؟؛«»\u060C\u061B\u061F.,:;!?\"\'\-\(\)\[\]{}…]')
 # Regex to strip ال (with optional diacritics) from start of word.
@@ -82,7 +90,7 @@ def _load_rank_map() -> dict[str, int]:
         return _rank_map
 
     if not _CAMEL_CACHE.exists():
-        logger.warning(f"CAMeL frequency file not found: {_CAMEL_CACHE}")
+        logger.error(f"CAMeL frequency file not found, new lemmas get no frequency rank: {_CAMEL_CACHE}")
         _rank_map = {}
         return _rank_map
 
@@ -101,6 +109,8 @@ def _load_rank_map() -> dict[str, int]:
                 count = int(count_str)
             except ValueError:
                 continue
+            if count < _RANK_MAP_MIN_COUNT:
+                break
             normalized = _normalize(word)
             if normalized in freq:
                 freq[normalized] += count
@@ -108,7 +118,7 @@ def _load_rank_map() -> dict[str, int]:
                 freq[normalized] = count
 
     # Convert to rank map (sorted by count descending)
-    sorted_forms = sorted(freq.items(), key=lambda x: -x[1])
+    sorted_forms = sorted(freq.items(), key=lambda x: -x[1])[:RANK_MAP_MAX_RANK]
     _rank_map = {form: rank for rank, (form, _) in enumerate(sorted_forms, 1)}
     logger.info(f"Loaded {len(_rank_map):,} frequency entries")
     return _rank_map

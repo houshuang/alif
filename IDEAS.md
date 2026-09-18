@@ -18,6 +18,16 @@ criteria in `research/spec-2026-09-18-test-isolation-sentence-quality.md`):
   and odd, but it could plausibly be said." Ideas: cap rare/unranked words per
   prompt, add a "would anyone say this?" coherence verdict, and keep
   dialect/vulgar glossary words out of generated review sentences.
+  - *Update 2026-09-18:* part of the "rare" signal was a bug. Since 2026-03-31
+    no new lemma got a CAMeL rank (wrong `_CAMEL_CACHE` path), so common words
+    such as أَصْبَحَ and رَأَى counted as rare. Fixed in code; production needs
+    `scripts/backfill_missing_frequency_ranks.py`. After repair, 10.3% of the
+    pool is rare, and the inverse-sentence-count sampler raises that to 22% of
+    the prompt. Most rare scaffold is Bookifier story vocabulary imported in
+    July. See `research/analysis-2026-09-18-sentence-rarity.md`.
+  - *Idea:* make rarity corpus-aware. A word that is frequent in the
+    learner's own reading (Hindawi or Momo corpus, `hindawi_rank`) should not
+    count as rare just because it is uncommon in news-heavy CAMeL.
 - **Box-1 starvation is a selection problem, not supply.** فَرَغَ, رَاوَدَ and
   مُقَلِّدَة stayed due for weeks while each had reviewable sentences that were
   never shown (صَرَعَ has one partial sentence, due since June 9). Something in

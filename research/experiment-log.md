@@ -48,6 +48,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-18 — Frequency ranks: fix the CAMeL path and cap the loader (backfill pending)
+
+**Finding.** Investigating rare words in review sentences (spec 2026-09-18, Workstream B) showed
+that `lemma_quality._CAMEL_CACHE` has pointed at `backend/app/data` since the centralized quality
+gate (`fb5efbc`, 2026-03-31). The file is in `backend/data`, so `assign_frequency_rank()` assigned
+nothing to any lemma created through `run_quality_gates()` or `/api/discover`: 1,700 lemmas have no
+`frequency_rank`, and none with id above 2912 has one. Common words without a frequency-core link
+(أَصْبَحَ, رَأَى, شَدِيد) therefore read as rare to generation analysis, got priority weight 0.70
+instead of 1.50–2.20 as due words, and sorted last for leech reintroduction. Bookifier's
+`distinctive` selection degenerated into "most frequent in this text".
+
+**Change (merged, not deployed).** Correct the path. The loader stops below a count of 50 and keeps
+ranks up to 100,000, which every consumer already treats like "not in the list": 0.8 s and 263 MB
+transient, instead of 13.3 s and about 2 GB that a corrected full load would have pinned in the web
+process. New `scripts/backfill_missing_frequency_ranks.py` fills only NULL ranks through the same
+function. Its dry run on the 2026-09-18 backup ranks 1,476 of 1,700 lemmas, 801 of them in active study.
+
+**Phase boundary when run.** The backfill changes the due-word priority input
+(`frequency_priority_weight`) and the leech reintroduction order for those 801 words. Record the
+production run as a `low_energy_maintenance_v1` phase boundary, together with or separate from
+v1.1/v1.1b as the learner decides. Run it before any rarity-based generation change (B1/B2), because
+unranked common words would otherwise be treated as rare.
+
+**Rarity after repair.** 10.3% of active content lemmas are rare (rank > 5,000); the prompt sampler
+raises that to 22% of the 500 offered words (35% of the first 100), through the inverse-sentence-count
+weight rather than the 2026-06-06 at-risk boost. Rare scaffold rose from 2.7% of generated scaffold in
+June to 17% in July (Bookifier imports) and 22% in September. Full analysis and revised B1/B2 plan:
+[sentence rarity analysis](analysis-2026-09-18-sentence-rarity.md).
+
 ## 2026-09-17 — Maintenance v1.1b: FSRS desired retention 0.95 → 0.90
 
 **Learner question.** Main review debt hovers at 600–700 regardless of reps.
