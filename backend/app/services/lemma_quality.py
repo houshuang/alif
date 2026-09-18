@@ -383,12 +383,8 @@ def run_quality_gates(
         try:
             from app.services.lemma_enrichment import enrich_lemmas_batch
             if background_enrich:
-                import threading
-                threading.Thread(
-                    target=enrich_lemmas_batch,
-                    args=(lemma_ids,),
-                    daemon=True,
-                ).start()
+                from app.services.background_threads import start_daemon
+                start_daemon(enrich_lemmas_batch, lemma_ids)
             else:
                 enrich_lemmas_batch(lemma_ids)
             enriched = True

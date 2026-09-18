@@ -3453,7 +3453,7 @@ def _build_reintro_cards(
         if not l.forms_json or not l.etymology_json or not l.memory_hooks_json
     ]
     if needs_enrichment and trigger_background_enrichment:
-        import threading
+        from app.services.background_threads import start_daemon
         from app.services.lemma_enrichment import enrich_lemmas_batch
         from app.services.memory_hooks import generate_memory_hooks
 
@@ -3461,13 +3461,9 @@ def _build_reintro_cards(
         hooks_ids = [l.lemma_id for l in needs_enrichment if not l.memory_hooks_json]
 
         if enrich_ids:
-            threading.Thread(
-                target=enrich_lemmas_batch, args=(enrich_ids,), daemon=True
-            ).start()
+            start_daemon(enrich_lemmas_batch, enrich_ids)
         for lid in hooks_ids:
-            threading.Thread(
-                target=generate_memory_hooks, args=(lid,), daemon=True
-            ).start()
+            start_daemon(generate_memory_hooks, lid)
 
         logger.info(
             f"Triggered background enrichment for intro cards: "

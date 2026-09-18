@@ -18,7 +18,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 
 ## Deploy & ops (how to ship safely)
 - [macOS sim/compute perf gotchas](reference_macos_sim_perf_gotchas.md) — background shells run darwinbg/niced (E-cores); SQLite cache must exceed DB size; `sample <pid>` before theorizing; launchctl for session-surviving jobs.
-- [Local pytest makes real LLM calls](reference_local_tests_make_real_llm_calls.md) — stub `claude`/`codex` on PATH and clear API keys, or the "2-minute" suite runs 30+ min and spends quota.
+- [Fast pytest is hermetic (provider guard)](reference_local_tests_make_real_llm_calls.md) — since 2026-09-18 the fast suite makes zero provider calls; a red BACKSTOP line means a new provider path bypassed `tests/provider_guard.py`.
 - [Always deploy from main](feedback_always_deploy_from_main.md) — verify server branch + HEAD commit + the actual effect, not just `systemctl is-active`.
 - [Frontend deploy needs Metro cache cleared](feedback_expo_metro_cache_deploy.md) — a bare `restart alif-expo` serves a stale bundle; `rm -rf /tmp/metro-* …` first.
 - [Don't scp files into the server working tree](feedback_no_scp_to_server_workdir.md) — untracked files block `git pull`, then restart runs stale code silently.

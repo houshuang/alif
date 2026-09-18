@@ -121,7 +121,7 @@ def maybe_enrich_pattern(wazn: str, db: "Session") -> None:
     - Pattern has 2+ lemmas with knowledge state in (acquiring, learning, known)
     - Pattern has no enrichment yet
     """
-    import threading
+    from app.services.background_threads import start_daemon
 
     if not wazn:
         return
@@ -142,7 +142,5 @@ def maybe_enrich_pattern(wazn: str, db: "Session") -> None:
     )
 
     if studied_count >= 2:
-        threading.Thread(
-            target=generate_pattern_enrichment, args=(wazn,), daemon=True
-        ).start()
+        start_daemon(generate_pattern_enrichment, wazn)
         logger.info(f"Triggered pattern enrichment for wazn '{wazn}' ({studied_count} studied words)")

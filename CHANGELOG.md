@@ -6,6 +6,15 @@ This project is developed with Claude Code and Codex.
 
 ---
 
+## 2026-09-18
+
+- Make the fast backend test suite hermetic. A provider guard blanks
+  credentials, fails every Claude CLI, Codex CLI and litellm call closed with
+  the production error type, and backstops any `claude`/`codex` spawn or
+  external connection. Provider-bound background threads are disabled in
+  tests. Analysis-script tests use `sys.executable`, so the suite also passes
+  in git worktrees. The run dropped from 104 s with provider calls to 42 s with none.
+
 ## 2026-09-03
 
 - Start the reversible 60-day `low_energy_maintenance_v1` experiment: keep the

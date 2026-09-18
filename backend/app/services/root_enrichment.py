@@ -103,7 +103,7 @@ def maybe_enrich_root(root_id: int, db: "Session") -> None:
     - Root has 2+ lemmas with knowledge state in (acquiring, learning, known)
     - Root has no enrichment yet
     """
-    import threading
+    from app.services.background_threads import start_daemon
 
     root = db.query(Root).filter(Root.root_id == root_id).first()
     if not root or root.enrichment_json:
@@ -121,7 +121,5 @@ def maybe_enrich_root(root_id: int, db: "Session") -> None:
     )
 
     if studied_count >= 2:
-        threading.Thread(
-            target=generate_root_enrichment, args=(root_id,), daemon=True
-        ).start()
+        start_daemon(generate_root_enrichment, root_id)
         logger.info(f"Triggered root enrichment for root {root_id} ({root.root}, {studied_count} studied words)")
