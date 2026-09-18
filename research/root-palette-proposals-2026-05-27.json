@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-05-27T23:47:06.451213",
+  "candidates_source": "/Users/stian/src/alif/research/root-showcase-candidates-2026-05-27.json",
+  "top_processed": 1,
+  "applied": true,
+  "new_lemma_ids": [
+    4025
+  ],
+  "roots": [
+    {
+      "root_id": 260,
+      "root": "ق.ب.ل",
+      "accepted": [
+        {
+          "lemma_ar": "تَقْبِيلٌ",
+          "lemma_ar_bare": "تقبيل",
+          "pos": "noun",
+          "gloss_en": "kissing",
+          "wazn": "taf'il",
+          "family": "masdar_II",
+          "justification": "تَقْبِيلٌ is the regular and current MSA verbal noun of قَبَّلَ for the act of kissing."
+        }
+      ],
+      "rejected": [
+        {
+          "lemma_ar": "قَبَّلَ",
+          "lemma_ar_bare": "قبل",
+          "pos": "verb",
+          "gloss_en": "to kiss",
+          "wazn": "form_2",
+          "family": "verb_II",
+          "justification": "قَبَّلَ is the ordinary MSA verb for kissing someone, while the palette only has the noun قُبْلَةٌ.",
+          "reason": "collides with existing lemma #466"
+        },
+        {
+          "lemma_ar": "قَابَلَ",
+          "lemma_ar_bare": "قابل",
+          "pos": "verb",
+          "gloss_en": "to meet; interview",
+          "wazn": "form_3",
+          "family": "verb_III",
+          "justification": "قَابَلَ is widely used in MSA for meeting, interviewing, or facing someone, and only its masdar مُقَابَلَة is already present.",
+          "reason": "collides with existing lemma #3628"
+        },
+        {
+          "lemma_ar": "أَقْبَلَ",
+          "lemma_ar_bare": "أقبل",
+          "pos": "verb",
+          "gloss_en": "to approach; turn toward",
+          "wazn": "form_4",
+          "family": "verb_IV",
+          "justification": "أَقْبَلَ is common MSA for approaching or turning one's attention toward something, while the palette has only إِقْبَال.",
+          "reason": "collides with existing lemma #466"
+        },
+        {
+          "lemma_ar": "تَقَبَّلَ",
+          "lemma_ar_bare": "تقبل",
+          "pos": "verb",
+          "gloss_en": "to accept; receive",
+          "wazn": "form_5",
+          "family": "verb_V",
+          "justification": "تَقَبَّلَ is a standard active MSA verb in phrases like تَقَبَّلَ النَّقْدَ and تَقَبَّلَ اللهُ, distinct from simple قَبُولٌ.",
+          "reason": "collides with existing lemma #466"
+        },
+        {
+          "lemma_ar": "تَقَبُّلٌ",
+          "lemma_ar_bare": "تقبل",
+          "pos": "noun",
+          "gloss_en": "acceptance; receptiveness",
+          "wazn": "tafa''ul",
+          "family": "masdar_V",
+          "justification": "تَقَبُّلٌ is common in MSA for psychological or social acceptance, as in تَقَبُّل الآخر and تَقَبُّل النقد.",
+          "reason": "collides with existing lemma #466"
+        }
+      ],
+      "inserted_lemma_ids": [
+        4025
+      ]
+    }
+  ]
+}

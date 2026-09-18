@@ -1,0 +1,2697 @@
+{
+  "assessment": "Arabic Reading Check",
+  "version": "2026-09-reading-v1",
+  "exportedAt": "2026-09-06T11:09:36.941Z",
+  "state": {
+    "version": "2026-09-reading-v1",
+    "phase": "results",
+    "index": 35,
+    "answers": {
+      "reading-letter": {
+        "choices": [
+          1,
+          0,
+          1
+        ],
+        "responseMs": 94222,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": "Yes",
+        "effort": "Slow but manageable"
+      },
+      "reading-house": {
+        "choices": [
+          2,
+          0,
+          1
+        ],
+        "responseMs": 117213,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [
+          "words"
+        ],
+        "supportedUnderstanding": "Yes",
+        "effort": "Slow but manageable"
+      },
+      "practice-1": {
+        "choices": [
+          0
+        ],
+        "responseMs": 2620,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "practice-2": {
+        "choices": [
+          1
+        ],
+        "responseMs": 3088,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-620": {
+        "choices": [
+          3
+        ],
+        "responseMs": 3586,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-304": {
+        "choices": [
+          0
+        ],
+        "responseMs": 7470,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-290": {
+        "choices": [
+          1
+        ],
+        "responseMs": 4393,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-395": {
+        "choices": [
+          2
+        ],
+        "responseMs": 7898,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-2096": {
+        "choices": [
+          3
+        ],
+        "responseMs": 3341,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-276": {
+        "choices": [
+          2
+        ],
+        "responseMs": 4090,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-3124": {
+        "choices": [
+          3
+        ],
+        "responseMs": 5118,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-634": {
+        "choices": [
+          1
+        ],
+        "responseMs": 5135,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-2095": {
+        "choices": [
+          1
+        ],
+        "responseMs": 2697,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-242": {
+        "choices": [
+          1
+        ],
+        "responseMs": 6626,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-295": {
+        "choices": [
+          1
+        ],
+        "responseMs": 4431,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-588": {
+        "choices": [
+          0
+        ],
+        "responseMs": 4761,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-263": {
+        "choices": [
+          1
+        ],
+        "responseMs": 3410,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-700": {
+        "choices": [
+          0
+        ],
+        "responseMs": 10965,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-291": {
+        "choices": [
+          1
+        ],
+        "responseMs": 3109,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-676": {
+        "choices": [
+          2
+        ],
+        "responseMs": 6290,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-366": {
+        "choices": [
+          1
+        ],
+        "responseMs": 4136,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-3127": {
+        "choices": [
+          2
+        ],
+        "responseMs": 10666,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-1731": {
+        "choices": [
+          3
+        ],
+        "responseMs": 4216,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-685": {
+        "choices": [
+          0
+        ],
+        "responseMs": 6299,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-3108": {
+        "choices": [
+          1
+        ],
+        "responseMs": 14906,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-401": {
+        "choices": [
+          2
+        ],
+        "responseMs": 11210,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-2248": {
+        "choices": [
+          3
+        ],
+        "responseMs": 3123,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "word-303": {
+        "choices": [
+          0
+        ],
+        "responseMs": 6286,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-roles": {
+        "choices": [
+          1
+        ],
+        "responseMs": 11732,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-relative-clause": {
+        "choices": [
+          0
+        ],
+        "responseMs": 35963,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-not-yet": {
+        "choices": [
+          2
+        ],
+        "responseMs": 12532,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-still": {
+        "choices": [
+          0
+        ],
+        "responseMs": 15055,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-pronoun": {
+        "choices": [
+          0
+        ],
+        "responseMs": 11388,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-sequence": {
+        "choices": [
+          2
+        ],
+        "responseMs": 11209,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-condition": {
+        "choices": [
+          1
+        ],
+        "responseMs": 13698,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      },
+      "syntax-contrast": {
+        "choices": [
+          0
+        ],
+        "responseMs": 16807,
+        "interrupted": false,
+        "interruptions": [],
+        "support": [],
+        "supportedUnderstanding": null,
+        "effort": null
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "at": "2026-09-06T10:57:21.501Z",
+        "itemId": "reading-letter",
+        "action": "energy",
+        "detail": {
+          "value": "Plenty"
+        }
+      },
+      {
+        "seq": 2,
+        "at": "2026-09-06T10:57:25.032Z",
+        "itemId": "reading-letter",
+        "action": "section_started",
+        "detail": {
+          "section": 0
+        }
+      },
+      {
+        "seq": 3,
+        "at": "2026-09-06T10:57:29.431Z",
+        "itemId": "reading-letter",
+        "action": "item_revealed",
+        "detail": {
+          "id": "reading-letter"
+        }
+      },
+      {
+        "seq": 4,
+        "at": "2026-09-06T10:59:03.896Z",
+        "itemId": "reading-letter",
+        "action": "first_read_finished",
+        "detail": {
+          "responseMs": 94222
+        }
+      },
+      {
+        "seq": 5,
+        "at": "2026-09-06T10:59:10.961Z",
+        "itemId": "reading-letter",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 0,
+          "choice": 1
+        }
+      },
+      {
+        "seq": 6,
+        "at": "2026-09-06T10:59:13.558Z",
+        "itemId": "reading-letter",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 1,
+          "choice": 0
+        }
+      },
+      {
+        "seq": 7,
+        "at": "2026-09-06T10:59:17.888Z",
+        "itemId": "reading-letter",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 2,
+          "choice": 1
+        }
+      },
+      {
+        "seq": 8,
+        "at": "2026-09-06T10:59:23.915Z",
+        "itemId": "reading-letter",
+        "action": "first_read_effort",
+        "detail": {
+          "value": "Slow but manageable"
+        }
+      },
+      {
+        "seq": 9,
+        "at": "2026-09-06T10:59:25.301Z",
+        "itemId": "reading-letter",
+        "action": "support_stage_started",
+        "detail": {}
+      },
+      {
+        "seq": 10,
+        "at": "2026-09-06T10:59:37.555Z",
+        "itemId": "reading-letter",
+        "action": "supported_understanding",
+        "detail": {
+          "value": "Yes"
+        }
+      },
+      {
+        "seq": 11,
+        "at": "2026-09-06T10:59:39.347Z",
+        "itemId": "reading-letter",
+        "action": "passage_completed",
+        "detail": {}
+      },
+      {
+        "seq": 12,
+        "at": "2026-09-06T10:59:41.194Z",
+        "itemId": "reading-house",
+        "action": "item_revealed",
+        "detail": {
+          "id": "reading-house"
+        }
+      },
+      {
+        "seq": 13,
+        "at": "2026-09-06T11:01:38.700Z",
+        "itemId": "reading-house",
+        "action": "first_read_finished",
+        "detail": {
+          "responseMs": 117213
+        }
+      },
+      {
+        "seq": 14,
+        "at": "2026-09-06T11:01:49.492Z",
+        "itemId": "reading-house",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 0,
+          "choice": 2
+        }
+      },
+      {
+        "seq": 15,
+        "at": "2026-09-06T11:01:52.562Z",
+        "itemId": "reading-house",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 1,
+          "choice": 0
+        }
+      },
+      {
+        "seq": 16,
+        "at": "2026-09-06T11:01:55.689Z",
+        "itemId": "reading-house",
+        "action": "comprehension_answer",
+        "detail": {
+          "question": 2,
+          "choice": 1
+        }
+      },
+      {
+        "seq": 17,
+        "at": "2026-09-06T11:01:59.543Z",
+        "itemId": "reading-house",
+        "action": "first_read_effort",
+        "detail": {
+          "value": "Slow but manageable"
+        }
+      },
+      {
+        "seq": 18,
+        "at": "2026-09-06T11:02:01.031Z",
+        "itemId": "reading-house",
+        "action": "support_stage_started",
+        "detail": {}
+      },
+      {
+        "seq": 19,
+        "at": "2026-09-06T11:02:08.841Z",
+        "itemId": "reading-house",
+        "action": "support",
+        "detail": {
+          "kind": "words",
+          "visible": true
+        }
+      },
+      {
+        "seq": 20,
+        "at": "2026-09-06T11:02:24.746Z",
+        "itemId": "reading-house",
+        "action": "supported_understanding",
+        "detail": {
+          "value": "Yes"
+        }
+      },
+      {
+        "seq": 21,
+        "at": "2026-09-06T11:02:26.139Z",
+        "itemId": "reading-house",
+        "action": "passage_completed",
+        "detail": {}
+      },
+      {
+        "seq": 22,
+        "at": "2026-09-06T11:02:32.921Z",
+        "itemId": "practice-1",
+        "action": "energy",
+        "detail": {
+          "value": "Plenty"
+        }
+      },
+      {
+        "seq": 23,
+        "at": "2026-09-06T11:02:34.084Z",
+        "itemId": "practice-1",
+        "action": "section_started",
+        "detail": {
+          "section": 1
+        }
+      },
+      {
+        "seq": 24,
+        "at": "2026-09-06T11:02:35.733Z",
+        "itemId": "practice-1",
+        "action": "item_revealed",
+        "detail": {
+          "id": "practice-1"
+        }
+      },
+      {
+        "seq": 25,
+        "at": "2026-09-06T11:02:38.605Z",
+        "itemId": "practice-1",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 2620
+        }
+      },
+      {
+        "seq": 26,
+        "at": "2026-09-06T11:02:40.420Z",
+        "itemId": "practice-2",
+        "action": "item_revealed",
+        "detail": {
+          "id": "practice-2"
+        }
+      },
+      {
+        "seq": 27,
+        "at": "2026-09-06T11:02:43.795Z",
+        "itemId": "practice-2",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 3088
+        }
+      },
+      {
+        "seq": 28,
+        "at": "2026-09-06T11:02:45.284Z",
+        "itemId": "word-620",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-620"
+        }
+      },
+      {
+        "seq": 29,
+        "at": "2026-09-06T11:02:50.597Z",
+        "itemId": "word-620",
+        "action": "answer",
+        "detail": {
+          "choice": 3,
+          "responseMs": 3586
+        }
+      },
+      {
+        "seq": 30,
+        "at": "2026-09-06T11:02:51.930Z",
+        "itemId": "word-304",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-304"
+        }
+      },
+      {
+        "seq": 31,
+        "at": "2026-09-06T11:02:59.709Z",
+        "itemId": "word-304",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 7470
+        }
+      },
+      {
+        "seq": 32,
+        "at": "2026-09-06T11:03:00.951Z",
+        "itemId": "word-290",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-290"
+        }
+      },
+      {
+        "seq": 33,
+        "at": "2026-09-06T11:03:05.599Z",
+        "itemId": "word-290",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 4393
+        }
+      },
+      {
+        "seq": 34,
+        "at": "2026-09-06T11:03:06.913Z",
+        "itemId": "word-395",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-395"
+        }
+      },
+      {
+        "seq": 35,
+        "at": "2026-09-06T11:03:15.055Z",
+        "itemId": "word-395",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 7898
+        }
+      },
+      {
+        "seq": 36,
+        "at": "2026-09-06T11:03:16.490Z",
+        "itemId": "word-2096",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-2096"
+        }
+      },
+      {
+        "seq": 37,
+        "at": "2026-09-06T11:03:20.122Z",
+        "itemId": "word-2096",
+        "action": "answer",
+        "detail": {
+          "choice": 3,
+          "responseMs": 3341
+        }
+      },
+      {
+        "seq": 38,
+        "at": "2026-09-06T11:03:25.888Z",
+        "itemId": "word-276",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-276"
+        }
+      },
+      {
+        "seq": 39,
+        "at": "2026-09-06T11:03:30.296Z",
+        "itemId": "word-276",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 4090
+        }
+      },
+      {
+        "seq": 40,
+        "at": "2026-09-06T11:03:31.245Z",
+        "itemId": "word-3124",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-3124"
+        }
+      },
+      {
+        "seq": 41,
+        "at": "2026-09-06T11:03:36.649Z",
+        "itemId": "word-3124",
+        "action": "answer",
+        "detail": {
+          "choice": 3,
+          "responseMs": 5118
+        }
+      },
+      {
+        "seq": 42,
+        "at": "2026-09-06T11:03:38.240Z",
+        "itemId": "word-634",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-634"
+        }
+      },
+      {
+        "seq": 43,
+        "at": "2026-09-06T11:03:43.624Z",
+        "itemId": "word-634",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 5135
+        }
+      },
+      {
+        "seq": 44,
+        "at": "2026-09-06T11:03:44.897Z",
+        "itemId": "word-2095",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-2095"
+        }
+      },
+      {
+        "seq": 45,
+        "at": "2026-09-06T11:03:49.795Z",
+        "itemId": "word-2095",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 2697
+        }
+      },
+      {
+        "seq": 46,
+        "at": "2026-09-06T11:03:50.992Z",
+        "itemId": "word-242",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-242"
+        }
+      },
+      {
+        "seq": 47,
+        "at": "2026-09-06T11:03:57.904Z",
+        "itemId": "word-242",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 6626
+        }
+      },
+      {
+        "seq": 48,
+        "at": "2026-09-06T11:03:58.996Z",
+        "itemId": "word-295",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-295"
+        }
+      },
+      {
+        "seq": 49,
+        "at": "2026-09-06T11:04:03.759Z",
+        "itemId": "word-295",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 4431
+        }
+      },
+      {
+        "seq": 50,
+        "at": "2026-09-06T11:04:05.111Z",
+        "itemId": "word-588",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-588"
+        }
+      },
+      {
+        "seq": 51,
+        "at": "2026-09-06T11:04:10.275Z",
+        "itemId": "word-588",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 4761
+        }
+      },
+      {
+        "seq": 52,
+        "at": "2026-09-06T11:04:11.736Z",
+        "itemId": "word-263",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-263"
+        }
+      },
+      {
+        "seq": 53,
+        "at": "2026-09-06T11:04:15.441Z",
+        "itemId": "word-263",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 3410
+        }
+      },
+      {
+        "seq": 54,
+        "at": "2026-09-06T11:04:16.586Z",
+        "itemId": "word-700",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-700"
+        }
+      },
+      {
+        "seq": 55,
+        "at": "2026-09-06T11:04:27.859Z",
+        "itemId": "word-700",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 10965
+        }
+      },
+      {
+        "seq": 56,
+        "at": "2026-09-06T11:04:29.078Z",
+        "itemId": "word-291",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-291"
+        }
+      },
+      {
+        "seq": 57,
+        "at": "2026-09-06T11:04:32.465Z",
+        "itemId": "word-291",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 3109
+        }
+      },
+      {
+        "seq": 58,
+        "at": "2026-09-06T11:04:33.375Z",
+        "itemId": "word-676",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-676"
+        }
+      },
+      {
+        "seq": 59,
+        "at": "2026-09-06T11:04:40.079Z",
+        "itemId": "word-676",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 6290
+        }
+      },
+      {
+        "seq": 60,
+        "at": "2026-09-06T11:04:41.413Z",
+        "itemId": "word-366",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-366"
+        }
+      },
+      {
+        "seq": 61,
+        "at": "2026-09-06T11:04:45.809Z",
+        "itemId": "word-366",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 4136
+        }
+      },
+      {
+        "seq": 62,
+        "at": "2026-09-06T11:04:48.669Z",
+        "itemId": "word-3127",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-3127"
+        }
+      },
+      {
+        "seq": 63,
+        "at": "2026-09-06T11:04:59.710Z",
+        "itemId": "word-3127",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 10666
+        }
+      },
+      {
+        "seq": 64,
+        "at": "2026-09-06T11:05:00.696Z",
+        "itemId": "word-1731",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-1731"
+        }
+      },
+      {
+        "seq": 65,
+        "at": "2026-09-06T11:05:05.244Z",
+        "itemId": "word-1731",
+        "action": "answer",
+        "detail": {
+          "choice": 3,
+          "responseMs": 4216
+        }
+      },
+      {
+        "seq": 66,
+        "at": "2026-09-06T11:05:06.436Z",
+        "itemId": "word-685",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-685"
+        }
+      },
+      {
+        "seq": 67,
+        "at": "2026-09-06T11:05:13.039Z",
+        "itemId": "word-685",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 6299
+        }
+      },
+      {
+        "seq": 68,
+        "at": "2026-09-06T11:05:13.986Z",
+        "itemId": "word-3108",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-3108"
+        }
+      },
+      {
+        "seq": 69,
+        "at": "2026-09-06T11:05:29.220Z",
+        "itemId": "word-3108",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 14906
+        }
+      },
+      {
+        "seq": 70,
+        "at": "2026-09-06T11:05:30.536Z",
+        "itemId": "word-401",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-401"
+        }
+      },
+      {
+        "seq": 71,
+        "at": "2026-09-06T11:05:42.007Z",
+        "itemId": "word-401",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 11210
+        }
+      },
+      {
+        "seq": 72,
+        "at": "2026-09-06T11:05:42.995Z",
+        "itemId": "word-2248",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-2248"
+        }
+      },
+      {
+        "seq": 73,
+        "at": "2026-09-06T11:05:46.399Z",
+        "itemId": "word-2248",
+        "action": "answer",
+        "detail": {
+          "choice": 3,
+          "responseMs": 3123
+        }
+      },
+      {
+        "seq": 74,
+        "at": "2026-09-06T11:05:49.811Z",
+        "itemId": "word-303",
+        "action": "item_revealed",
+        "detail": {
+          "id": "word-303"
+        }
+      },
+      {
+        "seq": 75,
+        "at": "2026-09-06T11:05:56.421Z",
+        "itemId": "word-303",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 6286
+        }
+      },
+      {
+        "seq": 76,
+        "at": "2026-09-06T11:06:02.077Z",
+        "itemId": "syntax-roles",
+        "action": "energy",
+        "detail": {
+          "value": "Plenty"
+        }
+      },
+      {
+        "seq": 77,
+        "at": "2026-09-06T11:06:03.750Z",
+        "itemId": "syntax-roles",
+        "action": "section_started",
+        "detail": {
+          "section": 2
+        }
+      },
+      {
+        "seq": 78,
+        "at": "2026-09-06T11:06:10.888Z",
+        "itemId": "syntax-roles",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-roles"
+        }
+      },
+      {
+        "seq": 79,
+        "at": "2026-09-06T11:06:22.962Z",
+        "itemId": "syntax-roles",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 11732
+        }
+      },
+      {
+        "seq": 80,
+        "at": "2026-09-06T11:06:31.013Z",
+        "itemId": "syntax-relative-clause",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-relative-clause"
+        }
+      },
+      {
+        "seq": 81,
+        "at": "2026-09-06T11:07:07.310Z",
+        "itemId": "syntax-relative-clause",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 35963
+        }
+      },
+      {
+        "seq": 82,
+        "at": "2026-09-06T11:07:15.253Z",
+        "itemId": "syntax-not-yet",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-not-yet"
+        }
+      },
+      {
+        "seq": 83,
+        "at": "2026-09-06T11:07:28.121Z",
+        "itemId": "syntax-not-yet",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 12532
+        }
+      },
+      {
+        "seq": 84,
+        "at": "2026-09-06T11:07:33.003Z",
+        "itemId": "syntax-still",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-still"
+        }
+      },
+      {
+        "seq": 85,
+        "at": "2026-09-06T11:07:48.368Z",
+        "itemId": "syntax-still",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 15055
+        }
+      },
+      {
+        "seq": 86,
+        "at": "2026-09-06T11:07:57.113Z",
+        "itemId": "syntax-pronoun",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-pronoun"
+        }
+      },
+      {
+        "seq": 87,
+        "at": "2026-09-06T11:08:08.814Z",
+        "itemId": "syntax-pronoun",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 11388
+        }
+      },
+      {
+        "seq": 88,
+        "at": "2026-09-06T11:08:16.483Z",
+        "itemId": "syntax-sequence",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-sequence"
+        }
+      },
+      {
+        "seq": 89,
+        "at": "2026-09-06T11:08:28.038Z",
+        "itemId": "syntax-sequence",
+        "action": "answer",
+        "detail": {
+          "choice": 2,
+          "responseMs": 11209
+        }
+      },
+      {
+        "seq": 90,
+        "at": "2026-09-06T11:08:42.444Z",
+        "itemId": "syntax-condition",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-condition"
+        }
+      },
+      {
+        "seq": 91,
+        "at": "2026-09-06T11:08:56.473Z",
+        "itemId": "syntax-condition",
+        "action": "answer",
+        "detail": {
+          "choice": 1,
+          "responseMs": 13698
+        }
+      },
+      {
+        "seq": 92,
+        "at": "2026-09-06T11:09:07.387Z",
+        "itemId": "syntax-contrast",
+        "action": "item_revealed",
+        "detail": {
+          "id": "syntax-contrast"
+        }
+      },
+      {
+        "seq": 93,
+        "at": "2026-09-06T11:09:24.524Z",
+        "itemId": "syntax-contrast",
+        "action": "answer",
+        "detail": {
+          "choice": 0,
+          "responseMs": 16807
+        }
+      }
+    ],
+    "energy": {
+      "0": "Plenty",
+      "1": "Plenty",
+      "2": "Plenty"
+    },
+    "notes": "",
+    "startedAt": "2026-09-06T10:57:25.032Z",
+    "finishedAt": "2026-09-06T11:09:24.524Z"
+  },
+  "items": [
+    {
+      "id": "reading-letter",
+      "section": 0,
+      "kind": "passage",
+      "title": "A letter at the door",
+      "arabic": "عِنْدَمَا فَتَحَ سَامِي بَابَ الْبَيْتِ، وَجَدَ رِسَالَةً عَلَى الْأَرْضِ. كَانَ اسْمُ أُخْتِهِ عَلَيْهَا، وَلَكِنَّهَا لَمْ تَكُنْ فِي الْبَيْتِ. وَضَعَ الرِّسَالَةَ عَلَى الطَّاوِلَةِ ثُمَّ خَرَجَ لِيَشْتَرِيَ الْخُبْزَ. بَعْدَ نِصْفِ سَاعَةٍ عَادَ، فَلَمْ يَجِدِ الرِّسَالَةَ. سَمِعَ صَوْتَ أُخْتِهِ فِي الْمَطْبَخِ، فَسَأَلَهَا عَنْهَا. قَالَتْ: «نَعَمْ، قَرَأْتُهَا. إِنَّهَا مِنْ صَدِيقَةٍ قَدِيمَةٍ».",
+      "questions": [
+        {
+          "prompt": "Who was the letter addressed to?",
+          "options": [
+            "Sami",
+            "Sami’s sister",
+            "An old friend"
+          ],
+          "answer": 1
+        },
+        {
+          "prompt": "Why did Sami leave the house?",
+          "options": [
+            "To buy bread",
+            "To deliver the letter",
+            "To find his sister"
+          ],
+          "answer": 0
+        },
+        {
+          "prompt": "What had happened to the letter when he returned?",
+          "options": [
+            "It had not arrived yet",
+            "His sister had read it",
+            "His friend had taken it"
+          ],
+          "answer": 1
+        }
+      ],
+      "words": [
+        [
+          "عَلَيْهَا",
+          "on it (the letter)"
+        ],
+        [
+          "نِصْفِ سَاعَةٍ",
+          "half an hour"
+        ],
+        [
+          "عَنْهَا",
+          "about it (the letter)"
+        ]
+      ],
+      "structure": "Follow the sequence: Sami finds the letter → leaves it on the table → goes out → returns. His sister is absent at first but is in the kitchen when he returns. In سَأَلَهَا عَنْهَا, the first ـها is his sister and the second is the letter.",
+      "english": "When Sami opened the door, he found a letter on the floor. His sister’s name was on it, but she was not at home. He put it on the table and went out to buy bread. Half an hour later he returned and could not find the letter. He heard his sister in the kitchen and asked her about it. She said, “Yes, I read it. It is from an old friend.”"
+    },
+    {
+      "id": "reading-house",
+      "section": 0,
+      "kind": "passage",
+      "title": "The house in the photograph",
+      "arabic": "كَانَتْ مَرْيَمُ تَظُنُّ أَنَّ الْبَيْتَ الَّذِي تَرَكَتْهُ فِي طُفُولَتِهَا لَمْ يَعُدْ مَوْجُودًا. لِذَلِكَ دَهِشَتْ حِينَ رَأَتْ صُورَتَهُ فِي جَرِيدَةٍ قَدِيمَةٍ. لَمْ تَكُنِ الصُّورَةُ جَدِيدَةً، لَكِنَّ الْخَبَرَ الْمَكْتُوبَ تَحْتَهَا كَانَ يَقُولُ إِنَّ الْبَيْتَ سَيُصْبِحُ مَتْحَفًا. أَرَادَتْ أَنْ تَذْهَبَ إِلَيْهِ، لَا لِتَرَى الْغُرَفَ فَقَطْ، بَلْ لِتَعْرِفَ إِنْ كَانَتِ الشَّجَرَةُ الَّتِي زَرَعَهَا أَبُوهَا لَا تَزَالُ فِي الْحَدِيقَةِ.",
+      "questions": [
+        {
+          "prompt": "Before seeing the photograph, what did Maryam believe?",
+          "options": [
+            "The house was already a museum",
+            "Her father still lived there",
+            "The house no longer existed"
+          ],
+          "answer": 2
+        },
+        {
+          "prompt": "What did the newspaper report?",
+          "options": [
+            "The house would become a museum",
+            "The garden had been sold",
+            "The photograph had been taken yesterday"
+          ],
+          "answer": 0
+        },
+        {
+          "prompt": "What particularly drew her back to the house?",
+          "options": [
+            "She wanted to buy the newspaper",
+            "She wanted to see whether her father’s tree was still there",
+            "She wanted to replace the furniture"
+          ],
+          "answer": 1
+        }
+      ],
+      "words": [
+        [
+          "طُفُولَتِهَا",
+          "her childhood"
+        ],
+        [
+          "دَهِشَتْ",
+          "she was surprised"
+        ],
+        [
+          "مَتْحَفًا",
+          "a museum"
+        ],
+        [
+          "زَرَعَهَا",
+          "he planted it"
+        ]
+      ],
+      "structure": "لَمْ يَعُدْ مَوْجُودًا means “no longer existed.” The clause الَّذِي تَرَكَتْهُ فِي طُفُولَتِهَا describes the house. لَا ... فَقَطْ، بَلْ ... means “not only …, but …”. At the end, لَا تَزَالُ means “is still”; it is not a statement that the tree is absent.",
+      "english": "Maryam thought the house she had left in childhood no longer existed. So she was surprised to see its photograph in an old newspaper. The photograph was not new, but the report beneath it said the house would become a museum. She wanted to go there, not only to see the rooms, but to find out whether the tree her father had planted was still in the garden."
+    },
+    {
+      "id": "practice-1",
+      "section": 1,
+      "kind": "practice",
+      "title": "Practice · not scored",
+      "arabic": "كِتَاب",
+      "question": {
+        "prompt": "Which meaning fits?",
+        "options": [
+          "book",
+          "water",
+          "door",
+          "food"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "practice-2",
+      "section": 1,
+      "kind": "practice",
+      "title": "Practice · not scored",
+      "arabic": "بَيْت",
+      "question": {
+        "prompt": "Which meaning fits?",
+        "options": [
+          "river",
+          "house",
+          "bird",
+          "bread"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-620",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "طَلَبَ",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 620,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "return",
+          "arrive",
+          "forget",
+          "request"
+        ],
+        "answer": 3
+      }
+    },
+    {
+      "id": "word-304",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "بِالسُّوقِ",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 304,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "market",
+          "bridge",
+          "school",
+          "garden"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "word-290",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "مكتب",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 290,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "balcony",
+          "office / desk",
+          "kitchen",
+          "bedroom"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-395",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "يتعلمون",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 395,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "lose",
+          "carry",
+          "learn",
+          "explain"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-2096",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "وَاضِح",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 2096,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "weak",
+          "narrow",
+          "distant",
+          "clear"
+        ],
+        "answer": 3
+      }
+    },
+    {
+      "id": "word-276",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "للشمس",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 276,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "wind",
+          "rain",
+          "sun",
+          "moon"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-3124",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "ضَيْف",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 3124,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "child",
+          "teacher",
+          "guard",
+          "guest"
+        ],
+        "answer": 3
+      }
+    },
+    {
+      "id": "word-634",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "صحارى",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 634,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "islands",
+          "forests",
+          "deserts",
+          "mountains"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-2095",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "خَوْف",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 2095,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "joy",
+          "fear",
+          "anger",
+          "hope"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-242",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "بِسَنَوَاتٍ",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 242,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "years",
+          "hours",
+          "months",
+          "weeks"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "word-295",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "طريق",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 295,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "river",
+          "road / way",
+          "wall",
+          "roof"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-588",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "يَظْهَرُونَ",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 588,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "appear",
+          "listen",
+          "leave",
+          "remember"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "word-263",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "عائلة",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 263,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "company",
+          "family",
+          "village",
+          "country"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-700",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "لِرَئِيسِهِمْ",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 700,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "chief / leader",
+          "neighbor",
+          "doctor",
+          "student"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "word-291",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "نور",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 291,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "heat",
+          "light",
+          "silence",
+          "darkness"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-676",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "زوار",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 676,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "writers",
+          "neighbors",
+          "visitors",
+          "workers"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-366",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "قريب",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 366,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "cold",
+          "near",
+          "heavy",
+          "empty"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-3127",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "صيادون",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 3127,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "drivers",
+          "farmers",
+          "hunters",
+          "singers"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-1731",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "جَلَسَ",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 1731,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "stand",
+          "run",
+          "sleep",
+          "sit"
+        ],
+        "answer": 3
+      }
+    },
+    {
+      "id": "word-685",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "لِمُدِيرِهَا",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 685,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "manager",
+          "friend",
+          "customer",
+          "nurse"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "word-3108",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "متطوع",
+      "vowelized": false,
+      "form": "citation",
+      "lemma_id": 3108,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "prisoner",
+          "volunteer",
+          "passenger",
+          "merchant"
+        ],
+        "answer": 1
+      }
+    },
+    {
+      "id": "word-401",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "يشربون",
+      "vowelized": false,
+      "form": "inflected",
+      "lemma_id": 401,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "cook",
+          "wash",
+          "drink",
+          "eat"
+        ],
+        "answer": 2
+      }
+    },
+    {
+      "id": "word-2248",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "طَقْس",
+      "vowelized": true,
+      "form": "citation",
+      "lemma_id": 2248,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "price",
+          "sound",
+          "weight",
+          "weather"
+        ],
+        "answer": 3
+      }
+    },
+    {
+      "id": "word-303",
+      "section": 1,
+      "kind": "word",
+      "title": "Word meaning",
+      "arabic": "بِمَطْعَمِهِ",
+      "vowelized": true,
+      "form": "inflected",
+      "lemma_id": 303,
+      "question": {
+        "prompt": "Which core meaning fits? Endings can change; choose the word’s meaning.",
+        "options": [
+          "restaurant",
+          "hospital",
+          "station",
+          "factory"
+        ],
+        "answer": 0
+      }
+    },
+    {
+      "id": "syntax-roles",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "roles",
+      "arabic": "أَعْطَى الطَّبِيبُ الْمُعَلِّمَ كِتَابًا.",
+      "question": {
+        "prompt": "Who received a book?",
+        "options": [
+          "The doctor",
+          "The teacher",
+          "Neither person"
+        ],
+        "answer": 1
+      },
+      "words": [
+        [
+          "أَعْطَى",
+          "gave"
+        ],
+        [
+          "الطَّبِيب",
+          "doctor"
+        ],
+        [
+          "الْمُعَلِّم",
+          "teacher"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-relative-clause",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "relative-clause",
+      "arabic": "الْوَلَدُ الَّذِي رَأَتْهُ الْمَرْأَةُ يَحْمِلُ حَقِيبَةً.",
+      "question": {
+        "prompt": "Who saw whom?",
+        "options": [
+          "The woman saw the boy",
+          "The sentence does not say",
+          "The boy saw the woman"
+        ],
+        "answer": 0
+      },
+      "words": [
+        [
+          "الْوَلَد",
+          "boy"
+        ],
+        [
+          "الْمَرْأَة",
+          "woman"
+        ],
+        [
+          "رَأَى",
+          "saw"
+        ],
+        [
+          "يَحْمِلُ حَقِيبَةً",
+          "carries a bag"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-not-yet",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "not-yet",
+      "arabic": "لَمْ يَصِلِ الْقِطَارُ بَعْدُ.",
+      "question": {
+        "prompt": "Has the train arrived?",
+        "options": [
+          "It arrives every day",
+          "Yes, earlier",
+          "Not yet"
+        ],
+        "answer": 2
+      },
+      "words": [
+        [
+          "يَصِلُ",
+          "arrives"
+        ],
+        [
+          "الْقِطَار",
+          "train"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-still",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "still",
+      "arabic": "لَا يَزَالُ الْبَابُ مَفْتُوحًا.",
+      "question": {
+        "prompt": "Is the door open now?",
+        "options": [
+          "Yes, still open",
+          "No, it has closed",
+          "It has never been open"
+        ],
+        "answer": 0
+      },
+      "words": [
+        [
+          "الْبَاب",
+          "door"
+        ],
+        [
+          "مَفْتُوح",
+          "open"
+        ]
+      ],
+      "prior_support": "reading-house:structure"
+    },
+    {
+      "id": "syntax-pronoun",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "pronoun",
+      "arabic": "أَخَذَتْ نُورَا الْحَقِيبَةَ مِنْ أَخِيهَا، ثُمَّ أَعَادَتْهَا إِلَيْهِ.",
+      "question": {
+        "prompt": "What was returned, and to whom?",
+        "options": [
+          "The bag was returned to her brother",
+          "The bag was returned to Nora",
+          "Her brother was sent home"
+        ],
+        "answer": 0
+      },
+      "words": [
+        [
+          "نُورَا",
+          "Nora (a name)"
+        ],
+        [
+          "الْحَقِيبَة",
+          "bag"
+        ],
+        [
+          "أَخ",
+          "brother"
+        ],
+        [
+          "أَعَادَ",
+          "returned something"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-sequence",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "sequence",
+      "arabic": "قَبْلَ أَنْ يَخْرُجَ الرَّجُلُ، أَغْلَقَ النَّافِذَةَ.",
+      "question": {
+        "prompt": "Which happened first?",
+        "options": [
+          "Both happened at once",
+          "He went out",
+          "He closed the window"
+        ],
+        "answer": 2
+      },
+      "words": [
+        [
+          "يَخْرُجُ",
+          "goes out"
+        ],
+        [
+          "أَغْلَقَ",
+          "closed"
+        ],
+        [
+          "النَّافِذَة",
+          "window"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-condition",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "condition",
+      "arabic": "إِذَا انْتَهَى الْعَمَلُ مُبَكِّرًا، سَنَعُودُ قَبْلَ الْمَسَاءِ.",
+      "question": {
+        "prompt": "What does returning before evening depend on?",
+        "options": [
+          "Starting work in the evening",
+          "Finishing the work early",
+          "Returning to work tomorrow"
+        ],
+        "answer": 1
+      },
+      "words": [
+        [
+          "انْتَهَى",
+          "finished"
+        ],
+        [
+          "الْعَمَل",
+          "work"
+        ],
+        [
+          "مُبَكِّرًا",
+          "early"
+        ],
+        [
+          "سَنَعُودُ",
+          "we will return"
+        ],
+        [
+          "الْمَسَاء",
+          "evening"
+        ]
+      ]
+    },
+    {
+      "id": "syntax-contrast",
+      "section": 2,
+      "kind": "syntax",
+      "title": "Follow the sentence",
+      "construction": "contrast",
+      "arabic": "مَعَ أَنَّ الْمَاءَ بَارِدٌ، دَخَلَ الطِّفْلُ الْبَحْرَ.",
+      "question": {
+        "prompt": "Did the cold water stop the child entering?",
+        "options": [
+          "No",
+          "The sentence does not say whether the child entered",
+          "Yes"
+        ],
+        "answer": 0
+      },
+      "words": [
+        [
+          "الْمَاء",
+          "water"
+        ],
+        [
+          "بَارِد",
+          "cold"
+        ],
+        [
+          "دَخَلَ",
+          "entered"
+        ],
+        [
+          "الطِّفْل",
+          "child"
+        ],
+        [
+          "الْبَحْر",
+          "sea"
+        ]
+      ]
+    }
+  ],
+  "report": {
+    "version": "2026-09-reading-v1",
+    "rows": [
+      {
+        "id": "reading-letter",
+        "kind": "passage",
+        "correct": 3,
+        "total": 3,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 94222,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "reading-house",
+        "kind": "passage",
+        "correct": 3,
+        "total": 3,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 117213,
+        "interrupted": false,
+        "support": [
+          "words"
+        ],
+        "priorSupport": null
+      },
+      {
+        "id": "word-620",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 3586,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-304",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 7470,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-290",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4393,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-395",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 7898,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-2096",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 3341,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-276",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4090,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-3124",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 5118,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-634",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 0,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 5135,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-2095",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 2697,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-242",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 0,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 6626,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-295",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4431,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-588",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4761,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-263",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 3410,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-700",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 10965,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-291",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 3109,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-676",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 6290,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-366",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4136,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-3127",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 10666,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-1731",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 4216,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-685",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 6299,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-3108",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 14906,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-401",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 11210,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-2248",
+        "kind": "word",
+        "form": "citation",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 3123,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "word-303",
+        "kind": "word",
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 6286,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-roles",
+        "kind": "syntax",
+        "construction": "roles",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 11732,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-relative-clause",
+        "kind": "syntax",
+        "construction": "relative-clause",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 35963,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-not-yet",
+        "kind": "syntax",
+        "construction": "not-yet",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 12532,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-still",
+        "kind": "syntax",
+        "construction": "still",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 15055,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": "reading-house:structure"
+      },
+      {
+        "id": "syntax-pronoun",
+        "kind": "syntax",
+        "construction": "pronoun",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 11388,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-sequence",
+        "kind": "syntax",
+        "construction": "sequence",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 11209,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-condition",
+        "kind": "syntax",
+        "construction": "condition",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 13698,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      },
+      {
+        "id": "syntax-contrast",
+        "kind": "syntax",
+        "construction": "contrast",
+        "correct": 1,
+        "total": 1,
+        "answered": true,
+        "cleanTiming": true,
+        "responseMs": 16807,
+        "interrupted": false,
+        "support": [],
+        "priorSupport": null
+      }
+    ],
+    "groups": [
+      {
+        "form": "citation",
+        "vowelized": true,
+        "correct": 6,
+        "total": 6,
+        "timedCorrect": 6,
+        "medianMs": 3463.5
+      },
+      {
+        "form": "citation",
+        "vowelized": false,
+        "correct": 6,
+        "total": 6,
+        "timedCorrect": 6,
+        "medianMs": 4264.5
+      },
+      {
+        "form": "inflected",
+        "vowelized": true,
+        "correct": 5,
+        "total": 6,
+        "timedCorrect": 5,
+        "medianMs": 6299
+      },
+      {
+        "form": "inflected",
+        "vowelized": false,
+        "correct": 5,
+        "total": 6,
+        "timedCorrect": 5,
+        "medianMs": 7898
+      }
+    ],
+    "limitations": [
+      "Exploratory personal assessment, not a validated proficiency or clinical test.",
+      "Meaning-choice latency includes reading the choices and tapping; it is not pure lexical access time.",
+      "Timing excludes only marked interruptions, never responses simply because they were slow.",
+      "Different words appear in each form/vowel group. Differences are descriptive, not isolated causal effects.",
+      "Passage support follows first-pass answers. Later improvements include rereading and explanation.",
+      "The still-construction probe follows optional instruction in passage support; interpret it as possible near transfer."
+    ]
+  },
+  "timingMethod": "Client performance.now from font-ready animation frame to response. Marked interruptions are excluded from timing summaries. No latency-based outlier deletion."
+}

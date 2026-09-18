@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-05-28T00:02:21.235080",
+  "applied": false,
+  "top_processed": 2,
+  "total_persisted": 0,
+  "all_sentence_ids": [],
+  "runs": [
+    {
+      "root_id": 260,
+      "root": "ق.ب.ل",
+      "palette_size": 19,
+      "requested": 3,
+      "generated": 3,
+      "persisted": 0,
+      "sentence_ids": [],
+      "rejected_reasons": [
+        "validation_failed: قَبْلَ المُقَابَلَةِ، اِسْتَقْبَلَ المُو",
+        "validation_failed: فِي المُقْبِلَةِ، قَابَلَ المُعَلِّمُ طِ",
+        "validation_failed: قَبِيلَ اللَّيْلِ، قَابَلَتْ قَابِلَةٌ ق"
+      ]
+    },
+    {
+      "root_id": 95,
+      "root": "ك.ت.ب",
+      "palette_size": 10,
+      "requested": 3,
+      "generated": 3,
+      "persisted": 1,
+      "sentence_ids": [],
+      "rejected_reasons": [
+        "validation_failed: أَكْتُبُ كِتابَةً فِي المَكْتَبِ، ثُمَّ ",
+        "validation_failed: فِي أُكْتُوبَرَ اِشْتَرَيْتُ كُتُبًا، وَ"
+      ]
+    }
+  ]
+}

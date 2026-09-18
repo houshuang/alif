@@ -56,6 +56,34 @@ background generator for a two-sentence contrast. It must remain outside
 session build, add no review card, omit simultaneous semantic clustering, and
 ship only after the observed supply-gap denominator justifies it.
 
+## 🔵 [EVIDENCE 2026-09-06] Separate accurate understanding from effortless reading
+
+**Follow-up observation:** one short story changed from Some puzzle-solving (86 seconds) to Flowing (53 seconds), with enjoyment. No explanation buttons were recorded as opened; question cues and continued exposure confound the reread. Use as a reason to try short reading plus optional rereading and fresh continuation, not proof of transfer. [Follow-up results](research/analysis-2026-09-06-reading-followup.md).
+
+**Later learner clarification:** desert was a selection slip; years/hours was genuine lexical confusion. Unvowelized recognition can involve trying candidate readings, aided by meaning options. Enjoyment and effort coexist. Prioritize a short support-focused diagnostic; preserve vowel assistance while investigating exact-form familiarity. The original two-error description below records the pre-debrief observation, not two confirmed form failures.
+
+The direct assessment found 6/6 paragraph questions and 8/8 supplied-vocabulary sentence questions correct, with effortful first reading. All basic-form meanings were correct; two changed forms were missed despite strong historical lemma records. Follow the existing reading bridge with selective exact-form explanations and fresh-passage checks. Do not interpret exploratory timing as pure morphology cost: items and answer positions were confounded. [Results](research/analysis-2026-09-06-reading-assessment.md). No new practice or scheduling policy implemented.
+
+## 🔵 [PROPOSED 2026-09-05 — not implemented] Organize practice around supported reading and visible transfer
+
+The learner clarified that limited energy is partly caused by the present app
+experience and the feeling of a language-learning plateau. External Arabic
+reading is currently almost absent; bilingual stories and Momo have been
+motivating but too difficult to sustain. Time is scarce, with history and poetry
+also competing for it. Do not treat 30 daily cards as a permanent objective.
+
+Propose a small supported-reading bridge using meaningful scenes/history,
+adjustable translation and tashkeel, brief form/construction explanations,
+selective text-relevant practice, purposeful rereading, and fresh-passage checks.
+Start by substituting a bounded share of review time, not adding an obligation.
+Measure independent comprehension and voluntary return, with old-word retention
+as a guardrail. Keep the September 3 maintenance package as the maintenance
+baseline, and explicitly register any reading substitution as a new phase.
+
+Full reasoning, evidence limitations, implementation priorities, and staged
+trial: [September 5 reassessment](research/analysis-2026-09-05-reading-fluency-reassessment.md).
+This is a recommendation, not approval or implementation of a new policy.
+
 ## 🟢 [IMPLEMENTED 2026-08-11 — not deployed] Learn difficult forms without punishing the lemma
 
 Token evidence already distinguishes an unfamiliar plural, prefixed/derived

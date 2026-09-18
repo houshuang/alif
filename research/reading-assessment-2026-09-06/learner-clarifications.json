@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-06",
+  "source": "Learner follow-up in conversation after assessment",
+  "raw_export_preserved": true,
+  "corrections": [
+    {
+      "item_id": "word-634",
+      "recorded_choice": "forests",
+      "intended_choice": "deserts",
+      "classification": "learner-reported selection slip; not evidence of failed desert recognition"
+    },
+    {
+      "item_id": "word-242",
+      "recorded_choice": "hours",
+      "classification": "learner confirms genuine confusion between saa (hour) and sana (year); do not infer a general inflection deficit"
+    }
+  ],
+  "process_report": [
+    "Enjoyed the assessment, although reading stories feels energy-intensive.",
+    "Words without tashkeel are sometimes clearly harder; frequently encountered forms can be fine.",
+    "For the volunteer item, tried several possible readings mentally; having the meaning among the options helped.",
+    "Other words also have confounders; reading a sentence often feels like solving a puzzle.",
+    "Occasional sentences that work smoothly feel like magic."
+  ],
+  "interpretation": "Supports an item-dependent difficulty resolving written forms and accessing meanings efficiently. Meaning-choice success can include answer-supported recognition. Does not isolate decoding, lexical access, lexical competition, and sentence integration as independent causes.",
+  "next_assessment": "Short diagnostic support comparison: separate initial Arabic reading from displayed meaning options, compare fresh matched items with/without vowels with counterbalanced order and answer positions, and examine one short passage before/after targeted support. Collect effort and brief retrospective process reports; do not impose speed thresholds or treat supported rereading gains as transfer."
+}

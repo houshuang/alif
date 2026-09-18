@@ -223,6 +223,65 @@ of the reading experience, not a fixed capacity inferred from review counts.
 Implemented the first three Momo readings of the proposed ten-session bridge: exact source excerpts, aligned English, phrase/form help, labeled simpler retellings, and Arabic rereading. A separate retry-safe event journal records supported reading without word-review credit or intake. Continuation and events persist offline after content download. First actual learner use will mark a new phase alongside the September 3 maintenance policy; neither motivation nor retention benefit is established yet. [Protocol and evidence semantics](../docs/supported-reading-pilot.md).
 
 
+## 2026-09-06 — Begin reading bridge with a prepared Momo miniature
+
+After the learner asked to continue, select one coherent image from the existing Momo wings pilot, add vowel support and adjacent English/phrase notes, and present directly in conversation. The previous localhost reader preview was unavailable; no new deployment or evidence record is inferred. [Prepared reading](reading-followup-2026-09-06/reading-session-01.md). Completion and experience remain to be observed; no scheduler or review-policy change.
+
+
+## 2026-09-06 — Woman/man discrepancy confirmed as a misclick
+
+Learner explicitly clarifies that the distinction is well known and the wrong option was clicked. Supersedes the previous ambiguous interpretation. Raw follow-up score remains 6/8 recorded choices; one discrepancy is a confirmed selection slip and the other is the reported effortful here/there distinction. [Updated report](analysis-2026-09-06-reading-followup.md). No grammar-deficit inference or scheduling change.
+
+
+## 2026-09-06 — Follow-up debrief: here/there resolved with thought
+
+Learner reports uncertainty about here/there and recalls later resolution after thinking; the later there-phrase was correct with an 11.562-second choice interval. Woman/man was described as “probably a miss”, without resolving selection slip versus linguistic misreading. Preserve raw scores and uncertainty; consider brief contextual هنا/هناك contrast when relevant, with no general grammar diagnosis or scheduler change. [Updated follow-up report](analysis-2026-09-06-reading-followup.md).
+
+
+## 2026-09-06 — Follow-up observed: same-story reread feels flowing
+
+Recorded phrase accuracy 6/8 (two near-option differences awaiting clarification), all meanings reported clear before choices; correct-item initial-read medians 5.34 s with vowels and 5.44 s without. Story 2/2 before explanations, first read 85.775 s/Some puzzle-solving, reread 52.616 s/Flowing, enjoyment Yes. Two written-word blockers marked; no explanation openings recorded. Continued Arabic exposure and semantic cues from comprehension questions prevent attribution to either pure repetition or supplied explanations. No post-reread comprehension or fresh transfer test. [Report and preserved raw evidence](analysis-2026-09-06-reading-followup.md). Continue bounded reading-bridge recommendation; no app/scheduler change.
+
+
+## 2026-09-06 — Accepted targeted reading follow-up instrument
+
+Following the learner's description of unvowelized candidate-reading and option-assisted recognition, implement a separate follow-up on the private assessment website: eight phrases before choices, reported readiness/option assistance, balanced answer positions, and a short story with targeted help and rereading. First assessment preserved in its own record. [Instrument and interpretation](analysis-2026-09-06-reading-assessment.md). No Alif scheduling or training-policy changes; no follow-up outcomes yet.
+
+
+## 2026-09-06 — Assessment debrief: selection slip, lexical confusion, and puzzle-like reading
+
+Learner corrected the desert response as a mis-selection and confirmed years/hours as a genuine ساعة/سنة confusion. Raw export and timing summaries preserved. Reports enjoyment alongside high reading effort, item-dependent difficulty without tashkeel, trying candidate readings for متطوع, and assistance from meaning options. This weakens a general form-error interpretation and makes efficient recognition under ambiguity the priority follow-up hypothesis. [Updated assessment interpretation](analysis-2026-09-06-reading-assessment.md), with separate learner clarifications. No app or scheduling change.
+
+
+## 2026-09-06 — Direct reading assessment: comprehension available, processing effort remains
+
+Observed one completed private assessment: passage questions 6/6, word meanings 22/24, supplied-vocabulary sentence meanings 8/8. First reads 94/117 seconds, both slow but manageable; no logged interruptions. Exact-form errors despite strong historical lemma records merit investigation. Word-condition timing is confounded by different items and answer positions; no causal morphology/vowel estimate. [Report and raw evidence](analysis-2026-09-06-reading-assessment.md). Supports the existing bounded reading-bridge trial; no scheduler/app changes or experimental training effects claimed.
+
+
+## 2026-09-05: Reassess Alif for reading fluency and motivation
+
+**Status:** Read-only reassessment; proposals only. No production or learning-policy changes.
+
+The learner clarified that low energy partly reflects the present app experience,
+not a permanent capacity ceiling. Real-text reading is currently almost absent;
+previous bilingual stories and Momo were motivating but too difficult to sustain.
+
+Reviewed research/design history and 410 distinct user messages from 62 available
+Codex histories; analyzed the September 5 verified backup and 208 daily logs.
+Recorded Alif history spans February 8–September 4, not nine months of equally
+fine telemetry. Recent delayed recognition improved; substantial vocabulary
+learning coexists with little sustained reading. The September 3 maintenance
+experiment is the current baseline and is too young for a retention verdict.
+
+Propose a small supported-reading bridge, text-relevant practice, explicit
+form/construction help, purposeful rereading, and fresh-passage transfer checks.
+Trial a bounded substitution of review time and measure both comprehension and
+voluntary return, with important old-word retention as a guardrail. Do not just
+reintroduce long target-packed passage cards or increase the daily obligation.
+
+Report: [Arabic reading-fluency reassessment](analysis-2026-09-05-reading-fluency-reassessment.md).
+Reproducible evidence and source inventories: [supporting directory](reassessment-2026-09-05/).
+
 ## 2026-09-03: Low-energy maintenance v1 — sustainable reps and honest old-word validation
 
 **Learner constraint and question.** The learner can usually sustain about 30
