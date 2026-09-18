@@ -90,6 +90,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_forms.py` — Backfill inflection forms from CAMeL Tools.
 - `backfill_forms_llm.py` — Backfill inflection forms using LLM.
 - `backfill_frequency.py` — Backfill frequency ranks (CAMeL MSA corpus) + CEFR levels (Kelly Project).
+- `backfill_missing_frequency_ranks.py` — Give a CAMeL rank to every lemma stored with `frequency_rank IS NULL`, through the same `assign_frequency_rank()` the quality gates use; never changes an existing rank. Repairs lemmas created while `_CAMEL_CACHE` pointed at the wrong directory (2026-03-31 to 2026-09-18). Logs `frequency_rank_backfill`. `--dry-run`.
 - `backfill_roots.py` — Backfill root associations for lemmas.
 - `backfill_root_meanings.py` — Backfill root core meanings.
 - `backfill_story_words.py` — Resolve null lemma IDs in story words through full-surface lookup, then morphology + LLM import for ordinary unknowns. Exact-running-text aliases resolve only to their unique gated destination; unresolved ones remain unmapped and are excluded from CAMeL, LLM import, and proper-name creation.

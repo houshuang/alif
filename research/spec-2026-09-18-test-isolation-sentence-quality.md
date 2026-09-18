@@ -135,6 +135,13 @@ and changing any production fallback behaviour.
 
 ## Workstream B — coherent review sentences
 
+**Status (2026-09-18): investigation revised the rarity measure.** The rarity numbers below
+count unranked lemmas as rare. Many of them were common words left unranked by a path bug in
+`lemma_quality._CAMEL_CACHE` (fixed; production backfill pending). With repaired ranks, 10.3% of
+the active pool is rare, and the prompt sampler raises that to 22%. B1 and B2 must run on repaired
+ranks, and B2 alone rejects 57% of word salad but only 15% of forced sentences. See
+[the sentence rarity analysis](analysis-2026-09-18-sentence-rarity.md).
+
 ### Problem and evidence
 
 Two cards the learner flagged, both generated and both passed by the quality gate:

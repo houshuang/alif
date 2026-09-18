@@ -1,0 +1,738 @@
+{
+  "snapshot_at": "2026-09-18T07:08:33.121409+00:00",
+  "rare_rank_threshold": 5000,
+  "ranks": "repaired",
+  "lemmas_given_a_camel_rank_by_repair": 1476,
+  "pool": {
+    "active_lemmas": 2859,
+    "content_lemmas": 2802,
+    "rank_bands": {
+      "1-2k": 825,
+      "<=1k": 1104,
+      "2-5k": 585,
+      ">20k": 179,
+      "5-20k": 60,
+      "unranked": 49
+    },
+    "rare_share": 0.1028,
+    "rare_by_ulk_source": {
+      "textbook_scan": 128,
+      "bookifier": 104,
+      "book": 26,
+      "dragoman": 14,
+      "auto_intro": 5,
+      "duolingo": 4,
+      "collateral": 3,
+      "mapping_correction": 1,
+      "leech_reintro": 1,
+      "study": 1,
+      "snap": 1
+    },
+    "common_by_ulk_source": {
+      "textbook_scan": 1539,
+      "book": 246,
+      "frequency_core": 163,
+      "study": 120,
+      "collateral": 106,
+      "duolingo": 89,
+      "leech_reintro": 83,
+      "bookifier": 60,
+      "auto_intro": 45,
+      "quran": 21,
+      "mapping_correction": 17,
+      "story_import": 16,
+      "flag_autocreate": 6,
+      "dragoman": 3
+    },
+    "sentences_as_scaffold": {
+      "rare_median": 12.0,
+      "common_median": 26.0,
+      "rare_zero_share": 0.0139,
+      "common_zero_share": 0.0044
+    }
+  },
+  "sampler": [
+    {
+      "label": "current (inverse count x at-risk, sorted by weight)",
+      "rare_share": 0.2217,
+      "rare_share_first_100": 0.3515
+    },
+    {
+      "label": "inverse count only",
+      "rare_share": 0.2514,
+      "rare_share_first_100": 0.3262
+    },
+    {
+      "label": "uniform random",
+      "rare_share": 0.1026,
+      "rare_share_first_100": 0.1068
+    }
+  ],
+  "active_reviewable": {
+    "all_sources": {
+      "sentences": 1885,
+      "rare_nontarget_0": 1212,
+      "rare_nontarget_1": 487,
+      "rare_nontarget_2": 142,
+      "rare_nontarget_3plus": 44,
+      "mean_rare_nontarget": 0.485,
+      "rare_share_of_scaffold": 0.1046
+    },
+    "llm": {
+      "sentences": 1570,
+      "rare_nontarget_0": 994,
+      "rare_nontarget_1": 406,
+      "rare_nontarget_2": 127,
+      "rare_nontarget_3plus": 43,
+      "mean_rare_nontarget": 0.51,
+      "rare_share_of_scaffold": 0.1168
+    },
+    "llm_by_created_month": {
+      "2026-03": {
+        "sentences": 2,
+        "rare_nontarget_0": 2,
+        "rare_nontarget_1": 0,
+        "rare_nontarget_2": 0,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.0,
+        "rare_share_of_scaffold": 0.0
+      },
+      "2026-04": {
+        "sentences": 3,
+        "rare_nontarget_0": 3,
+        "rare_nontarget_1": 0,
+        "rare_nontarget_2": 0,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.0,
+        "rare_share_of_scaffold": 0.0
+      },
+      "2026-05": {
+        "sentences": 183,
+        "rare_nontarget_0": 155,
+        "rare_nontarget_1": 25,
+        "rare_nontarget_2": 3,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.169,
+        "rare_share_of_scaffold": 0.0416
+      },
+      "2026-06": {
+        "sentences": 266,
+        "rare_nontarget_0": 227,
+        "rare_nontarget_1": 34,
+        "rare_nontarget_2": 5,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.165,
+        "rare_share_of_scaffold": 0.0415
+      },
+      "2026-07": {
+        "sentences": 493,
+        "rare_nontarget_0": 247,
+        "rare_nontarget_1": 174,
+        "rare_nontarget_2": 56,
+        "rare_nontarget_3plus": 16,
+        "mean_rare_nontarget": 0.68,
+        "rare_share_of_scaffold": 0.1562
+      },
+      "2026-08": {
+        "sentences": 449,
+        "rare_nontarget_0": 292,
+        "rare_nontarget_1": 120,
+        "rare_nontarget_2": 33,
+        "rare_nontarget_3plus": 4,
+        "mean_rare_nontarget": 0.443,
+        "rare_share_of_scaffold": 0.097
+      },
+      "2026-09": {
+        "sentences": 174,
+        "rare_nontarget_0": 68,
+        "rare_nontarget_1": 53,
+        "rare_nontarget_2": 30,
+        "rare_nontarget_3plus": 23,
+        "mean_rare_nontarget": 1.098,
+        "rare_share_of_scaffold": 0.2312
+      }
+    },
+    "llm_rare_target_share": 0.2726,
+    "by_source": {
+      "book": {
+        "sentences": 7,
+        "rare_nontarget_0": 6,
+        "rare_nontarget_1": 1,
+        "rare_nontarget_2": 0,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.143,
+        "rare_share_of_scaffold": 0.0455
+      },
+      "corpus": {
+        "sentences": 1,
+        "rare_nontarget_0": 1,
+        "rare_nontarget_1": 0,
+        "rare_nontarget_2": 0,
+        "rare_nontarget_3plus": 0,
+        "mean_rare_nontarget": 0.0,
+        "rare_share_of_scaffold": 0.0
+      },
+      "llm": {
+        "sentences": 1570,
+        "rare_nontarget_0": 994,
+        "rare_nontarget_1": 406,
+        "rare_nontarget_2": 127,
+        "rare_nontarget_3plus": 43,
+        "mean_rare_nontarget": 0.51,
+        "rare_share_of_scaffold": 0.1168
+      },
+      "passage": {
+        "sentences": 307,
+        "rare_nontarget_0": 211,
+        "rare_nontarget_1": 80,
+        "rare_nontarget_2": 15,
+        "rare_nontarget_3plus": 1,
+        "mean_rare_nontarget": 0.368,
+        "rare_share_of_scaffold": 0.0607
+      }
+    }
+  },
+  "rarity_pre_gate": {
+    "reject_if_more_than_0": {
+      "llm_rejected": 576,
+      "llm_rejected_share": 0.3669,
+      "due_within_7d_lemmas": 1135,
+      "due_lemmas_left_without_any_sentence": 156,
+      "of_which_rare": 32
+    },
+    "reject_if_more_than_1": {
+      "llm_rejected": 170,
+      "llm_rejected_share": 0.1083,
+      "due_within_7d_lemmas": 1135,
+      "due_lemmas_left_without_any_sentence": 36,
+      "of_which_rare": 5
+    },
+    "reject_if_more_than_2": {
+      "llm_rejected": 43,
+      "llm_rejected_share": 0.0274,
+      "due_within_7d_lemmas": 1135,
+      "due_lemmas_left_without_any_sentence": 8,
+      "of_which_rare": 0
+    }
+  },
+  "rated_sample": {
+    "N": {
+      "n": 33,
+      "mean_rare_nontarget": 0.3,
+      "share_rejected_at_gt1": 0.0303,
+      "share_rejected_at_gt0": 0.2727
+    },
+    "O": {
+      "n": 20,
+      "mean_rare_nontarget": 0.65,
+      "share_rejected_at_gt1": 0.15,
+      "share_rejected_at_gt0": 0.45
+    },
+    "S": {
+      "n": 7,
+      "mean_rare_nontarget": 1.86,
+      "share_rejected_at_gt1": 0.5714,
+      "share_rejected_at_gt0": 0.7143
+    }
+  },
+  "generated_by_month_all": {
+    "2026-02": {
+      "sentences": 4440,
+      "rare_nontarget_0": 4363,
+      "rare_nontarget_1": 77,
+      "rare_nontarget_2": 0,
+      "rare_nontarget_3plus": 0,
+      "mean_rare_nontarget": 0.017,
+      "rare_share_of_scaffold": 0.0048
+    },
+    "2026-03": {
+      "sentences": 7990,
+      "rare_nontarget_0": 7741,
+      "rare_nontarget_1": 241,
+      "rare_nontarget_2": 8,
+      "rare_nontarget_3plus": 0,
+      "mean_rare_nontarget": 0.032,
+      "rare_share_of_scaffold": 0.0077
+    },
+    "2026-04": {
+      "sentences": 7136,
+      "rare_nontarget_0": 6862,
+      "rare_nontarget_1": 266,
+      "rare_nontarget_2": 8,
+      "rare_nontarget_3plus": 0,
+      "mean_rare_nontarget": 0.04,
+      "rare_share_of_scaffold": 0.0119
+    },
+    "2026-05": {
+      "sentences": 5038,
+      "rare_nontarget_0": 4708,
+      "rare_nontarget_1": 301,
+      "rare_nontarget_2": 27,
+      "rare_nontarget_3plus": 2,
+      "mean_rare_nontarget": 0.072,
+      "rare_share_of_scaffold": 0.018
+    },
+    "2026-06": {
+      "sentences": 3086,
+      "rare_nontarget_0": 2805,
+      "rare_nontarget_1": 247,
+      "rare_nontarget_2": 30,
+      "rare_nontarget_3plus": 4,
+      "mean_rare_nontarget": 0.103,
+      "rare_share_of_scaffold": 0.0266
+    },
+    "2026-07": {
+      "sentences": 2743,
+      "rare_nontarget_0": 1382,
+      "rare_nontarget_1": 911,
+      "rare_nontarget_2": 333,
+      "rare_nontarget_3plus": 117,
+      "mean_rare_nontarget": 0.715,
+      "rare_share_of_scaffold": 0.1706
+    },
+    "2026-08": {
+      "sentences": 837,
+      "rare_nontarget_0": 524,
+      "rare_nontarget_1": 227,
+      "rare_nontarget_2": 72,
+      "rare_nontarget_3plus": 14,
+      "mean_rare_nontarget": 0.499,
+      "rare_share_of_scaffold": 0.1038
+    },
+    "2026-09": {
+      "sentences": 241,
+      "rare_nontarget_0": 90,
+      "rare_nontarget_1": 78,
+      "rare_nontarget_2": 45,
+      "rare_nontarget_3plus": 28,
+      "mean_rare_nontarget": 1.1,
+      "rare_share_of_scaffold": 0.2244
+    },
+    "unknown": {
+      "sentences": 2962,
+      "rare_nontarget_0": 2866,
+      "rare_nontarget_1": 94,
+      "rare_nontarget_2": 2,
+      "rare_nontarget_3plus": 0,
+      "mean_rare_nontarget": 0.033,
+      "rare_share_of_scaffold": 0.0146
+    }
+  },
+  "rare_pool_entry_by_month_and_source": {
+    "2026-02": {
+      "auto_intro": 5,
+      "book": 4,
+      "duolingo": 4,
+      "textbook_scan": 30
+    },
+    "2026-03": {
+      "book": 6,
+      "collateral": 1,
+      "mapping_correction": 1,
+      "textbook_scan": 6
+    },
+    "2026-04": {
+      "book": 3,
+      "textbook_scan": 14
+    },
+    "2026-05": {
+      "book": 4,
+      "collateral": 1,
+      "textbook_scan": 10
+    },
+    "2026-06": {
+      "book": 1,
+      "dragoman": 14,
+      "study": 1,
+      "textbook_scan": 32
+    },
+    "2026-07": {
+      "bookifier": 104,
+      "collateral": 1,
+      "leech_reintro": 1,
+      "snap": 1,
+      "textbook_scan": 3
+    },
+    "2026-08": {
+      "book": 8,
+      "textbook_scan": 30
+    },
+    "2026-09": {
+      "textbook_scan": 3
+    }
+  },
+  "rare_scaffold_since_july_by_ulk_source": {
+    "bookifier": 1988,
+    "textbook_scan": 460,
+    "dragoman": 94,
+    "book": 64,
+    "leech_reintro": 12,
+    "study": 9,
+    "collateral": 8,
+    "snap": 4,
+    "auto_intro": 4,
+    "none": 1
+  },
+  "top_rare_scaffold_since_july": [
+    {
+      "lemma_id": 4251,
+      "arabic": "صَبِيّ",
+      "gloss": "boy, lad",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 67
+    },
+    {
+      "lemma_id": 4526,
+      "arabic": "جُنْد",
+      "gloss": "army, troops, soldiery",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 37
+    },
+    {
+      "lemma_id": 4348,
+      "arabic": "وَالِد",
+      "gloss": "father, parent",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 36
+    },
+    {
+      "lemma_id": 4319,
+      "arabic": "رَضِيع",
+      "gloss": "infant, suckling",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 29
+    },
+    {
+      "lemma_id": 4367,
+      "arabic": "أَرِيكَة",
+      "gloss": "sofa, couch",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 29
+    },
+    {
+      "lemma_id": 4248,
+      "arabic": "لَاحَظَ",
+      "gloss": "to notice, observe",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 27
+    },
+    {
+      "lemma_id": 4291,
+      "arabic": "حَلَّاق",
+      "gloss": "barber",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 26
+    },
+    {
+      "lemma_id": 4224,
+      "arabic": "مِنْضَدَة",
+      "gloss": "table",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 25
+    },
+    {
+      "lemma_id": 4292,
+      "arabic": "أُفُق",
+      "gloss": "horizon",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 24
+    },
+    {
+      "lemma_id": 4283,
+      "arabic": "خَطِيب",
+      "gloss": "speaker, orator; fiancé",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 24
+    },
+    {
+      "lemma_id": 4314,
+      "arabic": "تَحَرَّكَ",
+      "gloss": "to move, stir (intransitive)",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 23
+    },
+    {
+      "lemma_id": 4229,
+      "arabic": "ضَجِيج",
+      "gloss": "noise",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4225,
+      "arabic": "إِفْطَار",
+      "gloss": "breakfast",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4350,
+      "arabic": "بَسَاطَة",
+      "gloss": "simplicity",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4286,
+      "arabic": "دُولَاب",
+      "gloss": "cupboard, wardrobe; wheel",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4325,
+      "arabic": "رِدَاء",
+      "gloss": "robe, garment, cloak",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4519,
+      "arabic": "رَعِيَّة",
+      "gloss": "subjects, governed people",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 22
+    },
+    {
+      "lemma_id": 4316,
+      "arabic": "جَلِيد",
+      "gloss": "ice",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 20
+    },
+    {
+      "lemma_id": 4297,
+      "arabic": "أَرْضِيَّة",
+      "gloss": "floor, ground surface",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 20
+    },
+    {
+      "lemma_id": 4265,
+      "arabic": "مُؤْنَة",
+      "gloss": "provisions, supplies",
+      "rank_band": "unranked",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 20
+    },
+    {
+      "lemma_id": 4521,
+      "arabic": "مَشَقَّة",
+      "gloss": "hardship, difficulty",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 20
+    },
+    {
+      "lemma_id": 4246,
+      "arabic": "زُجَاج",
+      "gloss": "glass",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4276,
+      "arabic": "بَهَاء",
+      "gloss": "splendor, brilliance",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4366,
+      "arabic": "تَوَقَّعَ",
+      "gloss": "to expect, anticipate",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4311,
+      "arabic": "اِمْتَلَأَ",
+      "gloss": "to fill up, become full",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4266,
+      "arabic": "غِنَاء",
+      "gloss": "singing",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4298,
+      "arabic": "بَكَى",
+      "gloss": "to cry, weep",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 19
+    },
+    {
+      "lemma_id": 4230,
+      "arabic": "حَشَرَة",
+      "gloss": "insect",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4226,
+      "arabic": "بُؤْس",
+      "gloss": "misery",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4352,
+      "arabic": "سَحَابَة",
+      "gloss": "cloud",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4363,
+      "arabic": "تَزَاحَمَ",
+      "gloss": "to crowd together, jostle",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4324,
+      "arabic": "مُسْتَوْدَع",
+      "gloss": "warehouse, storehouse",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4345,
+      "arabic": "فَارِغ",
+      "gloss": "empty",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4281,
+      "arabic": "قِنْدِيل",
+      "gloss": "lamp, lantern; (قنديل البحر) jellyfish",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4280,
+      "arabic": "قِدِّيس",
+      "gloss": "saint",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 18
+    },
+    {
+      "lemma_id": 4216,
+      "arabic": "بْرُوفِسُور",
+      "gloss": "professor",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 17
+    },
+    {
+      "lemma_id": 4223,
+      "arabic": "تَدْرِيج",
+      "gloss": "gradation; bit by bit (بالتدريج)",
+      "rank_band": "unranked",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 17
+    },
+    {
+      "lemma_id": 4307,
+      "arabic": "تَشَاوَرَ",
+      "gloss": "to confer, consult together",
+      "rank_band": ">20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 17
+    },
+    {
+      "lemma_id": 4332,
+      "arabic": "تَوَاجَدَ",
+      "gloss": "to be present",
+      "rank_band": "5-20k",
+      "ulk_source": "bookifier",
+      "state": "known",
+      "sentences_since_july": 16
+    },
+    {
+      "lemma_id": 4372,
+      "arabic": "طُرْقَة",
+      "gloss": "corridor, hallway",
+      "rank_band": "unranked",
+      "ulk_source": "bookifier",
+      "state": "suspended",
+      "sentences_since_july": 16
+    }
+  ]
+}

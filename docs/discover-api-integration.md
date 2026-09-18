@@ -109,7 +109,7 @@ Returns the highest-value lemmas in the text that aren't in Alif yet.
 | `register` | string \| null | `neutral` / `literary` / `colloquial` / `vulgar` / `clinical`. |
 | `dialect` | string \| null | `msa` / `gulf` / `egyptian` / `levantine` / `mixed`. |
 | `transliteration` | string \| null | ALA-LC romanization. |
-| `freq_rank` | integer \| null | Position in Alif's MSA frequency list (lower = more common); `null` if outside the list. |
+| `freq_rank` | integer \| null | Position in Alif's MSA frequency list (lower = more common); `null` if outside its top 100,000 forms. Until 2026-09-18 a path bug left it always `null` and made `distinctive` order by in-text count alone. |
 | `count_in_text` | integer | Occurrences of this lemma (all forms) in the submitted text. |
 | `example_ar` | string \| null | One short attested clause containing the word, for display. |
 | `lemma_source` | string | `"camel"` (resolved by the morphological analyzer) or `"surface_fallback"` (clitic-stripped OOV — root/pos are best-effort and the gloss is the authority). |
