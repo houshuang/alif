@@ -914,17 +914,17 @@ def submit_acquisition_review(
         else:
             ulk.acquisition_next_due = now + BOX_INTERVALS[1]
         # Generate/regenerate mnemonic on failure
-        import threading
+        from app.services.background_threads import start_daemon
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         has_hooks = lemma and lemma.memory_hooks_json
         if not has_hooks:
             from app.services.memory_hooks import generate_memory_hooks
-            threading.Thread(target=generate_memory_hooks, args=(lemma_id,), daemon=True).start()
+            start_daemon(generate_memory_hooks, lemma_id)
             logger.info(f"Triggered mnemonic generation for failed acquiring lemma {lemma_id}")
         elif old_box >= 2:
             # Had hooks but still failed from box 2+ — regenerate with negative example
             from app.services.memory_hooks import regenerate_memory_hooks_premium
-            threading.Thread(target=regenerate_memory_hooks_premium, args=(lemma_id,), daemon=True).start()
+            start_daemon(regenerate_memory_hooks_premium, lemma_id)
             logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")
 
     # Tiered graduation: more aggressive for high-accuracy words

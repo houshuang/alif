@@ -268,18 +268,18 @@ def submit_review(
 
     # Generate/regenerate mnemonic on failure
     if rating_int <= 2 and not protected_form_recovery:
-        import threading
+        from app.services.background_threads import start_daemon
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         has_hooks = lemma and lemma.memory_hooks_json
         if not has_hooks:
             # First failure without hooks — generate via overgenerate-and-rank
             from app.services.memory_hooks import generate_memory_hooks
-            threading.Thread(target=generate_memory_hooks, args=(lemma_id,), daemon=True).start()
+            start_daemon(generate_memory_hooks, lemma_id)
             logger.info(f"Triggered mnemonic generation for failed lemma {lemma_id}")
         elif new_state == "lapsed" and old_knowledge_state != "lapsed":
             # Has hooks but lapsed — regenerate with old mnemonic as negative example
             from app.services.memory_hooks import regenerate_memory_hooks_premium
-            threading.Thread(target=regenerate_memory_hooks_premium, args=(lemma_id,), daemon=True).start()
+            start_daemon(regenerate_memory_hooks_premium, lemma_id)
             logger.info(f"Triggered premium mnemonic regeneration for lapsed lemma {lemma_id}")
 
     return {

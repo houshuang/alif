@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -215,7 +216,7 @@ def _make_logs(path: Path) -> None:
 def _run(snapshot: Path, logs: Path, output: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
-            str(BACKEND_DIR / ".venv" / "bin" / "python"),
+            sys.executable,
             str(SCRIPT),
             "--db",
             str(snapshot),
@@ -315,7 +316,7 @@ def test_intake_preview_classifies_without_mutating_snapshot(tmp_path):
         output = tmp_path / name
         result = subprocess.run(
             [
-                str(BACKEND_DIR / ".venv" / "bin" / "python"),
+                sys.executable,
                 str(INTAKE_SCRIPT),
                 "--db", str(snapshot),
                 "--cutoff", "2026-07-25T17:00:00Z",
@@ -349,7 +350,7 @@ def test_intake_preview_classifies_without_mutating_snapshot(tmp_path):
     mismatched_summary.write_text(json.dumps(summary), encoding="utf-8")
     mismatch = subprocess.run(
         [
-            str(BACKEND_DIR / ".venv" / "bin" / "python"),
+            sys.executable,
             str(INTAKE_SCRIPT),
             "--db", str(snapshot),
             "--cutoff", "2026-07-25T17:00:00Z",
@@ -380,7 +381,7 @@ def test_intake_cohort_audit_is_deterministic_and_counts_all_credit(tmp_path):
         output = tmp_path / name
         result = subprocess.run(
             [
-                str(BACKEND_DIR / ".venv" / "bin" / "python"),
+                sys.executable,
                 str(COHORT_SCRIPT),
                 "--db", str(snapshot),
                 "--cutoff", "2026-07-25T17:00:00Z",
@@ -414,7 +415,7 @@ def test_intake_cohort_audit_is_deterministic_and_counts_all_credit(tmp_path):
     preview_dir = tmp_path / "preview-with-reference"
     preview = subprocess.run(
         [
-            str(BACKEND_DIR / ".venv" / "bin" / "python"),
+            sys.executable,
             str(INTAKE_SCRIPT),
             "--db", str(snapshot),
             "--cutoff", "2026-07-25T17:00:00Z",
@@ -450,7 +451,7 @@ def test_graduation_retention_audit_is_deterministic_with_empty_window(tmp_path)
         output = tmp_path / name
         result = subprocess.run(
             [
-                str(BACKEND_DIR / ".venv" / "bin" / "python"),
+                sys.executable,
                 str(GRADUATION_SCRIPT),
                 "--db", str(snapshot),
                 "--cutoff", "2026-07-25T17:00:00Z",
@@ -530,7 +531,7 @@ def test_acquisition_evidence_replay_is_deterministic_and_spacing_aware(tmp_path
         output = tmp_path / name
         result = subprocess.run(
             [
-                str(BACKEND_DIR / ".venv" / "bin" / "python"),
+                sys.executable,
                 str(ACQUISITION_REPLAY_SCRIPT),
                 "--db", str(snapshot),
                 "--cutoff", "2026-07-25T17:00:00Z",
@@ -583,7 +584,7 @@ def test_segmented_fsrs_calibration_is_deterministic_and_read_only(tmp_path):
         output = tmp_path / name
         result = subprocess.run(
             [
-                str(BACKEND_DIR / ".venv" / "bin" / "python"),
+                sys.executable,
                 str(FSRS_SEGMENT_SCRIPT),
                 "--db", str(snapshot),
                 "--cutoff", "2026-07-25T17:00:00Z",
@@ -643,7 +644,7 @@ def test_segmented_fsrs_calibration_uses_stamped_applied_rating(tmp_path):
     output = tmp_path / "calibration"
     result = subprocess.run(
         [
-            str(BACKEND_DIR / ".venv" / "bin" / "python"),
+            sys.executable,
             str(FSRS_SEGMENT_SCRIPT),
             "--db", str(snapshot),
             "--cutoff", "2026-07-25T17:00:00Z",

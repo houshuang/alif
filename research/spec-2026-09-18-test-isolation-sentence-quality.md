@@ -1,6 +1,6 @@
 # Spec: hermetic tests, coherent review sentences, and next steps
 
-**Date:** 2026-09-18 · **Status:** proposed, nothing implemented · **Base:** `main` at `bb52d7e`
+**Date:** 2026-09-18 · **Status:** Workstream A implemented (see its status note); B and the next steps proposed · **Base:** `main` at `bb52d7e`
 (production still runs `f901a1b`; maintenance amendments #271 and #272 are merged but not deployed)
 
 **Why this exists.** On 2026-09-17 the learner reported that review debt hovers at 600–700
@@ -18,6 +18,18 @@ population statistics), [`test-provider-leaks.json`](spec-2026-09-18/test-provid
 ---
 
 ## Workstream A — make the fast test suite hermetic
+
+**Status (2026-09-18): implemented.** `backend/tests/provider_guard.py`, installed by
+`conftest.py`, covers A1–A5. The runner stubs sit one level below the functions A1 names:
+limbic's Claude CLI `generate`, `codex_cli.generate_via_codex_cli` and `litellm.completion`.
+That also covers `memory_hooks`, `passage_generator`, `sentence_self_correct` and `claude_code`,
+which call those runners without going through `llm.py`. The recorder is folded into the guard:
+the backstop fails the run on any hit, and `ALIF_TEST_PROVIDER_LOG` logs every refusal. Thread
+spawning goes through `app/services/background_threads.py`. Measured with the recorder loaded,
+provider keys exported, both CLIs on PATH and fake keys in `backend/.env`, from a git worktree:
+2,074 passed, 41.6 s, **0 recorder intercepts**. The base commit ran 2,058 passed, 8 failed
+(the `.venv` path), 104 s and 118 intercepts in the same environment. A6 needed no change:
+`test_mapping_rescue.py` no longer appears among the slowest tests.
 
 ### Problem
 

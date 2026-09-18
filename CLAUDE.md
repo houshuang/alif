@@ -226,14 +226,13 @@ If a file has 10+ commits in the last 3 months, the most likely shape of an issu
 
 ## Testing
 ```bash
-cd backend && python3 -m pytest          # fast tests only (~2 min), slow tests auto-skipped
-# Until the provider guard in research/spec-2026-09-18-test-isolation-sentence-quality.md lands, the
-# fast suite reaches real claude/codex CLIs and the OpenAI API when they are available. Put stub
-# `claude`/`codex` executables first on PATH and unset provider API keys when running it locally.
+cd backend && python3 -m pytest          # fast tests only (~45 s), slow tests auto-skipped
 cd backend && python3 -m pytest -m slow  # slow tests only (real LLM calls, ~40 min)
 cd backend && python3 -m pytest -m ''    # all tests
 cd frontend && npm test
 ```
+
+**The fast suite is hermetic** (`backend/tests/provider_guard.py`, installed by `conftest.py` before the app is imported). It blanks provider credentials in the environment and in `settings` (so `backend/.env` keys are ignored), replaces the Claude CLI (limbic), Codex CLI and litellm runners with stubs that raise each runner's own failure type, and disables provider-bound daemon threads via `app/services/background_threads.py`. A backstop refuses `claude`/`codex` spawns and non-loopback network; any backstop hit fails the run and names the test, because it means a provider path bypassed the runner stubs — extend the guard rather than mocking around it. Tests marked `slow` lift the guard and get real credentials back. Use the `provider_guard` fixture to assert on refused calls; set `ALIF_TEST_PROVIDER_LOG=<file.jsonl>` to log every refusal.
 
 ### Simulation Framework
 End-to-end simulation of multi-day learning journeys:
