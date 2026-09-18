@@ -1,0 +1,382 @@
+{
+  "source_sha256": "f0ba70e32f2bdea6a12592f98290eefa67178514c32b5891b2b209c34fea7b0c",
+  "version": "2026-09-reading-v1",
+  "rows": [
+    {
+      "id": "reading-letter",
+      "kind": "passage",
+      "correct": 3,
+      "total": 3,
+      "seconds": 94.222,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": 47
+    },
+    {
+      "id": "reading-house",
+      "kind": "passage",
+      "correct": 3,
+      "total": 3,
+      "seconds": 117.213,
+      "interrupted": false,
+      "support": [
+        "words"
+      ],
+      "whitespace_tokens": 54
+    },
+    {
+      "id": "practice-1",
+      "kind": "practice",
+      "correct": 1,
+      "total": 1,
+      "seconds": 2.62,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "practice-2",
+      "kind": "practice",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.088,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-620",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.586,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-304",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 7.47,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-290",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.393,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-395",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 7.898,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-2096",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.341,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-276",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.09,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-3124",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 5.118,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-634",
+      "kind": "word",
+      "correct": 0,
+      "total": 1,
+      "seconds": 5.135,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-2095",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 2.697,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-242",
+      "kind": "word",
+      "correct": 0,
+      "total": 1,
+      "seconds": 6.626,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-295",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.431,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-588",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.761,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-263",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.41,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-700",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 10.965,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-291",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.109,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-676",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 6.29,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-366",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.136,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-3127",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 10.666,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-1731",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 4.216,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-685",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 6.299,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-3108",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 14.906,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-401",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 11.21,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-2248",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 3.123,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "word-303",
+      "kind": "word",
+      "correct": 1,
+      "total": 1,
+      "seconds": 6.286,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-roles",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 11.732,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-relative-clause",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 35.963,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-not-yet",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 12.532,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-still",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 15.055,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-pronoun",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 11.388,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-sequence",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 11.209,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-condition",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 13.698,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    },
+    {
+      "id": "syntax-contrast",
+      "kind": "syntax",
+      "correct": 1,
+      "total": 1,
+      "seconds": 16.807,
+      "interrupted": false,
+      "support": [],
+      "whitespace_tokens": null
+    }
+  ],
+  "energy": {
+    "0": "Plenty",
+    "1": "Plenty",
+    "2": "Plenty"
+  },
+  "notes": "",
+  "limitations": [
+    "Small cooperative multiple-choice sample, not a proficiency test.",
+    "Correct answer position confounded with word condition; no causal morphology/vowel estimate.",
+    "No recorded interruptions does not establish uninterrupted attention.",
+    "Paragraph rate uses whitespace tokens; no comparison to English reading norms."
+  ],
+  "learner_clarifications_file": "learner-clarifications.json",
+  "interpretation_update": "Recorded accuracy is unchanged. Deserts was an intended-correct selection slip; years/hours was a genuine confusion. Learner reports unvowelized ambiguity, mental candidate readings and answer-option assistance on volunteer."
+}

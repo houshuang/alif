@@ -102,6 +102,8 @@ prepare_local_directories() {
 snapshot_alif_database() {
     local final="$BACKUP_DIR/alif_${TIMESTAMP}.db"
     local staging="$BACKUP_DIR/.alif_${TIMESTAMP}.$$.tmp"
+    local staging_wal="${staging}-wal"
+    local staging_shm="${staging}-shm"
     local remote_tmp="/tmp/alif-backup-${TIMESTAMP}-$$.db"
     local integrity
 
@@ -115,18 +117,19 @@ snapshot_alif_database() {
     if ! ssh -o BatchMode=yes -o ConnectTimeout=30 "$SERVER" \
         "set -eu; umask 077; tmp='$remote_tmp'; trap 'rm -f \"\$tmp\"' EXIT HUP INT TERM; rm -f \"\$tmp\"; sqlite3 '$ALIF_REMOTE_DB' '.timeout 30000' \".backup '\$tmp'\"; cat \"\$tmp\"" \
         >"$staging"; then
-        rm -f "$staging"
+        rm -f "$staging" "$staging_wal" "$staging_shm"
         die "Alif SQLite snapshot/transfer failed"
     fi
 
-    integrity=$(sqlite3 "$staging" 'PRAGMA integrity_check;') || {
-        rm -f "$staging"
+    integrity=$(sqlite3 "file:$staging?immutable=1" 'PRAGMA integrity_check;') || {
+        rm -f "$staging" "$staging_wal" "$staging_shm"
         die "could not verify transferred Alif database"
     }
     if [ "$integrity" != "ok" ]; then
-        rm -f "$staging"
+        rm -f "$staging" "$staging_wal" "$staging_shm"
         die "transferred Alif database failed integrity_check"
     fi
+    rm -f "$staging_wal" "$staging_shm"
     chmod 600 "$staging"
     fsync_paths "$staging"
     mv "$staging" "$final"

@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "status": "dry_run_only_no_production_import",
+  "artifact": {
+    "path": "/Users/stian/src/bookifier/bilingual/output/rijal_abu_qays.v3.epub",
+    "sha256": "937ed23293fd55816883372f668d2f4f00a4831fa160a54ed4a5046986d70eb4",
+    "pair_count": 89,
+    "arabic_token_count": 1807
+  },
+  "snapshot": {
+    "path": "/tmp/alif_rijal_readiness_20260710.db",
+    "captured_from": "/opt/alif/backend/data/alif.db",
+    "bytes": 111235072,
+    "sha256_before": "14402d39ca993ef4c28202e177cc69b414a90c30c469e2c01f7b29079e21a0b5",
+    "sha256_after": "14402d39ca993ef4c28202e177cc69b414a90c30c469e2c01f7b29079e21a0b5",
+    "integrity_check": "ok",
+    "table_counts": {
+      "stories": 179,
+      "story_words": 7912,
+      "lemmas": 3944,
+      "roots": 1848,
+      "user_lemma_knowledge": 2901,
+      "sentences": 38065,
+      "review_log": 59029
+    }
+  },
+  "raw_mapping": {
+    "mapped_tokens": 1591,
+    "null_tokens": 216,
+    "null_surface_forms": 152,
+    "content_null_tokens": 208,
+    "function_word_tokens": 521,
+    "database_tagged_proper_name_tokens": 2,
+    "ambiguous_tokens": 179,
+    "clitic_derived_tokens": 287,
+    "knowledge_categories": {
+      "known": 925,
+      "in_progress": 58,
+      "mapped_not_actively_learned": 93
+    }
+  },
+  "readiness_probe": {
+    "immediately_readable_pct": 85.6,
+    "including_in_progress_pct": 88.8,
+    "caveat": "Optimistic until every ambiguous and clitic-derived mapping is contextually reviewed."
+  },
+  "current_recovery_state": {
+    "actionable_box_1": 136,
+    "due_box_2": 17,
+    "main_lane_fsrs_due": 912,
+    "effective_new_word_budget": 0,
+    "recommendation": "Read externally; do not bulk-introduce chapter vocabulary while recovery mode is active."
+  },
+  "confirmed_mapping_corrections": [
+    {
+      "surface": "رَأْسَهُ / رَأْسِهِ",
+      "token_count": 6,
+      "raw_lemma_id": 4054,
+      "raw_lemma": "رِئَاسَة",
+      "correct_lemma_id": 349,
+      "correct_lemma": "رَأْس"
+    },
+    {
+      "surface": "الرَّمْل",
+      "raw_lemma_id": 1831,
+      "raw_lemma": "أَرْمَل",
+      "required_lemma": "رَمْل"
+    },
+    {
+      "surface": "رَائِحَة",
+      "token_count": 4,
+      "raw_lemma_id": 386,
+      "raw_lemma": "رَاحَ",
+      "required_lemma": "رَائِحَة"
+    },
+    {
+      "surface": "يُحَلِّق",
+      "raw_lemma_id": 2074,
+      "raw_lemma": "حَلَق (throat)",
+      "required_lemma": "حَلَّقَ"
+    },
+    {
+      "surface": "آب",
+      "token_count": 3,
+      "raw_lemma_id": 580,
+      "raw_lemma": "آبَ (return)",
+      "required_lemma": "آب (August; noun)"
+    },
+    {
+      "surface": "تَرَاهُ / تَرَيْنَ / تَرَى",
+      "required_lemma": "رَأَى",
+      "caveat": "Chunk 33 تُرَى is the impersonal I-wonder idiom and must be represented separately."
+    }
+  ],
+  "proper_names": {
+    "token_counts": {
+      "قيس": 11,
+      "سليم": 13,
+      "سعد": 7,
+      "البصرة": 4,
+      "الكويت": 5,
+      "دجلة": 2,
+      "الفرات": 2,
+      "يافا": 1
+    },
+    "policy": "Lookup-only proper names; no acquisition or review credit. أبو and أم are kunya components in this text."
+  },
+  "provisional_reader_support_candidates": [
+    "شَطّ",
+    "تُرَاب",
+    "مَأْمُون",
+    "عَاقِبَة",
+    "نَهْر",
+    "رَفِيع",
+    "تَهْرِيب",
+    "نَدِيّ",
+    "اِغْتَسَلَ",
+    "اِمْتَلَأَ",
+    "حَامَ",
+    "نَحِيل",
+    "تَلَصَّصَ",
+    "هَزَّ",
+    "اِرْتَجَفَ",
+    "ذُلّ",
+    "صَبِيّ",
+    "غُصَّة"
+  ],
+  "projected_safe_reader_delta": {
+    "stories": 1,
+    "story_words": 1807,
+    "content_lemmas": 5,
+    "proper_name_lemmas_max": 7,
+    "roots": 0,
+    "user_lemma_knowledge": 0,
+    "sentences": 0,
+    "sentence_words": 0
+  },
+  "backfill": {
+    "historical_learning_data": "not_needed",
+    "mapping_and_lemma_seed": "required_before_activation"
+  },
+  "contextual_verification": {
+    "completed": false,
+    "attempted_pairs": 8,
+    "result": "Sonnet and Codex verifier attempts each timed out at 60 seconds.",
+    "remaining_ambiguous_tokens": 179
+  },
+  "authorization": {
+    "production_import": false,
+    "story_activation": false,
+    "learner_state_changes": false,
+    "production_writes": 0
+  }
+}

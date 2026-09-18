@@ -1,0 +1,131 @@
+{
+  "source_sha256": "936cb19b5c8be33dea7ab92f6e06e93fed5d679e5d9345a070122e3c0b5de980",
+  "rows": [
+    {
+      "id": "practice",
+      "kind": "practice",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 3149,
+      "choice_ms": 1733,
+      "reread_ms": null,
+      "vowelized": true,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p1",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 5342,
+      "choice_ms": 1267,
+      "reread_ms": null,
+      "vowelized": true,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p2",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 5546,
+      "choice_ms": 1976,
+      "reread_ms": null,
+      "vowelized": false,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p3",
+      "kind": "phrase",
+      "correct": 0,
+      "total": 1,
+      "read_ms": 12910,
+      "choice_ms": 2324,
+      "reread_ms": null,
+      "vowelized": false,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p4",
+      "kind": "phrase",
+      "correct": 0,
+      "total": 1,
+      "read_ms": 6182,
+      "choice_ms": 1566,
+      "reread_ms": null,
+      "vowelized": true,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p5",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 5192,
+      "choice_ms": 1051,
+      "reread_ms": null,
+      "vowelized": false,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p6",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 6886,
+      "choice_ms": 11562,
+      "reread_ms": null,
+      "vowelized": true,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p7",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 4369,
+      "choice_ms": 2692,
+      "reread_ms": null,
+      "vowelized": true,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "p8",
+      "kind": "phrase",
+      "correct": 1,
+      "total": 1,
+      "read_ms": 5441,
+      "choice_ms": 2259,
+      "reread_ms": null,
+      "vowelized": false,
+      "readiness": "clear",
+      "choice_help": "Meaning was already clear"
+    },
+    {
+      "id": "passage",
+      "kind": "passage",
+      "correct": 2,
+      "total": 2,
+      "read_ms": 85775,
+      "choice_ms": null,
+      "reread_ms": 52616,
+      "vowelized": null,
+      "readiness": null,
+      "choice_help": null
+    }
+  ],
+  "passage_time_reduction_fraction": 0.386581171670067,
+  "passage_tokens": 42,
+  "note_verbatim": "there were a few words that I didn't recognize, first river (which I later know) then flood etc. ",
+  "help_open_events": 0,
+  "clarification_status": "Woman/man explicitly confirmed as a misclick on known material. Here/there remains a learner-reported effortful distinction, with later resolution after thinking. Raw score remains 6/8; story-help question remains open.",
+  "learner_clarifications_file": "learner-clarifications.json"
+}

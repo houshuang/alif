@@ -1,0 +1,418 @@
+{
+  "provenance": {
+    "db": "/Users/stian/alif-backups/alif_20260905_092305.db",
+    "sha256": "8aae0bc846d0b4d110730a82a54442e89d40a95788ce8784fd98eca4d8444bcf",
+    "db_quick_check": "ok",
+    "script_sha256": "5ca699d9f04c047127ec21ba88afa1e131e27c63ab41ec96f94e6b89af5fa72e",
+    "recognition_cutoff_exclusive": "2026-09-03T00:00:00+00:00",
+    "log_files": 208,
+    "malformed_log_lines": 0
+  },
+  "raw_review_scope": {
+    "rows": 73539,
+    "first": "2026-02-08 17:05:38.232458",
+    "last": "2026-09-04 12:26:16.958769"
+  },
+  "canonical_state_counts": {
+    "known": 2629,
+    "learning": 48,
+    "lapsed": 62,
+    "suspended": 162,
+    "acquiring": 53,
+    "encountered": 314
+  },
+  "recognition_scope": {
+    "rows": 68326,
+    "canonical_lemmas": 2949,
+    "first": "2026-02-08 17:05:38.232458",
+    "last": "2026-09-02 20:38:49.550532"
+  },
+  "latest_demonstrated_gap": {
+    "7": {
+      "tested": 2849,
+      "latest_clean": 2393
+    },
+    "14": {
+      "tested": 2661,
+      "latest_clean": 2046
+    },
+    "30": {
+      "tested": 1778,
+      "latest_clean": 1302
+    }
+  },
+  "monthly": {
+    "2026-02": {
+      "judgments": 7740,
+      "clean_pct": 89.39,
+      "active_days": 21,
+      "lemmas": 524
+    },
+    "2026-03": {
+      "judgments": 12702,
+      "clean_pct": 91.69,
+      "active_days": 31,
+      "lemmas": 1326
+    },
+    "2026-04": {
+      "judgments": 9539,
+      "clean_pct": 88.44,
+      "active_days": 30,
+      "lemmas": 1607
+    },
+    "2026-05": {
+      "judgments": 14381,
+      "clean_pct": 89.05,
+      "active_days": 31,
+      "lemmas": 2146
+    },
+    "2026-06": {
+      "judgments": 9785,
+      "clean_pct": 88.47,
+      "active_days": 29,
+      "lemmas": 2134
+    },
+    "2026-07": {
+      "judgments": 7584,
+      "clean_pct": 83.86,
+      "active_days": 25,
+      "lemmas": 2094
+    },
+    "2026-08": {
+      "judgments": 6221,
+      "clean_pct": 89.05,
+      "active_days": 26,
+      "lemmas": 2007
+    },
+    "2026-09": {
+      "judgments": 374,
+      "clean_pct": 86.9,
+      "active_days": 2,
+      "lemmas": 325
+    }
+  },
+  "card_monthly": {
+    "2026-02": {
+      "cards": 2021,
+      "active_days": 21,
+      "kinds": {
+        "unspecified": 2021
+      },
+      "sources": {
+        "missing": 9,
+        "llm": 1952,
+        "claude_code": 29,
+        "book": 31
+      },
+      "mapped_running_tokens_approx": 13084,
+      "timed_cards": 1927,
+      "median_card_seconds": 34.93,
+      "recorded_card_hours": 35.87
+    },
+    "2026-03": {
+      "cards": 2696,
+      "active_days": 31,
+      "kinds": {
+        "unspecified": 2696
+      },
+      "sources": {
+        "llm": 2689,
+        "book": 7
+      },
+      "mapped_running_tokens_approx": 18568,
+      "timed_cards": 2568,
+      "median_card_seconds": 28.27,
+      "recorded_card_hours": 39.84
+    },
+    "2026-04": {
+      "cards": 2095,
+      "active_days": 29,
+      "kinds": {
+        "unspecified": 2095
+      },
+      "sources": {
+        "llm": 2051,
+        "missing": 14,
+        "corpus": 26,
+        "book": 4
+      },
+      "mapped_running_tokens_approx": 11677,
+      "timed_cards": 2005,
+      "median_card_seconds": 21.41,
+      "recorded_card_hours": 24.5
+    },
+    "2026-05": {
+      "cards": 2832,
+      "active_days": 31,
+      "kinds": {
+        "unspecified": 2832
+      },
+      "sources": {
+        "llm": 2676,
+        "corpus": 87,
+        "book": 15,
+        "passage": 52,
+        "corpus+llm": 2
+      },
+      "mapped_running_tokens_approx": 18057,
+      "timed_cards": 2711,
+      "median_card_seconds": 21.05,
+      "recorded_card_hours": 30.64
+    },
+    "2026-06": {
+      "cards": 1907,
+      "active_days": 29,
+      "kinds": {
+        "unspecified": 304,
+        "sentence": 1578,
+        "passage": 25
+      },
+      "sources": {
+        "llm": 1815,
+        "passage": 84,
+        "corpus": 5,
+        "book": 3
+      },
+      "mapped_running_tokens_approx": 12486,
+      "timed_cards": 1833,
+      "median_card_seconds": 22.1,
+      "recorded_card_hours": 19.61
+    },
+    "2026-07": {
+      "cards": 1318,
+      "active_days": 25,
+      "kinds": {
+        "sentence": 1299,
+        "passage": 19
+      },
+      "sources": {
+        "llm": 1265,
+        "passage": 52,
+        "corpus": 1
+      },
+      "mapped_running_tokens_approx": 9425,
+      "timed_cards": 1256,
+      "median_card_seconds": 28.39,
+      "recorded_card_hours": 18.51
+    },
+    "2026-08": {
+      "cards": 868,
+      "active_days": 26,
+      "kinds": {
+        "sentence": 817,
+        "passage": 51
+      },
+      "sources": {
+        "llm": 721,
+        "passage": 147
+      },
+      "mapped_running_tokens_approx": 8422,
+      "timed_cards": 826,
+      "median_card_seconds": 33.06,
+      "recorded_card_hours": 14.06
+    },
+    "2026-09": {
+      "cards": 151,
+      "active_days": 4,
+      "kinds": {
+        "sentence": 151
+      },
+      "sources": {
+        "llm": 151
+      },
+      "mapped_running_tokens_approx": 1062,
+      "timed_cards": 149,
+      "median_card_seconds": 29.82,
+      "recorded_card_hours": 1.98
+    }
+  },
+  "card_lifetime": {
+    "cards": 13888,
+    "active_days": 196,
+    "kinds": {
+      "unspecified": 9948,
+      "sentence": 3845,
+      "passage": 95
+    },
+    "sources": {
+      "missing": 23,
+      "llm": 13320,
+      "claude_code": 29,
+      "book": 60,
+      "corpus": 119,
+      "passage": 335,
+      "corpus+llm": 2
+    },
+    "mapped_running_tokens_approx": 92781,
+    "timed_cards": 13275,
+    "median_card_seconds": 25.71,
+    "recorded_card_hours": 185.01
+  },
+  "windows": {
+    "previous30": {
+      "start": "2026-07-05T00:00:00+00:00",
+      "end": "2026-08-04T00:00:00+00:00",
+      "judgments": 8457,
+      "clean_pct": 84.27,
+      "gaps": [
+        {
+          "band": "<1d",
+          "n": 2330,
+          "clean_pct": 94.16
+        },
+        {
+          "band": "1-3d",
+          "n": 1704,
+          "clean_pct": 91.2
+        },
+        {
+          "band": "3-7d",
+          "n": 1378,
+          "clean_pct": 83.89
+        },
+        {
+          "band": "7-14d",
+          "n": 737,
+          "clean_pct": 77.75
+        },
+        {
+          "band": "14-30d",
+          "n": 981,
+          "clean_pct": 73.39
+        },
+        {
+          "band": "30d+",
+          "n": 1070,
+          "clean_pct": 72.62
+        }
+      ],
+      "cards": {
+        "cards": 1457,
+        "active_days": 28,
+        "kinds": {
+          "sentence": 1433,
+          "passage": 24
+        },
+        "sources": {
+          "llm": 1385,
+          "passage": 71,
+          "corpus": 1
+        },
+        "mapped_running_tokens_approx": 10561,
+        "timed_cards": 1392,
+        "median_card_seconds": 28.63,
+        "recorded_card_hours": 21.23
+      }
+    },
+    "latest30": {
+      "start": "2026-08-04T00:00:00+00:00",
+      "end": "2026-09-03T00:00:00+00:00",
+      "judgments": 5722,
+      "clean_pct": 89.09,
+      "gaps": [
+        {
+          "band": "<1d",
+          "n": 1268,
+          "clean_pct": 96.77
+        },
+        {
+          "band": "1-3d",
+          "n": 807,
+          "clean_pct": 95.04
+        },
+        {
+          "band": "3-7d",
+          "n": 1013,
+          "clean_pct": 92.0
+        },
+        {
+          "band": "7-14d",
+          "n": 1225,
+          "clean_pct": 87.59
+        },
+        {
+          "band": "14-30d",
+          "n": 794,
+          "clean_pct": 80.35
+        },
+        {
+          "band": "30d+",
+          "n": 561,
+          "clean_pct": 73.98
+        }
+      ],
+      "cards": {
+        "cards": 794,
+        "active_days": 25,
+        "kinds": {
+          "sentence": 748,
+          "passage": 46
+        },
+        "sources": {
+          "llm": 666,
+          "passage": 128
+        },
+        "mapped_running_tokens_approx": 7746,
+        "timed_cards": 753,
+        "median_card_seconds": 33.08,
+        "recorded_card_hours": 12.48
+      }
+    }
+  },
+  "word_evidence": {
+    "scope": [
+      [
+        "2026-07-27 06:07:44.930917",
+        "2026-09-04 12:26:16.771625",
+        10285,
+        1229
+      ]
+    ],
+    "protocols": [
+      [
+        1,
+        1523
+      ],
+      [
+        2,
+        4882
+      ],
+      [
+        3,
+        3880
+      ]
+    ],
+    "rating_sources": [
+      [
+        "sentence_comprehension",
+        9402
+      ],
+      [
+        "token_mark",
+        883
+      ]
+    ],
+    "causes": [
+      [
+        "[\"missing_tashkeel\"]",
+        9
+      ],
+      [
+        "[\"mixed_up\"]",
+        24
+      ],
+      [
+        "[\"retrieval_lapse\"]",
+        1
+      ],
+      [
+        "[\"unfamiliar_form\"]",
+        36
+      ]
+    ]
+  },
+  "grammar_exposure_rows": 45,
+  "grammar_feature_count": 49
+}
+BOOK EVENTS Counter({'textbook_page_processed': 126, 'textbook_batch_processed': 48, 'book_page_completed': 6, 'book_imported': 5, 'processed_book_imported': 1})
+BOOK PROGRESS [{"id": 240, "title": "Momo — Chapter Five", "reader": {"pages": {"1": {"completed_at": "2026-08-02T21:55:17.209137+00:00", "looked_up_lemma_ids": [4539], "reading_time_ms": 963621, "client_review_id": "book:240:page:1", "counts": {"newly_known": 10, "scheduled": 1, "reviewed_good": 75, "reviewed_again": 0, "skipped": 1}}}, "last_page": 1, "passages": {"1:tokens:0-10": {"completed_at": "2026-08-03T15:52:28.004378+00:00", "reader_policy": "guided", "sentence_indices": [0, 1, 2], "passage_token_positions": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "unknown_lemma_ids": [361], "unknown_token_positions": [], "dont_learn_token_positions": [], "learn_token_positions": [], "inert_token_positions": [], "reading_time_ms": 23503, "client_review_id": "bp:240:1:0-10:guided:msdeqfo2", "counts": {"newly_known": 0, "scheduled": 0, "box2_floor": 0, "reviewed_again": 1, "dont_learn": 0, "guided_inert": 0, "guided_started": 0, "skipped": 0}}, "1:tokens:11-51": {"completed_at": "2026-08-03T20:06:15.980274+00:00", "reader_policy": "guided", "sentence_indices": [3], "passage_token_positions": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51], "unknown_lemma_ids": [4550], "unknown_token_positions": [], "dont_learn_token_positions": [], "learn_token_positions": [], "inert_token_positions": [14, 17, 21, 27, 39, 51], "reading_time_ms": 62769, "client_review_id": "bp:240:1:11-51:guided:msdeqfje", "counts": {"newly_known": 0, "scheduled": 0, "box2_floor": 1, "reviewed_again": 1, "dont_learn": 0, "guided_inert": 6, "guided_started": 0, "skipped": 0}}, "1:tokens:52-92": {"completed_at": "2026-08-03T20:08:33.467505+00:00", "reader_policy": "guided", "sentence_indices": [3], "passage_token_positions": [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92], "unknown_lemma_ids": [389, 2175, 2551, 4358, 4557, 4565], "unknown_token_positions": [], "dont_learn_token_positions": [], "learn_token_positions": [], "inert_token_positions": [54, 55, 64, 88, 91], "reading_time_ms": 135870, "client_review_id": "bp:240:1:52-92:guided:msdeqf5a", "counts": {"newly_known": 0, "scheduled": 0, "box2_floor": 0, "reviewed_again": 6, "dont_learn": 0, "guided_inert": 5, "guided_started": 0, "skipped": 0}}, "1:tokens:93-133": {"completed_at": "2026-08-03T20:10:33.309743+00:00", "reader_policy": "guided", "sentence_indices": [3], "passage_token_positions": [93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133], "unknown_lemma_ids": [408, 2628, 2631], "unknown_token_positions": [], "dont_learn_token_positions": [], "learn_token_positions": [], "inert_token_positions": [93, 103, 105, 111, 112, 113, 119, 122, 124, 127, 130, 131, 133], "reading_time_ms": 118272, "client_review_id": "bp:240:1:93-133:guided:msdeqep9", "counts": {"newly_known": 0, "scheduled": 0, "box2_floor": 0, "reviewed_again": 3, "dont_learn": 0, "guided_inert": 13, "guided_started": 0, "skipped": 0}}, "1:tokens:134-151": {"completed_at": "2026-08-22T10:41:33.705844+00:00", "reader_policy": "guided", "sentence_indices": [3], "passage_token_positions": [134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151], "unknown_lemma_ids": [693, 4363, 4570], "unknown_token_positions": [], "dont_learn_token_positions": [], "learn_token_positions": [], "inert_token_positions": [137, 141, 142, 144, 146], "reading_time_ms": 54363, "client_review_id": "bp:240:1:134-151:guided:msdeqe8m", "counts": {"newly_known": 0, "scheduled": 0, "box2_floor": 0, "reviewed_again": 3, "dont_learn": 0, "guided_inert": 5, "guided_started": 0, "skipped": 0}}}, "location": {"page_number": 1, "sentence_index": null, "token_position": 152}}}]

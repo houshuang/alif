@@ -22,6 +22,7 @@ backend/.env
 # Logs (keep directory, ignore contents incl. rotated/compressed)
 backend/data/logs/*.jsonl
 backend/data/logs/*.jsonl.gz
+backend/data/logs/logs/
 
 # Node
 node_modules/
@@ -102,3 +103,6 @@ backend/data/*.tsv
 polyglot/polyglot.db.*
 polyglot/data/*.jsonl
 polyglot/data/textbooks/
+
+# Local scratch (source texts, request dumps)
+/tmp/

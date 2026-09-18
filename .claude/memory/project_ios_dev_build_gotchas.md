@@ -7,6 +7,8 @@ metadata:
   originSessionId: 1e44f379-78ca-46c7-8a87-654b233124b2
 ---
 
+**Update 2026-07-15:** the phone no longer runs the dev client. iOS is now a standalone EAS `preview` build with expo-updates OTA (channel `preview`, runtimeVersion policy `appVersion`) — deploy flow documented in CLAUDE.md § Deployment. Gotchas 1–4 below still apply to any EAS rebuild (ATS exception, icons, CgBI, Apple PLA).
+
 The 2026-05-14 rebuild surfaced four issues, three of them silent. Keep these together — they all live on the path "user needs a new dev build for a native module" and all need to be checked in advance.
 
 ## 1. iOS ATS blocks plain-HTTP loads to the dev server

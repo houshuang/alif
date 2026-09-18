@@ -1,0 +1,3613 @@
+{
+  "provenance": {
+    "db": "/Users/stian/alif-backups/alif_20260905_092305.db",
+    "sha256": "8aae0bc846d0b4d110730a82a54442e89d40a95788ce8784fd98eca4d8444bcf",
+    "db_quick_check": "ok",
+    "script_sha256": "5ca699d9f04c047127ec21ba88afa1e131e27c63ab41ec96f94e6b89af5fa72e",
+    "recognition_cutoff_exclusive": "2026-09-03T00:00:00+00:00",
+    "log_files": 208,
+    "malformed_log_lines": 0
+  },
+  "raw_review_scope": {
+    "rows": 73539,
+    "first": "2026-02-08 17:05:38.232458",
+    "last": "2026-09-04 12:26:16.958769"
+  },
+  "canonical_state_counts": {
+    "known": 2629,
+    "learning": 48,
+    "lapsed": 62,
+    "suspended": 162,
+    "acquiring": 53,
+    "encountered": 314
+  },
+  "recognition_scope": {
+    "rows": 68326,
+    "canonical_lemmas": 2949,
+    "first": "2026-02-08 17:05:38.232458",
+    "last": "2026-09-02 20:38:49.550532"
+  },
+  "latest_demonstrated_gap": {
+    "7": {
+      "tested": 2849,
+      "latest_clean": 2393
+    },
+    "14": {
+      "tested": 2661,
+      "latest_clean": 2046
+    },
+    "30": {
+      "tested": 1778,
+      "latest_clean": 1302
+    }
+  },
+  "monthly": {
+    "2026-02": {
+      "judgments": 7740,
+      "clean_pct": 89.39,
+      "active_days": 21,
+      "lemmas": 524
+    },
+    "2026-03": {
+      "judgments": 12702,
+      "clean_pct": 91.69,
+      "active_days": 31,
+      "lemmas": 1326
+    },
+    "2026-04": {
+      "judgments": 9539,
+      "clean_pct": 88.44,
+      "active_days": 30,
+      "lemmas": 1607
+    },
+    "2026-05": {
+      "judgments": 14381,
+      "clean_pct": 89.05,
+      "active_days": 31,
+      "lemmas": 2146
+    },
+    "2026-06": {
+      "judgments": 9785,
+      "clean_pct": 88.47,
+      "active_days": 29,
+      "lemmas": 2134
+    },
+    "2026-07": {
+      "judgments": 7584,
+      "clean_pct": 83.86,
+      "active_days": 25,
+      "lemmas": 2094
+    },
+    "2026-08": {
+      "judgments": 6221,
+      "clean_pct": 89.05,
+      "active_days": 26,
+      "lemmas": 2007
+    },
+    "2026-09": {
+      "judgments": 374,
+      "clean_pct": 86.9,
+      "active_days": 2,
+      "lemmas": 325
+    }
+  },
+  "card_monthly": {
+    "2026-02": {
+      "cards": 2021,
+      "active_days": 21,
+      "kinds": {
+        "unspecified": 2021
+      },
+      "sources": {
+        "missing": 9,
+        "llm": 1952,
+        "claude_code": 29,
+        "book": 31
+      },
+      "mapped_running_tokens_approx": 13084,
+      "timed_cards": 1927,
+      "median_card_seconds": 34.93,
+      "recorded_card_hours": 35.87
+    },
+    "2026-03": {
+      "cards": 2696,
+      "active_days": 31,
+      "kinds": {
+        "unspecified": 2696
+      },
+      "sources": {
+        "llm": 2689,
+        "book": 7
+      },
+      "mapped_running_tokens_approx": 18568,
+      "timed_cards": 2568,
+      "median_card_seconds": 28.27,
+      "recorded_card_hours": 39.84
+    },
+    "2026-04": {
+      "cards": 2095,
+      "active_days": 29,
+      "kinds": {
+        "unspecified": 2095
+      },
+      "sources": {
+        "llm": 2051,
+        "missing": 14,
+        "corpus": 26,
+        "book": 4
+      },
+      "mapped_running_tokens_approx": 11677,
+      "timed_cards": 2005,
+      "median_card_seconds": 21.41,
+      "recorded_card_hours": 24.5
+    },
+    "2026-05": {
+      "cards": 2832,
+      "active_days": 31,
+      "kinds": {
+        "unspecified": 2832
+      },
+      "sources": {
+        "llm": 2676,
+        "corpus": 87,
+        "book": 15,
+        "passage": 52,
+        "corpus+llm": 2
+      },
+      "mapped_running_tokens_approx": 18057,
+      "timed_cards": 2711,
+      "median_card_seconds": 21.05,
+      "recorded_card_hours": 30.64
+    },
+    "2026-06": {
+      "cards": 1907,
+      "active_days": 29,
+      "kinds": {
+        "unspecified": 304,
+        "sentence": 1578,
+        "passage": 25
+      },
+      "sources": {
+        "llm": 1815,
+        "passage": 84,
+        "corpus": 5,
+        "book": 3
+      },
+      "mapped_running_tokens_approx": 12486,
+      "timed_cards": 1833,
+      "median_card_seconds": 22.1,
+      "recorded_card_hours": 19.61
+    },
+    "2026-07": {
+      "cards": 1318,
+      "active_days": 25,
+      "kinds": {
+        "sentence": 1299,
+        "passage": 19
+      },
+      "sources": {
+        "llm": 1265,
+        "passage": 52,
+        "corpus": 1
+      },
+      "mapped_running_tokens_approx": 9425,
+      "timed_cards": 1256,
+      "median_card_seconds": 28.39,
+      "recorded_card_hours": 18.51
+    },
+    "2026-08": {
+      "cards": 868,
+      "active_days": 26,
+      "kinds": {
+        "sentence": 817,
+        "passage": 51
+      },
+      "sources": {
+        "llm": 721,
+        "passage": 147
+      },
+      "mapped_running_tokens_approx": 8422,
+      "timed_cards": 826,
+      "median_card_seconds": 33.06,
+      "recorded_card_hours": 14.06
+    },
+    "2026-09": {
+      "cards": 151,
+      "active_days": 4,
+      "kinds": {
+        "sentence": 151
+      },
+      "sources": {
+        "llm": 151
+      },
+      "mapped_running_tokens_approx": 1062,
+      "timed_cards": 149,
+      "median_card_seconds": 29.82,
+      "recorded_card_hours": 1.98
+    }
+  },
+  "card_lifetime": {
+    "cards": 13888,
+    "active_days": 196,
+    "kinds": {
+      "unspecified": 9948,
+      "sentence": 3845,
+      "passage": 95
+    },
+    "sources": {
+      "missing": 23,
+      "llm": 13320,
+      "claude_code": 29,
+      "book": 60,
+      "corpus": 119,
+      "passage": 335,
+      "corpus+llm": 2
+    },
+    "mapped_running_tokens_approx": 92781,
+    "timed_cards": 13275,
+    "median_card_seconds": 25.71,
+    "recorded_card_hours": 185.01
+  },
+  "windows": {
+    "previous30": {
+      "start": "2026-07-05T00:00:00+00:00",
+      "end": "2026-08-04T00:00:00+00:00",
+      "judgments": 8457,
+      "clean_pct": 84.27,
+      "gaps": [
+        {
+          "band": "<1d",
+          "n": 2330,
+          "clean_pct": 94.16
+        },
+        {
+          "band": "1-3d",
+          "n": 1704,
+          "clean_pct": 91.2
+        },
+        {
+          "band": "3-7d",
+          "n": 1378,
+          "clean_pct": 83.89
+        },
+        {
+          "band": "7-14d",
+          "n": 737,
+          "clean_pct": 77.75
+        },
+        {
+          "band": "14-30d",
+          "n": 981,
+          "clean_pct": 73.39
+        },
+        {
+          "band": "30d+",
+          "n": 1070,
+          "clean_pct": 72.62
+        }
+      ],
+      "cards": {
+        "cards": 1457,
+        "active_days": 28,
+        "kinds": {
+          "sentence": 1433,
+          "passage": 24
+        },
+        "sources": {
+          "llm": 1385,
+          "passage": 71,
+          "corpus": 1
+        },
+        "mapped_running_tokens_approx": 10561,
+        "timed_cards": 1392,
+        "median_card_seconds": 28.63,
+        "recorded_card_hours": 21.23
+      }
+    },
+    "latest30": {
+      "start": "2026-08-04T00:00:00+00:00",
+      "end": "2026-09-03T00:00:00+00:00",
+      "judgments": 5722,
+      "clean_pct": 89.09,
+      "gaps": [
+        {
+          "band": "<1d",
+          "n": 1268,
+          "clean_pct": 96.77
+        },
+        {
+          "band": "1-3d",
+          "n": 807,
+          "clean_pct": 95.04
+        },
+        {
+          "band": "3-7d",
+          "n": 1013,
+          "clean_pct": 92.0
+        },
+        {
+          "band": "7-14d",
+          "n": 1225,
+          "clean_pct": 87.59
+        },
+        {
+          "band": "14-30d",
+          "n": 794,
+          "clean_pct": 80.35
+        },
+        {
+          "band": "30d+",
+          "n": 561,
+          "clean_pct": 73.98
+        }
+      ],
+      "cards": {
+        "cards": 794,
+        "active_days": 25,
+        "kinds": {
+          "sentence": 748,
+          "passage": 46
+        },
+        "sources": {
+          "llm": 666,
+          "passage": 128
+        },
+        "mapped_running_tokens_approx": 7746,
+        "timed_cards": 753,
+        "median_card_seconds": 33.08,
+        "recorded_card_hours": 12.48
+      }
+    }
+  },
+  "word_evidence": {
+    "scope": [
+      [
+        "2026-07-27 06:07:44.930917",
+        "2026-09-04 12:26:16.771625",
+        10285,
+        1229
+      ]
+    ],
+    "protocols": [
+      [
+        1,
+        1523
+      ],
+      [
+        2,
+        4882
+      ],
+      [
+        3,
+        3880
+      ]
+    ],
+    "rating_sources": [
+      [
+        "sentence_comprehension",
+        9402
+      ],
+      [
+        "token_mark",
+        883
+      ]
+    ],
+    "causes": [
+      [
+        "[\"missing_tashkeel\"]",
+        9
+      ],
+      [
+        "[\"mixed_up\"]",
+        24
+      ],
+      [
+        "[\"retrieval_lapse\"]",
+        1
+      ],
+      [
+        "[\"unfamiliar_form\"]",
+        36
+      ]
+    ]
+  },
+  "event_counts": {
+    "session_start": 1253,
+    "sentence_selected": 11175,
+    "tts_request": 130,
+    "sentence_review": 14519,
+    "word_introduced": 13,
+    "quiz_review": 1,
+    "story_generated": 21,
+    "story_word_lookup": 53,
+    "story_completed": 5,
+    "story_imported": 16,
+    "story_deleted": 24,
+    "ai_ask": 125,
+    "word_auto_introduced": 24,
+    "review_word_lookup": 96545,
+    "reintro_remember": 102,
+    "reintro_show_again": 49,
+    "textbook_page_processed": 126,
+    "word_suspended": 11,
+    "word_unsuspended": 1,
+    "legacy_review": 6,
+    "wrap_up_quiz": 179,
+    "auto_introduce": 404,
+    "story_suspended": 12,
+    "word_graduated": 2868,
+    "leech_suspended": 1147,
+    "review_undone": 84,
+    "story_reactivated": 1,
+    "book_imported": 5,
+    "word_auto_reactivated": 479,
+    "leech_reintroduced": 523,
+    "word_postponed": 1,
+    "confusion_help": 2129,
+    "experiment_intro_shown": 1858,
+    "textbook_batch_processed": 48,
+    "podcast_completed": 9,
+    "verse_review": 88,
+    "quran_lemma_promotion": 2,
+    "card_shown": 8619,
+    "dragoman_word_added": 74,
+    "exact_surface_experiment_ineligible": 624,
+    "exact_surface_experiment_assigned": 95,
+    "discover_snap": 1,
+    "leech_reintro_capacity_deferred": 379,
+    "reintro_acknowledged": 69,
+    "established_lapse_recovery_selected": 88,
+    "exact_surface_experiment_all_word_outcome": 40,
+    "processed_book_imported": 1,
+    "book_page_completed": 6,
+    "exact_surface_experiment_exact_all_word_outcome": 21,
+    "exact_surface_experiment_any_form_outcome": 13,
+    "exact_surface_experiment_outcome": 12,
+    "form_recovery_inventory_gap": 67,
+    "confusion_context_rescue_selected": 9,
+    "mature_collateral_exposure": 218
+  },
+  "book_events": [
+    {
+      "ts": "2026-02-10T05:35:53.858126+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 1,
+      "new_words": 4,
+      "existing_words": 8,
+      "total_extracted": 12
+    },
+    {
+      "ts": "2026-02-10T05:37:08.812302+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 2,
+      "new_words": 4,
+      "existing_words": 5,
+      "total_extracted": 9
+    },
+    {
+      "ts": "2026-02-10T05:37:13.896079+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 3,
+      "new_words": 5,
+      "existing_words": 6,
+      "total_extracted": 12
+    },
+    {
+      "ts": "2026-02-10T05:37:18.450423+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 4,
+      "new_words": 6,
+      "existing_words": 3,
+      "total_extracted": 9
+    },
+    {
+      "ts": "2026-02-10T05:37:23.589517+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 5,
+      "new_words": 3,
+      "existing_words": 9,
+      "total_extracted": 12
+    },
+    {
+      "ts": "2026-02-10T05:37:28.509852+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 6,
+      "new_words": 6,
+      "existing_words": 4,
+      "total_extracted": 10
+    },
+    {
+      "ts": "2026-02-10T05:37:33.097732+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 7,
+      "new_words": 6,
+      "existing_words": 4,
+      "total_extracted": 10
+    },
+    {
+      "ts": "2026-02-10T05:37:38.668183+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 8,
+      "new_words": 9,
+      "existing_words": 4,
+      "total_extracted": 13
+    },
+    {
+      "ts": "2026-02-10T05:37:44.593845+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 9,
+      "new_words": 9,
+      "existing_words": 6,
+      "total_extracted": 15
+    },
+    {
+      "ts": "2026-02-10T19:30:28.421969+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 10,
+      "new_words": 6,
+      "existing_words": 2,
+      "total_extracted": 8
+    },
+    {
+      "ts": "2026-02-10T19:30:40.016719+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 11,
+      "new_words": 18,
+      "existing_words": 12,
+      "total_extracted": 30
+    },
+    {
+      "ts": "2026-02-10T19:39:59.029974+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 12,
+      "new_words": 0,
+      "existing_words": 8,
+      "total_extracted": 8
+    },
+    {
+      "ts": "2026-02-10T19:40:30.035872+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 13,
+      "new_words": 0,
+      "existing_words": 8,
+      "total_extracted": 8
+    },
+    {
+      "ts": "2026-02-10T19:40:41.629152+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 14,
+      "new_words": 0,
+      "existing_words": 30,
+      "total_extracted": 30
+    },
+    {
+      "ts": "2026-02-10T19:44:35.682502+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 15,
+      "new_words": 9,
+      "existing_words": 4,
+      "total_extracted": 13
+    },
+    {
+      "ts": "2026-02-10T19:45:20.757118+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 16,
+      "new_words": 3,
+      "existing_words": 10,
+      "total_extracted": 13
+    },
+    {
+      "ts": "2026-02-10T19:45:44.721011+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 17,
+      "new_words": 13,
+      "existing_words": 16,
+      "total_extracted": 29
+    },
+    {
+      "ts": "2026-02-10T19:47:00.130732+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 18,
+      "new_words": 12,
+      "existing_words": 23,
+      "total_extracted": 35
+    },
+    {
+      "ts": "2026-02-10T19:48:30.987768+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 19,
+      "new_words": 23,
+      "existing_words": 35,
+      "total_extracted": 58
+    },
+    {
+      "ts": "2026-02-10T19:49:45.133762+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 20,
+      "new_words": 11,
+      "existing_words": 6,
+      "total_extracted": 17
+    },
+    {
+      "ts": "2026-02-10T19:50:31.392468+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 21,
+      "new_words": 4,
+      "existing_words": 10,
+      "total_extracted": 14
+    },
+    {
+      "ts": "2026-02-10T19:51:00.206042+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 22,
+      "new_words": 32,
+      "existing_words": 17,
+      "total_extracted": 49
+    },
+    {
+      "ts": "2026-02-10T19:52:43.345698+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 23,
+      "new_words": 20,
+      "existing_words": 4,
+      "total_extracted": 24
+    },
+    {
+      "ts": "2026-02-10T19:53:59.684945+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 24,
+      "new_words": 19,
+      "existing_words": 15,
+      "total_extracted": 34
+    },
+    {
+      "ts": "2026-02-10T19:55:05.918291+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 25,
+      "new_words": 17,
+      "existing_words": 4,
+      "total_extracted": 21
+    },
+    {
+      "ts": "2026-02-10T19:56:06.515928+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 26,
+      "new_words": 11,
+      "existing_words": 12,
+      "total_extracted": 23
+    },
+    {
+      "ts": "2026-02-10T19:56:50.605244+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 27,
+      "new_words": 7,
+      "existing_words": 22,
+      "total_extracted": 29
+    },
+    {
+      "ts": "2026-02-10T19:57:34.031279+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 28,
+      "new_words": 13,
+      "existing_words": 60,
+      "total_extracted": 73
+    },
+    {
+      "ts": "2026-02-10T19:58:36.294021+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 29,
+      "new_words": 2,
+      "existing_words": 73,
+      "total_extracted": 75
+    },
+    {
+      "ts": "2026-02-10T19:58:59.639610+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 30,
+      "new_words": 21,
+      "existing_words": 31,
+      "total_extracted": 52
+    },
+    {
+      "ts": "2026-02-10T20:00:14.755256+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 31,
+      "new_words": 2,
+      "existing_words": 32,
+      "total_extracted": 34
+    },
+    {
+      "ts": "2026-02-10T20:00:29.062606+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 32,
+      "new_words": 18,
+      "existing_words": 2,
+      "total_extracted": 20
+    },
+    {
+      "ts": "2026-02-10T20:01:32.709120+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 33,
+      "new_words": 17,
+      "existing_words": 20,
+      "total_extracted": 37
+    },
+    {
+      "ts": "2026-02-10T20:02:45.406873+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 34,
+      "new_words": 14,
+      "existing_words": 32,
+      "total_extracted": 46
+    },
+    {
+      "ts": "2026-02-10T20:03:34.666361+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 35,
+      "new_words": 10,
+      "existing_words": 11,
+      "total_extracted": 21
+    },
+    {
+      "ts": "2026-02-10T20:04:10.560432+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 36,
+      "new_words": 5,
+      "existing_words": 18,
+      "total_extracted": 23
+    },
+    {
+      "ts": "2026-02-10T20:04:43.890233+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 37,
+      "new_words": 9,
+      "existing_words": 28,
+      "total_extracted": 37
+    },
+    {
+      "ts": "2026-02-10T20:05:23.356789+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 38,
+      "new_words": 6,
+      "existing_words": 20,
+      "total_extracted": 26
+    },
+    {
+      "ts": "2026-02-10T20:05:53.877531+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 39,
+      "new_words": 20,
+      "existing_words": 15,
+      "total_extracted": 35
+    },
+    {
+      "ts": "2026-02-10T20:07:09.897267+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 40,
+      "new_words": 10,
+      "existing_words": 24,
+      "total_extracted": 34
+    },
+    {
+      "ts": "2026-02-10T20:07:55.964431+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 41,
+      "new_words": 10,
+      "existing_words": 13,
+      "total_extracted": 23
+    },
+    {
+      "ts": "2026-02-10T20:08:38.203387+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 42,
+      "new_words": 10,
+      "existing_words": 21,
+      "total_extracted": 31
+    },
+    {
+      "ts": "2026-02-10T20:09:15.149438+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 43,
+      "new_words": 16,
+      "existing_words": 11,
+      "total_extracted": 27
+    },
+    {
+      "ts": "2026-02-10T20:10:14.083517+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 44,
+      "new_words": 3,
+      "existing_words": 19,
+      "total_extracted": 22
+    },
+    {
+      "ts": "2026-02-10T20:10:36.783098+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 45,
+      "new_words": 14,
+      "existing_words": 16,
+      "total_extracted": 30
+    },
+    {
+      "ts": "2026-02-10T20:11:30.473623+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 46,
+      "new_words": 36,
+      "existing_words": 7,
+      "total_extracted": 43
+    },
+    {
+      "ts": "2026-02-10T20:13:47.725093+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 47,
+      "new_words": 11,
+      "existing_words": 22,
+      "total_extracted": 33
+    },
+    {
+      "ts": "2026-02-10T20:14:30.761831+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 48,
+      "new_words": 6,
+      "existing_words": 12,
+      "total_extracted": 18
+    },
+    {
+      "ts": "2026-02-10T20:14:55.332333+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 49,
+      "new_words": 2,
+      "existing_words": 17,
+      "total_extracted": 19
+    },
+    {
+      "ts": "2026-02-10T20:15:10.678046+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 50,
+      "new_words": 14,
+      "existing_words": 8,
+      "total_extracted": 22
+    },
+    {
+      "ts": "2026-02-10T20:15:59.399491+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 51,
+      "new_words": 9,
+      "existing_words": 2,
+      "total_extracted": 11
+    },
+    {
+      "ts": "2026-02-15T22:34:30.681887+00:00",
+      "event": "book_imported",
+      "story_id": 6,
+      "total_words": 444,
+      "known_count": 54,
+      "readiness_pct": 12.4,
+      "new_words_imported": 111,
+      "page_count": 20,
+      "sentence_count": 0,
+      "metadata": {
+        "title_ar": "روزي في بيت الأشباح",
+        "title_en": "Rosie in the Haunted House",
+        "author": "فيليب فشتر",
+        "series": null,
+        "level": null
+      }
+    },
+    {
+      "ts": "2026-02-15T22:39:39.778690+00:00",
+      "event": "book_imported",
+      "story_id": 6,
+      "total_words": 440,
+      "known_count": 53,
+      "readiness_pct": 12.5,
+      "new_words_imported": 0,
+      "page_count": 20,
+      "sentence_count": 21,
+      "metadata": {
+        "title_ar": "روزي في بيت الأشباح",
+        "title_en": "Rosie in the Haunted House",
+        "author": "فيليب فشر",
+        "series": null,
+        "level": null
+      }
+    },
+    {
+      "ts": "2026-02-15T22:52:34.804847+00:00",
+      "event": "book_imported",
+      "story_id": 6,
+      "total_words": 281,
+      "known_count": 34,
+      "readiness_pct": 12.1,
+      "new_words_imported": 0,
+      "page_count": 20,
+      "sentence_count": 24,
+      "metadata": {
+        "title_ar": "روزي في بيت الأشباح",
+        "title_en": "Rosie in the Haunted House",
+        "author": "فيليب فشتر",
+        "series": null,
+        "level": null
+      }
+    },
+    {
+      "ts": "2026-02-16T06:44:28.691974+00:00",
+      "event": "book_imported",
+      "story_id": 6,
+      "total_words": 238,
+      "known_count": 24,
+      "readiness_pct": 10.1,
+      "new_words_imported": 0,
+      "page_count": 20,
+      "sentence_count": 27,
+      "metadata": {
+        "title_ar": "روزي في بيت الأشباح",
+        "title_en": "Rosie in the Haunted House",
+        "author": "فيليب فشتر",
+        "series": null,
+        "level": null
+      }
+    },
+    {
+      "ts": "2026-02-21T21:34:02.395833+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 52,
+      "new_words": 0,
+      "existing_words": 19,
+      "total_extracted": 21,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-21T21:42:40.216506+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 53,
+      "new_words": 1,
+      "existing_words": 18,
+      "total_extracted": 20,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-21T21:42:57.994245+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 54,
+      "new_words": 0,
+      "existing_words": 19,
+      "total_extracted": 20,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T06:30:23.156681+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 55,
+      "new_words": 4,
+      "existing_words": 6,
+      "total_extracted": 11,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T06:30:59.420190+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 56,
+      "new_words": 0,
+      "existing_words": 18,
+      "total_extracted": 19,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T06:31:10.369358+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 57,
+      "new_words": 3,
+      "existing_words": 14,
+      "total_extracted": 17,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T06:31:42.466960+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 58,
+      "new_words": 1,
+      "existing_words": 15,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:53:48.755018+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 59,
+      "new_words": 0,
+      "existing_words": 10,
+      "total_extracted": 11,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:54:00.599170+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 60,
+      "new_words": 0,
+      "existing_words": 20,
+      "total_extracted": 22,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:54:11.898787+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 61,
+      "new_words": 0,
+      "existing_words": 10,
+      "total_extracted": 10,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:54:18.594457+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 62,
+      "new_words": 1,
+      "existing_words": 7,
+      "total_extracted": 8,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:54:39.748352+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 63,
+      "new_words": 3,
+      "existing_words": 19,
+      "total_extracted": 22,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:55:13.420059+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 64,
+      "new_words": 3,
+      "existing_words": 14,
+      "total_extracted": 17,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:55:45.057849+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 65,
+      "new_words": 5,
+      "existing_words": 14,
+      "total_extracted": 19,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:56:32.176178+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 66,
+      "new_words": 1,
+      "existing_words": 9,
+      "total_extracted": 11,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-22T07:56:48.212851+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 67,
+      "new_words": 2,
+      "existing_words": 13,
+      "total_extracted": 16,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:35:33.402869+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 75,
+      "new_words": 2,
+      "existing_words": 13,
+      "total_extracted": 15,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:36:06.772040+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 76,
+      "new_words": 2,
+      "existing_words": 28,
+      "total_extracted": 32,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:36:34.486879+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 77,
+      "new_words": 5,
+      "existing_words": 20,
+      "total_extracted": 25,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:37:15.141882+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 78,
+      "new_words": 0,
+      "existing_words": 13,
+      "total_extracted": 13,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:37:27.988647+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 79,
+      "new_words": 7,
+      "existing_words": 22,
+      "total_extracted": 29,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:38:20.246015+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 80,
+      "new_words": 5,
+      "existing_words": 7,
+      "total_extracted": 12,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:39:12.262430+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 81,
+      "new_words": 0,
+      "existing_words": 18,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:39:19.963113+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 82,
+      "new_words": 1,
+      "existing_words": 6,
+      "total_extracted": 7,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:39:44.084834+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 83,
+      "new_words": 4,
+      "existing_words": 38,
+      "total_extracted": 43,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-24T19:40:24.755340+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 84,
+      "new_words": 1,
+      "existing_words": 27,
+      "total_extracted": 28,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:31:31.649714+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 85,
+      "new_words": 0,
+      "existing_words": 42,
+      "total_extracted": 43,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:31:43.922239+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 86,
+      "new_words": 0,
+      "existing_words": 28,
+      "total_extracted": 28,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:31:54.266769+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 87,
+      "new_words": 0,
+      "existing_words": 13,
+      "total_extracted": 13,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:32:04.449728+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 88,
+      "new_words": 3,
+      "existing_words": 20,
+      "total_extracted": 23,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:32:26.315408+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 89,
+      "new_words": 1,
+      "existing_words": 7,
+      "total_extracted": 8,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:32:41.341612+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 90,
+      "new_words": 3,
+      "existing_words": 6,
+      "total_extracted": 9,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:33:03.217434+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 91,
+      "new_words": 11,
+      "existing_words": 5,
+      "total_extracted": 16,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:34:19.769159+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 92,
+      "new_words": 12,
+      "existing_words": 23,
+      "total_extracted": 35,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:35:44.627442+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 93,
+      "new_words": 8,
+      "existing_words": 23,
+      "total_extracted": 32,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:36:37.733196+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 94,
+      "new_words": 1,
+      "existing_words": 8,
+      "total_extracted": 9,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:36:49.385690+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 95,
+      "new_words": 0,
+      "existing_words": 8,
+      "total_extracted": 8,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-26T21:36:59.751723+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 96,
+      "new_words": 0,
+      "existing_words": 21,
+      "total_extracted": 21,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T06:22:25.111953+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 97,
+      "new_words": 1,
+      "existing_words": 26,
+      "total_extracted": 28,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T06:22:48.857664+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 98,
+      "new_words": 5,
+      "existing_words": 42,
+      "total_extracted": 49,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T06:23:32.822512+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 99,
+      "new_words": 7,
+      "existing_words": 37,
+      "total_extracted": 44,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T06:24:26.218707+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 100,
+      "new_words": 0,
+      "existing_words": 34,
+      "total_extracted": 34,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:05.770720+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 101,
+      "new_words": 1,
+      "existing_words": 23,
+      "total_extracted": 24,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:18.846983+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 102,
+      "new_words": 1,
+      "existing_words": 6,
+      "total_extracted": 7,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:31.244098+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 103,
+      "new_words": 0,
+      "existing_words": 7,
+      "total_extracted": 7,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:37.415969+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 104,
+      "new_words": 0,
+      "existing_words": 8,
+      "total_extracted": 8,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:43.387938+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 105,
+      "new_words": 0,
+      "existing_words": 7,
+      "total_extracted": 7,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:58:51.567154+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 106,
+      "new_words": 2,
+      "existing_words": 12,
+      "total_extracted": 14,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T08:59:16.106007+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 107,
+      "new_words": 12,
+      "existing_words": 17,
+      "total_extracted": 29,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:00:34.776701+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 108,
+      "new_words": 3,
+      "existing_words": 26,
+      "total_extracted": 29,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:00:58.074948+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 109,
+      "new_words": 1,
+      "existing_words": 14,
+      "total_extracted": 15,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:01:13.194295+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 110,
+      "new_words": 6,
+      "existing_words": 10,
+      "total_extracted": 16,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:02:01.550213+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 111,
+      "new_words": 5,
+      "existing_words": 23,
+      "total_extracted": 29,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:02:38.891832+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 112,
+      "new_words": 2,
+      "existing_words": 14,
+      "total_extracted": 16,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:03:01.885032+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 113,
+      "new_words": 0,
+      "existing_words": 18,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:03:18.148221+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 114,
+      "new_words": 5,
+      "existing_words": 32,
+      "total_extracted": 37,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:03:54.547038+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 115,
+      "new_words": 6,
+      "existing_words": 7,
+      "total_extracted": 13,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:04:36.444864+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 116,
+      "new_words": 2,
+      "existing_words": 16,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:04:56.526806+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 117,
+      "new_words": 6,
+      "existing_words": 11,
+      "total_extracted": 17,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:05:44.939708+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 118,
+      "new_words": 5,
+      "existing_words": 30,
+      "total_extracted": 36,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:06:28.775120+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 119,
+      "new_words": 14,
+      "existing_words": 19,
+      "total_extracted": 33,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:07:55.719106+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 120,
+      "new_words": 2,
+      "existing_words": 16,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:08:21.090839+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 121,
+      "new_words": 2,
+      "existing_words": 22,
+      "total_extracted": 25,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:08:42.752620+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 122,
+      "new_words": 0,
+      "existing_words": 14,
+      "total_extracted": 14,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:09:01.548486+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 123,
+      "new_words": 5,
+      "existing_words": 37,
+      "total_extracted": 43,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:09:38.425384+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 124,
+      "new_words": 2,
+      "existing_words": 15,
+      "total_extracted": 18,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T09:09:55.614839+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 125,
+      "new_words": 6,
+      "existing_words": 15,
+      "total_extracted": 21,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T21:56:28.592013+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 126,
+      "new_words": 7,
+      "existing_words": 34,
+      "total_extracted": 41,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T21:57:27.701165+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 127,
+      "new_words": 0,
+      "existing_words": 40,
+      "total_extracted": 41,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T21:57:43.937114+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 128,
+      "new_words": 0,
+      "existing_words": 38,
+      "total_extracted": 38,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-02-28T22:10:45.382550+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 129,
+      "new_words": 10,
+      "existing_words": 25,
+      "total_extracted": 38,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-07T06:49:21.250471+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 130,
+      "new_words": 6,
+      "existing_words": 11,
+      "total_extracted": 17,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-07T06:50:17.552824+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 131,
+      "new_words": 1,
+      "existing_words": 20,
+      "total_extracted": 22,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-07T06:50:31.576490+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 132,
+      "new_words": 0,
+      "existing_words": 8,
+      "total_extracted": 8,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-07T06:50:53.494715+00:00",
+      "event": "textbook_page_processed",
+      "upload_id": 133,
+      "new_words": 4,
+      "existing_words": 51,
+      "total_extracted": 56,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-08T07:41:43.683108+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "57bc4636",
+      "page_count": 1,
+      "new_words": 7,
+      "existing_words": 55,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-08T08:09:21.298250+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "1576a95e",
+      "page_count": 2,
+      "new_words": 7,
+      "existing_words": 32,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-09T18:38:26.197148+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "0d4edca1",
+      "page_count": 3,
+      "new_words": 11,
+      "existing_words": 48,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T06:29:43.483174+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "c4112e30",
+      "page_count": 1,
+      "new_words": 2,
+      "existing_words": 52,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T06:35:06.771213+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "de7c3643",
+      "page_count": 1,
+      "new_words": 1,
+      "existing_words": 39,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T07:08:58.760753+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "fc97d674",
+      "page_count": 1,
+      "new_words": 2,
+      "existing_words": 63,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T07:16:07.052811+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "c4756187",
+      "page_count": 1,
+      "new_words": 2,
+      "existing_words": 34,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T07:18:31.695110+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "672494c6",
+      "page_count": 3,
+      "new_words": 0,
+      "existing_words": 61,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T07:21:03.484489+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "86c60e60",
+      "page_count": 3,
+      "new_words": 2,
+      "existing_words": 42,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-11T07:33:07.577306+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "c37d4ff6",
+      "page_count": 1,
+      "new_words": 4,
+      "existing_words": 26,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-14T07:58:14.024175+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "e2e43968",
+      "page_count": 2,
+      "new_words": 18,
+      "existing_words": 22,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-14T08:00:02.680587+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "a5a38a27",
+      "page_count": 5,
+      "new_words": 17,
+      "existing_words": 117,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-21T07:32:02.673648+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "0213b319",
+      "page_count": 2,
+      "new_words": 1,
+      "existing_words": 39,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-21T07:50:21.321361+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "be799446",
+      "page_count": 2,
+      "new_words": 27,
+      "existing_words": 45,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-21T23:43:27.894663+00:00",
+      "event": "book_imported",
+      "story_id": 20,
+      "total_words": 366,
+      "known_count": 200,
+      "readiness_pct": 63.5,
+      "new_words_imported": 129,
+      "page_count": 18,
+      "sentence_count": 99,
+      "metadata": {
+        "title_ar": "أمير الأطباء",
+        "title_en": "Prince of Physicians",
+        "author": "نوار عضايلة",
+        "series": null,
+        "level": null
+      }
+    },
+    {
+      "ts": "2026-03-22T08:22:45.144201+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "53c1d874",
+      "page_count": 2,
+      "new_words": 26,
+      "existing_words": 46,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-26T19:00:35.468108+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "df0a1cc1",
+      "page_count": 4,
+      "new_words": 19,
+      "existing_words": 67,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-28T07:08:37.154510+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "cbb61831",
+      "page_count": 7,
+      "new_words": 17,
+      "existing_words": 166,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-28T09:40:51.918417+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "ef32057a",
+      "page_count": 2,
+      "new_words": 6,
+      "existing_words": 52,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-29T08:17:24.404542+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "d807da31",
+      "page_count": 1,
+      "new_words": 4,
+      "existing_words": 69,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-29T08:26:29.014206+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "92f6cc45",
+      "page_count": 2,
+      "new_words": 2,
+      "existing_words": 55,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-29T08:42:25.118069+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "bd7cdf6f",
+      "page_count": 1,
+      "new_words": 5,
+      "existing_words": 48,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-29T09:31:50.505897+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "b9339dd5",
+      "page_count": 8,
+      "new_words": 19,
+      "existing_words": 186,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-03-29T09:39:48.892540+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "57e679f0",
+      "page_count": 1,
+      "new_words": 1,
+      "existing_words": 17,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-03T07:53:22.405130+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "7bec114e",
+      "page_count": 5,
+      "new_words": 22,
+      "existing_words": 173,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-04T06:09:15.129989+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "f608da50",
+      "page_count": 1,
+      "new_words": 12,
+      "existing_words": 91,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-04T06:41:06.086532+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "222c9e98",
+      "page_count": 1,
+      "new_words": 7,
+      "existing_words": 70,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-05T05:55:09.949986+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "ba0d6084",
+      "page_count": 8,
+      "new_words": 18,
+      "existing_words": 270,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-05T08:11:29.760013+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "1710b148",
+      "page_count": 2,
+      "new_words": 22,
+      "existing_words": 49,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-12T20:37:03.429290+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "5335228b",
+      "page_count": 14,
+      "new_words": 74,
+      "existing_words": 278,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-18T11:36:01.421961+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "1d785e59",
+      "page_count": 3,
+      "new_words": 35,
+      "existing_words": 100,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-26T06:19:40.746929+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "f235e7b1",
+      "page_count": 5,
+      "new_words": 24,
+      "existing_words": 190,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-26T17:31:05.964790+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "cd97394b",
+      "page_count": 4,
+      "new_words": 115,
+      "existing_words": 235,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-04-26T21:39:29.553161+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "8daea4ae",
+      "page_count": 10,
+      "new_words": 27,
+      "existing_words": 227,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-03T06:33:34.123399+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "99b2e959",
+      "page_count": 1,
+      "new_words": 0,
+      "existing_words": 39,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-03T06:33:39.412002+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "6078f8bd",
+      "page_count": 1,
+      "new_words": 0,
+      "existing_words": 33,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-10T05:51:59.118111+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "5158c8d8",
+      "page_count": 1,
+      "new_words": 0,
+      "existing_words": 23,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-13T18:22:26.505624+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "2e6ec3bf",
+      "page_count": 6,
+      "new_words": 10,
+      "existing_words": 58,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-13T20:16:01.375445+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "2e6ec3bf",
+      "page_count": 6,
+      "new_words": 0,
+      "existing_words": 26,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-13T20:52:17.697169+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "2e6ec3bf",
+      "page_count": 6,
+      "new_words": 6,
+      "existing_words": 111,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-14T08:44:24.162101+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "e5bead1f",
+      "page_count": 19,
+      "new_words": 65,
+      "existing_words": 394,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-17T17:48:32.619434+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "9b5106b7",
+      "page_count": 9,
+      "new_words": 24,
+      "existing_words": 261,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-23T07:07:33.680697+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "26d267cf",
+      "page_count": 10,
+      "new_words": 1,
+      "existing_words": 274,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-05-25T10:00:27.912233+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "2b3137f7",
+      "page_count": 9,
+      "new_words": 15,
+      "existing_words": 162,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-06-02T14:20:12.622636+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "17ae550a",
+      "page_count": 2,
+      "new_words": 21,
+      "existing_words": 98,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-06-07T11:38:06.118907+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "0cd19dc0",
+      "page_count": 20,
+      "new_words": 11,
+      "existing_words": 99,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-06-07T16:36:36.887366+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "bd9e498f",
+      "page_count": 8,
+      "new_words": 9,
+      "existing_words": 71,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-06-07T22:10:55.020885+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "6cdfd0e2",
+      "page_count": 34,
+      "new_words": 41,
+      "existing_words": 681,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-07-17T15:00:40.889958+00:00",
+      "event": "textbook_batch_processed",
+      "batch_id": "45d1a7ab",
+      "page_count": 55,
+      "new_words": 128,
+      "existing_words": 694,
+      "variants_detected": 0
+    },
+    {
+      "ts": "2026-08-02T20:45:29.387734+00:00",
+      "event": "processed_book_imported",
+      "story_id": 240,
+      "page_count": 3,
+      "total_words": 255,
+      "new_lemmas": 36
+    },
+    {
+      "ts": "2026-08-02T21:55:17.296609+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "looked_up_count": 1,
+      "reading_time_ms": 963621,
+      "newly_known": 10,
+      "scheduled": 1,
+      "reviewed_good": 75,
+      "reviewed_again": 0,
+      "skipped": 1
+    },
+    {
+      "ts": "2026-08-03T15:52:28.014365+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "reader_policy": "guided",
+      "sentence_indices": [
+        0,
+        1,
+        2
+      ],
+      "looked_up_count": 1,
+      "reading_time_ms": 23503,
+      "newly_known": 0,
+      "scheduled": 0,
+      "box2_floor": 0,
+      "reviewed_again": 1,
+      "dont_learn": 0,
+      "guided_inert": 0,
+      "guided_started": 0,
+      "skipped": 0
+    },
+    {
+      "ts": "2026-08-03T20:06:15.991682+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "reader_policy": "guided",
+      "sentence_indices": [
+        3
+      ],
+      "looked_up_count": 1,
+      "reading_time_ms": 62769,
+      "newly_known": 0,
+      "scheduled": 0,
+      "box2_floor": 1,
+      "reviewed_again": 1,
+      "dont_learn": 0,
+      "guided_inert": 6,
+      "guided_started": 0,
+      "skipped": 0
+    },
+    {
+      "ts": "2026-08-03T20:08:33.509023+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "reader_policy": "guided",
+      "sentence_indices": [
+        3
+      ],
+      "looked_up_count": 6,
+      "reading_time_ms": 135870,
+      "newly_known": 0,
+      "scheduled": 0,
+      "box2_floor": 0,
+      "reviewed_again": 6,
+      "dont_learn": 0,
+      "guided_inert": 5,
+      "guided_started": 0,
+      "skipped": 0
+    },
+    {
+      "ts": "2026-08-03T20:10:33.326403+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "reader_policy": "guided",
+      "sentence_indices": [
+        3
+      ],
+      "looked_up_count": 3,
+      "reading_time_ms": 118272,
+      "newly_known": 0,
+      "scheduled": 0,
+      "box2_floor": 0,
+      "reviewed_again": 3,
+      "dont_learn": 0,
+      "guided_inert": 13,
+      "guided_started": 0,
+      "skipped": 0
+    },
+    {
+      "ts": "2026-08-22T10:41:33.720914+00:00",
+      "event": "book_page_completed",
+      "story_id": 240,
+      "page_number": 1,
+      "reader_policy": "guided",
+      "sentence_indices": [
+        3
+      ],
+      "looked_up_count": 3,
+      "reading_time_ms": 54363,
+      "newly_known": 0,
+      "scheduled": 0,
+      "box2_floor": 0,
+      "reviewed_again": 3,
+      "dont_learn": 0,
+      "guided_inert": 5,
+      "guided_started": 0,
+      "skipped": 0
+    }
+  ],
+  "book_reader_metadata": [
+    {
+      "id": 240,
+      "title": "Momo — Chapter Five",
+      "reader": {
+        "pages": {
+          "1": {
+            "completed_at": "2026-08-02T21:55:17.209137+00:00",
+            "looked_up_lemma_ids": [
+              4539
+            ],
+            "reading_time_ms": 963621,
+            "client_review_id": "book:240:page:1",
+            "counts": {
+              "newly_known": 10,
+              "scheduled": 1,
+              "reviewed_good": 75,
+              "reviewed_again": 0,
+              "skipped": 1
+            }
+          }
+        },
+        "last_page": 1,
+        "passages": {
+          "1:tokens:0-10": {
+            "completed_at": "2026-08-03T15:52:28.004378+00:00",
+            "reader_policy": "guided",
+            "sentence_indices": [
+              0,
+              1,
+              2
+            ],
+            "passage_token_positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "unknown_lemma_ids": [
+              361
+            ],
+            "unknown_token_positions": [],
+            "dont_learn_token_positions": [],
+            "learn_token_positions": [],
+            "inert_token_positions": [],
+            "reading_time_ms": 23503,
+            "client_review_id": "bp:240:1:0-10:guided:msdeqfo2",
+            "counts": {
+              "newly_known": 0,
+              "scheduled": 0,
+              "box2_floor": 0,
+              "reviewed_again": 1,
+              "dont_learn": 0,
+              "guided_inert": 0,
+              "guided_started": 0,
+              "skipped": 0
+            }
+          },
+          "1:tokens:11-51": {
+            "completed_at": "2026-08-03T20:06:15.980274+00:00",
+            "reader_policy": "guided",
+            "sentence_indices": [
+              3
+            ],
+            "passage_token_positions": [
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41,
+              42,
+              43,
+              44,
+              45,
+              46,
+              47,
+              48,
+              49,
+              50,
+              51
+            ],
+            "unknown_lemma_ids": [
+              4550
+            ],
+            "unknown_token_positions": [],
+            "dont_learn_token_positions": [],
+            "learn_token_positions": [],
+            "inert_token_positions": [
+              14,
+              17,
+              21,
+              27,
+              39,
+              51
+            ],
+            "reading_time_ms": 62769,
+            "client_review_id": "bp:240:1:11-51:guided:msdeqfje",
+            "counts": {
+              "newly_known": 0,
+              "scheduled": 0,
+              "box2_floor": 1,
+              "reviewed_again": 1,
+              "dont_learn": 0,
+              "guided_inert": 6,
+              "guided_started": 0,
+              "skipped": 0
+            }
+          },
+          "1:tokens:52-92": {
+            "completed_at": "2026-08-03T20:08:33.467505+00:00",
+            "reader_policy": "guided",
+            "sentence_indices": [
+              3
+            ],
+            "passage_token_positions": [
+              52,
+              53,
+              54,
+              55,
+              56,
+              57,
+              58,
+              59,
+              60,
+              61,
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69,
+              70,
+              71,
+              72,
+              73,
+              74,
+              75,
+              76,
+              77,
+              78,
+              79,
+              80,
+              81,
+              82,
+              83,
+              84,
+              85,
+              86,
+              87,
+              88,
+              89,
+              90,
+              91,
+              92
+            ],
+            "unknown_lemma_ids": [
+              389,
+              2175,
+              2551,
+              4358,
+              4557,
+              4565
+            ],
+            "unknown_token_positions": [],
+            "dont_learn_token_positions": [],
+            "learn_token_positions": [],
+            "inert_token_positions": [
+              54,
+              55,
+              64,
+              88,
+              91
+            ],
+            "reading_time_ms": 135870,
+            "client_review_id": "bp:240:1:52-92:guided:msdeqf5a",
+            "counts": {
+              "newly_known": 0,
+              "scheduled": 0,
+              "box2_floor": 0,
+              "reviewed_again": 6,
+              "dont_learn": 0,
+              "guided_inert": 5,
+              "guided_started": 0,
+              "skipped": 0
+            }
+          },
+          "1:tokens:93-133": {
+            "completed_at": "2026-08-03T20:10:33.309743+00:00",
+            "reader_policy": "guided",
+            "sentence_indices": [
+              3
+            ],
+            "passage_token_positions": [
+              93,
+              94,
+              95,
+              96,
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109,
+              110,
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133
+            ],
+            "unknown_lemma_ids": [
+              408,
+              2628,
+              2631
+            ],
+            "unknown_token_positions": [],
+            "dont_learn_token_positions": [],
+            "learn_token_positions": [],
+            "inert_token_positions": [
+              93,
+              103,
+              105,
+              111,
+              112,
+              113,
+              119,
+              122,
+              124,
+              127,
+              130,
+              131,
+              133
+            ],
+            "reading_time_ms": 118272,
+            "client_review_id": "bp:240:1:93-133:guided:msdeqep9",
+            "counts": {
+              "newly_known": 0,
+              "scheduled": 0,
+              "box2_floor": 0,
+              "reviewed_again": 3,
+              "dont_learn": 0,
+              "guided_inert": 13,
+              "guided_started": 0,
+              "skipped": 0
+            }
+          },
+          "1:tokens:134-151": {
+            "completed_at": "2026-08-22T10:41:33.705844+00:00",
+            "reader_policy": "guided",
+            "sentence_indices": [
+              3
+            ],
+            "passage_token_positions": [
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              141,
+              142,
+              143,
+              144,
+              145,
+              146,
+              147,
+              148,
+              149,
+              150,
+              151
+            ],
+            "unknown_lemma_ids": [
+              693,
+              4363,
+              4570
+            ],
+            "unknown_token_positions": [],
+            "dont_learn_token_positions": [],
+            "learn_token_positions": [],
+            "inert_token_positions": [
+              137,
+              141,
+              142,
+              144,
+              146
+            ],
+            "reading_time_ms": 54363,
+            "client_review_id": "bp:240:1:134-151:guided:msdeqe8m",
+            "counts": {
+              "newly_known": 0,
+              "scheduled": 0,
+              "box2_floor": 0,
+              "reviewed_again": 3,
+              "dont_learn": 0,
+              "guided_inert": 5,
+              "guided_started": 0,
+              "skipped": 0
+            }
+          }
+        },
+        "location": {
+          "page_number": 1,
+          "sentence_index": null,
+          "token_position": 152
+        }
+      }
+    }
+  ],
+  "grammar_exposure_rows": 45,
+  "grammar_feature_count": 49,
+  "log_manifest": [
+    {
+      "name": "interactions_2026-02-08.jsonl",
+      "bytes": 192222,
+      "sha256": "18a3d40d0843b82def6df51f334536ad286e863b6770a93a4424bacc6c270129"
+    },
+    {
+      "name": "interactions_2026-02-09.jsonl",
+      "bytes": 201931,
+      "sha256": "b20d97e271a278b4e2350455744263d435ace6e7797ebacf40b74fb0a0198b92"
+    },
+    {
+      "name": "interactions_2026-02-10.jsonl",
+      "bytes": 36488,
+      "sha256": "16441399f7f58e613d9a92a136eb35d555b862b4e4dfdff5f679d451dc3324cf"
+    },
+    {
+      "name": "interactions_2026-02-11.jsonl",
+      "bytes": 111257,
+      "sha256": "aa16b6624aad22d3238b908019b3c2d4758df9033f9e976ae8856f65a84258de"
+    },
+    {
+      "name": "interactions_2026-02-12.jsonl",
+      "bytes": 315245,
+      "sha256": "ee7ebafe93a07de826ddb35b4094855505af8955e341ac0165cf329f110791fd"
+    },
+    {
+      "name": "interactions_2026-02-13.jsonl",
+      "bytes": 229683,
+      "sha256": "da9a3e4c67c844c2c419ac2810c3e2000729ef00d58f38bbeb76245bc8dea4e4"
+    },
+    {
+      "name": "interactions_2026-02-14.jsonl",
+      "bytes": 94581,
+      "sha256": "6b73b7abd21fd23988755256faa73ff3603f8e10801e17af6f435b2e9a8c654f"
+    },
+    {
+      "name": "interactions_2026-02-15.jsonl",
+      "bytes": 67612,
+      "sha256": "c6a7069832e9aec944b791af7eba47b5156268d7b7b8d933aa70c0824427e039"
+    },
+    {
+      "name": "interactions_2026-02-16.jsonl",
+      "bytes": 131540,
+      "sha256": "e4356bc6666834d0bb9b68fad7319afdb234a67fa4c73fe8de70d516765abf92"
+    },
+    {
+      "name": "interactions_2026-02-17.jsonl",
+      "bytes": 54965,
+      "sha256": "49b89d999c250a57e893d2b34553f886354858dfc62ce53a9457e527dfb2ccf9"
+    },
+    {
+      "name": "interactions_2026-02-18.jsonl",
+      "bytes": 81443,
+      "sha256": "18d15d27c19fea1001a6e97e7941ac6f76b0f2a377307758cd809217cef593f6"
+    },
+    {
+      "name": "interactions_2026-02-19.jsonl",
+      "bytes": 87574,
+      "sha256": "2591503e038a962faa7eb6349ce02bb6f380ccdb5a6024a86605d4cc0f2aa7a0"
+    },
+    {
+      "name": "interactions_2026-02-20.jsonl",
+      "bytes": 135061,
+      "sha256": "8150daf4b4f6c8ae97996d85ada3a8ff445ebb017642758e3b613dd0bcd423be"
+    },
+    {
+      "name": "interactions_2026-02-21.jsonl",
+      "bytes": 62731,
+      "sha256": "34c65d42bced5be0e6a72e973ba1001a372627bf7066b13eddf8b1e6528002b2"
+    },
+    {
+      "name": "interactions_2026-02-22.jsonl",
+      "bytes": 141098,
+      "sha256": "2cdf1107b7f9f50eca20ed524a53fb0e6e33c0eeff1a665151c97caecb0a433a"
+    },
+    {
+      "name": "interactions_2026-02-23.jsonl",
+      "bytes": 142488,
+      "sha256": "6613d2910c6cbba295c3ae372013ac79ec0a37afc2d201c4515fdb8964ab625d"
+    },
+    {
+      "name": "interactions_2026-02-24.jsonl",
+      "bytes": 71159,
+      "sha256": "26057eed59fc8f151329c56743df326af8f16ec615911c30ce3b0b9addb17ffa"
+    },
+    {
+      "name": "interactions_2026-02-25.jsonl",
+      "bytes": 34961,
+      "sha256": "b75aad970a17d0f62441f65515c02a31ae4ea2148a507511c660360574856e1f"
+    },
+    {
+      "name": "interactions_2026-02-26.jsonl",
+      "bytes": 39429,
+      "sha256": "6c035dabe23e855ef665aa545bff0cf29450ec14b979623fca47eaef0dd090a5"
+    },
+    {
+      "name": "interactions_2026-02-27.jsonl",
+      "bytes": 70698,
+      "sha256": "365b1285a3f911b18cfbb1ba688413979d948b44fa1c03a4a32f3067caac9ecd"
+    },
+    {
+      "name": "interactions_2026-02-28.jsonl",
+      "bytes": 82490,
+      "sha256": "723a2a3c0df35602e14d74e90a419a328a3e18ff033355eceb5f805c5e3bd2b6"
+    },
+    {
+      "name": "interactions_2026-03-01.jsonl",
+      "bytes": 66999,
+      "sha256": "531433876bd86be3d3c89f4b79c767c7106af736c74447dc8edbfe5f88fcb855"
+    },
+    {
+      "name": "interactions_2026-03-02.jsonl",
+      "bytes": 117154,
+      "sha256": "168b03d7b4fdf4cf32d2bba3d618c4e4fc0a99a110feaa779360d3443e3223cc"
+    },
+    {
+      "name": "interactions_2026-03-03.jsonl",
+      "bytes": 144982,
+      "sha256": "8b51bb1712ff2b8b6bd4a0c8156855b8ef5a1311c01a8ca2c91164479a06ac9a"
+    },
+    {
+      "name": "interactions_2026-03-04.jsonl",
+      "bytes": 40321,
+      "sha256": "ff3752a554c401b7b8becf598437bc16202d6bbb51f4d6e423cc35ef520ea062"
+    },
+    {
+      "name": "interactions_2026-03-05.jsonl",
+      "bytes": 195549,
+      "sha256": "247a32503f0774714762aec3675003717dbddc97d7f72805d3a94f9c11d1409a"
+    },
+    {
+      "name": "interactions_2026-03-06.jsonl",
+      "bytes": 73217,
+      "sha256": "89eb4502a48e101978db9bc6393c0fe8ad1b162ea87e33305b8ad6d28448c76b"
+    },
+    {
+      "name": "interactions_2026-03-07.jsonl",
+      "bytes": 131367,
+      "sha256": "c555a089485cb3ec450f8f1a8242e39a765892201032a8d25bfca2dba4be240a"
+    },
+    {
+      "name": "interactions_2026-03-08.jsonl",
+      "bytes": 105765,
+      "sha256": "c17b0243378d3ca35700a2d9b470479854a6cd39f958403f2fb9347a8e2ce015"
+    },
+    {
+      "name": "interactions_2026-03-09.jsonl",
+      "bytes": 157132,
+      "sha256": "5f4939b0a0b2ef71fec23d06a7c3ef3012597bc87129d64764c0f9b860ff054e"
+    },
+    {
+      "name": "interactions_2026-03-10.jsonl",
+      "bytes": 124603,
+      "sha256": "7006231943bcb2cb3a7067137afa4e2f76d9b74ef47f85b5522082097e62602f"
+    },
+    {
+      "name": "interactions_2026-03-11.jsonl",
+      "bytes": 89545,
+      "sha256": "3d84c9877848d5f8390b3077b616d62932d88c482bfe8a074b725a574ee314ad"
+    },
+    {
+      "name": "interactions_2026-03-12.jsonl",
+      "bytes": 94131,
+      "sha256": "9c0b8b42718612c089c6b12e0e54859629f76e8bb3e3c753151eeee5d2be1a7e"
+    },
+    {
+      "name": "interactions_2026-03-13.jsonl",
+      "bytes": 98466,
+      "sha256": "508bdcbd688a32bbe3d936fdb57bf260a236511dc0988f2ac2a7a60d1767d785"
+    },
+    {
+      "name": "interactions_2026-03-14.jsonl",
+      "bytes": 92958,
+      "sha256": "00480164c906f4c75e0af007dc48e5756695a39dd079075b8b8d0e2816f55ae7"
+    },
+    {
+      "name": "interactions_2026-03-15.jsonl",
+      "bytes": 105415,
+      "sha256": "4ca1e6711e4b74397c6b20e2a4f805c08c930000bef0cc75708b0b70ca18c650"
+    },
+    {
+      "name": "interactions_2026-03-16.jsonl",
+      "bytes": 68845,
+      "sha256": "9e8e457f7fa7497ca85043203ae1cca910742fb463de94e2daa22d5a28bb32ba"
+    },
+    {
+      "name": "interactions_2026-03-17.jsonl",
+      "bytes": 118263,
+      "sha256": "0f85f7a77dbc5056c082b658ebddaa682f328c475bb929ea267d196e9ff984ef"
+    },
+    {
+      "name": "interactions_2026-03-18.jsonl",
+      "bytes": 107360,
+      "sha256": "113d25f4badcb58caffa8b9bc70b573e255b095e85848554a747a8ba726d334b"
+    },
+    {
+      "name": "interactions_2026-03-19.jsonl",
+      "bytes": 37930,
+      "sha256": "4189b53a2a9dd08943f3eaa3b56a2dc0d1777c31249da7761ce00137e50b7fdd"
+    },
+    {
+      "name": "interactions_2026-03-20.jsonl",
+      "bytes": 142977,
+      "sha256": "deb407e27d600c6d167a267c26a8ced5165f160105378605172d9d8437856b95"
+    },
+    {
+      "name": "interactions_2026-03-21.jsonl",
+      "bytes": 166658,
+      "sha256": "7d771401593825166e167eb7adcefae0c17c07f44ae4630acc235b7f3b851166"
+    },
+    {
+      "name": "interactions_2026-03-22.jsonl",
+      "bytes": 81172,
+      "sha256": "8a6df351347d11c7f6d257fade9c1c517e55a4d1157663e2e2c213bf6fea160b"
+    },
+    {
+      "name": "interactions_2026-03-23.jsonl",
+      "bytes": 192904,
+      "sha256": "3480b9ef62cbbfab64ad86c48f6c345a7630bb10de826035d7513c6eeb4dd348"
+    },
+    {
+      "name": "interactions_2026-03-24.jsonl",
+      "bytes": 178220,
+      "sha256": "afdd4e6bd9afba3988ca15870207fa1c8cf83852737b3f35820f0f18a0e25f2c"
+    },
+    {
+      "name": "interactions_2026-03-25.jsonl",
+      "bytes": 88445,
+      "sha256": "35cc5d57dc593995cdd7ed3d959b1a7c019f74162a632d8273e262b164a093a9"
+    },
+    {
+      "name": "interactions_2026-03-26.jsonl",
+      "bytes": 194656,
+      "sha256": "32fb095c1b8435887ffe299ae4a2a8448005aeb51db46a1c4768b9d6cfd45044"
+    },
+    {
+      "name": "interactions_2026-03-27.jsonl",
+      "bytes": 183021,
+      "sha256": "e60f77554a3639c94fb141823273ff6fdd595d478604f7530a8f85bd2d234b29"
+    },
+    {
+      "name": "interactions_2026-03-28.jsonl",
+      "bytes": 165913,
+      "sha256": "94c7f51b2b2d10dd231fb040a8d7c544502419d8bff89bf2d8a44e09448902c2"
+    },
+    {
+      "name": "interactions_2026-03-29.jsonl",
+      "bytes": 93810,
+      "sha256": "5a81f708d3cdd0eefe9304337b244fb36b11e773a0ed56f74b35706298348fdd"
+    },
+    {
+      "name": "interactions_2026-03-30.jsonl",
+      "bytes": 238301,
+      "sha256": "7e253a48e578aed4f2d01cfecd6249a306e148c8c070cb1242535dd9c4710c10"
+    },
+    {
+      "name": "interactions_2026-03-31.jsonl",
+      "bytes": 116511,
+      "sha256": "0ae772c4fc265ea9a9511a7f5e3b0f106d486e49c5339ac225f90c02840f42e0"
+    },
+    {
+      "name": "interactions_2026-04-01.jsonl",
+      "bytes": 554302,
+      "sha256": "83d9298e21ad84a7f5751f9f8e5c91343e07b187cd13609a796769ab975e3409"
+    },
+    {
+      "name": "interactions_2026-04-02.jsonl",
+      "bytes": 82213,
+      "sha256": "f3d1a69f95511a320f8fd4d05672435047964a699e8b6b923b559b76cbfa4a26"
+    },
+    {
+      "name": "interactions_2026-04-03.jsonl",
+      "bytes": 152841,
+      "sha256": "e10df31a64618286a48be4baf58cec137c62b3652554a501ff66ff495e4351f5"
+    },
+    {
+      "name": "interactions_2026-04-04.jsonl",
+      "bytes": 122968,
+      "sha256": "611a909a6db78d019db1e7eee303ed46ac42ce0a79a788d56b6fd005a458d5d9"
+    },
+    {
+      "name": "interactions_2026-04-05.jsonl",
+      "bytes": 122499,
+      "sha256": "aedd90a13a3240f29b691758b225d7bebccca5a00cfab96d44628679aff3821a"
+    },
+    {
+      "name": "interactions_2026-04-06.jsonl",
+      "bytes": 191,
+      "sha256": "e9b100afedaf19480cdd0ff9bdbfa2c8d553da760d20339ab089859903cbf27b"
+    },
+    {
+      "name": "interactions_2026-04-07.jsonl",
+      "bytes": 93987,
+      "sha256": "cc8ea2df896743d4186f0a6087a344edabf1b32c6fbd8f0b1b4fdff5e5386735"
+    },
+    {
+      "name": "interactions_2026-04-08.jsonl",
+      "bytes": 215164,
+      "sha256": "8a1ce8cd5cc63666a3a2ca87acd7034e775f94dcef495ebad3a835a0add24424"
+    },
+    {
+      "name": "interactions_2026-04-09.jsonl",
+      "bytes": 89867,
+      "sha256": "4636a02bc927a1c2dec2abe0b6d4c713996228c529ba42c1e30374adaa45c209"
+    },
+    {
+      "name": "interactions_2026-04-10.jsonl",
+      "bytes": 216042,
+      "sha256": "0d4995fbea5100dd8c99b529e2835cdb43b96e0bab54b840e3e9b8f2ec9067a1"
+    },
+    {
+      "name": "interactions_2026-04-11.jsonl",
+      "bytes": 197889,
+      "sha256": "d23dde6ccf799f19467f4a5815ff30458e77afbc2bac3618988e9dc86336caad"
+    },
+    {
+      "name": "interactions_2026-04-12.jsonl",
+      "bytes": 271144,
+      "sha256": "d99bc11fd8d9b1e9e83ee462303bc6fb535c71542571d54f5d28dc675534af91"
+    },
+    {
+      "name": "interactions_2026-04-13.jsonl",
+      "bytes": 140457,
+      "sha256": "9a2a9b7979ce67c222cdf8152dc708d8b50d19e97eb3f965e6c3ecf378cd31e6"
+    },
+    {
+      "name": "interactions_2026-04-14.jsonl",
+      "bytes": 102099,
+      "sha256": "cf8f9f6d615428b1f089a09e18150aceab8c6b5a2d03de76713705dbf70ba498"
+    },
+    {
+      "name": "interactions_2026-04-15.jsonl",
+      "bytes": 196708,
+      "sha256": "61354f51a6d80a8401cda9c3a854f64e7824ffdef56844d831df2f417d3b32d7"
+    },
+    {
+      "name": "interactions_2026-04-16.jsonl",
+      "bytes": 92838,
+      "sha256": "ac7b24e6192c22a9b7edd6bd6a71c6349d9f06473384780f8b77d3f77fc00cbd"
+    },
+    {
+      "name": "interactions_2026-04-17.jsonl",
+      "bytes": 114527,
+      "sha256": "d5d641ddba60d2c24f755b4804cba63a342993de4be6a99e09c9b432f1502c5c"
+    },
+    {
+      "name": "interactions_2026-04-18.jsonl",
+      "bytes": 177889,
+      "sha256": "c861076b6fe50bcc802bb11bc405a4f4c9368c65aae8222240bef482ea750417"
+    },
+    {
+      "name": "interactions_2026-04-19.jsonl",
+      "bytes": 105044,
+      "sha256": "0e99f70936a6598ebbe7c29389454ca6cd091a7117f8f5d6cf4de558bdce4a73"
+    },
+    {
+      "name": "interactions_2026-04-20.jsonl",
+      "bytes": 226081,
+      "sha256": "14076c6aad0a88cf306e2460868b0cb90e11791f17033507245f8bc3d40e2d61"
+    },
+    {
+      "name": "interactions_2026-04-21.jsonl",
+      "bytes": 195469,
+      "sha256": "8c745a32aa2cbf620ceb97e282c8987390b4e2bcc541c7d63098be3f6f2e620d"
+    },
+    {
+      "name": "interactions_2026-04-22.jsonl",
+      "bytes": 146933,
+      "sha256": "3fc5e30b63bd7b86cf146bb273d288a40e4f58968c6d28c5896a40ba337648b5"
+    },
+    {
+      "name": "interactions_2026-04-23.jsonl",
+      "bytes": 154579,
+      "sha256": "980a6058eebeded2dfa08f1cdaa95e8d2c4d4cf38cd234fd67bb81d69603c8bf"
+    },
+    {
+      "name": "interactions_2026-04-24.jsonl",
+      "bytes": 76645,
+      "sha256": "85e0f0f8cd6f9725230197c13bd6c3abfa06eb1aead0e60ee8328075f8772682"
+    },
+    {
+      "name": "interactions_2026-04-25.jsonl",
+      "bytes": 102168,
+      "sha256": "c65cd71fa249b671ef00dfc9baa12b3cc18af8d87dc47df1e58fb1a51022c790"
+    },
+    {
+      "name": "interactions_2026-04-26.jsonl",
+      "bytes": 69443,
+      "sha256": "2ec0aba50cd7a9e3efd8ed1994cbd1b98fd1026262487a417ed93fcd4d5f3c42"
+    },
+    {
+      "name": "interactions_2026-04-27.jsonl",
+      "bytes": 135398,
+      "sha256": "8819b75800b167067998c7cac7fddf224ad9bade782e15922857c8c423d6a643"
+    },
+    {
+      "name": "interactions_2026-04-28.jsonl",
+      "bytes": 197291,
+      "sha256": "5698751ae6f1efad6267003cb46567efbe1e3f43463811d5a0e46b47ba704f38"
+    },
+    {
+      "name": "interactions_2026-04-29.jsonl",
+      "bytes": 127145,
+      "sha256": "16b88058ebc13a40d58a70c1fb93f57750f570e67d0f0de9911b93beadd051be"
+    },
+    {
+      "name": "interactions_2026-04-30.jsonl",
+      "bytes": 132014,
+      "sha256": "e60a1a5d5e60b23205755b169c1533cb2657e2d81cfb2d77fd1f4a2211ae84c0"
+    },
+    {
+      "name": "interactions_2026-05-01.jsonl",
+      "bytes": 152494,
+      "sha256": "ba26b60ffef6bc07282d724235aef3ebb48f32dd40cd8219c185e63d97b3b466"
+    },
+    {
+      "name": "interactions_2026-05-02.jsonl",
+      "bytes": 184731,
+      "sha256": "700293066a79b0c06c72d623e86ed0bcdf83284e6f8493edfbfecf1572642fd7"
+    },
+    {
+      "name": "interactions_2026-05-03.jsonl",
+      "bytes": 106410,
+      "sha256": "0a2a4ce3e723547a1e599886e6f4f14ced1807deb438ec58938b95f8dfb27f80"
+    },
+    {
+      "name": "interactions_2026-05-04.jsonl",
+      "bytes": 254226,
+      "sha256": "e0ac8aef90d6e00ee15900dd5562dfc1184811b4b4da8688db1050d8f7c54a33"
+    },
+    {
+      "name": "interactions_2026-05-05.jsonl",
+      "bytes": 143359,
+      "sha256": "7bf166677b6e834bd692280e7367635f9429fcd7ed80994a574ad12cdfe94b78"
+    },
+    {
+      "name": "interactions_2026-05-06.jsonl",
+      "bytes": 231064,
+      "sha256": "130b20a9a85bfbc6b697c1446f3b1e66ae50f680822404d0bfda4778a7eadc70"
+    },
+    {
+      "name": "interactions_2026-05-07.jsonl",
+      "bytes": 321349,
+      "sha256": "7e2b319f85a8dd5d4bf9a973078106aa841df453ccd0e1bdcff63f9fbf4dd3c9"
+    },
+    {
+      "name": "interactions_2026-05-08.jsonl",
+      "bytes": 253078,
+      "sha256": "5ce3e0e8371382f1d20e6f8e5f20c814abca7c0f1c730d3d81100087510ea47f"
+    },
+    {
+      "name": "interactions_2026-05-09.jsonl",
+      "bytes": 228190,
+      "sha256": "5891f9012226cf02d40b5ad60ad1b83fea2cda7842ecf113d188f8e544755b72"
+    },
+    {
+      "name": "interactions_2026-05-10.jsonl",
+      "bytes": 299599,
+      "sha256": "73d95005611a130d84fda01cc0011493e296053f0c630982cda4b34ed21fa385"
+    },
+    {
+      "name": "interactions_2026-05-11.jsonl",
+      "bytes": 167009,
+      "sha256": "b89100a6d275dc58853407809f1e93142e8e51f3b6be8a9e16534675291a5a2c"
+    },
+    {
+      "name": "interactions_2026-05-12.jsonl",
+      "bytes": 233258,
+      "sha256": "c2645791972661597b92a8a855db0c98b3274fa46fb4d1d5f47d646a69af6f85"
+    },
+    {
+      "name": "interactions_2026-05-13.jsonl",
+      "bytes": 253072,
+      "sha256": "b0fda75ea88c1bbf2f3ef6ab3e10d8a61bfba6d100a1784c82b8c1b6d69962e8"
+    },
+    {
+      "name": "interactions_2026-05-14.jsonl",
+      "bytes": 179381,
+      "sha256": "2ec4627c84e679968f1e6503013db9f52e561e84e07eb65de29ee612efca65c6"
+    },
+    {
+      "name": "interactions_2026-05-15.jsonl",
+      "bytes": 388910,
+      "sha256": "3c697015d4c3920e3071bb504683d2b4c77bf74ecab529e75327530f662b8d0f"
+    },
+    {
+      "name": "interactions_2026-05-16.jsonl",
+      "bytes": 199037,
+      "sha256": "ba250e3ffc5193a094aaf07983354178e9f8acaaa643c6c72ef4b1fd8555d5d1"
+    },
+    {
+      "name": "interactions_2026-05-17.jsonl",
+      "bytes": 117440,
+      "sha256": "e396e46289b71b9539744ad55c85524a4938a2e3d5c41ffac652ec6b5d7b923d"
+    },
+    {
+      "name": "interactions_2026-05-18.jsonl",
+      "bytes": 354128,
+      "sha256": "9ac4c5385caf5b42e60c649b05244d99e467a56d355c299a90d278d6254d93a6"
+    },
+    {
+      "name": "interactions_2026-05-19.jsonl",
+      "bytes": 247989,
+      "sha256": "338f11e5906387a2871efe46cb4a80520d7358c3045cf367065512dbe1ea0d8f"
+    },
+    {
+      "name": "interactions_2026-05-20.jsonl",
+      "bytes": 378418,
+      "sha256": "536759b336e2f395aca1820584701579ce93c47b436f9e841e628b7fd9631762"
+    },
+    {
+      "name": "interactions_2026-05-21.jsonl",
+      "bytes": 197760,
+      "sha256": "ac07ebfd9d6997b5f9ba61ed4cc98ee54f87a2ee865906cf6d79f9ebcca48487"
+    },
+    {
+      "name": "interactions_2026-05-22.jsonl",
+      "bytes": 140537,
+      "sha256": "001f193d68d8be737c5c161da632c2d9b4b3c01a0c136a21b1faae28688346aa"
+    },
+    {
+      "name": "interactions_2026-05-23.jsonl",
+      "bytes": 164705,
+      "sha256": "8ee88bcf1b95286ab8d6d74438459c445bb47c6831c07a9b4ab1154957d9dc4f"
+    },
+    {
+      "name": "interactions_2026-05-24.jsonl",
+      "bytes": 80426,
+      "sha256": "9fcd0e812f34fd68de1d50829c53ee25f970b0a31a836df25dfd3bf5d6fa0fa7"
+    },
+    {
+      "name": "interactions_2026-05-25.jsonl",
+      "bytes": 139257,
+      "sha256": "200abebc102ade9c6778187bd0434fde9512c1e23bf3f9dbc1a3bc4f55348515"
+    },
+    {
+      "name": "interactions_2026-05-26.jsonl",
+      "bytes": 343314,
+      "sha256": "eff4052d01ff8ec0b0250b68fb48175c4de6fabda279c59129bf27b9d0bd9a2d"
+    },
+    {
+      "name": "interactions_2026-05-27.jsonl",
+      "bytes": 301111,
+      "sha256": "1485bcb0fd556b31055735337cd56a17853808e3ad1e1497ce428b136ae9cb5a"
+    },
+    {
+      "name": "interactions_2026-05-28.jsonl",
+      "bytes": 275406,
+      "sha256": "d0c64a12769058451c75b62e9080a57a47d1867032f27866f0b0ac6a69d7288c"
+    },
+    {
+      "name": "interactions_2026-05-29.jsonl",
+      "bytes": 199414,
+      "sha256": "8fafbd2cb1aa2c34355b8f907b24221ea7cbfaa977874c0d729d668fea4c3d04"
+    },
+    {
+      "name": "interactions_2026-05-30.jsonl",
+      "bytes": 174964,
+      "sha256": "6e8352d88fe19877917956d9a2e62174cf18c850a5abbd276077284e54a9ce99"
+    },
+    {
+      "name": "interactions_2026-05-31.jsonl",
+      "bytes": 85954,
+      "sha256": "a2073ec77110711ef20146b061804f03516a40c99f0ef73f2a73e8c6524835da"
+    },
+    {
+      "name": "interactions_2026-06-01.jsonl",
+      "bytes": 405536,
+      "sha256": "f607e29c4a583abff91d1e29abd94c36b3167d75775ebac7a0634e0a7d7e9516"
+    },
+    {
+      "name": "interactions_2026-06-02.jsonl",
+      "bytes": 238974,
+      "sha256": "fe30c13ccb7b3f7c542803e520e4e80e723cbc269e028a82b01d6048ccd8fdb9"
+    },
+    {
+      "name": "interactions_2026-06-03.jsonl",
+      "bytes": 269179,
+      "sha256": "e2e64289a4e0605f69d0b3e07c25b79d95710381792c05cfa4e9becc8f4eeb9e"
+    },
+    {
+      "name": "interactions_2026-06-04.jsonl",
+      "bytes": 238459,
+      "sha256": "48721a3b06c8cd9578e9b7d7f807f9f2c7786d319227d456033dece5b80c63f6"
+    },
+    {
+      "name": "interactions_2026-06-05.jsonl",
+      "bytes": 154277,
+      "sha256": "904218018f39f881f17ffce02487afe87a65710f30a5320d7de55f725b6eec64"
+    },
+    {
+      "name": "interactions_2026-06-06.jsonl",
+      "bytes": 235652,
+      "sha256": "506358e4229614e795e6d48d25605ddf709cbbfed8e8bac3d0c0b91f72f0803c"
+    },
+    {
+      "name": "interactions_2026-06-07.jsonl",
+      "bytes": 257743,
+      "sha256": "b7a80f4962d09013bc4acaddb1628a7965670ff8e8b788e689dd907ea7703da4"
+    },
+    {
+      "name": "interactions_2026-06-08.jsonl",
+      "bytes": 237213,
+      "sha256": "4bcad97cc3644e04768a8da19fd11064e46a9820b74610c91c0c3b9f8fe4dcfa"
+    },
+    {
+      "name": "interactions_2026-06-09.jsonl",
+      "bytes": 104773,
+      "sha256": "949adcc4000ff535fdb1f06fb6cd882268d38527146ae0baa3fe3a63ec0e7b80"
+    },
+    {
+      "name": "interactions_2026-06-10.jsonl",
+      "bytes": 294545,
+      "sha256": "a27f102da43f5e369b655f2ca8f955cd49fe7802a130bd7a7d500301b20c8d3e"
+    },
+    {
+      "name": "interactions_2026-06-11.jsonl",
+      "bytes": 128351,
+      "sha256": "64f308bb7322d7d05fdac74af56a6b1f3750f1c4a7c70829524c14d248ac898b"
+    },
+    {
+      "name": "interactions_2026-06-12.jsonl",
+      "bytes": 38234,
+      "sha256": "103f8b60c51cf60235a64b720c1e8991aa6f84bfab2d35ece7efe5954f9b00bc"
+    },
+    {
+      "name": "interactions_2026-06-13.jsonl",
+      "bytes": 447533,
+      "sha256": "23db22f3677f37c6839ec93d38813ec63657e88da0a7c66904bd28bce7f855aa"
+    },
+    {
+      "name": "interactions_2026-06-14.jsonl",
+      "bytes": 225212,
+      "sha256": "f3c8963658ca29faa9a837c73386c7b65065b2d67f5e0f3bc405efeede331209"
+    },
+    {
+      "name": "interactions_2026-06-15.jsonl",
+      "bytes": 195567,
+      "sha256": "f2df88493a390dbdce6fc47073e796fc6ecd2ac2f662089439c02d051f898b11"
+    },
+    {
+      "name": "interactions_2026-06-16.jsonl",
+      "bytes": 133879,
+      "sha256": "86281479942a3ac900fa3b08c1d896e34d5ab7a869a281a3c96901f6c67b230f"
+    },
+    {
+      "name": "interactions_2026-06-17.jsonl",
+      "bytes": 183631,
+      "sha256": "231d4ce96e1e0730e2866289c19d48834f0ad9ec57de7a679976c9b73dbbe9ab"
+    },
+    {
+      "name": "interactions_2026-06-18.jsonl",
+      "bytes": 118074,
+      "sha256": "efc51e0457d6a408d00169c9ca1be4c7874ab9000dac88fb9c1024aab217a7fd"
+    },
+    {
+      "name": "interactions_2026-06-19.jsonl",
+      "bytes": 131989,
+      "sha256": "b481f8f04ac08f8d979de00af5af10f297fca0b510cc2e6165ac7d1b09c82e23"
+    },
+    {
+      "name": "interactions_2026-06-20.jsonl",
+      "bytes": 235777,
+      "sha256": "ddb132def287f9bab12eed0ed5992aca15fd70051e47213a2552085f4c6a20be"
+    },
+    {
+      "name": "interactions_2026-06-21.jsonl",
+      "bytes": 175302,
+      "sha256": "04cbfa1f1ce41bdb803d84eb212270f3beca0bdd78e84ae18af05cba6c64db6b"
+    },
+    {
+      "name": "interactions_2026-06-22.jsonl",
+      "bytes": 66844,
+      "sha256": "1a2271701d4ca9d89cc853ecdb42397383fb71c0c458fee73bfec2668af79765"
+    },
+    {
+      "name": "interactions_2026-06-23.jsonl",
+      "bytes": 101678,
+      "sha256": "12240a28e3793d7c259b51d53f971a9e9765884e0c2252885e93c267e7784e61"
+    },
+    {
+      "name": "interactions_2026-06-24.jsonl",
+      "bytes": 186445,
+      "sha256": "eba26766847af95ec934f46887c48075e2b32b784fa8de1216cafeec474d953a"
+    },
+    {
+      "name": "interactions_2026-06-25.jsonl",
+      "bytes": 81663,
+      "sha256": "8e565c03fd9b60d8dae78aa3a4dab0b8766cfa1c0f7eb8786e1db0bca48d4880"
+    },
+    {
+      "name": "interactions_2026-06-26.jsonl",
+      "bytes": 169,
+      "sha256": "52355af64972bef9121d3f929591c5f82736cc42914f8d9ea3764e7021bd7aec"
+    },
+    {
+      "name": "interactions_2026-06-27.jsonl",
+      "bytes": 71858,
+      "sha256": "605ab0834e12e5d4161775f9928bee8232242342b0f3b53c9623bd6a67c13166"
+    },
+    {
+      "name": "interactions_2026-06-28.jsonl",
+      "bytes": 23606,
+      "sha256": "5d4d436c839d6b4ad8e82045d971d5652647782472af37e71444b3e5045b7e4a"
+    },
+    {
+      "name": "interactions_2026-06-29.jsonl",
+      "bytes": 46013,
+      "sha256": "ec9823ad0791dce3842a084025c7cb6155fe338a8a80c816b5c45eeff27eb6c7"
+    },
+    {
+      "name": "interactions_2026-06-30.jsonl",
+      "bytes": 33953,
+      "sha256": "dd21d5b723ab6bcc358871fb73f8d4bb338b12373c664f8bc51ffa6452ac68d1"
+    },
+    {
+      "name": "interactions_2026-07-01.jsonl",
+      "bytes": 10485,
+      "sha256": "b80d3ac7ea17b8521f4b598dea191586733f16dc92734454cf80ecbfe806435a"
+    },
+    {
+      "name": "interactions_2026-07-03.jsonl",
+      "bytes": 170,
+      "sha256": "c8a24f95185326f837ed6cd35729e41f65bdeda1e9fa6d9bfe231526d637a934"
+    },
+    {
+      "name": "interactions_2026-07-04.jsonl",
+      "bytes": 509,
+      "sha256": "be5ebf21bd888531157e295691dd62678cac4278de99c5c4160e42d7206e0f66"
+    },
+    {
+      "name": "interactions_2026-07-05.jsonl",
+      "bytes": 158616,
+      "sha256": "0b02fc86bf86e9f3a2f87f9231bae03dbaf98482c158f86abfbb247498c70fad"
+    },
+    {
+      "name": "interactions_2026-07-07.jsonl",
+      "bytes": 512,
+      "sha256": "2283849787d18bc1b627b849d066b9a5933dd4b330a8ce2f3e38bf9b615c989a"
+    },
+    {
+      "name": "interactions_2026-07-08.jsonl",
+      "bytes": 158092,
+      "sha256": "975710b867816c5a5b1c2b3b303d210832f250784a8c1f3e58427eebb0bc94cb"
+    },
+    {
+      "name": "interactions_2026-07-09.jsonl",
+      "bytes": 201001,
+      "sha256": "ef34e1fb84145477c86cc9921f4211ab82eaecbffd797d146ebba3e847b825aa"
+    },
+    {
+      "name": "interactions_2026-07-10.jsonl",
+      "bytes": 168320,
+      "sha256": "0ca8dc4dc6aaefecc3dcdb4440a6c53ea020b7c52aa5b1dce208d912a6a8ef96"
+    },
+    {
+      "name": "interactions_2026-07-11.jsonl",
+      "bytes": 61783,
+      "sha256": "0a971a8746349213360cc05a118f2d6e3fceab10c6783ebb468582410bd36005"
+    },
+    {
+      "name": "interactions_2026-07-12.jsonl",
+      "bytes": 67700,
+      "sha256": "d297258f02fb32d48bf4c2dcdd7343bde58ed254f236f6d87c86928dbb6d6ac7"
+    },
+    {
+      "name": "interactions_2026-07-13.jsonl",
+      "bytes": 179332,
+      "sha256": "b4ec9a082db48207fa70289e1da9af2b6f59c606b03b4842c434c8b2281c8f3b"
+    },
+    {
+      "name": "interactions_2026-07-14.jsonl",
+      "bytes": 114810,
+      "sha256": "76e820ed0ddf5e4fd3f817a00bbbb50b17e18969940b801f5ed45fcefeaa05bd"
+    },
+    {
+      "name": "interactions_2026-07-15.jsonl",
+      "bytes": 305866,
+      "sha256": "f7d99351f4c5c1a775a3841f2dea205fe03356689b604f34908283d2fe4e024d"
+    },
+    {
+      "name": "interactions_2026-07-16.jsonl",
+      "bytes": 132202,
+      "sha256": "0ced4b4e18c1d34e4beb444c70d4f37644d58c002cdf4c1c9486d061aa838eea"
+    },
+    {
+      "name": "interactions_2026-07-17.jsonl",
+      "bytes": 152635,
+      "sha256": "9e159e883dd03967c4953f33272653a275e7582751e60ce99e837cec93de5dc8"
+    },
+    {
+      "name": "interactions_2026-07-18.jsonl",
+      "bytes": 132300,
+      "sha256": "f5c26ef8c00776cb361c91e67568fec0193e23cb8cc67ae87ae1d0aa1d9d76f6"
+    },
+    {
+      "name": "interactions_2026-07-19.jsonl",
+      "bytes": 136664,
+      "sha256": "a3f187388ef732458a2df408523c44253125d2bf31ac3e4f8c7afea9067b0c87"
+    },
+    {
+      "name": "interactions_2026-07-20.jsonl",
+      "bytes": 121543,
+      "sha256": "3e96743184b71c67b864b409cf221c546ca04c611a30cdcaebebd40e306e7e53"
+    },
+    {
+      "name": "interactions_2026-07-21.jsonl",
+      "bytes": 251266,
+      "sha256": "c31ffe0e9cb58c168b87050477dfe9a7d8ecb90a2ad3ed190812949fb759bc61"
+    },
+    {
+      "name": "interactions_2026-07-22.jsonl",
+      "bytes": 175041,
+      "sha256": "5dd63ad84d99b1dcd3c5c95d1bb46c127f5642f1001de3ca93b144a93c364207"
+    },
+    {
+      "name": "interactions_2026-07-23.jsonl",
+      "bytes": 109709,
+      "sha256": "579e9b34b50508e550c73a749fd6ca4bae8ba40bd872982b7868e7f93f5ffbed"
+    },
+    {
+      "name": "interactions_2026-07-24.jsonl",
+      "bytes": 86018,
+      "sha256": "e3971e1dc971a28c60e512b6876a30ce6f4d2f1ed5dca0b9e19a1ad0fcb670a4"
+    },
+    {
+      "name": "interactions_2026-07-25.jsonl",
+      "bytes": 478465,
+      "sha256": "f14309fbb12935e7f7a8a76abc9d5b5ba361e096d7f2550d82bf7001ad89f06f"
+    },
+    {
+      "name": "interactions_2026-07-26.jsonl",
+      "bytes": 86134,
+      "sha256": "a514e4412045975f6883906c6819a90543ba4254c317294c6ac42891ebbcd1bc"
+    },
+    {
+      "name": "interactions_2026-07-27.jsonl",
+      "bytes": 395372,
+      "sha256": "f3f4ce97cea1513c4e3f3059e8fcf4801583db4c3b363c4bb8486b0671dd72b4"
+    },
+    {
+      "name": "interactions_2026-07-28.jsonl",
+      "bytes": 195049,
+      "sha256": "c8542619eaac1fbbc90247208ce197d2e293f2673295bfb5271985559fff351a"
+    },
+    {
+      "name": "interactions_2026-07-29.jsonl",
+      "bytes": 309800,
+      "sha256": "5aa8e9a4ad982fdd5f21cad0bc4fb3073fe2525ec1576a37376173ca7f378f71"
+    },
+    {
+      "name": "interactions_2026-07-30.jsonl",
+      "bytes": 113190,
+      "sha256": "391c231705a607265308a41475f0976e626c430ba2dadd3a172496e9500e7492"
+    },
+    {
+      "name": "interactions_2026-07-31.jsonl",
+      "bytes": 213961,
+      "sha256": "9137f9fc091d15f10f42048398eb39f1958d07aa7c7341f7c916adc5bb9498f7"
+    },
+    {
+      "name": "interactions_2026-08-01.jsonl",
+      "bytes": 241461,
+      "sha256": "f8a350553426adc02a3309919803c21c2c9d49f64d4d7b56dcc7101ee9fcd646"
+    },
+    {
+      "name": "interactions_2026-08-02.jsonl",
+      "bytes": 101958,
+      "sha256": "bf428f16682d72be2160d33c84fbdf4a11a4cbf22c69b4c81c1b935688ac1031"
+    },
+    {
+      "name": "interactions_2026-08-03.jsonl",
+      "bytes": 331461,
+      "sha256": "385378b27a73877fc7b26739c2ba7c5a57b02e6ee2e174bd28f88315c7ef1a62"
+    },
+    {
+      "name": "interactions_2026-08-04.jsonl",
+      "bytes": 219360,
+      "sha256": "3cddaed8f7862734277665488f0e302ecd08c17327636eaabab7c5a98331cf71"
+    },
+    {
+      "name": "interactions_2026-08-05.jsonl",
+      "bytes": 78882,
+      "sha256": "812a8e4048b8a9d3b1d09dfbddbc0803a65c22b4c6748b69f475d65191d07bc6"
+    },
+    {
+      "name": "interactions_2026-08-06.jsonl",
+      "bytes": 60883,
+      "sha256": "571b95af351ec153ff0a9abb032f2373e1b6349d12cd6cddd09f5e657e69bea7"
+    },
+    {
+      "name": "interactions_2026-08-07.jsonl",
+      "bytes": 52106,
+      "sha256": "37f74f54648c2bab8136a34a2db565337bcf6b2f7259f98e229c881b8fccbb52"
+    },
+    {
+      "name": "interactions_2026-08-08.jsonl",
+      "bytes": 407443,
+      "sha256": "2381a3dc511c6990763f8c84e26b7e09ba96d64766d21290d8e266096fb0a7b8"
+    },
+    {
+      "name": "interactions_2026-08-09.jsonl",
+      "bytes": 150937,
+      "sha256": "6420f190feb8ca76f6023e7e63c09ee8e1aa3fdc1607aff060995d382bd97d58"
+    },
+    {
+      "name": "interactions_2026-08-10.jsonl",
+      "bytes": 461383,
+      "sha256": "6884664820d31e8bd536d2d6230c8d11395402d1b5b7f60404dc7c022b92fe5d"
+    },
+    {
+      "name": "interactions_2026-08-11.jsonl",
+      "bytes": 98902,
+      "sha256": "0c1099126e9178970a7a0066e4ebadba392d61e5b6789c6d6928a995fa0596c7"
+    },
+    {
+      "name": "interactions_2026-08-12.jsonl",
+      "bytes": 36278,
+      "sha256": "4d7df9305d547763f47d109e1140f6236e220d4087c61818f52c8918bb4656ab"
+    },
+    {
+      "name": "interactions_2026-08-13.jsonl",
+      "bytes": 2088,
+      "sha256": "f892daf49739b27c0f99a4dd102f884e8202417c18bb6c3bcd71b4e3a09e59ba"
+    },
+    {
+      "name": "interactions_2026-08-14.jsonl",
+      "bytes": 2105,
+      "sha256": "135a533f02d9784fb415ee298a6b30d454f9e9f76cb49fcb5a5a559aa26f02b4"
+    },
+    {
+      "name": "interactions_2026-08-15.jsonl",
+      "bytes": 82639,
+      "sha256": "5f34b1aa233333e27efe8ba06d1ec1788cc7e7ec7eede2cad483a2ad1916acbb"
+    },
+    {
+      "name": "interactions_2026-08-16.jsonl",
+      "bytes": 93936,
+      "sha256": "e4e02da6a0db1d6d8b649c2604b9857f9458071ebcc73f0697e1e2e95a5df7f0"
+    },
+    {
+      "name": "interactions_2026-08-17.jsonl",
+      "bytes": 140319,
+      "sha256": "41df7244e74af475eca43852b5e77032e5157df64ca64754e5b9584e96f656c0"
+    },
+    {
+      "name": "interactions_2026-08-18.jsonl",
+      "bytes": 230085,
+      "sha256": "57a90e43deff617b845808d2a5de4a69e5c35d2aca382453decb36858b3ea8b5"
+    },
+    {
+      "name": "interactions_2026-08-19.jsonl",
+      "bytes": 1566,
+      "sha256": "3c2dd46b28aec9c1afb54b899ed09e44f63fa719c8081613b89fda86329a656c"
+    },
+    {
+      "name": "interactions_2026-08-20.jsonl",
+      "bytes": 395293,
+      "sha256": "24a3c980bc0d3c1bcf3b935764f45246edd14a2f337442ece014dc6229d28a86"
+    },
+    {
+      "name": "interactions_2026-08-21.jsonl",
+      "bytes": 50446,
+      "sha256": "dfefd93f4f15d14577bb5617d59e9685551c885d4345951d61cafc513c58f435"
+    },
+    {
+      "name": "interactions_2026-08-22.jsonl",
+      "bytes": 58778,
+      "sha256": "da2b03e67abb82c7972d0046412e21a86481b304ef33feb1fef75817758430af"
+    },
+    {
+      "name": "interactions_2026-08-23.jsonl",
+      "bytes": 2173,
+      "sha256": "21475ad16b2a6a876e7b2fde5678e7cd5043d0a5b372788fc93c651af839755e"
+    },
+    {
+      "name": "interactions_2026-08-24.jsonl",
+      "bytes": 345284,
+      "sha256": "5e02cc23e12d09786c12ba322c558062bc5e492395aa45d101a7715485379a61"
+    },
+    {
+      "name": "interactions_2026-08-25.jsonl",
+      "bytes": 74135,
+      "sha256": "e6fc1b40263807dc2345fd671c08d930277ebb368ee0fa7365ca4b92a468233d"
+    },
+    {
+      "name": "interactions_2026-08-26.jsonl",
+      "bytes": 2122,
+      "sha256": "a3d314a74344ec8139b050e499e1ba6280557d1ff005bae66a795457c944c8df"
+    },
+    {
+      "name": "interactions_2026-08-27.jsonl",
+      "bytes": 141978,
+      "sha256": "a3fa0d059ed41012eba8022b695152f85bbfe3659270bc853e458de8e2e3f1a0"
+    },
+    {
+      "name": "interactions_2026-08-28.jsonl",
+      "bytes": 86846,
+      "sha256": "a7ca87a42228bb69355e6a27a7db1dca91bad7d44c77468b01217bcb54048d08"
+    },
+    {
+      "name": "interactions_2026-08-29.jsonl",
+      "bytes": 73002,
+      "sha256": "862314ed660c217ab3357054f944950c14b1a92a4b760ccb0d3336ab06b8bdf6"
+    },
+    {
+      "name": "interactions_2026-08-30.jsonl",
+      "bytes": 59915,
+      "sha256": "3766d4e297798671f43f8947a93df8deb8b03eb0fcf21260fd9957636c2abdd1"
+    },
+    {
+      "name": "interactions_2026-08-31.jsonl",
+      "bytes": 198667,
+      "sha256": "378ee82ba7f2e95722b6f3e657c042f497fb50f2ec43547eaf88659f4a173d45"
+    },
+    {
+      "name": "interactions_2026-09-01.jsonl",
+      "bytes": 228212,
+      "sha256": "39a6dfa6f3c9a86cf8beb93e4404dddd841ec8dc81c4af43e5643016b03eb62b"
+    },
+    {
+      "name": "interactions_2026-09-02.jsonl",
+      "bytes": 85077,
+      "sha256": "7fe45807264e9d5ac31b85aa47f62267e513e73cc11701c98d1b35d97d8bccfb"
+    },
+    {
+      "name": "interactions_2026-09-03.jsonl",
+      "bytes": 344911,
+      "sha256": "76f798621e18acacb229473040031d50f7ef045579db9aa4c8643c8720b2bc61"
+    },
+    {
+      "name": "interactions_2026-09-04.jsonl",
+      "bytes": 156537,
+      "sha256": "15486f6ca32e53a9396ef0f164e726b9e09f3db38bbe66502826895152de8cc1"
+    },
+    {
+      "name": "interactions_2026-09-05.jsonl",
+      "bytes": 797,
+      "sha256": "4d59107155d59d48efe0bd19ef2dace84df42c3d16c8843d5394dd13088e4196"
+    }
+  ]
+}
