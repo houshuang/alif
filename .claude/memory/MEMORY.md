@@ -41,6 +41,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Confusion-capture feature live](feedback_cluster_detection_limit.md) — `confusion_captures` table + picker (PR #167); analysis after ≥50 captures.
 
 ## Alif — Arabic NLP gotchas
+- [NULL frequency rank ≠ rare](reference_frequency_rank_coverage.md) — a path bug left 1,700 lemmas unranked 2026-03-31→09-18; check rank coverage (and whether the backfill ran) before any rarity analysis or rule.
 - [Display headword must be citation form](feedback_display_headword_citation_form.md) — `lemma_ar` (card display) needs no ال + singular; scans leak surface forms (الْكَهْف, آثَار). Guard in `finalize_new_lemmas` strips al- safely; plurals logged for review. Caught 2026-06-13.
 - [CAMeL MLE feminine ة → 3ms_poss misread](feedback_camel_mle_fem_ta_marbuta_misread.md) — any LLM gate over CAMeL MLE output must warn about this; 22/33 false "valid" canonicals.
 - [Quran dagger-alef (U+0670) strip-order bug](feedback_quran_dagger_alef_normalization.md) — normalize before stripping or خَٰلِدُونَ collapses to the name Khaldūn. PR #186.
