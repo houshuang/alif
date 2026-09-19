@@ -20,12 +20,9 @@ import {
   bookPassageDraftKey,
   bookReaderLocationKey,
   bookReaderModeKey,
-  countGuidedLearningWords,
-  guidedTokenTapAction,
   isBookTokenMarked,
   parseBookPassageDraft,
   parseBookReaderLocation,
-  positionsForSameGuidedWord,
   positionsForSameUnmappedSurface,
   sameBookToken,
   shortBookGloss,
@@ -301,40 +298,8 @@ function StandardBookPageScreen() {
     setLookupError(false);
   }
 
-  function toggleGuidedLearning(token: BookPageToken) {
-    const positions = positionsForSameGuidedWord(visibleTokens, token);
-    setDraft((current) => {
-      if (!current) return current;
-      const alreadySelected = positions.some((position) => (
-        current.learnTokenPositions.includes(position)
-      ));
-      return {
-        ...current,
-        learnTokenPositions: alreadySelected
-          ? current.learnTokenPositions.filter((position) => !positions.includes(position))
-          : Array.from(new Set([...current.learnTokenPositions, ...positions])),
-      };
-    });
-  }
-
   async function openToken(token: BookPageToken) {
     if (!draft || !token.is_schedulable) return;
-    if (policy === "guided" && token.reader_gloss_eligible) {
-      const action = guidedTokenTapAction(
-        selectedToken,
-        token,
-        draft.learnTokenPositions,
-      );
-      if (action === "learn") {
-        toggleGuidedLearning(token);
-        return;
-      }
-      if (action === "undo") {
-        toggleGuidedLearning(token);
-        closeToken();
-        return;
-      }
-    }
     if (sameBookToken(selectedToken, token)) {
       closeToken();
       return;
@@ -408,16 +373,6 @@ function StandardBookPageScreen() {
     });
   }
 
-  function markDontLearn(token: BookPageToken) {
-    if (!draft || token.lemma_id != null) return;
-    const positions = positionsForSameUnmappedSurface(visibleTokens, token);
-    setDraft({
-      ...draft,
-      unknownTokenPositions: draft.unknownTokenPositions.filter((position) => !positions.includes(position)),
-      dontLearnTokenPositions: Array.from(new Set([...draft.dontLearnTokenPositions, ...positions])),
-    });
-  }
-
   function moveBackward() {
     if (offset > 0) {
       setOffset((current) => Math.max(0, current - span));
@@ -439,8 +394,8 @@ function StandardBookPageScreen() {
         passage_token_positions: visiblePositionList,
         unknown_lemma_ids: draft.unknownLemmaIds,
         unknown_token_positions: draft.unknownTokenPositions,
-        dont_learn_token_positions: policy === "clean" ? draft.dontLearnTokenPositions : [],
-        learn_token_positions: policy === "guided" ? draft.learnTokenPositions : [],
+        dont_learn_token_positions: [],
+        learn_token_positions: [],
         reading_time_ms: Date.now() - passageStartedAt.current,
         client_review_id: draft.clientReviewId,
       });
@@ -508,18 +463,9 @@ function StandardBookPageScreen() {
   const selectedMarkedUnknown = selectedToken?.lemma_id != null
     ? draft?.unknownLemmaIds.includes(selectedToken.lemma_id) === true
     : selectedToken != null && draft?.unknownTokenPositions.includes(selectedToken.position) === true;
-  const selectedDontLearn = selectedToken != null
-    && selectedToken.lemma_id == null
-    && draft?.dontLearnTokenPositions.includes(selectedToken.position) === true;
   const selectedGuided = policy === "guided"
     && selectedToken?.reader_gloss_eligible === true;
-  const selectedForLearning = selectedToken != null
-    && draft?.learnTokenPositions.includes(selectedToken.position) === true;
   const selectedLemmaAr = lookup?.lemma_ar || selectedToken?.lemma_ar || null;
-  const learningCount = countGuidedLearningWords(
-    visibleTokens,
-    draft?.learnTokenPositions ?? [],
-  );
 
   return (
     <View style={styles.container}>
@@ -563,34 +509,29 @@ function StandardBookPageScreen() {
             <View style={styles.guidedParagraph}>
               {visibleTokens.map((token) => {
                 const marked = isBookTokenMarked(draft, token);
-                const learning = draft?.learnTokenPositions.includes(token.position);
                 const inlineGloss = token.reader_gloss_eligible ? shortBookGloss(token.gloss_en) : null;
                 const inlineLemma = token.reader_gloss_eligible ? token.lemma_ar : null;
                 const displayed = token.show_tashkeel ? token.surface_form : stripDiacritics(token.surface_form);
-                const tapAction = token.reader_gloss_eligible
-                  ? guidedTokenTapAction(selectedToken, token, draft?.learnTokenPositions ?? [])
-                  : null;
                 return (
                   <Pressable
                     key={token.position}
                     onPress={() => openToken(token)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${token.surface_form}${inlineLemma ? `, lemma ${inlineLemma}` : ""}${inlineGloss ? `, ${inlineGloss}` : ""}${tapAction ? `. Tap to ${tapAction === "open" ? "show details" : tapAction === "learn" ? "learn" : "undo and close"}` : ""}`}
+                    accessibilityLabel={`${token.surface_form}${inlineLemma ? `, lemma ${inlineLemma}` : ""}${inlineGloss ? `, ${inlineGloss}` : ""}. Tap for details`}
                     style={[
                       styles.guidedToken,
                       marked && styles.guidedTokenUnknown,
                       selectedToken?.position === token.position && styles.guidedTokenSelected,
-                      learning && styles.guidedTokenLearning,
                     ]}
                   >
-                    <Text style={[styles.guidedArabic, marked && styles.arabicUnknownText, learning && styles.arabicLearning]}>{displayed}</Text>
+                    <Text style={[styles.guidedArabic, marked && styles.arabicUnknownText]}>{displayed}</Text>
                     {(inlineLemma || inlineGloss) && (
                       <View style={styles.inlineHelp} pointerEvents="none">
                         {inlineLemma && (
-                          <Text numberOfLines={1} style={[styles.microLemma, learning && styles.inlineGlossLearning]}>{inlineLemma}</Text>
+                          <Text numberOfLines={1} style={[styles.microLemma]}>{inlineLemma}</Text>
                         )}
                         {inlineGloss && (
-                          <Text numberOfLines={1} style={[styles.microGloss, learning && styles.inlineGlossLearning]}>{inlineGloss}</Text>
+                          <Text numberOfLines={1} style={[styles.microGloss]}>{inlineGloss}</Text>
                         )}
                       </View>
                     )}
@@ -653,35 +594,17 @@ function StandardBookPageScreen() {
             <Text style={styles.lookupGloss}>{lookup?.gloss_en || selectedToken.gloss_en || "Translation unavailable"}</Text>
             <Text style={styles.lookupStatus}>
               {selectedGuided
-                ? selectedForLearning ? "Will learn" : "Not tracked"
+                ? "Available while reading"
                 : selectedToken.lemma_id == null ? "New word" : "Marked unknown"}
             </Text>
           </View>
           {lookupError && <Text style={styles.lookupError}>Full entry unavailable right now. Your mark is still saved.</Text>}
           <View style={styles.lookupActions}>
-            {selectedGuided ? (
-              <Pressable style={[styles.secondaryAction, selectedForLearning && styles.learningAction]} onPress={() => toggleGuidedLearning(selectedToken)}>
-                <Text style={[styles.secondaryActionText, selectedForLearning && styles.learningActionText]}>
-                  {selectedForLearning ? "Learning · Undo" : "Learn"}
-                </Text>
+            {!selectedGuided && selectedMarkedUnknown && (
+              <Pressable style={styles.secondaryAction} onPress={() => undoUnknown(selectedToken)}>
+                <Text style={styles.secondaryActionText}>I knew this · undo</Text>
               </Pressable>
-            ) : <>
-              {selectedMarkedUnknown && (
-                <Pressable style={styles.secondaryAction} onPress={() => undoUnknown(selectedToken)}>
-                  <Text style={styles.secondaryActionText}>I knew this · undo</Text>
-                </Pressable>
-              )}
-              {selectedToken.lemma_id == null && !selectedDontLearn && (
-                <Pressable style={styles.secondaryAction} onPress={() => markDontLearn(selectedToken)}>
-                  <Text style={styles.secondaryActionText}>Don’t learn</Text>
-                </Pressable>
-              )}
-              {selectedDontLearn && (
-                <Pressable style={styles.secondaryAction} onPress={() => openToken(selectedToken)}>
-                  <Text style={styles.secondaryActionText}>Learn after all</Text>
-                </Pressable>
-              )}
-            </>}
+            )}
             {selectedToken.lemma_id != null && (
               <Pressable style={styles.entryAction} onPress={() => router.push(`/word/${selectedToken.lemma_id}`)}>
                 <Text style={styles.entryActionText}>Full entry</Text>
@@ -705,13 +628,7 @@ function StandardBookPageScreen() {
           <Text style={[styles.navButtonText, atBookStart && styles.disabledText]}>Previous</Text>
         </Pressable>
         <View style={styles.footerStatus}>
-          {(unknownCount > 0 || learningCount > 0) && (
-            <Text style={styles.footerStatusText}>
-              {unknownCount > 0 ? `${unknownCount} unknown` : ""}
-              {unknownCount > 0 && learningCount > 0 ? " · " : ""}
-              {learningCount > 0 ? `${learningCount} learning` : ""}
-            </Text>
-          )}
+          {unknownCount > 0 && <Text style={styles.footerStatusText}>{unknownCount} unknown</Text>}
         </View>
         <Pressable disabled={submitting || !draftReady} style={[styles.nextButton, (!draftReady || submitting) && styles.disabled]} onPress={advance}>
           {submitting ? <ActivityIndicator size="small" color="#FFF9ED" /> : <>

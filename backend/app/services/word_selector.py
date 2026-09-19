@@ -49,7 +49,7 @@ DEFAULT_BATCH_SIZE = 3
 # can never bridge the gap between tiers.
 _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
-_TIER_READING_CHOICE = 260.0  # Explicit near-term need; expires after 14 days
+_TIER_READING_RECURRENCE = 260.0  # Repeated need in authentic reading in the last 30 days
 _TIER_TEXTBOOK_SCAN = 0.0     # Provenance does not establish current curriculum priority
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
 # An explicitly selected imported story is active reading curriculum, like a
@@ -599,10 +599,12 @@ def select_next_words(
     ) if root_ids else {}
 
     now = datetime.now(timezone.utc)
-    reading_choice_ids = {
+    from app.services.automatic_attention import READING_REASON, modern_frequency_ranks
+    modern_ranks = modern_frequency_ranks(db)
+    reading_recurrence_ids = {
         lid for lid, in db.query(UserLemmaKnowledge.lemma_id).filter(
             UserLemmaKnowledge.attention_disposition == "maintain",
-            UserLemmaKnowledge.attention_updated_at >= now - timedelta(days=14),
+            UserLemmaKnowledge.attention_reason == READING_REASON,
         )
     }
 
@@ -655,11 +657,12 @@ def select_next_words(
         )
 
         # --- Priority bonus: strict tier system ---
-        # The curated frequency core is the default general-reading curriculum.
-        # It can outrank book/OCR tiers for the top 1k words, while book pages
-        # still compete for lower-ranked core words.
+        # Broad frequency is the default reading prior; actual repeated
+        # reading need takes priority below.
         core_rank = frequency_core_rank_by_id.get(lemma.lemma_id)
-        core_bonus = _frequency_core_bonus(core_rank)
+        # The mixed Quran/fused core remains inventory metadata, not the
+        # learner's present-day reading priority.
+        core_bonus = _frequency_core_bonus(modern_ranks.get(lemma.lemma_id))
         priority_source = ulk_source_by_id.get(lemma.lemma_id) or lemma.source
         priority_bonus = _SOURCE_TIER_BONUS.get(priority_source, 0.0)
         priority_tier = priority_source or "other"
@@ -681,11 +684,11 @@ def select_next_words(
                 priority_tier = f"book_p{page}"
         if core_bonus > priority_bonus:
             priority_bonus = core_bonus
-            priority_tier = f"freq_core_{core_rank}"
+            priority_tier = f"modern_frequency_{modern_ranks[lemma.lemma_id]}"
 
-        if lemma.lemma_id in reading_choice_ids:
-            priority_bonus = _TIER_READING_CHOICE
-            priority_tier = "reading_choice"
+        if lemma.lemma_id in reading_recurrence_ids:
+            priority_bonus = _TIER_READING_RECURRENCE
+            priority_tier = "reading_recurrence"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0

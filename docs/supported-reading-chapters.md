@@ -142,4 +142,4 @@ unset for `scripts/publish-ios-update.sh`; native routing stays unchanged.
 
 ### Reading attention v1 (2026-09-19)
 
-The review screen now links directly to this scheduler-inert reader. The suggested trial is a few reviews followed by a short supported passage within the same attention budget; completing a review queue is not required. Word-detail maintenance choices do not affect chapter access.
+The review screen now links directly to this scheduler-inert reader. The suggested trial is a few reviews followed by a short supported passage within the same attention budget; completing a review queue is not required. Chapter access is independent of maintenance eligibility. Under automatic attention v2, repeated word help in distinct paragraphs can inform later priority when the exact citation identity is unique and gated. The reader itself still awards no scheduled credit and does not enroll words.

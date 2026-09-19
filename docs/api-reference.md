@@ -154,6 +154,6 @@ External-service integration guide (request/response schemas, flow, CORS, cURL):
 Payloads, offline behavior and release constraints: [supported-reading-chapters.md](supported-reading-chapters.md).
 
 
-### Reading attention v1 (2026-09-19)
+### Automatic attention v2 (2026-09-19)
 
-PUT /api/words/{lemma_id}/attention accepts disposition: maintain | reading_support | parked and an optional reason. Resolves canonical identity, preserves existing cards/history, and commits the choice. New/encountered maintenance opt-in uses the daily/recovery cap. GET word detail returns attention_disposition and attention_reason. External discover adds now stage novel vocabulary instead of bypassing the cap.
+PUT /api/words/{lemma_id}/attention now returns 410 for legacy clients: priorities are automatic. GET word detail retains attention_disposition and attention_reason for diagnostics. Fresh non-prefetch sessions reconcile eligibility before building; prefetch is read-only. External discover adds stage novel vocabulary for automatic evaluation, and acquisition retains its recovery/daily cap.

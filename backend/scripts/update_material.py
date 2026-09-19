@@ -1599,6 +1599,10 @@ async def main() -> int:
                 )
             return 0
 
+        from app.services.automatic_attention import refresh_attention
+        attention = refresh_attention(db, apply=not args.dry_run)
+        print(f"  Automatic reading priorities: {len(attention['changes'])} metadata updates")
+
         from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup, tier_summary
         word_tiers = compute_word_tiers(db)
         tier_lk = build_tier_lookup(word_tiers)

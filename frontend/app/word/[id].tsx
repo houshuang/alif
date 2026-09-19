@@ -13,8 +13,8 @@ import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
 import { showMnemonic } from "../../lib/feature-flags";
-import { getWordDetail, setWordAttention, unsuspendWord, flagContent } from "../../lib/api";
-import { AttentionDisposition, WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
+import { getWordDetail, unsuspendWord, flagContent } from "../../lib/api";
+import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
 import { FormsStrip, PatternExamples } from "../../lib/WordCardComponents";
@@ -24,8 +24,6 @@ export default function WordDetailScreen() {
   const [word, setWord] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [savingAttention, setSavingAttention] = useState(false);
-  const [attentionError, setAttentionError] = useState<string | null>(null);
   const router = useRouter();
   const navigation = useNavigation();
 
@@ -57,20 +55,6 @@ export default function WordDetailScreen() {
       console.error("Failed to load word:", e);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function changeAttention(disposition: AttentionDisposition) {
-    if (!word || savingAttention) return;
-    setSavingAttention(true);
-    setAttentionError(null);
-    try {
-      await setWordAttention(word.id, disposition);
-      setWord(await getWordDetail(word.id));
-    } catch {
-      setAttentionError("Could not save. Check your connection and try again.");
-    } finally {
-      setSavingAttention(false);
     }
   }
 
@@ -169,35 +153,6 @@ export default function WordDetailScreen() {
           </Text>
         ))}
       </Text>
-
-      <View style={{ gap: 8, marginVertical: 16 }}>
-        <Text style={{ color: colors.text, fontWeight: "600" }}>Your attention</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {([
-            ["maintain", "Maintain now"],
-            ["reading_support", "Reading support"],
-            ["parked", "Park for later"],
-          ] as const).map(([value, label]) => (
-            <Pressable key={value} accessibilityRole="button"
-              accessibilityState={{ selected: (word.attention_disposition ?? "maintain") === value, disabled: savingAttention }}
-              disabled={savingAttention} onPress={() => void changeAttention(value)}
-              style={{ padding: 12, borderRadius: 8, borderWidth: 1,
-                borderColor: (word.attention_disposition ?? "maintain") === value ? colors.accent : colors.textSecondary }}>
-              <Text style={{ color: (word.attention_disposition ?? "maintain") === value ? colors.accent : colors.textSecondary }}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-          {word.attention_disposition === "reading_support"
-            ? "Available while reading, without recurring reviews. Your learning history is kept."
-            : word.attention_disposition === "parked"
-              ? "Paused until you choose to maintain it again. Your learning history is kept."
-              : word.state === "encountered" || word.state === "new"
-                ? "Selected for learning when your daily allowance has room."
-                : "Eligible for regular review."}
-        </Text>
-        {attentionError && <Text accessibilityRole="alert" style={{ color: colors.missed }}>{attentionError}</Text>}
-      </View>
 
       {word.source_info && (
         <Pressable

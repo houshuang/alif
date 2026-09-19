@@ -1,4 +1,4 @@
-"""Reading attention v1: preserve memory, choose current obligations explicitly."""
+"""Shared scheduling gates for automatically assigned reading attention."""
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -69,5 +69,5 @@ def stage_import(db: Session, knowledge: UserLemmaKnowledge, source: str) -> Non
     """For NEW vocabulary only. Existing commitments must never be overwritten."""
     if source in STAGED_SOURCES:
         knowledge.attention_disposition = "reading_support"
-        knowledge.attention_reason = "Available for reading; maintenance requires explicit opt-in"
+        knowledge.attention_reason = "Available for reading; automatic priority evaluation pending"
         knowledge.attention_updated_at = datetime.now(timezone.utc)

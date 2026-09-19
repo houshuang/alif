@@ -242,6 +242,9 @@ def next_sentences(
     )
     set_session_context(db, context_label)
     with db_operation_context(context_label):
+        if not prefetch:
+            from app.services.automatic_attention import refresh_attention
+            refresh_attention(db)
         base_exclude = set(exclude) if exclude else set()
         result = build_session(
             db, limit=limit, mode=mode,

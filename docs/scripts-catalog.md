@@ -237,3 +237,5 @@ Server-side scripts under `deploy/` (separate from `backend/scripts/`). See `dep
 ### Reading attention v1 (2026-09-19)
 
 scripts/apply_attention_curation.py MANIFEST validates every exact lemma preimage and core link before any write. Dry-run is default; --apply writes only reviewed attention choices/core exclusions and logs them. Initial manifest: research/reading-attention-2026-09-19/initial-curation.json. Back up production first.
+
+- `refresh_attention.py [--apply]` — preview (default) or apply automatic attention v2. Same classifier used by fresh sessions and ordinary `update_material.py` cron before supply planning; scoped corpus-only runs do not reconcile. Only attention metadata and genuinely reading-relevant encountered staging rows change. Back up before initial production application.
