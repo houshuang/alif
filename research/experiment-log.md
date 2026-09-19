@@ -48,6 +48,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-19 — Reading attention v1: production activation verified
+
+Deployed merged main `4ad8f688` ([PR #278](https://github.com/houshuang/alif/pull/278))
+after an online backup, additive migration, NULL-only rank repair and reviewed
+identity curation. Production comparison: all 75,105 reviews and every preexisting
+knowledge column unchanged; 1,476 NULL ranks filled without changing existing
+ranks; three identity-QA candidates parked; three invalid QAC core links excluded.
+No active-learning vocabulary was broadly parked. Live attention endpoints and
+stats verified; pending Box-1/recovery and 0.90-retention changes also now deployed.
+
+iOS preview update `01a0bb29-aee2-7400-9a55-c6f7ce320c90` published from the same
+clean main revision and manifest API URL verified. Browser QA preserved history
+through parking/restoring and verified the supported-reading shortcut. Web service
+responds locally after cache-cleared restart; public port 8081 timed out from the
+release machine. Phone receipt and the two-week reading outcome remain unmeasured.
+See [release record](reading-attention-2026-09-19/README.md) for backup, migration,
+test evidence, OTA group and limits. Do not interpret this activation as a measured
+reading gain or as authorization for a bulk rare-word purge.
+
 ## 2026-09-19 — Reading attention v1: maintenance is an explicit commitment
 
 **Implementation validated; rollout results pending.** [Release record](reading-attention-2026-09-19/README.md). Based on the [production
