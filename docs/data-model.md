@@ -49,3 +49,9 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 ### Reading attention v1 (2026-09-19)
 
 UserLemmaKnowledge adds attention_disposition (non-null, default maintain), attention_reason and attention_updated_at. These describe current maintenance eligibility, not memory state. Migration c9e1a3b5d7f0 preserves every existing card and history row.
+
+Automatic attention v2 now manages these existing fields; there is no additional
+schema change. Reasons beginning `automatic_attention_v2:` explain the current
+decision. Identity-QA parked rows remain excluded. New reading-relevant words can
+receive an encountered staging row; reconciliation never changes existing memory
+fields. Audit transitions are stored as `activity_log.event_type=automatic_attention`.

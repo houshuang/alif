@@ -48,6 +48,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-19 — Automatic attention v2 activated; replacement phone update verified
+
+Deployed PR #280 at `b0969c39` after a fresh stopped-service online backup. Initial
+automatic eligibility result: 67 costly words become reading support (45 active,
+22 suspended), plus 194 unintroduced words; 3,149 stay maintained and the three
+identity-QA holds stay parked. All prior memory fields and 75,105 reviews are
+unchanged; repeat evaluation is idempotent. The existing three-hourly cron and
+fresh sessions keep the policy automatic. No learner classification is required.
+Published/manifest-verified iOS update `01a0bb56-1c7f-7a45-808a-5180936850d9`
+removes the controls; actual phone receipt and reading benefit remain unmeasured.
+See [v2 production record](reading-attention-2026-09-19/README.md#v2-production-verification).
+
 ## 2026-09-19 — Automatic attention v2: remove learner classification work
 
 The learner explicitly rejected manual attention decisions and requested removal

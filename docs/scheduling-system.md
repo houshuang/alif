@@ -2713,6 +2713,8 @@ Also update:
 - `research/experiment-log.md` for algorithm changes
 - `IDEAS.md` for new ideas discovered during implementation
 
+<a id="reading-attention-v1--2026-09-19"></a>
+
 ## Automatic reading attention v2 — 2026-09-19
 
 This section supersedes the brief manual v1 release at the learner’s explicit request.
