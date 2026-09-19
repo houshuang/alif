@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import is_maintained, POLICY_VERSION
 from app.models import (
     ConfusionCapture,
     GrammarFeature,
@@ -342,6 +343,18 @@ def submit_sentence_review(
             effective_lemma_id,
             {lemma_id},
         )
+
+        knowledge = knowledge_map.get(effective_lemma_id)
+        if knowledge and not is_maintained(knowledge):
+            if effective_lemma_id not in processed_effective_ids:
+                processed_effective_ids.add(effective_lemma_id)
+                knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+                log_interaction(event="attention_exposure", policy_version=POLICY_VERSION,
+                                lemma_id=effective_lemma_id, sentence_id=primary_sentence_id,
+                                client_review_id=client_review_id,
+                                comprehension_signal=comprehension_signal,
+                                attention_disposition=knowledge.attention_disposition)
+            continue
 
         # Skip if canonical is suspended (or the variant itself)
         if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:

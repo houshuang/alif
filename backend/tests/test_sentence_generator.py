@@ -381,25 +381,13 @@ class TestSampleKnownWordsWeighted:
         ids = {w["lemma_id"] for w in result}
         assert 5 not in ids
 
-    def test_over_represented_words_deprioritized(self):
-        """Words with high sentence counts should appear less often in samples."""
-        # Make lemmas 0-9 very over-represented
-        counts = {i: 100 for i in range(10)}
-        # Run many samples and check that over-represented words appear less
-        appearances = {i: 0 for i in range(100)}
-        for _ in range(200):
-            sample = sample_known_words_weighted(
-                KNOWN_WORDS_WITH_IDS, counts, sample_size=50
-            )
-            for w in sample:
-                appearances[w["lemma_id"]] += 1
-
-        # Average appearances for over-represented vs normal words
-        overrep_avg = sum(appearances[i] for i in range(10)) / 10
-        normal_avg = sum(appearances[i] for i in range(10, 100)) / 90
-
-        # Over-represented should appear significantly less often
-        assert overrep_avg < normal_avg
+    def test_inventory_deficits_do_not_amplify_background_words(self):
+        import random
+        random.seed(193)
+        baseline = sample_known_words_weighted(KNOWN_WORDS_WITH_IDS, {}, sample_size=50)
+        random.seed(193)
+        skewed = sample_known_words_weighted(KNOWN_WORDS_WITH_IDS, {i: 1000 for i in range(10)}, sample_size=50)
+        assert skewed == baseline
 
     def test_min_weight_prevents_complete_exclusion(self):
         """Even very over-represented words should still appear sometimes."""
@@ -411,21 +399,13 @@ class TestSampleKnownWordsWeighted:
 
 
 class TestAtRiskScaffoldBias:
-    def test_boost_increases_sampling_of_fragile_words(self):
-        """At-risk words should appear more often in the sample than peers with
-        identical corpus frequency."""
-        counts = {i: 10 for i in range(100)}  # all equally represented
-        boost = {i: 3.0 for i in range(10)}   # lemmas 0-9 are at-risk
-        appearances = {i: 0 for i in range(100)}
-        for _ in range(300):
-            sample = sample_known_words_weighted(
-                KNOWN_WORDS_WITH_IDS, counts, sample_size=50, at_risk_boost=boost
-            )
-            for w in sample:
-                appearances[w["lemma_id"]] += 1
-        atrisk_avg = sum(appearances[i] for i in range(10)) / 10
-        normal_avg = sum(appearances[i] for i in range(10, 100)) / 90
-        assert atrisk_avg > normal_avg
+    def test_lapse_risk_does_not_determine_background_importance(self):
+        import random
+        random.seed(193)
+        baseline = sample_known_words_weighted(KNOWN_WORDS_WITH_IDS, {}, sample_size=50)
+        random.seed(193)
+        boosted = sample_known_words_weighted(KNOWN_WORDS_WITH_IDS, {}, sample_size=50, at_risk_boost={i: 100 for i in range(10)})
+        assert boosted == baseline
 
     def test_no_boost_is_unchanged(self):
         """Without a boost map, behaviour matches the un-boosted sampler."""

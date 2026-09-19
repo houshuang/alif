@@ -157,35 +157,14 @@ def sample_known_words_weighted(
     target_lemma_id: int | None = None,
     at_risk_boost: dict[int, float] | None = None,
 ) -> list[dict[str, str]]:
-    """Sample known words with inverse-frequency weighting.
+    """Reading attention v1: diverse scaffold without inventory-deficit pressure.
 
-    Words appearing in many existing sentences get lower probability,
-    biasing generation toward under-represented vocabulary. When
-    ``at_risk_boost`` is supplied, fragile words (lapsed / acquiring /
-    low-stability / recently-missed) have their weight multiplied so they are
-    more likely to enter the sample the LLM may draw scaffold from — squeezing
-    more collateral learning value from each sentence. See
-    ``build_at_risk_boost_map``.
+    Targets already carry the learning work. Scarcity in generated inventory and
+    historical failure do not establish that a background word is useful. Keep
+    arguments for caller compatibility; neither is a sampling weight now.
     """
-    pool = known_words
-    if target_lemma_id is not None:
-        pool = [w for w in known_words if w.get("lemma_id") != target_lemma_id]
-
-    if len(pool) <= sample_size:
-        return pool
-
-    weighted = []
-    for w in pool:
-        lid = w.get("lemma_id")
-        count = content_word_counts.get(lid, 0) if lid else 0
-        weight = max(MIN_WEIGHT, 1.0 / (1 + count))
-        if at_risk_boost and lid:
-            weight *= at_risk_boost.get(lid, 1.0)
-        jittered = weight * random.uniform(0.5, 1.5)
-        weighted.append((jittered, w))
-
-    weighted.sort(key=lambda x: x[0], reverse=True)
-    return [w for _, w in weighted[:sample_size]]
+    pool = [w for w in known_words if w.get("lemma_id") != target_lemma_id]
+    return random.sample(pool, min(max(0, sample_size), len(pool)))
 
 
 def get_avoid_words(

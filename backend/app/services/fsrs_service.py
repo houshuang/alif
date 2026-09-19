@@ -8,6 +8,7 @@ from typing import Optional
 from fsrs import Scheduler, Card, Rating, State
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import is_maintained
 from app.models import Lemma, UserLemmaKnowledge, ReviewLog
 from app.services.learning_policy import low_energy_maintenance_enabled
 
@@ -113,7 +114,7 @@ def reactivate_if_suspended(db: Session, lemma_id: int, source: str) -> bool:
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
-    if ulk and ulk.knowledge_state == "suspended":
+    if ulk and is_maintained(ulk) and ulk.knowledge_state == "suspended":
         ulk.knowledge_state = "learning"
         ulk.fsrs_card_json = create_new_card()
         ulk.source = source
@@ -138,6 +139,8 @@ def submit_review(
     effective_rating_int: Optional[int] = None,
     review_metadata: Optional[dict] = None,
 ) -> dict:
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    lemma_id = resolve_canonical_lemma_id(db, lemma_id)
     if client_review_id:
         existing = (
             db.query(ReviewLog)
@@ -163,6 +166,9 @@ def submit_review(
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
+    if knowledge and not is_maintained(knowledge):
+        return {"lemma_id": lemma_id, "new_state": knowledge.knowledge_state,
+                "next_due": "", "exposure_only": True, "duplicate": False}
     if not knowledge:
         knowledge = UserLemmaKnowledge(
             lemma_id=lemma_id,

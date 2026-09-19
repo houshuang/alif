@@ -2712,3 +2712,55 @@ Also update:
 - `CLAUDE.md` for architectural changes
 - `research/experiment-log.md` for algorithm changes
 - `IDEAS.md` for new ideas discovered during implementation
+
+## Reading attention v1 — 2026-09-19
+
+Attention eligibility is independent of `knowledge_state` and import provenance.
+`UserLemmaKnowledge.attention_disposition` is `maintain` (legacy default),
+`reading_support`, or `parked`. Both non-maintenance values exclude canonical
+words and their variant chains from due counts, recovery debt, cohorts, leech
+reintroduction, intake, generation targets and scaffold. Memory cards, review
+history, state and counts remain intact when the disposition changes. Dictionary
+and supported-reading access remain available. Current knowledge totals include
+parked words; current debt counts exclude them.
+
+**Versioned scheduling exception:** stale/offline sentence reviews preserve
+exact-token `WordReviewEvidence` and increment encounters, but do not create
+scheduled `ReviewLog` rows or update memory for non-maintained words, including
+red/yellow outcomes. Sentence receipts retain retry idempotency. Low-level FSRS
+and acquisition endpoints resolve canonical identity and cannot restart them.
+This adds an explicit exception alongside mature-collateral exposure v1.
+
+New external/book/textbook vocabulary is staged as reading support. Existing
+commitments retain their default. A word-detail maintenance choice or guided
+reader opt-in can enroll; the same 0–2/day recovery allowance applies. A recent
+explicit choice wins intake priority for 14 days (260 points), after which only
+its priority bonus expires; its maintenance choice remains. Old textbook
+provenance has zero priority bonus and cannot itself revive suspension.
+Bookifier and Dragoman now use the same frequency lanes as other artifacts.
+
+Ordinary review sentences containing non-maintained tokens are excluded through
+`reviewable_sentence_clauses`; this does not delete or deactivate stored text.
+Fresh generation omits those words from its prompt pool. Eligible scaffold is
+sampled uniformly, without inverse inventory-count or lapse-risk pressure; this
+removes a demonstrated rarity amplifier without interpreting NULL/>5k as useless.
+A rank-based scaffold rejection cap remains unactivated.
+
+Gate audit (§19.17):
+
+| Gate / route | v1 behavior |
+|---|---|
+| Main/fill comprehensibility, unknown scaffold, book/corpus and due density | Shared sentence eligibility removes opted-out tokens before existing checks |
+| Pipeline backlog, recovery, due stats, cohort and listening | Shared canonical maintenance predicate filters operational rows |
+| Variant resolution and intro/reintro | Variant chains inherit canonical exclusion; explicit intake honors cap |
+| Generated single/multi-target supply, warm cache, deficit refill | Excluded targets/scaffold omitted; no alternate generation path |
+| Sentence and direct reviews, leech recovery | No scheduled credit/resurrection; token ledger and receipts retained |
+| Book Next and story completion | New vocabulary stays support; existing parked words remain inert; explicit opt-in required |
+| OCR and external imports | New support rows; existing commitments preserved |
+| Speculative prefetch | No disposition writes, promotions or intake-budget use |
+| Inert/function words and mapping verification | Existing classification, identity and QA gates unchanged |
+
+The supported-reading shortcut is available during review; finishing the card
+queue is not a prerequisite. Try a few reviews then a short passage within the
+same visit. Evaluate passage completion, help and effort separately from due
+counts. See the rollout record in `research/reading-attention-2026-09-19/`.

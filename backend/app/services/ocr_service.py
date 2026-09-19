@@ -86,6 +86,8 @@ def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge
             times_correct=0,
             total_encounters=1,
             source="textbook_scan",
+            attention_disposition="reading_support",
+            attention_reason="Imported vocabulary; opt in to maintenance",
         )
         db.add(ulk)
         db.flush()

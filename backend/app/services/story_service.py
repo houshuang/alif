@@ -23,6 +23,7 @@ from app.models import (
     StoryWord,
     UserLemmaKnowledge,
 )
+from app.services.attention_policy import is_maintained, set_disposition, maintenance_clause
 from app.services.fsrs_service import submit_review
 from app.services.interaction_logger import log_interaction
 from app.services.llm import (
@@ -131,7 +132,7 @@ def _get_known_words(db: Session) -> list[dict]:
     rows = (
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "acquiring"]))
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "acquiring"]))
         .filter(Lemma.canonical_lemma_id.is_(None))
         .all()
     )
@@ -2679,15 +2680,28 @@ def _complete_book_page(
         ):
             continue
 
+        # Explicit passage opt-in is the only reading action that can enroll.
+        if lemma_id in guided_learn_canonical:
+            ulk = set_disposition(db, lemma_id, "maintain", "Explicit reading opt-in")
+            ulks[lemma_id] = ulk
+        elif ulk is None:
+            ulk = set_disposition(db, lemma_id, "reading_support", "Reading encounter; no maintenance commitment")
+            ulks[lemma_id] = ulk
+        if not is_maintained(ulk):
+            ulk.total_encounters = (ulk.total_encounters or 0) + 1
+            counts["skipped"] += 1
+            continue
+
         if lemma_id in guided_learn_canonical:
             if ulk is None or ulk.knowledge_state in ("encountered", "new"):
                 ulk = start_acquisition(
                     db, lemma_id, source="book", due_immediately=True,
-                    enforce_daily_cap=False,
+                    enforce_daily_cap=True,
                 )
                 ulks[lemma_id] = ulk
-                counts["scheduled"] += 1
-                counts["guided_started"] += 1
+                if ulk.knowledge_state == "acquiring":
+                    counts["scheduled"] += 1
+                    counts["guided_started"] += 1
             continue
 
         if was_unknown:
@@ -2697,16 +2711,20 @@ def _complete_book_page(
             if ulk is None and lemma_id in newly_created_canonical_ids:
                 ulk = start_acquisition(
                     db, lemma_id, source="book", due_immediately=True,
-                    enforce_daily_cap=False,
+                    enforce_daily_cap=True,
                 )
                 ulks[lemma_id] = ulk
                 counts["scheduled"] += 1
             elif ulk is None or ulk.knowledge_state in ("encountered", "new"):
                 ulk = start_acquisition(
                     db, lemma_id, source="book", due_immediately=True,
-                    enforce_daily_cap=False,
+                    enforce_daily_cap=True,
                 )
                 ulks[lemma_id] = ulk
+                if ulk.knowledge_state != "acquiring":
+                    ulk.total_encounters = (ulk.total_encounters or 0) + 1
+                    counts["skipped"] += 1
+                    continue
                 submit_acquisition_review(
                     db, lemma_id, 1, review_mode="reading",
                     comprehension_signal="book_lookup",
@@ -2753,6 +2771,11 @@ def _complete_book_page(
             counts["newly_known"] += 1
             counts["box2_floor"] += 1
         elif ulk.knowledge_state in ("new", "encountered"):
+            ulk = start_acquisition(db, lemma_id, source="book", enforce_daily_cap=True)
+            if ulk.knowledge_state != "acquiring":
+                ulk.total_encounters = (ulk.total_encounters or 0) + 1
+                counts["skipped"] += 1
+                continue
             ulk.knowledge_state = "acquiring"
             ulk.acquisition_box = 2
             ulk.acquisition_next_due = now + BOX_INTERVALS[2]
@@ -3042,12 +3065,17 @@ def complete_story(
                 knowledge_state="encountered",
                 fsrs_card_json=None,
                 source="story_import" if story.source == "imported" else "encountered",
+                attention_disposition="reading_support" if story.source == "imported" else "maintain",
                 total_encounters=1,
             )
             db.add(new_ulk)
             encountered_count += 1
             continue
 
+        if not is_maintained(ulk):
+            ulk.total_encounters = (ulk.total_encounters or 0) + 1
+            encountered_count += 1
+            continue
         if ulk.knowledge_state == "encountered":
             # Already encountered but no FSRS card — just increment encounters
             ulk.total_encounters = (ulk.total_encounters or 0) + 1

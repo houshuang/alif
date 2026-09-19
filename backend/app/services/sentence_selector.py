@@ -20,6 +20,7 @@ from app.services.canonical_resolution import resolve_canonical_via_map
 from app.services.fsrs_service import parse_json_column
 from app.services.transliteration import transliterate_arabic, transliterate_forms
 
+from app.services.attention_policy import maintenance_clause
 from app.models import (
     ConfusionCapture,
     FrequencyCoreEntry,
@@ -1503,7 +1504,7 @@ def _auto_introduce_words(
     box1_count = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 1,
         )
         .count()
@@ -1619,7 +1620,7 @@ def build_session(
     all_knowledge = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state != "suspended",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state != "suspended",
         )
         .all()
     )
@@ -3573,7 +3574,7 @@ def _dynamic_intro_cap(db: Session) -> int:
     unintro_count = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
             UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
         )

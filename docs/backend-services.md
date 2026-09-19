@@ -104,3 +104,8 @@ exact resolver before any stripped-bare, CAMeL, LLM, or creation fallback.
 ## Supported chapter reading
 
 `reading_chapters.py` serves immutable editorial chapter content and records isolated reading events. Voice notes are validated, stored atomically as content-addressed files, and referenced from `ReadingPilotEvent`. No scheduler or vocabulary mutations. See [supported-reading-chapters.md](supported-reading-chapters.md).
+
+
+### Reading attention v1 (2026-09-19)
+
+attention_policy.py centralizes canonical maintenance eligibility, recursive SQL exclusions, explicit disposition changes and new-import staging. Sentence eligibility, scheduling, generation, reading and due statistics share the policy. quran_frequency.py now matches citation identity/POS without running-text prefix stripping; ambiguous matches stay unresolved.

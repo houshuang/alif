@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily, arabicFontForSentence, ltr } from "../lib/theme";
@@ -827,6 +827,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       warmSentences().catch(() => {});
     }
   }, [cardIndex, totalCards, mode]);
+
+  // Word-detail choices invalidate the live session as well as disk caches.
+  const attentionChangedRef = useRef(false);
+  useEffect(() => syncEvents.on("attention_changed", () => {
+    attentionChangedRef.current = true;
+  }), []);
+  useFocusEffect(useCallback(() => {
+    if (attentionChangedRef.current) {
+      attentionChangedRef.current = false;
+      void loadSession(undefined, true);
+    }
+  }, [mode]));
 
   // Reload session when sync completes and user is between sessions
   useEffect(() => {
@@ -3919,10 +3931,18 @@ function ProgressBar({
   onWrapUp?: (() => void) | null;
   onBack?: (() => void) | null;
 }) {
+  const readingRouter = useRouter();
   const pct = (current / total) * 100;
   const barColor = mode === "listening" ? colors.listening : colors.accent;
   return (
     <View style={styles.progressContainer}>
+      {mode === "reading" && (
+        <Pressable accessibilityRole="button" onPress={() => readingRouter.push("/read")}
+          style={{ paddingVertical: 10 }}>
+          <Text style={{ color: colors.accent, fontWeight: "600" }}>Read a passage →</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>A few reviews, then read. You can stop here.</Text>
+        </Pressable>
+      )}
       <View style={styles.progressHeader}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>

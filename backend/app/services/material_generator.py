@@ -18,6 +18,7 @@ from sqlalchemy import exists, func
 from sqlalchemy.orm import aliased
 
 from app.database import SessionLocal, db_operation_context
+from app.services.attention_policy import maintenance_clause, excluded_lemma_ids
 from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
 from app.services.sentence_eligibility import (
@@ -181,7 +182,7 @@ def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             Lemma.canonical_lemma_id.is_(None),
             Lemma.gloss_en.isnot(None),
             func.length(func.trim(Lemma.gloss_en)) > 0,
@@ -274,7 +275,7 @@ def form_recovery_material_gaps(db, limit: int = 20) -> list[dict]:
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
-            UserLemmaKnowledge.knowledge_state != "suspended",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state != "suspended",
             Lemma.canonical_lemma_id.is_(None),
         )
         .all()
@@ -585,6 +586,8 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     # ── Phase 1: DB read ──
     db = SessionLocal()
     try:
+        if lemma_id in excluded_lemma_ids(db):
+            return 0
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         if not lemma:
             return 0
@@ -603,7 +606,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         active_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state.in_(
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
                 ["known", "learning", "lapsed", "acquiring"]
             ))
             .all()
@@ -611,7 +614,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         all_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state.in_(
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
                 ["known", "learning", "lapsed", "acquiring", "encountered"]
             ))
             .all()
@@ -1053,6 +1056,8 @@ def batch_generate_material(
     # ���─ Phase 1: DB read ──
     db = SessionLocal()
     try:
+        attention_excluded = excluded_lemma_ids(db)
+        lemma_ids = [lid for lid in lemma_ids if lid not in attention_excluded]
         target_lemmas = (
             db.query(Lemma)
             .filter(Lemma.lemma_id.in_(lemma_ids))
@@ -1063,7 +1068,7 @@ def batch_generate_material(
         active_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state.in_(
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
                 ["known", "learning", "lapsed", "acquiring"]
             ))
             .all()
@@ -1071,7 +1076,7 @@ def batch_generate_material(
         all_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state.in_(
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
                 ["known", "learning", "lapsed", "acquiring", "encountered"]
             ))
             .all()
@@ -2171,7 +2176,7 @@ def _warm_sentence_cache_impl(
         active_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state.in_(
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
                 ["acquiring", "learning", "known", "lapsed"]
             ))
             .all()
@@ -2444,7 +2449,7 @@ def _warm_sentence_cache_impl(
             # words → more passages allowed — rather than a flat count.
             high_stability_due = 0
             for ulk in db.query(UserLemmaKnowledge).filter(
-                UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "lapsed"]),
+                maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "lapsed"]),
                 UserLemmaKnowledge.fsrs_card_json.isnot(None),
             ).all():
                 card = parse_json_column(ulk.fsrs_card_json)
@@ -2550,6 +2555,7 @@ def _warm_sentence_cache_impl(
             .filter(
                 Lemma.canonical_lemma_id.is_(None),
                 sa_or_(Lemma.gloss_en.is_(None), Lemma.gloss_en == ""),
+                maintenance_clause(),
                 UserLemmaKnowledge.knowledge_state.in_(["acquiring", "known", "lapsed", "learning"]),
             )
             .limit(MAX_GLOSS_BACKFILL)

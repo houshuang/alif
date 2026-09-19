@@ -1,6 +1,6 @@
 import json
 import math
-from typing import Optional
+from typing import Optional, Literal
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import case, func
@@ -23,6 +23,11 @@ from app.services.fsrs_service import create_new_card
 from app.services.grammar_service import seed_grammar_features
 from app.services.interaction_logger import log_interaction
 from app.services.word_selector import get_root_family
+
+
+class AttentionIn(BaseModel):
+    disposition: Literal["maintain", "reading_support", "parked"]
+    reason: str = "Learner choice"
 
 
 class SuspendWordIn(BaseModel):
@@ -446,6 +451,9 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
                 "knowledge_state": ks,
             })
 
+    attention = db.query(UserLemmaKnowledge).filter_by(
+        lemma_id=resolve_canonical_lemma_id(db, lemma_id)
+    ).first()
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -477,7 +485,26 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "pattern_family": pattern_family,
         "pattern_examples": pattern_examples,
         "acquisition_box": k.acquisition_box if k else None,
+        "attention_disposition": attention.attention_disposition if attention else "maintain",
+        "attention_reason": attention.attention_reason if attention else None,
     }
+
+
+@router.put("/{lemma_id}/attention")
+def update_attention(lemma_id: int, payload: AttentionIn, db: Session = Depends(get_db)):
+    from app.services.attention_policy import set_disposition, POLICY_VERSION
+    if db.get(Lemma, lemma_id) is None:
+        raise HTTPException(404, "Word not found")
+    knowledge = set_disposition(db, lemma_id, payload.disposition, payload.reason[:500])
+    if payload.disposition == "maintain" and knowledge.knowledge_state in ("encountered", "new"):
+        from app.services.acquisition_service import start_acquisition
+        knowledge = start_acquisition(db, knowledge.lemma_id, source="study", due_immediately=True)
+    db.commit()
+    log_interaction(event="attention_changed", policy_version=POLICY_VERSION,
+                    lemma_id=knowledge.lemma_id, attention_disposition=payload.disposition,
+                    reason=payload.reason[:500])
+    return {"lemma_id": knowledge.lemma_id, "attention_disposition": knowledge.attention_disposition,
+            "state": knowledge.knowledge_state, "policy_version": POLICY_VERSION}
 
 
 @router.post("/{lemma_id}/postpone")

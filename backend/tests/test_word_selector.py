@@ -237,7 +237,7 @@ class TestSelectNextWords:
         assert result[0]["frequency_core_rank"] == 1
         assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_1"
 
-    def test_textbook_scan_learning_source_outranks_mid_frequency_core(self, db_session):
+    def test_old_textbook_provenance_does_not_outrank_core(self, db_session):
         top_core = _create_lemma(db_session, "اسم", "name", freq=100)
         mid_core = _create_lemma(db_session, "قول", "saying", freq=700)
         textbook = _create_lemma(db_session, "جحرية", "burrowing", freq=None)
@@ -270,14 +270,14 @@ class TestSelectNextWords:
 
         assert [w["lemma_id"] for w in result] == [
             top_core.lemma_id,
-            textbook.lemma_id,
             mid_core.lemma_id,
+            textbook.lemma_id,
         ]
         assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_100"
-        assert result[1]["score_breakdown"]["priority_tier"] == "textbook_scan"
-        assert result[2]["score_breakdown"]["priority_tier"] == "freq_core_700"
+        assert result[2]["score_breakdown"]["priority_tier"] == "textbook_scan"
+        assert result[1]["score_breakdown"]["priority_tier"] == "freq_core_700"
 
-    def test_suspended_textbook_scan_learning_source_is_readmitted(self, db_session):
+    def test_old_textbook_provenance_cannot_readmit_suspension(self, db_session):
         textbook = _create_lemma(db_session, "مطمور", "buried", freq=None)
         textbook.source = "wiktionary"
         db_session.add(UserLemmaKnowledge(
@@ -291,9 +291,7 @@ class TestSelectNextWords:
 
         result = select_next_words(db_session, count=1)
 
-        assert len(result) == 1
-        assert result[0]["lemma_id"] == textbook.lemma_id
-        assert result[0]["score_breakdown"]["priority_tier"] == "textbook_scan"
+        assert result == []
 
     def _add_active_story(self, db, source, words, metadata=None):
         """Create an active Story with StoryWords (word -> lemma_id)."""

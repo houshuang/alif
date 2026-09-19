@@ -72,3 +72,23 @@ class TestPosMatch:
         assert not pos_match(None, "noun")
         assert not pos_match("N", None)
         assert not pos_match("PART", "particle")
+
+class TestCitationIdentity:
+    def test_qac_never_strips_lexical_prefix(self):
+        from app.models import Lemma
+        from app.services.quran_frequency import resolve_qac_lemma
+        from app.services.sentence_validator import build_lemma_lookup
+        jug = Lemma(lemma_id=751, lemma_ar='دَنّ', lemma_ar_bare='دن', gloss_en='wine jug', pos='noun')
+        hide = Lemma(lemma_id=1224, lemma_ar='دَسَّ', lemma_ar_bare='دس', gloss_en='hide', pos='verb')
+        thin = Lemma(lemma_id=1267, lemma_ar='نَحُلَ', lemma_ar_bare='نحل', gloss_en='grow thin', pos='verb')
+        lemmas = {l.lemma_id:l for l in (jug, hide, thin)}
+        lookup = build_lemma_lookup(list(lemmas.values()))
+        for citation in ('l~adun', 'sundus', 'n~aHol'):
+            assert resolve_qac_lemma(citation, 'N', lookup, lemmas)[0] is None
+
+    def test_exact_noun_is_preserved(self):
+        from app.models import Lemma
+        from app.services.quran_frequency import resolve_qac_lemma
+        from app.services.sentence_validator import build_lemma_lookup
+        book = Lemma(lemma_id=1, lemma_ar='كِتَاب', lemma_ar_bare='كتاب', gloss_en='book', pos='noun')
+        assert resolve_qac_lemma('kitaAb', 'N', build_lemma_lookup([book]), {1:book})[0] == 1

@@ -538,7 +538,7 @@ class TestBookReaderPageEvidence:
             lemma_id=understood.lemma_id
         ).count() == 0
 
-    def test_clean_revisit_activates_only_previously_guided_inert_words(self, db_session):
+    def test_clean_revisit_does_not_enroll_previously_guided_inert_words(self, db_session):
         story, understood, looked_up, person = self._book(db_session)
         from app.services.story_service import complete_book_page
 
@@ -560,14 +560,14 @@ class TestBookReaderPageEvidence:
         )
 
         assert result["guided_inert"] == 0
-        assert result["box2_floor"] == 3
+        assert result["box2_floor"] == 0
         assert {
-            row.lemma_id: row.acquisition_box
+            row.lemma_id: row.attention_disposition
             for row in db_session.query(UserLemmaKnowledge).all()
         } == {
-            understood.lemma_id: 2,
-            looked_up.lemma_id: 2,
-            person.lemma_id: 2,
+            understood.lemma_id: "reading_support",
+            looked_up.lemma_id: "reading_support",
+            person.lemma_id: "reading_support",
         }
 
     def test_stale_unmapped_word_resolves_existing_lemma_without_writing(self, db_session):
@@ -648,7 +648,7 @@ class TestBookReaderPageEvidence:
         complete_book_page(db_session, story.id, 1, [canonical.lemma_id])
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=canonical.lemma_id
-        ).one().knowledge_state == "acquiring"
+        ).one().attention_disposition == "reading_support"
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=variant.lemma_id
         ).first() is None
@@ -657,6 +657,10 @@ class TestBookReaderPageEvidence:
         story, understood, looked_up, person = self._book(db_session)
         from app.services.story_service import complete_book_page
 
+        from app.services.attention_policy import set_disposition
+        for lemma in (understood, looked_up, person):
+            set_disposition(db_session, lemma.lemma_id, "maintain", "Existing learner commitment")
+        db_session.commit()
         result = complete_book_page(
             db_session,
             story.id,
@@ -678,10 +682,10 @@ class TestBookReaderPageEvidence:
         assert lookup_state.acquisition_box == 1
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=person.lemma_id
-        ).one().acquisition_box == 1
+        ).one().acquisition_box is None
         assert result["newly_known"] == 1
         assert result["box2_floor"] == 1
-        assert result["reviewed_again"] == 2
+        assert result["reviewed_again"] == 1
 
         replay = complete_book_page(
             db_session,
@@ -704,7 +708,7 @@ class TestBookReaderPageEvidence:
         )
         db_session.refresh(known_state)
         assert update["duplicate"] is False
-        assert update["reviewed_again"] == 3  # two original misses + one newly discovered gap
+        assert update["reviewed_again"] == 2  # one admitted miss + newly discovered gap
         assert known_state.knowledge_state == "acquiring"
         assert known_state.acquisition_box == 1
 
@@ -770,7 +774,7 @@ class TestBookReaderPageEvidence:
 
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=first.lemma_id
-        ).one().acquisition_box == 2
+        ).one().attention_disposition == "reading_support"
         assert db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=later.lemma_id
         ).first() is None
@@ -931,8 +935,8 @@ class TestBookReaderPageEvidence:
         assert db_session.query(UserLemmaKnowledge).count() == 0
 
     @pytest.mark.parametrize("reader_policy, mark_unknown, learn_explicitly, expected_box, expected_reviews", [
-        ("clean", False, False, 2, 0),
-        ("clean", True, False, 1, 0),
+        ("clean", False, False, None, 0),
+        ("clean", True, False, None, 0),
         ("guided", False, True, 1, 0),
     ])
     def test_new_reader_word_uses_full_inline_import_before_admission(

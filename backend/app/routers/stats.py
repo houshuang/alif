@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_
 from collections import Counter
 
+from app.services.attention_policy import maintenance_clause
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
@@ -130,6 +131,7 @@ def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     fsrs_due_q = (
         db.query(UserLemmaKnowledge.lemma_id)
         .filter(
+            maintenance_clause(),
             UserLemmaKnowledge.fsrs_card_json.isnot(None),
             func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= now_str,
         )
@@ -140,7 +142,7 @@ def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     acq_due_q = (
         db.query(UserLemmaKnowledge.lemma_id)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_next_due.isnot(None),
             UserLemmaKnowledge.acquisition_next_due <= now,
         )
@@ -515,6 +517,7 @@ def _get_debt_breakdown(
             func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.stability'),
         )
         .filter(
+            maintenance_clause(),
             UserLemmaKnowledge.fsrs_card_json.isnot(None),
             func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= now_str,
         )
@@ -1723,7 +1726,7 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             UserLemmaKnowledge.acquisition_next_due,
         )
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring")
         .order_by(UserLemmaKnowledge.acquisition_box, Lemma.lemma_ar)
         .all()
     )
@@ -1934,7 +1937,7 @@ def _get_insights(db: Session) -> InsightsOut:
     )
     acquiring_count = (
         db.query(func.count(UserLemmaKnowledge.id))
-        .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring")
         .scalar() or 0
     )
     pipeline_total = graduated_count + acquiring_count

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import maintenance_clause
 from app.models import UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
 
@@ -27,7 +28,7 @@ def get_focus_cohort(db: Session, at: datetime | None = None) -> set[int]:
     all_active = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
         )
         .all()
     )
@@ -66,7 +67,7 @@ def get_cohort_stats(db: Session) -> dict:
     all_active = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
         )
         .all()
     )

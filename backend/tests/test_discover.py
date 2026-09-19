@@ -350,7 +350,7 @@ def test_words_drops_proper_nouns(client, db_session, monkeypatch):
     assert "دستور" not in {w["lemma_ar_bare"] for w in r.json()["words"]}
 
 
-def test_add_creates_introduces_and_bypasses_cap(client, db_session):
+def test_add_creates_reading_support_without_bypassing_cap(client, db_session):
     r = client.post("/api/discover/add", json={
         "lemma_ar_bare": "دستور", "lemma_ar": "دُسْتُور",
         "gloss_en": "constitution", "pos": "noun", "transliteration": "dustūr",
@@ -358,13 +358,14 @@ def test_add_creates_introduces_and_bypasses_cap(client, db_session):
     assert r.status_code == 200
     body = r.json()
     assert body["created"] is True
-    assert body["state"] == "acquiring"  # introduced immediately, not cap-deferred
+    assert body["state"] == "encountered"  # staged, no automatic obligation
     lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "دستور").first()
     assert lem is not None and lem.source == "dragoman" and lem.gloss_en == "constitution"
     ulk = db_session.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id == lem.lemma_id
     ).first()
-    assert ulk is not None and ulk.knowledge_state == "acquiring"
+    assert ulk is not None and ulk.knowledge_state == "encountered"
+    assert ulk.attention_disposition == "reading_support"
 
 
 def test_add_records_custom_source(client, db_session):
@@ -524,7 +525,7 @@ def test_add_new_word_shaped_like_clitic_plus_known(client, db_session):
     body = r.json()
     assert body["created"] is True
     assert body["lemma_id"] != nas.lemma_id
-    assert body["state"] == "acquiring"
+    assert body["state"] == "encountered"
     lem = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "كناس").first()
     assert lem is not None and lem.gloss_en == "street sweeper"
 
@@ -565,7 +566,7 @@ def test_add_homograph_creates_new_instead_of_wrong_sense(client, db_session):
     assert body["lemma_id"] != angel.lemma_id
     assert body["sense_rerouted_from"] == angel.lemma_id
     assert body["already_known"] is False
-    assert body["state"] == "acquiring"
+    assert body["state"] == "encountered"
     # The angel lemma's knowledge state is untouched.
     ulk = db_session.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id == angel.lemma_id).first()

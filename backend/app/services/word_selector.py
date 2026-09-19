@@ -20,6 +20,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_
 
+from app.services.attention_policy import excluded_lemma_ids, is_maintained
 from app.models import (
     FrequencyCoreEntry,
     Root,
@@ -48,7 +49,8 @@ DEFAULT_BATCH_SIZE = 3
 # can never bridge the gap between tiers.
 _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
-_TIER_TEXTBOOK_SCAN = 220.0   # OCR provenance: user's textbook, ahead of mid-core/backfill
+_TIER_READING_CHOICE = 260.0  # Explicit near-term need; expires after 14 days
+_TIER_TEXTBOOK_SCAN = 0.0     # Provenance does not establish current curriculum priority
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
 # An explicitly selected imported story is active reading curriculum, like a
 # book_ocr import. Merely being reader-visible (status="active") is not enough:
@@ -447,7 +449,7 @@ def select_next_words(
 
     Returns a list of word dicts with scoring breakdown, sorted by score descending.
     """
-    exclude = set(exclude_lemma_ids or [])
+    exclude = set(exclude_lemma_ids or []) | excluded_lemma_ids(db)
 
     # Get lemma_ids that are already introduced (have FSRS cards or are acquiring/learning/known)
     # Exclude encountered-only — those ARE candidates
@@ -483,9 +485,10 @@ def select_next_words(
             Lemma.canonical_lemma_id.is_(None),
             Lemma.gates_completed_at.isnot(None),
             # New lexical rows from imported books stay inert until the reader
-            # explicitly looks them up. Existing lemmas keep their old source
+            # explicitly opts into maintenance. Existing lemmas keep their old source
             # during import and therefore remain eligible on their own merits.
-            or_(Lemma.source.is_(None), Lemma.source != "book"),
+            or_(Lemma.source.is_(None), Lemma.source != "book",
+                Lemma.lemma_id.in_(encountered_ids - exclude)),
             Lemma.lemma_id.notin_(exclude_ids) if exclude_ids else True,
             Lemma.lemma_id.notin_(exclude) if exclude else True,
         )
@@ -505,29 +508,14 @@ def select_next_words(
     story_lemmas = _active_story_lemma_ids(db)
     book_pages = _book_page_numbers(db)
 
+    # Attention exclusions also govern legacy high-priority re-admission.
+    suspended_ids -= exclude
     # Re-admit suspended words if they're in active books/stories or from OCR/textbook
     if suspended_ids:
         readmit_ids = set()
         for sid in suspended_ids:
             if sid in book_pages or sid in story_lemmas:
                 readmit_ids.add(sid)
-        # Also check textbook_scan learning provenance, falling back to lexical source.
-        readmit_ids.update(
-            sid for sid in (suspended_ids - readmit_ids)
-            if ulk_source_by_id.get(sid) == "textbook_scan"
-        )
-        if suspended_ids - readmit_ids:
-            ocr_suspended = (
-                db.query(Lemma)
-                .filter(
-                    Lemma.lemma_id.in_(suspended_ids - readmit_ids),
-                    Lemma.source == "textbook_scan",
-                    Lemma.canonical_lemma_id.is_(None),
-                )
-                .all()
-            )
-            for lem in ocr_suspended:
-                readmit_ids.add(lem.lemma_id)
         if readmit_ids:
             readmitted = (
                 db.query(Lemma)
@@ -611,6 +599,12 @@ def select_next_words(
     ) if root_ids else {}
 
     now = datetime.now(timezone.utc)
+    reading_choice_ids = {
+        lid for lid, in db.query(UserLemmaKnowledge.lemma_id).filter(
+            UserLemmaKnowledge.attention_disposition == "maintain",
+            UserLemmaKnowledge.attention_updated_at >= now - timedelta(days=14),
+        )
+    }
 
     # Grammar: get unlocked features once and batch-fetch exposure records
     from app.services.grammar_service import get_unlocked_features, compute_comfort
@@ -688,6 +682,10 @@ def select_next_words(
         if core_bonus > priority_bonus:
             priority_bonus = core_bonus
             priority_tier = f"freq_core_{core_rank}"
+
+        if lemma.lemma_id in reading_choice_ids:
+            priority_bonus = _TIER_READING_CHOICE
+            priority_tier = "reading_choice"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
@@ -871,9 +869,9 @@ def introduce_word(
 
     Source values: study (Learn mode), auto_intro (inline review), collocate.
     If due_immediately=True, word is due right now (for auto-intro in current session).
-    When enforce_daily_cap is False, the DAILY_INTRO_CAP is skipped — used for
-    explicit user-initiated adds (e.g. Dragoman "add to Alif") that should start
-    immediately rather than being deferred to a future day.
+    The daily cap is enforced on learner intake. Internal maintenance callers
+    may pass enforce_daily_cap=False, but this never overrides a disposition or
+    the reading-support default for a new external import.
     Returns the created knowledge record as dict.
     """
     from app.services.acquisition_service import start_acquisition
@@ -893,6 +891,10 @@ def introduce_word(
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
+    if existing and not is_maintained(existing):
+        return {"lemma_id": lemma_id, "state": existing.knowledge_state,
+                "attention_disposition": existing.attention_disposition,
+                "cap_deferred": True, "already_known": False, "introduced_at": None}
     if existing:
         if existing.knowledge_state == "suspended":
             from app.services.fsrs_service import reactivate_if_suspended

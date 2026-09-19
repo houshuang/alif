@@ -138,3 +138,8 @@ The bookmark is `https://<host>/<private-capability>/reader/read` (append
 paths must all retain this prefix. Verify direct deep links, reloads, library
 navigation and paragraph/word help after publishing. Leave `ALIF_WEB_BASE_PATH`
 unset for `scripts/publish-ios-update.sh`; native routing stays unchanged.
+
+
+### Reading attention v1 (2026-09-19)
+
+The review screen now links directly to this scheduler-inert reader. The suggested trial is a few reviews followed by a short supported passage within the same attention budget; completing a review queue is not required. Word-detail maintenance choices do not affect chapter access.
