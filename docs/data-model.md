@@ -44,3 +44,8 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 ## Supported reading journal
 
 `ReadingPilotEvent` / `reading_pilot_events` stores immutable JSON payloads keyed by `client_event_id`, with a server `received_at`. It holds both the existing `momo-wings` pilot and `library-bridge` chapter events. Chapter voice feedback references content-addressed files in `backend/data/reading-voice/`; those files need backup alongside the DB. These are supported-reading observations, not lemma recall or scheduling evidence. No schema change for chapters; see [supported-reading-chapters.md](supported-reading-chapters.md).
+
+
+### Reading attention v1 (2026-09-19)
+
+UserLemmaKnowledge adds attention_disposition (non-null, default maintain), attention_reason and attention_updated_at. These describe current maintenance eligibility, not memory state. Migration c9e1a3b5d7f0 preserves every existing card and history row.

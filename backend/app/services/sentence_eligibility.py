@@ -25,6 +25,7 @@ from datetime import datetime
 from sqlalchemy import and_, exists, or_
 
 from app.models import Sentence, SentenceWord
+from app.services.attention_policy import excluded_ids_query
 
 
 def not_has_unmapped_words():
@@ -120,7 +121,11 @@ def has_no_completed_authentic_quality_failure():
 
 def reviewable_sentence_clauses():
     """Combined clause for review-facing selection."""
+    excluded = excluded_ids_query()
     return and_(
+        ~exists().where(SentenceWord.sentence_id == Sentence.id,
+                        SentenceWord.lemma_id.in_(excluded)),
+        or_(Sentence.target_lemma_id.is_(None), Sentence.target_lemma_id.notin_(excluded)),
         Sentence.is_active == True,  # noqa: E712
         not_has_unmapped_words(),
         has_current_mapping_verification(),

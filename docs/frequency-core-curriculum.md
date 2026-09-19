@@ -2,8 +2,9 @@
 
 **September 19 audit:** this document's historical weight/tier descriptions are
 not a complete account of current behavior. Code uses Quran weight 700 (the table
-below retains the earlier 150), and textbook provenance at 220 outranks the core
-501–1,000 tier at 210. Core rank is a fused curriculum score, not a validated modern
+below retains the earlier 150), and the historical textbook provenance tier at 220 outranked the core
+501–1,000 tier at 210. Reading attention v1 removes that textbook bonus; an
+explicit recent reading choice instead has a 14-day priority. Core rank is a fused curriculum score, not a validated modern
 fiction frequency. See [the current investigation](../research/analysis-2026-09-19-vocabulary-attention.md)
 for production measurements, identity errors, source gaps and proposed changes.
 No curriculum change was activated by that investigation.

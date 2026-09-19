@@ -152,3 +152,8 @@ External-service integration guide (request/response schemas, flow, CORS, cURL):
 - `GET /api/books/chapters/voice/{event_id}` — Retrieve a saved voice note through the existing private API.
 
 Payloads, offline behavior and release constraints: [supported-reading-chapters.md](supported-reading-chapters.md).
+
+
+### Reading attention v1 (2026-09-19)
+
+PUT /api/words/{lemma_id}/attention accepts disposition: maintain | reading_support | parked and an optional reason. Resolves canonical identity, preserves existing cards/history, and commits the choice. New/encountered maintenance opt-in uses the daily/recovery cap. GET word detail returns attention_disposition and attention_reason. External discover adds now stage novel vocabulary instead of bypassing the cap.

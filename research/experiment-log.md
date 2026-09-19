@@ -48,6 +48,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-19 — Reading attention v1: maintenance is an explicit commitment
+
+**Implementation validated; rollout results pending.** [Release record](reading-attention-2026-09-19/README.md). Based on the [production
+investigation](analysis-2026-09-19-vocabulary-attention.md), introduce independent
+`maintain`, `reading_support`, and `parked` dispositions. Preserve memory state,
+FSRS cards and review history. Non-maintained words retain exact-token evidence
+and encounter counts but receive no scheduling credit or automatic reintroduction.
+This is a prospective, versioned exception to the every-appearance scheduling rule.
+Defaults preserve existing commitments; new external/book vocabulary is staged.
+Explicit maintenance opt-in remains subject to the existing 0–2/day intake budget.
+
+Remove the permanent textbook intake override, use unbiased scaffold sampling
+within eligible vocabulary, and tighten QAC dictionary identity joins. Do not
+activate a raw rank>5,000 exclusion or blanket parking migration. Release pending
+maintenance v1.1/v1.1b and the NULL-only frequency backfill in the same verified
+release, with separate code/data effect measurements.
+
+Acceptance: canonical parking survives stale reviews, imports, prefetch, leech
+reintroduction, generation and reading; restoring maintenance preserves cards;
+word lookup stays available; exposure evidence remains observable. Supported
+reading should replace some reviews within the same attention budget.
+
+
 ## 2026-09-19 — Vocabulary and attention audit: choose maintenance around reading
 
 **Analysis only; no production changes.** Fresh September 19 online backup and

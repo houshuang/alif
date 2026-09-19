@@ -1,0 +1,65 @@
+{
+  "policy_version": "reading_attention_v1",
+  "entries": [
+    {
+      "expected": {
+        "lemma_id": 3988,
+        "lemma_ar": "عاوَد",
+        "gloss_en": "compresses, poultices",
+        "pos": "noun"
+      },
+      "disposition": "parked",
+      "reason": "Identity QA: stored headword/POS/gloss conflict; review source context before teaching"
+    },
+    {
+      "expected": {
+        "lemma_id": 4006,
+        "lemma_ar": "مُنْتَصِب",
+        "gloss_en": "to tear, to rip",
+        "pos": "verb"
+      },
+      "disposition": "parked",
+      "reason": "Identity QA: stored headword/POS/gloss conflict; review source context before teaching"
+    },
+    {
+      "expected": {
+        "lemma_id": 4484,
+        "lemma_ar": "سَلِيم",
+        "gloss_en": "Saleem (proper name)",
+        "pos": "noun"
+      },
+      "disposition": "parked",
+      "reason": "Identity QA: stored headword/POS/gloss conflict; review source context before teaching"
+    },
+    {
+      "expected": {
+        "lemma_id": 751,
+        "lemma_ar": "دَنٌّ",
+        "gloss_en": "wine jug",
+        "pos": "noun"
+      },
+      "exclude_core_rank": 816,
+      "reason": "Identity QA: QAC citation incorrectly joined by prefix stripping or incompatible POS; fused rank is not trustworthy"
+    },
+    {
+      "expected": {
+        "lemma_id": 1224,
+        "lemma_ar": "دَسَّ",
+        "gloss_en": "to hide, insert",
+        "pos": "verb"
+      },
+      "exclude_core_rank": 842,
+      "reason": "Identity QA: QAC citation incorrectly joined by prefix stripping or incompatible POS; fused rank is not trustworthy"
+    },
+    {
+      "expected": {
+        "lemma_id": 1267,
+        "lemma_ar": "نَحُلَ",
+        "gloss_en": "to grow thin",
+        "pos": "verb"
+      },
+      "exclude_core_rank": 1375,
+      "reason": "Identity QA: QAC citation incorrectly joined by prefix stripping or incompatible POS; fused rank is not trustworthy"
+    }
+  ]
+}

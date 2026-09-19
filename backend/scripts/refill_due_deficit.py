@@ -43,6 +43,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app.database import SessionLocal
 from app.models import Lemma, UserLemmaKnowledge
+from app.services.attention_policy import maintenance_clause
 from app.services.activity_log import log_activity
 from app.services.material_generator import (
     _release_material_update_lock,
@@ -112,7 +113,7 @@ def compute_due_deficit(db, states: tuple[str, ...] = DUE_STATES) -> list[int]:
     candidates: list[int] = []
     ulks = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.knowledge_state.in_(states))
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(states))
         .all()
     )
     for u in ulks:

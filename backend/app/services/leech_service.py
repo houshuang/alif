@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import maintenance_clause, is_maintained
 from app.models import FrequencyCoreEntry, Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.activity_log import log_activity
 from app.services.frequency_lanes import is_low_priority_lemma
@@ -151,7 +152,7 @@ def check_and_manage_leeches(db: Session) -> list[int]:
     candidates = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "lapsed", "acquiring"]),
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "lapsed", "acquiring"]),
             UserLemmaKnowledge.times_seen >= LEECH_MIN_REVIEWS,
         )
         .all()
@@ -221,7 +222,7 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     suspended_leeches = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "suspended",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "suspended",
             UserLemmaKnowledge.leech_suspended_at.isnot(None),
         )
         .all()
@@ -458,7 +459,7 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
-    if not ulk or ulk.knowledge_state == "suspended":
+    if not ulk or not is_maintained(ulk) or ulk.knowledge_state == "suspended":
         return False
 
     if is_leech(ulk, db=db):

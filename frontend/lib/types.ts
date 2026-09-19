@@ -70,7 +70,11 @@ export interface SourceInfo {
   story_title?: string;
 }
 
+export type AttentionDisposition = "maintain" | "reading_support" | "parked";
+
 export interface WordDetail extends Word {
+  attention_disposition?: AttentionDisposition;
+  attention_reason?: string | null;
   times_reviewed: number;
   correct_count: number;
   forms_json?: WordForms | null;

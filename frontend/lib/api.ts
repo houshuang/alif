@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import {
+  AttentionDisposition,
   ReviewMode,
   SentenceReviewSession,
   SentenceReviewSubmission,
@@ -42,7 +43,10 @@ import {
   PretestWord,
 } from "./types";
 import { netStatus } from "./net-status";
+import { syncEvents } from "./sync-events";
 import {
+  invalidateSessions,
+  invalidateDataCaches,
   cacheSessions,
   getCachedSession,
   markReviewed,
@@ -86,6 +90,8 @@ interface RawWord {
 }
 
 interface RawWordDetail extends RawWord {
+  attention_disposition?: AttentionDisposition;
+  attention_reason?: string | null;
   forms_json: Record<string, string[]> | null;
   forms_translit?: Record<string, string> | null;
   grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
@@ -270,6 +276,8 @@ export async function getProperNames(): Promise<ProperName[]> {
 export async function getWordDetail(id: number): Promise<WordDetail> {
   const w = await fetchApi<RawWordDetail>(`/api/words/${id}`);
   return {
+    attention_disposition: w.attention_disposition ?? "maintain",
+    attention_reason: w.attention_reason ?? null,
     id: w.lemma_id,
     arabic: w.lemma_ar,
     english: w.gloss_en || "",
@@ -1159,7 +1167,7 @@ export async function snapDiscover(
   }
 }
 
-/** Add one discovered word to Alif (create + introduce immediately). Idempotent:
+/** Add one discovered word to Alif (new vocabulary starts as reading support). Idempotent:
  *  re-adding an existing word just re-introduces it (already_known=true). */
 export async function addDiscoveredWord(
   word: DiscoverWord
@@ -1399,4 +1407,14 @@ export async function getPatterns(): Promise<PatternListItem[]> {
 
 export async function getPatternDetail(wazn: string): Promise<PatternDetail> {
   return fetchApi<PatternDetail>(`/api/patterns/${encodeURIComponent(wazn)}`);
+}
+
+export async function setWordAttention(lemmaId: number, disposition: AttentionDisposition): Promise<{ state: string }> {
+  const result = await fetchApi<{ state: string }>(`/api/words/${lemmaId}/attention`, {
+    method: "PUT",
+    body: JSON.stringify({ disposition, reason: "Learner choice in word details" }),
+  });
+  await Promise.all([invalidateSessions(), invalidateDataCaches()]);
+  syncEvents.emit("attention_changed");
+  return result;
 }

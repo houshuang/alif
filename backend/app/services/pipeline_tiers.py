@@ -13,6 +13,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import maintenance_clause
 from app.models import UserLemmaKnowledge
 
 
@@ -83,7 +84,7 @@ def compute_word_tiers(
     knowledges = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
         )
         .all()
     )

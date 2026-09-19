@@ -34,6 +34,7 @@ from typing import Optional
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import maintenance_clause, is_maintained
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.fsrs_service import (
     FSRS_SCHEDULER_POLICY_VERSION,
@@ -257,7 +258,7 @@ def _box1_backlog_rows(
             )
             .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
             .filter(
-                UserLemmaKnowledge.knowledge_state == "acquiring",
+                maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
                 UserLemmaKnowledge.acquisition_box == 1,
                 Lemma.word_category.is_(None)
                 | Lemma.word_category.notin_(["proper_name", "onomatopoeia"]),
@@ -352,7 +353,7 @@ def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
         db.query(UserLemmaKnowledge)
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box == 2,
             UserLemmaKnowledge.acquisition_next_due <= now,
             inert_or_null_category,
@@ -601,6 +602,17 @@ def start_acquisition(
         .first()
     )
 
+    if ulk and not is_maintained(ulk):
+        return ulk
+    if ulk is None:
+        from app.services.attention_policy import STAGED_SOURCES, stage_import
+        if source in STAGED_SOURCES:
+            ulk = UserLemmaKnowledge(lemma_id=lemma_id, knowledge_state="encountered", source=source)
+            stage_import(db, ulk, source)
+            db.add(ulk)
+            db.flush()
+            return ulk
+
     # Don't normally demote a known/learning canonical back to acquiring just
     # because a collateral path landed here.  Explicit reader evidence can opt
     # into restarting a presumed-known, cardless word via ``restart_known``.
@@ -727,6 +739,8 @@ def submit_acquisition_review(
 
     Returns dict with new state info.
     """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    lemma_id = resolve_canonical_lemma_id(db, lemma_id)
     if client_review_id:
         existing = (
             db.query(ReviewLog)
@@ -754,6 +768,9 @@ def submit_acquisition_review(
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
+    if ulk and not is_maintained(ulk):
+        return {"lemma_id": lemma_id, "new_state": ulk.knowledge_state,
+                "next_due": "", "exposure_only": True, "duplicate": False}
     if not ulk or ulk.knowledge_state != "acquiring":
         logger.warning(f"submit_acquisition_review called for non-acquiring lemma {lemma_id}")
         # Fall back to normal FSRS review
@@ -1139,7 +1156,7 @@ def get_acquisition_due(
     rows = (
         db.query(UserLemmaKnowledge.lemma_id)
         .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+            maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box.isnot(None),
             UserLemmaKnowledge.acquisition_next_due <= now,
         )
@@ -1152,7 +1169,7 @@ def get_acquisition_stats(db: Session) -> dict:
     """Get summary stats about the acquisition pipeline."""
     acquiring = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring")
         .all()
     )
 

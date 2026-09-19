@@ -1343,11 +1343,11 @@ def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
     _fill_daily_cap(db_session, RECOVERY_FULL_INTRO_BUDGET - 1)
 
     allowed_lemma = _create_lemma(db_session, arabic="مسموح", english="allowed")
-    allowed = start_acquisition(db_session, allowed_lemma.lemma_id, source="textbook_scan")
+    allowed = start_acquisition(db_session, allowed_lemma.lemma_id, source="study")
     assert allowed.knowledge_state == "acquiring"
 
     blocked_lemma = _create_lemma(db_session, arabic="مؤجل٢", english="deferred2")
-    blocked = start_acquisition(db_session, blocked_lemma.lemma_id, source="textbook_scan")
+    blocked = start_acquisition(db_session, blocked_lemma.lemma_id, source="study")
     assert blocked.knowledge_state == "encountered"
     assert blocked.acquisition_started_at is None
 
@@ -1370,12 +1370,12 @@ def test_recovery_mid_accuracy_capped_at_mid_budget(db_session):
 
     allowed = start_acquisition(
         db_session, _create_lemma(db_session, arabic="مسموح٣", english="ok3").lemma_id,
-        source="textbook_scan",
+        source="study",
     )
     assert allowed.knowledge_state == "acquiring"
 
     blocked = start_acquisition(
         db_session, _create_lemma(db_session, arabic="مؤجل٣", english="deferred3").lemma_id,
-        source="textbook_scan",
+        source="study",
     )
     assert blocked.knowledge_state == "encountered"

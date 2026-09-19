@@ -39,9 +39,8 @@ from camel_tools.utils.charmap import CharMapper
 from app.models import Lemma
 from app.services.sentence_validator import (
     _is_function_word,
-    lookup_lemma,
+    lookup_lemma_citation,
     normalize_arabic,
-    strip_diacritics,
 )
 from app.services.word_selector import _is_noise_lemma
 
@@ -123,32 +122,21 @@ def resolve_qac_lemma(
     if _is_function_word(bare) or _is_function_word(bare.replace("ى", "ي")):
         return None, False
 
-    alts: list[int] = []
-    lemma_id = lookup_lemma(
-        bare, lemma_lookup, original_bare=strip_diacritics(ar), out_alternatives=alts,
-    )
-    # POS-aware homograph disambiguation: if the lookup's pick contradicts the
-    # QAC POS but a same-POS alternative exists AND is the same bare or a
-    # clitic/prefix relation (not a derivationally-distant homograph), switch.
-    corrected = False
-    if lemma_id is not None and alts:
-        chosen = lemmas_by_id.get(lemma_id)
-        if chosen is not None and not pos_match(qac_pos, chosen.pos):
-            for alt_id in alts:
-                alt = lemmas_by_id.get(alt_id)
-                if (alt is None or not pos_match(qac_pos, alt.pos)
-                        or _is_noise_lemma(alt)):
-                    continue
-                alt_bare = normalize_arabic(alt.lemma_ar_bare or "")
-                distant = (alt_bare != bare
-                           and not bare.endswith(alt_bare)
-                           and not alt_bare.endswith(bare))
-                if distant:
-                    continue
-                lemma_id = alt_id
-                corrected = True
-                break
-    return lemma_id, corrected
+    initial = lookup_lemma_citation(bare, lemma_lookup, original_bare=ar)
+    candidates = [lemma for lemma in lemmas_by_id.values()
+                  if normalize_qac_lemma(lemma.lemma_ar_bare or "") == bare
+                  and pos_match(qac_pos, lemma.pos) and not _is_noise_lemma(lemma)]
+    # Prefer exact vocalized citation identity when the source supplies it.
+    exact = [lemma for lemma in candidates if (lemma.lemma_ar or "") == ar]
+    if exact:
+        candidates = exact
+    from app.services.canonical_resolution import resolve_canonical_via_map
+    canonical_map = {lid: lemma.canonical_lemma_id for lid, lemma in lemmas_by_id.items()}
+    identities = {resolve_canonical_via_map(lemma.lemma_id, canonical_map) for lemma in candidates}
+    if len(identities) != 1:
+        return None, False
+    lemma_id = identities.pop()
+    return lemma_id, initial is not None and initial != lemma_id
 
 
 def map_quran_frequencies(

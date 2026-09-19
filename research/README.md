@@ -1,5 +1,9 @@
 # Alif — Research Index
 
+## Reading attention v1 — implementation
+
+[Implementation, validation and rollout](reading-attention-2026-09-19/README.md): reversible maintenance choices, staged imports, bounded reading intake, simpler scaffold sampling and exact identity exclusions.
+
 ## Vocabulary and attention investigation — September 19, 2026
 
 [Vocabulary selection should buy reading progress](analysis-2026-09-19-vocabulary-attention.md): fresh production audit, rare scaffold exposure, textbook-tier dominance, reproduced Quran/core identity errors, source-based slow-lane omissions, deployment drift, and a proposal for bounded maintenance around modern-fiction reading. Includes reproducible scripts and a per-word audit; no production changes.

@@ -92,6 +92,10 @@ class UserLemmaKnowledge(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), unique=True, nullable=False)
     knowledge_state = Column(String(20), default="new", index=True)  # new/encountered/acquiring/learning/known/lapsed/suspended
+    # Attention is independent of memory and durable source provenance.
+    attention_disposition = Column(String(20), nullable=False, default="maintain", server_default="maintain", index=True)
+    attention_reason = Column(Text, nullable=True)
+    attention_updated_at = Column(DateTime, nullable=True)
     fsrs_card_json = Column(JSON)
     last_reviewed = Column(DateTime)
     introduced_at = Column(DateTime, nullable=True)

@@ -16,13 +16,14 @@ from typing import Iterable
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.services.attention_policy import maintenance_clause
 from app.models import FrequencyCoreEntry, Lemma, UserLemmaKnowledge
 from app.services.sentence_validator import is_function_word_lemma
 
 
 MAIN_LANE_MAX_RANK = 5000
 SLOW_LANE_SESSION_FRACTION = 0.10
-ARTIFACT_SOURCES = {"textbook_scan", "book", "story_import", "scaffold", "book_ocr"}
+ARTIFACT_SOURCES = {"textbook_scan", "book", "story_import", "scaffold", "book_ocr", "bookifier", "dragoman"}
 LEARNED_STATES = {"known", "learning"}
 PIPELINE_STATES = LEARNED_STATES | {"acquiring", "lapsed", "encountered"}
 UNKNOWN_FREQUENCY_RANK = 1_000_000_000
@@ -89,8 +90,7 @@ def frequency_core_ranks(db: Session, lemma_ids: Iterable[int]) -> dict[int, int
 def effective_frequency_ranks(db: Session, lemma_ids: Iterable[int]) -> dict[int, int]:
     """Return the best available rank for each lemma, lower means more frequent.
 
-    Frequency-core rank is preferred when present, otherwise the lemma's own
-    frequency rank is used. Missing ranks are represented by a very large
+    The minimum positive core or surface-frequency rank is used. Missing ranks are represented by a very large
     sentinel so callers can still sort deterministically.
     """
     ids = {lid for lid in lemma_ids if lid is not None}
@@ -222,7 +222,7 @@ def due_lane_snapshot(db: Session, now: datetime | None = None) -> DueLaneSnapsh
     now = now or datetime.now(timezone.utc)
     knowledges = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]))
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]))
         .all()
     )
     lemma_ids = {k.lemma_id for k in knowledges}

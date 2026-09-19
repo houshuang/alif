@@ -648,7 +648,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         created = True
     res = introduce_word(
         db, lemma.lemma_id, source=source,
-        due_immediately=True, enforce_daily_cap=False,
+        due_immediately=True, enforce_daily_cap=True,
     )
     return {
         "lemma_id": lemma.lemma_id,
@@ -664,7 +664,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
 
 @router.post("/add")
 def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Create + introduce one word; gate and generate material in the background."""
+    """Create/stage one word; quality-gate in the background."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
     try:
         out = _create_and_introduce(db, w, lemma_lookup)
@@ -686,7 +686,7 @@ class WordsIn(BaseModel):
 
 @router.post("/add-batch")
 def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Create + introduce several words at once. Each word is committed independently
+    """Create/stage several words at once. Each word is committed independently
     so one failure can't roll back the rest of the batch."""
     results, new_ids = [], []
     for w in req.words:
