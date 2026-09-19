@@ -44,6 +44,13 @@ npx expo start --web  # opens on localhost:8081
 - **Claude CLI on server**: `/usr/bin/claude`, authenticated via `claude setup-token`, Max plan.
 
 ## Reference Docs
+
+Vocabulary/attention investigation (2026-09-19):
+`research/analysis-2026-09-19-vocabulary-attention.md` and its reproducible evidence
+folder cover the current reading goal, source-tier dominance, rank/mapping limits,
+slow-lane omissions, and proposed attention dispositions. This is analysis, not an
+activated policy; verify live deployment separately from merge/implementation labels.
+
 | Doc | Contents |
 |-----|----------|
 | `docs/scheduling-system.md` | Word lifecycle, session building, FSRS/acquisition phases, all constants |

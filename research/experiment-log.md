@@ -22,7 +22,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Lemma quality / decomposition / canonicalization** — `2026-04-01 "Centralized Quality Gate Pipeline — run_quality_gates()"` · `2026-04-24 … 2026-04-27 "Lemma decomposition Phase 1 … Phase 2 step 4c"` (the audit arc) · `2026-05-06 "Broadened clitic-leftover audit"` · `2026-05-21 "Chimera cleanup + prevention"` · `2026-05-17 "Sense-aware correction resolver"`.
 
-**Frequency core / curriculum** (active initiative — see IDEAS.md) — `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-08 "Frequency-core stats gap list now means not introduced"` · `2026-05-13 "Restore frequency-core intro supply chain — drought"` · `2026-05-07 "Capped intake for unmapped frequency-core rows"` · `2026-06-03 "Frequency-core data-quality pass"`.
+**Frequency core / curriculum** (active initiative — see IDEAS.md) — `2026-09-19 "Vocabulary and attention audit"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-05-08 "Frequency-core stats gap list now means not introduced"` · `2026-05-13 "Restore frequency-core intro supply chain — drought"` · `2026-05-07 "Capped intake for unmapped frequency-core rows"` · `2026-06-03 "Frequency-core data-quality pass"`.
 
 **Quran** — `2026-04-03 "Quran Lemma Promotion — Encountered → Acquiring"` · `2026-05-15 "Quran + OCR lemma canonicalization rewrite"` · `2026-06-02 "dagger-alef (U+0670) collapse"` · `2026-06-03 "Quran-frequency track — the islamic source finally populated"`.
 
@@ -47,6 +47,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-09-19 — Vocabulary and attention audit: choose maintenance around reading
+
+**Analysis only; no production changes.** Fresh September 19 online backup and
+September interaction logs: 517 maintenance-window sentence reviews, two true-new
+intakes under the checkpoint definition, strict main FSRS due 708. Of 2,794 active
+canonical content lemmas, 239 rank below the top 5,000 proxy and 48 remain unranked
+after an in-memory NULL-rank repair. Lower-ranked words account for 9.9% of primary
+judgments but occur in 54.5% of reviewed sentences.
+
+Read-only candidate execution yields 40/40 textbook-priority words. The source-based
+slow lane omits Bookifier/Dragoman. QAC remapping reproduces لَدُن (18 occurrences)
+as دَنّ “wine jug,” matching its stored Quran contribution and core rank 816.
+All 243 Momo corpus sentences remain inactive; seven have passed QA. Production
+checkout is still September 16 `f901a1b`, so merged v1.1/v1.1b and missing-rank fixes
+are not production outcomes. A fresh main reference check returned `c2fedbe2`.
+
+**Proposal:** explicit maintain-now / reading-support / later dispositions separate
+from memory state, bounded contextual identity curation, current reading relevance
+instead of permanent textbook privilege, simpler scaffold, staged book intake,
+and supported reading within the existing attention budget. No automatic parking,
+novel-readiness percentage or minutes-saved causal claim. SUBTLEX availability is
+narrowed: OSF validation files are not a verified complete frequency export.
+
+[Full report, limitations and ordered implementation](analysis-2026-09-19-vocabulary-attention.md).
+[Reproducible evidence](vocabulary-investigation-2026-09-19/README.md).
 
 ## 2026-09-18 — Frequency ranks: fix the CAMeL path and cap the loader (backfill pending)
 

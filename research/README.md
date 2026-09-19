@@ -1,5 +1,9 @@
 # Alif — Research Index
 
+## Vocabulary and attention investigation — September 19, 2026
+
+[Vocabulary selection should buy reading progress](analysis-2026-09-19-vocabulary-attention.md): fresh production audit, rare scaffold exposure, textbook-tier dominance, reproduced Quran/core identity errors, source-based slow-lane omissions, deployment drift, and a proposal for bounded maintenance around modern-fiction reading. Includes reproducible scripts and a per-word audit; no production changes.
+
 ## Open spec — September 18, 2026
 
 [Hermetic tests, coherent review sentences, and next steps](spec-2026-09-18-test-isolation-sentence-quality.md): the fast suite made 396 real provider calls; 45% of sampled review sentences were forced or word salad, tracking rare-word density; ordered plan after maintenance v1.1/v1.1b. Evidence in [spec-2026-09-18/](spec-2026-09-18/).
