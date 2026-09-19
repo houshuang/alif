@@ -48,6 +48,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-09-19 — Automatic attention v2: remove learner classification work
+
+The learner explicitly rejected manual attention decisions and requested removal
+of the three word-detail buttons. This supersedes v1's explicit-opt-in workflow.
+Implement automatic, reversible eligibility: broad non-Quran frequency evidence
+and repeated authentic reading need select new candidates through the existing
+0–2/day gate. Costly lower-priority maintenance becomes reading support without
+changing cards, history or remembered state. Missing rank alone is not rarity;
+generated reviews measure practice cost, never real-world reading relevance.
+Keep identity-QA parking separate. Recompute automatically during ordinary
+maintenance and fresh sessions; speculative prefetch remains read-only.
+Document thresholds and production dry-run before activation. No learner-facing
+classification controls or replacement setup task. Reading benefit is unmeasured.
+
 ## 2026-09-19 — Reading attention v1: production activation verified
 
 Deployed merged main `4ad8f688` ([PR #278](https://github.com/houshuang/alif/pull/278))

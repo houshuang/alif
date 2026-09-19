@@ -2680,12 +2680,10 @@ def _complete_book_page(
         ):
             continue
 
-        # Explicit passage opt-in is the only reading action that can enroll.
-        if lemma_id in guided_learn_canonical:
-            ulk = set_disposition(db, lemma_id, "maintain", "Explicit reading opt-in")
-            ulks[lemma_id] = ulk
-        elif ulk is None:
-            ulk = set_disposition(db, lemma_id, "reading_support", "Reading encounter; no maintenance commitment")
+        # Legacy client opt-ins do not override the automatic attention policy.
+        # Completed passage receipts supply relevance evidence for its next pass.
+        if ulk is None:
+            ulk = set_disposition(db, lemma_id, "reading_support", "Automatic reading evaluation pending")
             ulks[lemma_id] = ulk
         if not is_maintained(ulk):
             ulk.total_encounters = (ulk.total_encounters or 0) + 1

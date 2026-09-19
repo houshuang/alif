@@ -1,5 +1,9 @@
 # Reading attention v1 — implementation and rollout
 
+**Superseded by [automatic attention v2](#automatic-attention-v2) below.** The
+learner explicitly rejected per-word classification; the v1 rollout is retained
+here as history, not as the current interface or operating policy.
+
 This implements the September 19 investigation's first operational trial.
 Released to production and the iOS preview channel on September 19, 2026.
 
@@ -119,3 +123,60 @@ external web reachability is unverified. The primary iOS app uses HTTPS directly
 Final checks after the full suite: affected attention/intake/QAC tests 92 passed,
 stats/recovery tests 13 passed, frontend 23 suites/254 tests passed again, and
 TypeScript passed. No reading improvement is inferred from deployment success.
+
+## Automatic attention v2
+
+The learner's correction was explicit: remove the buttons; vocabulary priority
+must be fully automatic. V2 removes the three word-detail controls and the
+book-reader enrollment/opt-out toggles. Old attention PUTs receive 410 and old book
+opt-ins cannot override automatic eligibility. Reading/help/feedback remain
+ordinary interactions, with no replacement classification task.
+
+`automatic_attention.py` reevaluates eligibility before fresh sessions and each
+normal three-hourly material-maintenance pass. Prefetch and dry-run stay inert.
+It preserves existing cards, dates, states, counts and review history. A previously
+untouched, gated word with repeated reading evidence may get an encountered row;
+actual learning still goes through the recovery-aware 0–2/day admission gate.
+
+The rules are transparent engineering starting points, not a fitted optimal model:
+
+1. Identity-QA parking remains blocked. Variants, function/inert words and ungated
+   identities cannot gain automatic priority.
+2. At least two distinct authentic reading contexts in the last 30 days earns
+   maintenance and first intake priority. Sources are completed book-reader
+   sentence ranges, QA-verified book/corpus review sentences, and exact unique
+   citation matches for supported-chapter help in different paragraphs. Repeated
+   taps/rereads of one context do not accumulate contexts; ambiguous identities
+   stay unresolved. Reading evidence can restore an automatically deferred word.
+3. Broad frequency <=5,000 earns maintenance: the best positive lemma/CAMeL/news/
+   Buckwalter/arTenTen/KELLY rank. Fused core and Quran rank do not establish the
+   modern-reading priority. These remain imperfect frequency proxies.
+4. Other unintroduced vocabulary stays reading support. Positive Hindawi evidence
+   protects established words, but does not itself enroll an imported book. Missing
+   ranks protect existing vocabulary from an unsupported rarity inference.
+5. For remaining lower-priority established words, at least six judgments with
+   at least three rating-1/2 failures among the last eight moves them to reading
+   support. Easy established words stay maintained. Generated practice measures
+   cost only and cannot make itself evidence of reading relevance. The cost window
+   does not expire simply because a deferred word stops receiving reviews.
+
+Dry run on the September 19 production copy: **67 costly words** move to support
+(45 active: 6 acquiring, 20 known, 11 lapsed, 8 learning; plus 22 suspended whose
+automatic reintroduction is now blocked). **194 unintroduced words** also become
+support. These are eligibility changes, not declarations that the words are
+useless. The existing three QA holds remain. Other changes populate audit reasons.
+The second pass is idempotent: zero changes. Every preexisting memory column and
+all 75,105 review rows compare equal to the pre-v2 copy.
+
+Session rehearsal still returns ten cards and makes no memory changes during
+prefetch. Strict main FSRS debt is 709; actionable Box 1 is 12 and due Box 2 is 10
+at that checkpoint, so intake remains closed by recovery. Session builds were
+2.11s cold and 1.12/1.44s warm locally: existing performance remains above the
+nominal one-second goal. No provider calls are added by the classifier.
+
+Validation: full backend **2,118 passed**, 9 slow tests excluded; frontend
+**23 suites/254 tests passed** and TypeScript passed. Tests cover automatic relief,
+restoration/expiry, missing-rank protection, Quran versus modern evidence,
+generated/replayed/ambiguous context rejection, cap-respecting intake, QA holds,
+legacy clients and fresh-session versus prefetch behavior. Production activation
+and the replacement OTA are recorded after release below.

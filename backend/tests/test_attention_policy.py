@@ -82,7 +82,7 @@ def test_canonical_choice_blocks_variant_inventory_and_stale_review(db_session):
 
 
 @pytest.mark.parametrize('source', ['bookifier','dragoman','book','textbook_scan','story_import','book_ocr'])
-def test_new_import_is_staged_and_explicit_choice_respects_cap(db_session, client, source):
+def test_new_import_is_staged_and_legacy_ui_cannot_override(db_session, client, source):
     lemma = _seed_word(db_session, 1, 'كتاب', 'book', with_card=False)
     ulk = start_acquisition(db_session, 1, source=source, enforce_daily_cap=False)
     assert ulk.knowledge_state == 'encountered'
@@ -90,9 +90,9 @@ def test_new_import_is_staged_and_explicit_choice_respects_cap(db_session, clien
     assert ulk.fsrs_card_json is None
     db_session.commit()
     response = client.put('/api/words/1/attention', json={'disposition':'maintain'})
-    assert response.status_code == 200
-    assert response.json()['state'] == 'acquiring'
-    assert client.get('/api/words/1').json()['attention_disposition'] == 'maintain'
+    assert response.status_code == 410
+    assert ulk.knowledge_state == 'encountered'
+    assert client.get('/api/words/1').json()['attention_disposition'] == 'reading_support'
     assert client.put('/api/words/1/attention', json={'disposition':'bad'}).status_code == 422
 
 
@@ -110,22 +110,21 @@ def test_parked_acquisition_is_not_recovery_debt(db_session):
     assert status['box1_actionable'] == 0
 
 
-def test_recent_reading_choice_is_prioritized_then_expires(db_session):
-    from app.models import FrequencyCoreEntry
+def test_only_automatic_reading_recurrence_gets_intake_priority(db_session):
+    from app.services.automatic_attention import READING_REASON
     db = db_session
     book = _seed_word(db, 1, 'كتاب', 'book', with_card=False)
     core = _seed_word(db, 2, 'جبل', 'mountain', with_card=False)
     for lemma in (book, core):
         lemma.gates_completed_at = datetime.now(timezone.utc)
     book.source = 'book'
-    db.add(FrequencyCoreEntry(core_rank=50,lemma_id=2,lemma_key='mountain',display_form='جبل',score=10))
-    chosen = set_disposition(db, 1, 'maintain', 'Needed in next passage')
-    db.commit()
-    assert select_next_words(db,count=2)[0]['lemma_id'] == 1
-    chosen.attention_updated_at = datetime.now(timezone.utc)-timedelta(days=15)
+    core.frequency_rank = 100
+    chosen = set_disposition(db, 1, 'maintain', 'Legacy manual choice')
     db.commit()
     assert select_next_words(db,count=2)[0]['lemma_id'] == 2
-    assert chosen.attention_disposition == 'maintain'  # only intake priority expires
+    chosen.attention_reason = READING_REASON
+    db.commit()
+    assert select_next_words(db,count=2)[0]['lemma_id'] == 1
 
 
 def test_curation_preimages_fail_before_any_write(db_session):

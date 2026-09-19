@@ -210,6 +210,7 @@ class TestSelectNextWords:
         db_session.add_all([
             FrequencyCoreEntry(
                 core_rank=1,
+                camel_rank=1,
                 lemma_id=forum.lemma_id,
                 lemma_key=f"lemma:{forum.lemma_id}",
                 display_form="منتدى",
@@ -235,7 +236,7 @@ class TestSelectNextWords:
         result = select_next_words(db_session, count=2)
         assert result[0]["lemma_id"] == forum.lemma_id
         assert result[0]["frequency_core_rank"] == 1
-        assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_1"
+        assert result[0]["score_breakdown"]["priority_tier"] == "modern_frequency_1"
 
     def test_old_textbook_provenance_does_not_outrank_core(self, db_session):
         top_core = _create_lemma(db_session, "اسم", "name", freq=100)
@@ -273,9 +274,9 @@ class TestSelectNextWords:
             mid_core.lemma_id,
             textbook.lemma_id,
         ]
-        assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_100"
+        assert result[0]["score_breakdown"]["priority_tier"] == "modern_frequency_100"
         assert result[2]["score_breakdown"]["priority_tier"] == "textbook_scan"
-        assert result[1]["score_breakdown"]["priority_tier"] == "freq_core_700"
+        assert result[1]["score_breakdown"]["priority_tier"] == "modern_frequency_700"
 
     def test_old_textbook_provenance_cannot_readmit_suspension(self, db_session):
         textbook = _create_lemma(db_session, "مطمور", "buried", freq=None)

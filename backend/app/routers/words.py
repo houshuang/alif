@@ -492,19 +492,9 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{lemma_id}/attention")
 def update_attention(lemma_id: int, payload: AttentionIn, db: Session = Depends(get_db)):
-    from app.services.attention_policy import set_disposition, POLICY_VERSION
-    if db.get(Lemma, lemma_id) is None:
-        raise HTTPException(404, "Word not found")
-    knowledge = set_disposition(db, lemma_id, payload.disposition, payload.reason[:500])
-    if payload.disposition == "maintain" and knowledge.knowledge_state in ("encountered", "new"):
-        from app.services.acquisition_service import start_acquisition
-        knowledge = start_acquisition(db, knowledge.lemma_id, source="study", due_immediately=True)
-    db.commit()
-    log_interaction(event="attention_changed", policy_version=POLICY_VERSION,
-                    lemma_id=knowledge.lemma_id, attention_disposition=payload.disposition,
-                    reason=payload.reason[:500])
-    return {"lemma_id": knowledge.lemma_id, "attention_disposition": knowledge.attention_disposition,
-            "state": knowledge.knowledge_state, "policy_version": POLICY_VERSION}
+    # Compatibility for the short-lived v1 OTA. Old clients must not override
+    # the fully automatic policy while waiting for their next app update.
+    raise HTTPException(410, "Vocabulary priorities are managed automatically")
 
 
 @router.post("/{lemma_id}/postpone")

@@ -63,6 +63,6 @@ All frontend in `frontend/`. The Expo app serves **two languages** (Arabic via t
 - `components/reading-voice-note.tsx` — Existing Expo AV recording/playback, one-minute limit, durable stopped-recording draft and text fallback. See [supported-reading-chapters.md](supported-reading-chapters.md).
 
 
-### Reading attention v1 (2026-09-19)
+### Automatic attention v2 (2026-09-19)
 
-Word detail exposes Maintain now / Reading support / Park for later with inline errors and preserved history. Successful changes invalidate cached review sessions and dashboard data. The review progress bar links directly to /read so reading can replace part of a review session.
+Word detail has no attention controls. Book reader has no enrollment/opt-out toggles: a tap opens help, while completed reading supplies automatic relevance evidence. The review progress bar links directly to /read so reading can replace part of a review session.

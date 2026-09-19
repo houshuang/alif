@@ -1408,13 +1408,3 @@ export async function getPatterns(): Promise<PatternListItem[]> {
 export async function getPatternDetail(wazn: string): Promise<PatternDetail> {
   return fetchApi<PatternDetail>(`/api/patterns/${encodeURIComponent(wazn)}`);
 }
-
-export async function setWordAttention(lemmaId: number, disposition: AttentionDisposition): Promise<{ state: string }> {
-  const result = await fetchApi<{ state: string }>(`/api/words/${lemmaId}/attention`, {
-    method: "PUT",
-    body: JSON.stringify({ disposition, reason: "Learner choice in word details" }),
-  });
-  await Promise.all([invalidateSessions(), invalidateDataCaches()]);
-  syncEvents.emit("attention_changed");
-  return result;
-}

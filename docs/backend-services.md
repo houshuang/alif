@@ -109,3 +109,7 @@ exact resolver before any stripped-bare, CAMeL, LLM, or creation fallback.
 ### Reading attention v1 (2026-09-19)
 
 attention_policy.py centralizes canonical maintenance eligibility, recursive SQL exclusions, explicit disposition changes and new-import staging. Sentence eligibility, scheduling, generation, reading and due statistics share the policy. quran_frequency.py now matches citation identity/POS without running-text prefix stripping; ambiguous matches stay unresolved.
+
+### Automatic attention v2 (2026-09-19)
+
+`automatic_attention.py` computes reversible maintenance eligibility from broad frequency, independent reading contexts and recent practice cost. Ordinary cron and fresh sessions refresh it automatically. `attention_policy.py` remains the shared enforcement layer. The classifier never calls a provider or rewrites memory; all decisions retain reasons in the activity log.

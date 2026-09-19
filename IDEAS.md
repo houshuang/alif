@@ -1,5 +1,15 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED 2026-09-19 — release validation] Automatic attention v2
+
+The learner explicitly rejected per-word classification. Remove the v1 buttons
+and book-reader enrollment toggles. Select maintenance automatically from broad
+non-Quran frequency, repeated authentic reading contexts and observed cost;
+keep unknown frequency separate from rarity and preserve memory/history.
+Existing QA parking stays inert. Reevaluate before fresh sessions and each
+ordinary material-maintenance run; cap-controlled intake remains unchanged.
+See [automatic policy and release evidence](research/reading-attention-2026-09-19/README.md#automatic-attention-v2).
+
 ## 🟢 [DEPLOYED 2026-09-19 — outcome measurement pending] Reading attention v1
 
 Independent maintenance choices preserve cards/history; new imports stage as

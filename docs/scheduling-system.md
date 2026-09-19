@@ -2713,7 +2713,9 @@ Also update:
 - `research/experiment-log.md` for algorithm changes
 - `IDEAS.md` for new ideas discovered during implementation
 
-## Reading attention v1 — 2026-09-19
+## Automatic reading attention v2 — 2026-09-19
+
+This section supersedes the brief manual v1 release at the learner’s explicit request.
 
 Attention eligibility is independent of `knowledge_state` and import provenance.
 `UserLemmaKnowledge.attention_disposition` is `maintain` (legacy default),
@@ -2731,12 +2733,33 @@ red/yellow outcomes. Sentence receipts retain retry idempotency. Low-level FSRS
 and acquisition endpoints resolve canonical identity and cannot restart them.
 This adds an explicit exception alongside mature-collateral exposure v1.
 
-New external/book/textbook vocabulary is staged as reading support. Existing
-commitments retain their default. A word-detail maintenance choice or guided
-reader opt-in can enroll; the same 0–2/day recovery allowance applies. A recent
-explicit choice wins intake priority for 14 days (260 points), after which only
-its priority bonus expires; its maintenance choice remains. Old textbook
-provenance has zero priority bonus and cannot itself revive suspension.
+New external/book/textbook vocabulary is staged for automatic evaluation. The
+learner never classifies individual words. `automatic_attention.refresh_attention`
+runs before each fresh non-prefetch session and before normal material maintenance
+(3-hourly cron); the standalone script previews by default and applies with
+`--apply`. It changes only attention fields and stages a validated encountered row
+when repeated authentic reading makes a previously untouched word relevant.
+
+Rules, in order: preserve identity-QA parking; ignore variants, inert/function
+words and ungated identities; maintain a word occurring in at least two distinct
+recent authentic reading contexts (30 days); maintain broad frequency <=5,000
+(best positive lemma/CAMeL/news/Buckwalter/arTenTen/KELLY rank, excluding the fused
+and Quran ranks); stage other unintroduced words; protect established words with
+positive Hindawi evidence <=5,000; protect missing-rank uncertainty; move remaining
+lower-priority words with >=6 recent scheduled judgments and >=3 failures among
+the latest 8 into reading support; retain inexpensive established words. The cost
+window does not decay with the wall clock, so quiet time alone cannot re-enroll a
+costly word. New reading relevance can restore it without resetting its card.
+
+Authentic contexts come from QA-verified book/corpus sentences actually reviewed,
+completed book-reader ranges (distinct sentence indices), or uniquely exact-matched
+supported-chapter word lookups (distinct paragraphs). Generated practice/import
+inventory never counts as reading relevance. Ambiguous lookups stay unresolved.
+The recurrence priority is 260 points while the 30-day evidence remains; mixed
+Quran/fused core rank remains audit metadata, and general intake bonuses now use
+the broad frequency evidence. Automatic eligibility is not automatic acquisition:
+the same recovery-aware 0–2/day cap applies. Legacy attention PUT returns 410;
+legacy book opt-ins cannot override the automatic result.
 Bookifier and Dragoman now use the same frequency lanes as other artifacts.
 
 Ordinary review sentences containing non-maintained tokens are excluded through
@@ -2748,14 +2771,14 @@ A rank-based scaffold rejection cap remains unactivated.
 
 Gate audit (§19.17):
 
-| Gate / route | v1 behavior |
+| Gate / route | v2 behavior |
 |---|---|
 | Main/fill comprehensibility, unknown scaffold, book/corpus and due density | Shared sentence eligibility removes opted-out tokens before existing checks |
 | Pipeline backlog, recovery, due stats, cohort and listening | Shared canonical maintenance predicate filters operational rows |
-| Variant resolution and intro/reintro | Variant chains inherit canonical exclusion; explicit intake honors cap |
+| Variant resolution and intro/reintro | Variant chains inherit canonical exclusion; automatic intake honors cap |
 | Generated single/multi-target supply, warm cache, deficit refill | Excluded targets/scaffold omitted; no alternate generation path |
 | Sentence and direct reviews, leech recovery | No scheduled credit/resurrection; token ledger and receipts retained |
-| Book Next and story completion | New vocabulary stays support; existing parked words remain inert; explicit opt-in required |
+| Book Next and story completion | New vocabulary stages; completed ranges inform later automatic selection; QA parked words remain inert |
 | OCR and external imports | New support rows; existing commitments preserved |
 | Speculative prefetch | No disposition writes, promotions or intake-budget use |
 | Inert/function words and mapping verification | Existing classification, identity and QA gates unchanged |

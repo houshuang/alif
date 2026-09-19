@@ -512,7 +512,7 @@ class TestBookReaderPageEvidence:
         assert db_session.query(UserLemmaKnowledge).count() == 0
         assert db_session.query(ReviewLog).count() == 0
 
-    def test_guided_toggle_starts_box_one_without_fabricated_miss(self, db_session):
+    def test_legacy_guided_toggle_stages_without_overriding_automatic_attention(self, db_session):
         story, understood, *_ = self._book(db_session)
         from app.services.story_service import complete_book_page
 
@@ -529,10 +529,10 @@ class TestBookReaderPageEvidence:
         state = db_session.query(UserLemmaKnowledge).filter_by(
             lemma_id=understood.lemma_id
         ).one()
-        assert state.knowledge_state == "acquiring"
-        assert state.acquisition_box == 1
-        assert state.acquisition_next_due <= datetime.now(timezone.utc).replace(tzinfo=None)
-        assert result["guided_started"] == 1
+        assert state.knowledge_state == "encountered"
+        assert state.acquisition_box is None
+        assert state.attention_disposition == "reading_support"
+        assert result["guided_started"] == 0
         assert result["guided_inert"] == 2
         assert db_session.query(ReviewLog).filter_by(
             lemma_id=understood.lemma_id
@@ -937,7 +937,7 @@ class TestBookReaderPageEvidence:
     @pytest.mark.parametrize("reader_policy, mark_unknown, learn_explicitly, expected_box, expected_reviews", [
         ("clean", False, False, None, 0),
         ("clean", True, False, None, 0),
-        ("guided", False, True, 1, 0),
+        ("guided", False, True, None, 0),
     ])
     def test_new_reader_word_uses_full_inline_import_before_admission(
         self, db_session, monkeypatch, reader_policy, mark_unknown,

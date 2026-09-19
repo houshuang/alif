@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily, arabicFontForSentence, ltr } from "../lib/theme";
@@ -827,18 +827,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       warmSentences().catch(() => {});
     }
   }, [cardIndex, totalCards, mode]);
-
-  // Word-detail choices invalidate the live session as well as disk caches.
-  const attentionChangedRef = useRef(false);
-  useEffect(() => syncEvents.on("attention_changed", () => {
-    attentionChangedRef.current = true;
-  }), []);
-  useFocusEffect(useCallback(() => {
-    if (attentionChangedRef.current) {
-      attentionChangedRef.current = false;
-      void loadSession(undefined, true);
-    }
-  }, [mode]));
 
   // Reload session when sync completes and user is between sessions
   useEffect(() => {
