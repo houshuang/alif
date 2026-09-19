@@ -1,5 +1,28 @@
 # Alif — Master Ideas File
 
+## 🔵 [INVESTIGATED 2026-09-19 — proposed, not activated] Reading benefit per unit of attention
+
+Fresh production evidence: 517 maintenance-window sentence reviews, only two true-new
+intakes under the existing checkpoint definition, and lower-ranked (>5,000) words in
+54.5% of sentences despite only 9.9% of primary targets. All 40 next-word candidates
+use the permanent textbook priority tier. Bookifier/Dragoman are absent from the
+source-based slow-lane list. The QAC mapper reproduces لَدُن → دَنّ “wine jug,”
+demonstrating that even lemmatized source data can acquire the wrong Alif identity.
+Production was still at September 16 `f901a1b`; maintenance v1.1/v1.1b and the rank
+repair were not deployed at this checkpoint.
+
+Propose an explicit attention disposition independent of knowledge/provenance:
+maintain now, reading support, later/parked. Preserve history; parking must not use
+leech suspension or auto-reintroduce. Replace permanent textbook source privilege
+with current reading relevance; bound rare scaffold as well as targets; stage book
+imports instead of enrolling an entire tail; give modern fiction and classical
+reading separate priorities. Reuse existing supported reading and 0–2/day intake.
+No automatic parking list, new algorithm, or production change is activated by the report.
+
+[Full investigation and implementation sequence](research/analysis-2026-09-19-vocabulary-attention.md).
+The June SUBTLEX-AR availability inference is narrowed: the six OSF files inspected
+are validation data/code, not a verified complete lemma-frequency export.
+
 ## 🟡 [IMPLEMENTED 2026-09-17 — v1.1 amendments; follow-ups open] Unblock intake and shrink review debt
 
 The learner reported debt stuck at 600–700, strange sentences, and no new words.

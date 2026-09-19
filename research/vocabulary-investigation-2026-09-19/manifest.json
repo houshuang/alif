@@ -1,0 +1,181 @@
+{
+  "code_base": "c2fedbe2fbfd4974649fd48571b6795f29b7a453",
+  "production_head": "f901a1b447351ed1a0e2cdc82a48e9291f32cb77",
+  "cutoff": "2026-09-19T13:17:00Z",
+  "inputs": [
+    {
+      "name": "prod.db",
+      "bytes": 147320832,
+      "sha256": "8e685f9d3d282da6510f22a8f42671aff988565cbd63e5f5d1b591a75b61a305"
+    },
+    {
+      "name": "MSA_freq_lists.tsv",
+      "bytes": 228349291,
+      "sha256": "9ccd10aa66a514fd4b433c7996cba165420dd685d71bfbd6d96315a738ddff16"
+    },
+    {
+      "name": "book_momo_tokenmap.json",
+      "bytes": 39103,
+      "sha256": "6e92f8c98f180e72c120e6d92ba737e75932a7e8b162973ae8f3d126f73a7cd9"
+    },
+    {
+      "name": "quranic-corpus-morphology-0.4.txt",
+      "bytes": 6309503,
+      "sha256": "a1d12923815341face765083805d2148ed2d9f5cc3f7d6665219d887675d8c46"
+    },
+    {
+      "name": "momo_full_2026-07-15.txt",
+      "bytes": 383354,
+      "sha256": "6b2e15be4428779e300f4bdae73dbedc4ea52fec37c3902ab2ecfec9ce4da707"
+    }
+  ],
+  "interaction_logs": [
+    {
+      "name": "interactions_2026-09-01.jsonl.gz",
+      "bytes": 33984,
+      "sha256": "96855e276e07e1fa35a7ccca203298a65854605319166c5c29c0058986895a08"
+    },
+    {
+      "name": "interactions_2026-09-02.jsonl.gz",
+      "bytes": 13957,
+      "sha256": "b29f500439f34ef6f472e018e516f5157d2b3a7e59fe8fb492f30c8eacd73971"
+    },
+    {
+      "name": "interactions_2026-09-03.jsonl.gz",
+      "bytes": 51166,
+      "sha256": "152b3716dcf8e0bec0598f7561b01e95e32b633ad7bb9f1d83f2e790deefb553"
+    },
+    {
+      "name": "interactions_2026-09-04.jsonl.gz",
+      "bytes": 22873,
+      "sha256": "ec65aff04cdc0f255c226c13541079870352b8093c43a8da476f26b1e37254cf"
+    },
+    {
+      "name": "interactions_2026-09-05.jsonl.gz",
+      "bytes": 361,
+      "sha256": "995ae0a56cc121a5f0d825e02d0de1f955d7e32a0cf2fa6b2830efb6f61d460d"
+    },
+    {
+      "name": "interactions_2026-09-06.jsonl.gz",
+      "bytes": 353,
+      "sha256": "5eb275cf4d550413b3da63904c6d716493a90cbb708c2e92a3e23ef915fa3b1e"
+    },
+    {
+      "name": "interactions_2026-09-07.jsonl.gz",
+      "bytes": 26108,
+      "sha256": "41a2254fa4cc6e6430c178307b12e1aa037517f09f26342a2518e244ea9ed817"
+    },
+    {
+      "name": "interactions_2026-09-08.jsonl.gz",
+      "bytes": 15103,
+      "sha256": "22353ab654cb901cde190eaede8494e98ff2f359a3f61cd5502f1960fe3383b8"
+    },
+    {
+      "name": "interactions_2026-09-09.jsonl.gz",
+      "bytes": 6915,
+      "sha256": "a556f6d743796c6b32a8626a3c169f57d22422548fa40d0395cf5ed315278c55"
+    },
+    {
+      "name": "interactions_2026-09-10.jsonl.gz",
+      "bytes": 12591,
+      "sha256": "0c42cc70ecf0a3b16c37b16587482b4acd0b42cb9c23bbefaa27dd06d461070e"
+    },
+    {
+      "name": "interactions_2026-09-11.jsonl",
+      "bytes": 91232,
+      "sha256": "5ef6e880763c6c61ef8b1ca8376f95f457c26b49fce697199a56084c836a4576"
+    },
+    {
+      "name": "interactions_2026-09-12.jsonl",
+      "bytes": 194933,
+      "sha256": "1c07870aba8f081bc322a52432d978df439f98bf96ba03673ec508aa0d25d37e"
+    },
+    {
+      "name": "interactions_2026-09-13.jsonl",
+      "bytes": 568050,
+      "sha256": "71b8e22168c8e6bbdfe18a6c8e83335a6ffd6e45f90149d0c863391992408afe"
+    },
+    {
+      "name": "interactions_2026-09-14.jsonl",
+      "bytes": 105769,
+      "sha256": "ac5caf7427eb2361aeb0991b1b24b6306bf1047092cadd1e940d0137b8855f4c"
+    },
+    {
+      "name": "interactions_2026-09-15.jsonl",
+      "bytes": 269189,
+      "sha256": "31690a15b371b838fd8868ed7e8bdfb6f7fc221dadc1c8e0f43661ca762d5a6c"
+    },
+    {
+      "name": "interactions_2026-09-16.jsonl",
+      "bytes": 350827,
+      "sha256": "c3dd87e568f26053a13342ee415233a827e483b6f8306af4cde1f8206974e5bd"
+    },
+    {
+      "name": "interactions_2026-09-17.jsonl",
+      "bytes": 211860,
+      "sha256": "a295d3bc9db1f455d9bb17b9db1f1f9a2717d14b8d9ad37d0f32e8cfa2091cbf"
+    },
+    {
+      "name": "interactions_2026-09-18.jsonl",
+      "bytes": 222727,
+      "sha256": "ae68ac90808bd5fb011b80d4b4e187ca9541eb5644450212d8d052daf4b398c6"
+    },
+    {
+      "name": "interactions_2026-09-19.jsonl",
+      "bytes": 7593,
+      "sha256": "513bfd37506a2b5373c4113eb3a8a7825d7a6bf07dfa8e391ce334d54250e67b"
+    }
+  ],
+  "validation": {
+    "snapshot_unchanged": true,
+    "unique_canonical_audit_rows": 3928,
+    "active_counts_reconcile": true,
+    "review_counts_reconcile": true,
+    "momo_partition_reconciles": true,
+    "report_local_links_exist": true,
+    "append_only_content_preserved": true,
+    "production_mutations": false
+  },
+  "artifacts": [
+    {
+      "name": "README.md",
+      "sha256": "61fea8b09056bd3cab4380ae5b929cd1969cdd85ec0d2880e945dd22178c71ca",
+      "bytes": 5026
+    },
+    {
+      "name": "analyze.py",
+      "sha256": "0fc3ec1432da4456b53f448e55d496eb6d295462ac3b6b2321f42e65b78981ef",
+      "bytes": 13474
+    },
+    {
+      "name": "maintenance.json",
+      "sha256": "4a9945e4eaa01106e45a453b1b9ec4ea2eba53e72752fa79ffa044da405eaad4",
+      "bytes": 9132
+    },
+    {
+      "name": "mapping-probe.json.gz",
+      "sha256": "29d36bc5a8d509a0c9e18fa96919351e41f76f9ea3013e0201fad1913caf8e59",
+      "bytes": 129329
+    },
+    {
+      "name": "probe_mapping.py",
+      "sha256": "1c727b5416c4a5a508e0a77a7f2afa398568c821502a550cc518f384b45441cf",
+      "bytes": 5201
+    },
+    {
+      "name": "results.json",
+      "sha256": "d42b1d372ef0d0a37fa2ff9a295c099b2f489378b44c80af8d27afa0f12e4cd9",
+      "bytes": 109008
+    },
+    {
+      "name": "source-audit.json",
+      "sha256": "21746151dd6b7ffb66675dd2f459a03190afb476f2019b93aa3f0a7a9a2b3233",
+      "bytes": 1867
+    },
+    {
+      "name": "word-audit.csv",
+      "sha256": "beab8f1b07bf59ff177a911937c245c025f8af0e4032153007add3972438b201",
+      "bytes": 459991
+    }
+  ]
+}

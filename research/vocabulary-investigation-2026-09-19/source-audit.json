@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-09-19",
+  "osf_api": "https://api.osf.io/v2/nodes/spb8c/files/osfstorage/",
+  "files": [
+    {
+      "name": "sem_val0.RData",
+      "size": 12940,
+      "modified": "2024-06-04T16:34:45.661455",
+      "download": "https://osf.io/download/scxad/"
+    },
+    {
+      "name": "ldt_0.RData",
+      "size": 464747,
+      "modified": "2024-06-04T16:34:46.911738",
+      "download": "https://osf.io/download/dswuc/"
+    },
+    {
+      "name": "ldt_0_correct.RData",
+      "size": 556783,
+      "modified": "2025-07-24T16:52:50.869293",
+      "download": "https://osf.io/download/54jsw/"
+    },
+    {
+      "name": "ldt_3.RData",
+      "size": 882172,
+      "modified": "2024-06-04T16:34:52.008075",
+      "download": "https://osf.io/download/wajer/"
+    },
+    {
+      "name": "SubtlexAR_Val_OSF_Corrected.ipynb",
+      "size": 29031,
+      "modified": "2025-07-24T16:52:48.477967",
+      "download": "https://osf.io/download/d9uyp/"
+    },
+    {
+      "name": "a.Readme_SUBTLEX-AR.txt",
+      "size": 580,
+      "modified": "2024-06-04T16:34:51.225082",
+      "download": "https://osf.io/download/e9pdy/"
+    }
+  ],
+  "finding": "Public OSF files inspected are validation data and analysis code. The README describes lexical-decision trials and semantic validation; no complete production lemma frequency table was verified here. This corrects the June inference that six available files establish obtainability of the full list.",
+  "subtlex_paper": "https://doi.org/10.3758/s13428-024-02560-8",
+  "correction": "https://doi.org/10.3758/s13428-025-02899-6",
+  "correction_scope": "Publisher preview acknowledges a processing error; full correction not retrieved. Do not infer which fields are affected.",
+  "query_site": "https://subtlexar.uaeu.ac.ae/",
+  "query_site_status": "Timed out in this session; not proof of permanent unavailability."
+}

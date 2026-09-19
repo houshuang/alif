@@ -1,5 +1,13 @@
 # Frequency-Core Curriculum
 
+**September 19 audit:** this document's historical weight/tier descriptions are
+not a complete account of current behavior. Code uses Quran weight 700 (the table
+below retains the earlier 150), and textbook provenance at 220 outranks the core
+501–1,000 tier at 210. Core rank is a fused curriculum score, not a validated modern
+fiction frequency. See [the current investigation](../research/analysis-2026-09-19-vocabulary-attention.md)
+for production measurements, identity errors, source gaps and proposed changes.
+No curriculum change was activated by that investigation.
+
 The frequency core is Alif's general-reading vocabulary curriculum. It answers
 "how many of the top N Arabic words do I know?" without hiding missing mappings.
 
