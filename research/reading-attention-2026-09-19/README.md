@@ -1,7 +1,7 @@
 # Reading attention v1 — implementation and rollout
 
 This implements the September 19 investigation's first operational trial.
-Production rollout results will be appended after release verification.
+Released to production and the iOS preview channel on September 19, 2026.
 
 ## What changes
 
@@ -79,3 +79,43 @@ completion, help per 100 words, reported effort and return to reading. Keep a
 small protected vocabulary sample for 7/14/30-day recognition. Report scheduled
 reviews separately from exposure-only evidence, and distinguish first readings
 from rereading. Do not expand parking just to make the due counter smaller.
+
+## Production release — September 19, 2026
+
+[PR #278](https://github.com/houshuang/alif/pull/278) was squash-merged as
+`4ad8f688f1739bc6c61cfad45aa9eccb3f29f467`. Backend deployment ran from clean
+tracked `main` at that exact revision, with a stopped-service SQLite online
+backup at `/opt/alif-backups/alif-reading-attention-20260919-pre.db` before the
+additive migration `c9e1a3b5d7f0`. The private backup contains 75,105 reviews and
+3,413 knowledge rows. No raw learning database is committed here.
+
+Live post-migration comparison to that backup confirmed:
+
+- SQLite integrity OK; **zero preexisting memory rows changed** when comparing
+  every old knowledge column, and **zero review rows changed or missing**.
+- **1,476 missing ranks filled**, 224 remain NULL; no existing non-NULL rank changed.
+- 3,410 maintained knowledge rows and the three explicitly reviewed parked rows.
+- Exactly the three nominated QAC core links excluded; no full curriculum rebuild.
+
+The live word endpoints return the expected dispositions for all three parked
+candidates and a maintained control; `/api/stats` succeeds. The deployed scheduler
+code selects 0.90 desired retention under the active maintenance policy. This
+release also brings the previously merged Box-1/recovery adjustments online.
+Dry-run and applied curation reports remain beside the private server backup.
+
+Frontend release used the guarded `publish-ios-update.sh` wrapper from a clean,
+owned `main` checkout at the same revision. The published iOS manifest passed the
+private API URL check: preview channel, runtime `1.0.0`, update
+`01a0bb29-aee2-7400-9a55-c6f7ce320c90`, [update group
+6f1f8ecd-dc0a-4308-879e-3ae0996f32eb](https://expo.dev/accounts/houshuang/projects/alif/updates/6f1f8ecd-dc0a-4308-879e-3ae0996f32eb).
+The phone normally downloads on one launch and applies on the next. On-device
+receipt is not independently verified. Browser QA on a private production clone
+confirmed that parking and restoring a word preserves its state, history and
+times-seen count; the live review screen refreshes after an attention change.
+The web service was restarted with its Metro cache cleared and responds HTTP 200
+on the server. The public port-8081 URL timed out from the release machine;
+external web reachability is unverified. The primary iOS app uses HTTPS directly.
+
+Final checks after the full suite: affected attention/intake/QAC tests 92 passed,
+stats/recovery tests 13 passed, frontend 23 suites/254 tests passed again, and
+TypeScript passed. No reading improvement is inferred from deployment success.

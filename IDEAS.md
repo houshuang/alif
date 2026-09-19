@@ -1,13 +1,13 @@
 # Alif — Master Ideas File
 
-## 🟡 [IMPLEMENTED 2026-09-19 — rollout validation] Reading attention v1
+## 🟢 [DEPLOYED 2026-09-19 — outcome measurement pending] Reading attention v1
 
 Independent maintenance choices preserve cards/history; new imports stage as
 reading support, explicit opt-in honors 0–2/day, recent reading choices receive a
 14-day intake priority, and textbook provenance loses its permanent override.
 Bookifier/Dragoman lane parity and uniform scaffold sampling close the two
 measured background amplifiers. QAC citation joins now require lexical/POS proof.
-Only three confirmed identity-QA candidates are proposed for initial parking;
+Only three confirmed identity-QA candidates were initially parked;
 no frequency-cutoff bulk parking. See [rollout and gate audit](research/reading-attention-2026-09-19/README.md).
 
 Next evidence: fresh-passage effort/help and delayed recognition over two weeks.
