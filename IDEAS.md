@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🟡 [IMPLEMENTED 2026-09-19 — release validation] Automatic attention v2
+## 🟢 [DEPLOYED 2026-09-19 — outcome measurement pending] Automatic attention v2
 
 The learner explicitly rejected per-word classification. Remove the v1 buttons
 and book-reader enrollment toggles. Select maintenance automatically from broad

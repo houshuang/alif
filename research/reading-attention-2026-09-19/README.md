@@ -151,7 +151,7 @@ The rules are transparent engineering starting points, not a fitted optimal mode
 3. Broad frequency <=5,000 earns maintenance: the best positive lemma/CAMeL/news/
    Buckwalter/arTenTen/KELLY rank. Fused core and Quran rank do not establish the
    modern-reading priority. These remain imperfect frequency proxies.
-4. Other unintroduced vocabulary stays reading support. Positive Hindawi evidence
+4. Other staged, unintroduced vocabulary stays reading support. Positive Hindawi evidence
    protects established words, but does not itself enroll an imported book. Missing
    ranks protect existing vocabulary from an unsupported rarity inference.
 5. For remaining lower-priority established words, at least six judgments with
@@ -179,4 +179,31 @@ Validation: full backend **2,118 passed**, 9 slow tests excluded; frontend
 restoration/expiry, missing-rank protection, Quran versus modern evidence,
 generated/replayed/ambiguous context rejection, cap-respecting intake, QA holds,
 legacy clients and fresh-session versus prefetch behavior. Production activation
-and the replacement OTA are recorded after release below.
+and the replacement OTA are recorded below.
+
+### V2 production verification
+
+[PR #280](https://github.com/houshuang/alif/pull/280) merged and deployed as
+`b0969c392f182335e1ef4b8b85ff5d5a9ef04e5f` from clean tracked main. Fresh online
+backup with the service stopped: `/opt/alif-backups/alif-automatic-attention-20260919-pre.db`.
+Dry-run, applied and idempotency plans are retained beside it. No schema migration
+was required. The initial automatic pass produced exactly the rehearsed result:
+**3,149 maintain, 261 reading support (67 cost relief + 194 unintroduced), 3 QA
+parked**. Every preexisting non-attention knowledge field and all 75,105 reviews
+match the backup; SQLite integrity OK. A repeated evaluation proposes zero changes.
+
+Live endpoints confirm automatic cost relief, a maintained control and preserved
+QA parking; the retired manual PUT returns 410 without changing the word.
+Stats responds successfully. The actual cron wrapper symlink points to the
+deployed repository and its schedule is `30 */3 * * *`; no separate user-managed
+automation is required. Fresh sessions also evaluate the policy directly.
+
+The replacement iOS preview update is `01a0bb56-1c7f-7a45-808a-5180936850d9`,
+[group a7b84bea-4829-44c0-bca1-e58ed29364e8](https://expo.dev/accounts/houshuang/projects/alif/updates/a7b84bea-4829-44c0-bca1-e58ed29364e8),
+runtime 1.0.0. Published from the same clean main revision through the guarded
+wrapper; its private API URL was verified in the published manifest. Up to two
+cold launches may be needed; actual phone receipt is not independently observed.
+Web service was cache-cleared/restarted and returns HTTP 200 locally; external
+port-8081 accessibility was not re-established. Browser checks on a private copy
+confirmed no attention buttons, intact history, and word help without enrollment
+toggles. Final affected tests after review: 74 passed; TypeScript passed again.
