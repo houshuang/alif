@@ -1,15 +1,36 @@
 # Alif — Arabic Reading & Listening Trainer
 
-[Blog post](https://networkedthought.substack.com/p/how-an-iraqi-play-about-cain-and)
+A personal Arabic (MSA/fusha) reading and listening trainer. You review whole sentences rather than flashcards; every word in a sentence feeds FSRS spaced repetition, and an LLM pipeline generates sentences and stories from the words you already know. Its author has been learning with it since February 2026.
 
-A personal Arabic (MSA/fusha) learning app focused on reading and listening comprehension. Tracks word knowledge at root, lemma, and conjugation levels using FSRS spaced repetition. Uses LLM-generated sentences and stories tailored to your vocabulary.
-
-> **This is a private project shared as-is.** It was built for one person's Arabic learning workflow using Claude Code. It is not a polished open-source product — there are hardcoded server addresses, personal deployment scripts, and opinionated design decisions throughout. It works well, but setting it up requires reading the code and adapting things to your own setup. Claude Code can help you with that.
+Blog posts: [why it exists](https://networkedthought.substack.com/p/how-an-iraqi-play-about-cain-and) · [technical deep dive](https://networkedthought.substack.com/p/alif-technical-deep-dive)
 
 <p align="center">
   <img src="docs/screenshots/review-card.png" width="250" alt="Sentence review with word lookup" />
   <img src="docs/screenshots/word-detail.png" width="250" alt="Word detail screen" />
 </p>
+
+## How it was built
+
+Alif was written almost entirely by coding agents (Claude Code, later also Codex), steered by one person over about 1,250 commits. The files that keep the agents on track are the most reusable part of the repo:
+
+- [`CLAUDE.md`](CLAUDE.md): architecture, LLM routing, and a list of "hard invariants", each one added after it caused a production bug or data corruption.
+- [`docs/`](docs/): reference docs the agents read before changing an area (scheduling, NLP pipeline, data model, API, design principles).
+- [`.claude/skills/`](.claude/skills/): project skills for deploy, smoke tests, log checks, backups and data-quality audits.
+- [`research/`](research/): dated analyses and model A/B comparisons that justify design and model-routing decisions.
+- [`CHANGELOG.md`](CHANGELOG.md) and [`IDEAS.md`](IDEAS.md): what changed and why, and the backlog.
+
+> **Shared as-is.** Built for one person's learning, not packaged as an open-source product. It contains the author's server references and deployment scripts (see [Files You Need to Personalize](#files-you-need-to-personalize)). Setting up your own instance means reading the code; a coding agent can do most of that for you.
+
+## Architecture
+
+- **Backend**: Python / FastAPI / SQLite (single user, no auth, WAL mode), Alembic migrations — `backend/`
+- **Frontend**: Expo SDK 54 (React Native), iOS and web — `frontend/`
+- **SRS**: py-fsrs v6, plus an acquisition (Leitner-style) phase for new words
+- **LLM**: Batch and background work runs through the Claude CLI (`claude -p`): Sonnet for sentence generation, Opus for stories. Quality gates, enrichment and verification route through the Codex CLI first, falling back to Claude CLI and then the OpenAI/Anthropic APIs. Interactive chat calls the Anthropic API directly for latency. Gemini is used only for OCR. See `backend/app/services/llm.py`.
+- **NLP**: Rule-based clitic stripping + CAMeL Tools morphological analysis + LLM disambiguation — [`docs/nlp-pipeline.md`](docs/nlp-pipeline.md)
+- **TTS / audio**: ElevenLabs, pydub + ffmpeg for podcast stitching
+- **Deployment**: venv + systemd on a single small VPS (no Docker)
+- **Sister apps in this repo**: [`polyglot/`](polyglot/) (Modern/Ancient Greek and Latin, ported from Alif) and [`spanish-pilot/`](spanish-pilot/) (standalone classroom prototype)
 
 ## What It Does
 
@@ -24,31 +45,22 @@ A personal Arabic (MSA/fusha) learning app focused on reading and listening comp
 - **Grammar tracking**: 49 grammar features across 8 tiers, with LLM-generated lessons.
 - **Arabic NLP pipeline**: 7-stage sentence generation pipeline with 3-pass lemma lookup, clitic stripping, CAMeL Tools morphological analysis, root extraction, LLM mapping verification/correction, and LLM-confirmed variant detection with multi-hop chain resolution.
 
-## Architecture
-
-- **Backend**: Python / FastAPI / SQLite (single user, no auth, WAL mode)
-- **Frontend**: Expo (React Native) — runs on iOS and web
-- **SRS**: py-fsrs v6 (FSRS-6 with same-day review support)
-- **LLM**: Two-tier strategy. Background/cron tasks use Claude CLI (free via Max plan): Sonnet for generation, Haiku for quality gate + verification. User-facing tasks use Gemini Flash (fast, ~1s). Fallback chain: Gemini Flash → GPT → Claude Haiku API.
-- **TTS**: ElevenLabs REST API with Professional Voice Clone support. Voice pool (3 voices) for story audio rotation.
-- **Audio**: pydub + ffmpeg for podcast segment stitching
-- **NLP**: Rule-based clitic stripping + CAMeL Tools morphological analyzer (with graceful fallback if not installed)
-- **Deployment**: Docker Compose, designed for a single cheap VPS
-
 ## Setting Up Your Own Instance
 
 ### Prerequisites
 
 | Key | Service | Required? | Used for |
 |-----|---------|-----------|----------|
-| `GEMINI_KEY` | Google AI Studio | Recommended (primary LLM) | Sentence generation, grammar tagging, variant detection, OCR |
-| `OPENAI_KEY` | OpenAI | Optional (fallback LLM) | LLM fallback, flag evaluation |
-| `ANTHROPIC_API_KEY` | Anthropic | Optional (tertiary LLM) | LLM fallback |
+| — | Claude Code CLI (`claude`) | Recommended | Default for all batch text generation and review |
+| — | Codex CLI (`codex`) | Optional | Default for quality gates and enrichment; set `ALIF_AUDIT_PROVIDER=claude` to skip |
+| `OPENAI_KEY` | OpenAI | Optional | API fallback when the CLIs are unavailable |
+| `ANTHROPIC_API_KEY` | Anthropic | Recommended | Interactive chat; API fallback |
+| `GEMINI_KEY` | Google AI Studio | Optional | Textbook OCR only |
 | `ELEVENLABS_API_KEY` | ElevenLabs | Optional | TTS for listening mode, story audio, and podcasts |
 
-You need at least one LLM key. Without `ELEVENLABS_API_KEY`, listening mode, story audio, and podcast generation won't work but everything else will.
+You need the Claude CLI or at least one LLM API key. Without `ELEVENLABS_API_KEY`, listening mode, story audio, and podcast generation won't work but everything else will.
 
-### Quick Start (Local)
+### Quick Start (local)
 
 ```bash
 # Backend
@@ -63,19 +75,6 @@ cd frontend
 npm install
 npx expo start --web
 ```
-
-### Quick Start
-
-```bash
-cp backend/.env.example backend/.env    # fill in your API keys
-cd backend
-python3 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/uvicorn app.main:app --port 8000
-# Backend at http://localhost:8000
-```
-
-Then run the frontend separately (`cd frontend && npm install && npx expo start`).
 
 ### Importing processed bilingual books
 
@@ -255,35 +254,7 @@ Then use `YOURNAME.duckdns.org` as your `REACT_NATIVE_PACKAGER_HOSTNAME` and in 
 
 ### 9. (Optional) Set up backups
 
-`scripts/backup.sh` runs on the Mac at 09:00 local time through
-`~/Library/LaunchAgents/com.alif.backup.plist`. It uses SQLite's online backup API,
-streams into a private temporary file, runs a full local integrity check, and only
-then publishes the final `~/alif-backups/alif_*.db` name. Retention keeps seven days
-of daily backups, Sunday generations through day 30, and first-of-month generations
-indefinitely.
-
-The same job also pulls the newest verified Koigen durable-state snapshot from
-`/var/backups/koigen` into the private `~/alif-backups/koigen/` directory. Koigen
-bundles are verified on alif and again after transfer, must be less than 48 hours old,
-and are atomically renamed only after verification. Local retention is 35 days with a
-minimum of seven verified snapshots; unknown, partial, corrupt, and symlinked evidence
-is never automatically deleted.
-
-Koigen must first be deployed with `ingest/durable_backup.py`, and `/etc/koigen.env`
-must configure:
-
-```bash
-KOIGEN_DURABLE_BACKUP_DIR=/var/backups/koigen
-KOIGEN_BACKUP_RETENTION_DAYS=35
-KOIGEN_BACKUP_MIN_SNAPSHOTS=7
-```
-
-Create `/var/backups/koigen` as a root-owned `0700` directory. The bundle can include
-private capture/review material, so keep the Mac destination on a FileVault-protected
-volume and do not sync it to an unencrypted shared service. A failed Alif transfer,
-missing/stale/corrupt Koigen snapshot, or verification failure makes the launchd job
-exit nonzero while retaining prior verified generations. Optional interaction-log
-sync failures are reported but do not invalidate the database backups.
+`scripts/backup.sh` pulls a verified SQLite online backup from the server to a local machine with daily/weekly/monthly retention. Its defaults match the author's host; override the `ALIF_BACKUP_*` environment variables documented in the script. It also pulls snapshots of a separate project (Koigen) and fails if they are missing, so remove that part for your own setup.
 
 ### 10. Deploy updates
 
@@ -352,7 +323,7 @@ You lose: lemmatization, root extraction, MLE disambiguation, variant detection.
 ## Tests
 
 ```bash
-cd backend && python -m pytest    # ~833 tests, no API keys needed
+cd backend && python -m pytest    # ~1,900 tests; hermetic, no API keys or network needed
 ```
 
 ## Adapting for Another Language
