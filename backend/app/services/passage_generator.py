@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 PASSAGE_EXPERIMENT_VERSION = "clustered_short_stories_v2"
 PASSAGE_QUALITY_GATE_VERSION = "codex_editor_v3"
-PASSAGE_CODEX_MODEL = os.environ.get("ALIF_PASSAGE_CODEX_MODEL", "gpt-5.6-sol")
+PASSAGE_CODEX_MODEL = os.environ.get("ALIF_PASSAGE_CODEX_MODEL", "gpt-6.1-sol")
 PASSAGE_CODEX_REASONING_EFFORT = os.environ.get(
     "ALIF_PASSAGE_CODEX_REASONING_EFFORT",
     "medium",

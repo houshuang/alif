@@ -4,6 +4,16 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Navigation.** Append-only, newest-first. New entries go directly below the `ENTRIES (newest first)` marker — never above the index. The index below maps the *load-bearing* entries by area: search the quoted `date "title fragment"` to jump to one (line numbers drift on every append, so the index cites titles, not lines). Update the index only when a new entry becomes the **definitive reference** for an area (or opens a new area) — not on every append. Current-state **synthesis** lives elsewhere — `docs/scheduling-system.md` (scheduling/constants), `docs/design-principles.md` (feature decisions), `polyglot/CLAUDE.md` (Polyglot rules + gates audit); this log is the **why / audit trail** those docs distill. Per CLAUDE.md Rule #14, grep here before proposing fixes in any iterated area.
 
+## 2026-09-29 Arabic Codex calls upgraded to Sol 6.1
+
+Audit/enrichment, passage generation and memory-hook generation/judging now default
+to `gpt-6.1-sol`. Their existing environment overrides, reasoning settings,
+structured-output schemas, validation gates and failover chains remain intact.
+Sentence generation keeps Claude. Audit logs record the effective default rather
+than a hardcoded 5.5 label. Production Codex CLI 0.159.0 supports Sol 6.1 with
+the shared ChatGPT login (verified by a live call); 0.156.1 rejected that model.
+This changes the model, not the existing Arabic quality calibration.
+
 ## 📑 Index by area
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
