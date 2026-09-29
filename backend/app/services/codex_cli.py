@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 
-CODEX_DEFAULT_MODEL = os.environ.get("ALIF_CODEX_MODEL", "gpt-5.5")
+CODEX_DEFAULT_MODEL = os.environ.get("ALIF_CODEX_MODEL", "gpt-6.1-sol")
 CODEX_REASONING_EFFORT = os.environ.get("ALIF_CODEX_REASONING_EFFORT", "medium")
 CODEX_CLI_QUOTA_COOLDOWN_S = int(os.environ.get("ALIF_CODEX_CLI_QUOTA_COOLDOWN_S", "21600"))
 

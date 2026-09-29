@@ -54,9 +54,9 @@ def memory_hooks_enabled() -> bool:
     return os.getenv("ALIF_MEMORY_HOOKS_ENABLED", "0") == "1"
 
 
-# Model for hook generation + judging. gpt-5.6-sol chosen by the 2026-07-20
-# eval; falls back to the Claude CLI chain when codex is unavailable.
-HOOK_MODEL = os.getenv("ALIF_HOOK_MODEL", "gpt-5.6-sol")
+# Model for hook generation + judging. Sol upgraded to 6.1 on 2026-09-29;
+# the existing generation/judging policy and Claude fallback stay in place.
+HOOK_MODEL = os.getenv("ALIF_HOOK_MODEL", "gpt-6.1-sol")
 
 GENERATION_SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary. The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
@@ -177,7 +177,7 @@ JUDGE_SCHEMA = {
 
 
 def _call_hooks_llm(prompt: str, system_prompt: str, schema: dict, task_type: str) -> dict | None:
-    """Codex gpt-5.6-sol first (2026-07-20 eval winner), Claude CLI chain fallback."""
+    """Codex Sol first, Claude CLI chain fallback."""
     from app.services.codex_cli import generate_via_codex_cli, CodexCLIError
 
     try:

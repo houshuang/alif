@@ -6,7 +6,7 @@ All text generation routes through Claude CLI (`claude -p`), free with Max plan:
   - Story generation: opus (via claude_code.py)
 
 Hybrid Codex provider (default since 2026-05-26): the ``claude_haiku`` alias
-routes through Codex `gpt-5.5` first, then falls back to Claude CLI, then to
+routes through Codex `gpt-6.1-sol` first, then falls back to Claude CLI, then to
 the API chain. ``claude_sonnet`` (generation) remains on Claude unconditionally
 — the A/B in ``research/codex-vs-claude-sentence-gen-2026-05-26.md`` showed
 Codex weaker on Arabic naturalness under vocab constraint. Enrichment + audit
@@ -194,7 +194,7 @@ def _audit_provider() -> str:
 
     Default flipped 2026-05-26 after the two A/Bs landed (sentence-gen +
     enrichment, see module docstring). ``claude_haiku`` calls (audit +
-    enrichment) try Codex `gpt-5.5` first then fall back to Claude CLI.
+    enrichment) try Codex `gpt-6.1-sol` first then fall back to Claude CLI.
     ``claude_sonnet`` (generation) is never routed through Codex regardless
     of this setting — the sentence-gen A/B confirmed Codex is weaker on
     Arabic naturalness under vocab constraint.
@@ -222,6 +222,7 @@ def _generate_via_codex_cli_with_logging(
     cost-log (no Codex adapter today).
     """
     from app.services.codex_cli import (
+        CODEX_DEFAULT_MODEL,
         CodexCLIError,
         codex_cli_temporarily_disabled,
         codex_cli_disabled_reason,
@@ -245,14 +246,14 @@ def _generate_via_codex_cli_with_logging(
         elapsed = time.time() - start
         mark_codex_cli_unavailable_from_error(exc)
         _log_call(
-            settings.log_dir, "codex_cli/gpt-5.5", False, elapsed,
+            settings.log_dir, f"codex_cli/{CODEX_DEFAULT_MODEL}", False, elapsed,
             error=str(exc)[:200], prompt_length=len(prompt), task_type=task_type,
         )
         raise LLMError(str(exc)) from exc
 
     elapsed = time.time() - start
     _log_call(
-        settings.log_dir, "codex_cli/gpt-5.5", True, elapsed,
+        settings.log_dir, f"codex_cli/{CODEX_DEFAULT_MODEL}", True, elapsed,
         prompt_length=len(prompt), task_type=task_type,
     )
     return result
