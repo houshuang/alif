@@ -10,7 +10,7 @@ import unicodedata
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, load_only
 
-from app.models import (FrequencyCoreEntry, Lemma, ReadingPilotEvent, ReviewLog,
+from app.models import (FrequencyCoreEntry, Lemma, ReadingPilotEvent, ReadingTarget, ReviewLog,
                         Sentence, SentenceReviewLog, SentenceWord, Story, StoryWord,
                         UserLemmaKnowledge)
 from app.services.canonical_resolution import resolve_canonical_via_map
@@ -143,6 +143,9 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
     for lid, rating in db.execute(select(recent.c.lemma_id, recent.c.rating).where(recent.c.n <= COST_REVIEWS)):
         cost[lid].append(rating)
 
+    targeted = {lid for lid, in db.query(ReadingTarget.lemma_id).filter(
+        ReadingTarget.retired_at.is_(None))}
+
     changes = []
     reasons = Counter()
     for lid, lemma in lemmas.items():
@@ -158,7 +161,11 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         broad = ranks.get(lid, BROAD_RANK + 1) <= BROAD_RANK
         introduced = k is not None and k.knowledge_state not in {"new", "encountered"}
         expensive = len(cost[lid]) >= MIN_COST_REVIEWS and sum(r <= 2 for r in cost[lid]) >= MIN_FAILURES
-        if repeated:
+        if lid in targeted:
+            # Explicit commitment to a real text (reading_targets) outranks every
+            # inferred signal: the word stays maintained while the target is open.
+            disposition, reason = "maintain", "reading_target"
+        elif repeated:
             disposition, reason = "maintain", "reading_recurrence"
         elif broad:
             disposition, reason = "maintain", "broad_frequency"
@@ -175,7 +182,7 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         reasons[reason] += 1
         # Do not turn an untouched dictionary into a learner inventory. A
         # repeated reading need may stage one existing, validated lexical row.
-        if k is None and not repeated:
+        if k is None and not repeated and lid not in targeted:
             continue
         full_reason = f"{POLICY_VERSION}:{reason}"
         if k is None or k.attention_disposition != disposition or k.attention_reason != full_reason:

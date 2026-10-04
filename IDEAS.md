@@ -1,5 +1,32 @@
 # Alif — Master Ideas File
 
+## 🟢 [ACTIVE 2026-10-04 → 2026-12-31] Novel sprint: finish *رجال في الشمس*, weekly recall test
+
+One goal that can be failed instead of a drifting plateau: read Kanafani's *Men in the Sun*
+cover to cover by New Year, measured every Sunday by timed unvocalized reading of a fresh
+passage + L1 oral free recall scored against idea units (distortions and intrusions counted
+separately) + 2–3 probes. Intake is book-driven through `reading_targets`
+(`scripts/novel_sprint_feed.py`), 8/day under `novel_sprint_v1`. Stretch: finish *Momo*.
+Protocol and weekly log: `research/novel-sprint-2026-10/`.
+
+Follow-ups opened by the sprint:
+- **In-app Sunday test**: chapter-reader recorder → Soniox transcription (service exists,
+  no caller) → recall scoring with quoted spans → a `reading_tests` table separate from the
+  scheduler. Petrarca's sweep scorer is the template (`petrarca-voice-audit.md`).
+- **`/api/discover/words` gloss step is broken on prod (2026-10-04)**: both API fallbacks
+  fail (`'messages' must contain the word 'json'` for OpenAI json_object mode; Anthropic
+  returned non-JSON) after the CLI providers apparently failed first; every OOV candidate
+  came back gloss-less. Fix the fallback prompt and find out why Codex/Claude CLI did not
+  answer; until then the feeder takes a reviewed gloss file.
+- **Common words missing from the vocabulary**: تُرَاب (soil), نَهْر (river), شَطّ, عَاقِبَة were
+  absent at 4,600 lemmas. Worth a pass over the top-5,000 modern ranks for unlinked gaps
+  before assuming the frequency core is complete.
+- **Bad glosses surfaced by the chapter-1 scan**: 3702 قاطَعَ ("decisive"), 4012 تَمَزَّق
+  ("unconsciousness, coma") fixed by hand; 4532 فَعَلَ appears as a 48× gap in *The Leopard*
+  and 5× in chapter 1 — check whether a surface (فعلاً?) is mis-mapped to it.
+- **Bilingual EPUB + reader import for chapters 2–7** once the faithful text lands
+  (`bookifier/bilingual/RUNBOOK.md`, `scripts/import_reader_book.py`).
+
 ## 🟢 [DEPLOYED 2026-09-19 — outcome measurement pending] Automatic attention v2
 
 The learner explicitly rejected per-word classification. Remove the v1 buttons

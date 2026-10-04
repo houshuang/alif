@@ -130,6 +130,32 @@ class UserLemmaKnowledge(Base):
     lemma = relationship("Lemma", back_populates="knowledge")
 
 
+class ReadingTarget(Base):
+    """A word the learner has committed to for a specific real text.
+
+    Targets are explicit curriculum intent, separate from memory state and from
+    the automatic attention disposition: a lemma with an open target is kept
+    `maintain` by the attention refresh and sorted first by new-word selection.
+    `text_count` is the word's token frequency inside the target text, so the
+    biggest unlocks are introduced first. Introduction still goes through
+    `start_acquisition()` and its daily budget; a target never creates a card.
+    """
+    __tablename__ = "reading_targets"
+    __table_args__ = (
+        UniqueConstraint("lemma_id", "program", name="uq_reading_target_lemma_program"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
+    program = Column(String(60), nullable=False, index=True)  # e.g. "rijal_fi_al_shams"
+    chapter = Column(Integer, nullable=True)
+    text_count = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    retired_at = Column(DateTime, nullable=True)
+
+    lemma = relationship("Lemma")
+
+
 class FrequencyCoreEntry(Base):
     __tablename__ = "frequency_core_entries"
 

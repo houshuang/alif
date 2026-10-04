@@ -1,5 +1,14 @@
 # Alif — Research Index
 
+## Novel sprint — October 4, 2026
+
+[Finish *Men in the Sun* by 31 December](novel-sprint-2026-10/README.md): the goal, the weekly
+L1 oral-recall + speed test, reading targets as the intake mechanism, success and stop rules.
+Supporting: [recall-protocol research](novel-sprint-2026-10/recall-protocol-research.md) (Bernhardt
+recall, prompting without leaking, intrusion coding, Arabic wpm norms, LLM scoring limits) and
+[Petrarca voice-assessment audit](novel-sprint-2026-10/petrarca-voice-audit.md) (reusable
+transcription/scoring pipeline). Decision: experiment-log `2026-10-04 "Novel sprint v1"`.
+
 ## Reading attention v1 — implementation
 
 [Implementation, validation and rollout](reading-attention-2026-09-19/README.md): reversible maintenance choices, staged imports, bounded reading intake, simpler scaffold sampling and exact identity exclusions.

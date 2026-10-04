@@ -22,6 +22,7 @@ from sqlalchemy import func, case, or_
 
 from app.services.attention_policy import excluded_lemma_ids, is_maintained
 from app.models import (
+    ReadingTarget,
     FrequencyCoreEntry,
     Root,
     Lemma,
@@ -50,6 +51,9 @@ DEFAULT_BATCH_SIZE = 3
 _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
 _TIER_READING_RECURRENCE = 260.0  # Repeated need in authentic reading in the last 30 days
+_TIER_READING_TARGET = 300.0      # Explicit reading_targets row (novel sprint): always first
+_TIER_READING_TARGET_COUNT_STEP = 0.5  # Within the tier, more occurrences in the text go first
+_TIER_READING_TARGET_COUNT_MAX = 20
 _TIER_TEXTBOOK_SCAN = 0.0     # Provenance does not establish current curriculum priority
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
 # An explicitly selected imported story is active reading curriculum, like a
@@ -607,6 +611,13 @@ def select_next_words(
             UserLemmaKnowledge.attention_reason == READING_REASON,
         )
     }
+    # Open reading targets (novel sprint): lemma -> token count in the target
+    # text. A lemma targeted by several programs keeps its largest count.
+    reading_target_counts: dict[int, int] = {}
+    for lid, count in db.query(ReadingTarget.lemma_id, ReadingTarget.text_count).filter(
+        ReadingTarget.retired_at.is_(None)
+    ):
+        reading_target_counts[lid] = max(reading_target_counts.get(lid, 0), count or 1)
 
     # Grammar: get unlocked features once and batch-fetch exposure records
     from app.services.grammar_service import get_unlocked_features, compute_comfort
@@ -689,6 +700,17 @@ def select_next_words(
         if lemma.lemma_id in reading_recurrence_ids:
             priority_bonus = _TIER_READING_RECURRENCE
             priority_tier = "reading_recurrence"
+
+        # An open reading target is explicit learner intent for a specific real
+        # text; it outranks every inferred tier. Ties inside the tier follow the
+        # word's token frequency in that text (the biggest unlocks first).
+        target_count = reading_target_counts.get(lemma.lemma_id)
+        if target_count is not None:
+            priority_bonus = _TIER_READING_TARGET + (
+                min(target_count, _TIER_READING_TARGET_COUNT_MAX)
+                * _TIER_READING_TARGET_COUNT_STEP
+            )
+            priority_tier = "reading_target"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
