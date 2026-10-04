@@ -112,7 +112,10 @@ def stage(args) -> dict:
     db = SessionLocal()
     text = load_text(args.text)
     result = analyze(db, text, top=max(args.limit, 40))
-    gaps = [g for g in result["gaps_full"] if (g.get("count") or 0) >= args.min_count]
+    # Encountered words are "in progress" for coverage but still need introducing,
+    # so they are staged alongside the true gaps (biggest unlocks first).
+    gaps = [g for g in result["gaps_full"] + result.get("encountered_gaps", [])
+            if (g.get("count") or 0) >= args.min_count]
     gaps.sort(key=lambda g: -(g.get("count") or 0))
     gaps = gaps[: args.limit]
     glosses = _load_glosses(args.glosses)
@@ -131,7 +134,7 @@ def stage(args) -> dict:
 
     # Phase 1: in-vocabulary gaps (pure DB writes, fast).
     for g in gaps:
-        if g["kind"] != "new_in_vocab" or g.get("lemma_id") is None:
+        if g["kind"] not in {"new_in_vocab", "encountered"} or g.get("lemma_id") is None:
             continue
         lid = resolve_canonical_lemma_id(db, g["lemma_id"])
         lemma = db.get(Lemma, lid)
