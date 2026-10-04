@@ -46,6 +46,7 @@ from app.services.fsrs_service import (
 from app.services.interaction_logger import log_interaction
 from app.services.learning_policy import (
     active_daily_intro_cap,
+    active_recovery_ladder,
     low_energy_maintenance_enabled,
 )
 
@@ -188,11 +189,15 @@ RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT = RECOVERY_BOX1_UNREVIEWED_LIMIT - 1
 RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS = 7
 RECOVERY_BOX2_DUE_LIMIT = 30
 RECOVERY_FSRS_MAIN_DUE_LIMIT = 750
-RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO = 40
-RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET = 100
+# Novel sprint (2026-10-04): the earned ladder shortens to 20/60 cards with a
+# mid budget of 4 and a full budget of 8; see learning_policy.active_recovery_ladder.
+(
+    RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO,
+    RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
+    RECOVERY_MID_INTRO_BUDGET,
+) = active_recovery_ladder()
 RECOVERY_LOW_ACCURACY_FLOOR = 0.80
 RECOVERY_GOOD_ACCURACY_FLOOR = 0.85
-RECOVERY_MID_INTRO_BUDGET = 1 if low_energy_maintenance_enabled() else 8
 RECOVERY_FULL_INTRO_BUDGET = DAILY_INTRO_CAP
 _FSRS_DUE_CACHE_TTL = timedelta(seconds=5)
 _FSRS_DUE_CACHE_KEY = "alif_main_fsrs_due_count"

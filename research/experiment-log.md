@@ -4,6 +4,62 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Navigation.** Append-only, newest-first. New entries go directly below the `ENTRIES (newest first)` marker — never above the index. The index below maps the *load-bearing* entries by area: search the quoted `date "title fragment"` to jump to one (line numbers drift on every append, so the index cites titles, not lines). Update the index only when a new entry becomes the **definitive reference** for an area (or opens a new area) — not on every append. Current-state **synthesis** lives elsewhere — `docs/scheduling-system.md` (scheduling/constants), `docs/design-principles.md` (feature decisions), `polyglot/CLAUDE.md` (Polyglot rules + gates audit); this log is the **why / audit trail** those docs distill. Per CLAUDE.md Rule #14, grep here before proposing fixes in any iterated area.
 
+## 2026-10-04 — Novel sprint v1: finish *رجال في الشمس* by 31 December, measured weekly by L1 recall
+
+**Decision (learner, this date).** Replace the open-ended plateau with one goal that can
+be failed: read Ghassan Kanafani's *Men in the Sun* (1963, ~15,400 running words, seven
+chapters) cover to cover before 2027, with a weekly test that shows each chapter read
+faster and with less help. Stretch: finish *Momo* too. Protocol, schedule and measures:
+[research/novel-sprint-2026-10/README.md](novel-sprint-2026-10/README.md).
+
+**Baseline (prod, read-only, 2026-10-04).** 2,709 known content lemmas; intake per month
+Feb→Sep 780/661/435/508/349/254/59/3; reviews per month 10.5k→2.5k; Sep accuracy 0.79 on
+the maintenance denominator. Coverage today: chapter 1 86.9% (90.5% incl. in-progress,
+95.1% after the top 100 gap words, 122 distinct gaps); *The Leopard* (Arabic tr., 72.6k
+tokens) 85.9% → 91.4% after 500 words. Reading volume in the app: ~258 generated-sentence
+running words/day (Sep 5 reassessment); book reader at page 1.
+
+**Policy change (`novel_sprint_v1`, env `ALIF_NOVEL_SPRINT=1`, default off).** Layered on
+`low_energy_maintenance_v1`; every card rule (4-obligation ceiling, exposure-only mature
+collateral, history-risk ordering, confusion rescue, FSRS 0.90) is unchanged. Intake only:
+true-new cap 2 → **8**/UTC day; recovery ladder 40/100 cards with budgets 0/1/2 →
+**20/60 cards with 0/4/8**; the 80%/85% accuracy floors stay. New table `reading_targets`
+(Alembic `d0f2b4c6e8a1`): explicit per-text targets staged by
+`scripts/novel_sprint_feed.py` from the same hardened text→lemma path as
+`reading_readiness.py`. An open target (a) is the top new-word tier (300 + in-text count
+bonus, above reading recurrence 260) in `select_next_words`, and (b) keeps the word
+`maintain` in `automatic_attention` (`reading_target` reason, ahead of recurrence), so rare
+book words are no longer staged as reading support and blocked at `is_maintained`. Targets
+never create cards; introduction still goes through `start_acquisition()` and its budget.
+Rollback: unset the env and restart; targets become inert metadata.
+
+**Maintenance-experiment amendment.** The 2026-09-03 stop rule "more than two true-new
+acquisitions in one UTC day" is retired as of this entry; its day-60 decision (Nov 2) is
+replaced by the sprint's weekly checks. The old-word retention warnings (≥7-day clean
+<80%, ≥14-day <78%) remain as the sprint's guardrail.
+
+**Week-0 intake (prod, backup `alif_pre_novel_sprint_20261004_111430.db`).** 23 chapter-1
+in-vocabulary gap lemmas introduced directly (`introduce_word`, bypassing the then-active
+2/day cap, recorded here as the sprint's start); 21 new lemmas created (ids 4621–4641,
+`source=novel_sprint`, all gated) and 6 encountered book words re-added via
+`/api/discover/add-batch`. Those 27 stayed `encountered` because PR #280 made explicit adds
+respect the cap; they become targets on deploy and enter through the 8/day budget. Two
+wrong glosses fixed: 3702 قاطَعَ ("decisive" → to interrupt/cut off/boycott), 4012 تَمَزَّق
+("unconsciousness, coma" → to be torn apart). Finding: the `/api/discover/words` gloss
+step fails on prod (API fallbacks reject the request; see IDEAS.md), so OOV glosses for the
+feed are reviewed by hand in a gloss file.
+
+**Measurement.** Sunday test: fresh unseen 150–200-word unvocalized passage from the
+next chapter; timed silent first pass (wpm); text hidden; oral free recall in
+English/Norwegian with the fixed "tell me everything" instruction, at most three neutral
+continuation prompts (free vs prompted scored separately); then 2–3 content probes; scored
+against a pre-written idea-unit list with distortions and intrusions counted separately.
+Research basis and rubric: [recall-protocol-research.md](novel-sprint-2026-10/recall-protocol-research.md).
+Voice pipeline to reuse (Soniox transcription, Claude scoring with quoted spans):
+[petrarca-voice-audit.md](novel-sprint-2026-10/petrarca-voice-audit.md). Expect task-wiseness
+drift in weeks 1–3; practice sessions are unscored and week 1 is the baseline.
+
+
 ## 2026-09-29 Arabic Codex calls upgraded to Sol 6.1
 
 Audit/enrichment, passage generation and memory-hook generation/judging now default
@@ -18,7 +74,7 @@ This changes the model, not the existing Arabic quality calibration.
 
 **Foundations** — `2026-02-12 "Post-OCR Learning Crisis"` + `"Algorithm Redesign: Implementation"` (origin of the encountered→acquiring→FSRS lifecycle; synthesized in scheduling-system.md) · `2026-02-12 "py-fsrs v6 Pin"`.
 
-**Word lifecycle — acquisition / graduation / intro cap** — `2026-09-03 "Low-energy maintenance v1"` · `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL evidence invariant; narrow mature/high-R exposure exception added 2026-09-03) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
+**Word lifecycle — acquisition / graduation / intro cap** — `2026-10-04 "Novel sprint v1"` · `2026-09-03 "Low-energy maintenance v1"` · `2026-08-11 "Yellow mixed-up means a total lexical lapse"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-07-09 "Return-from-vacation correctness + recovery repair"` · `2026-03-18 "Every Word Earns Credit"` (FOUNDATIONAL evidence invariant; narrow mature/high-R exposure exception added 2026-09-03) · `2026-03-03 "Aggressive Graduation — First-Correct + Tiered"` (Tier 0–3) · `2026-05-17 "working-memory recovery gate + fast-promotion reset"` · `2026-05-15 "Enforce daily intro cap at chokepoint"` · `2026-02-14 "Acquisition Due-Date Gating"`.
 
 **FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 

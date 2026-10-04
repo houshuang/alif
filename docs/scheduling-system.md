@@ -2041,15 +2041,15 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `DAILY_AUTO_INTRO_TARGET` | 2 active / 30 rollback | Daily cap for automatic new-word introductions; resolved from `learning_policy.py` |
-| `DAILY_INTRO_CAP` | 2 active / 30 rollback | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
+| `DAILY_INTRO_CAP` | 2 active / **8 under `novel_sprint_v1`** / 30 rollback | Maximum true-new daily budget enforced inside `start_acquisition()` for every path. `acquisition_episode_kind='leech_reintro'` bypasses without overwriting provenance; overload can lower the effective cap |
 | `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: protected never-reviewed plus actionable due previously-seen Box-1 words at or above this count switch intros to earned-budget mode |
 | `RECOVERY_BOX1_UNSERVED_ACTIVE_DAYS` | 7 (maintenance only) | A due Box-1 word that stayed due through this many distinct UTC days with primary reading cards is excluded from the Box-1 trigger and reintroduction occupancy. It stays acquiring, due, and selectable; inactive days never qualify |
 | `RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT` | 4 (maintenance only) | Leech reintroduction admission closes at this Box-1 occupancy (due or not), one below the true-new trigger |
 | `RECOVERY_BOX2_DUE_LIMIT` | 30 | Overload trigger: due Box-2 acquiring words at or above this count switch intros to earned-budget mode |
-| `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day primary reading cards |
-| `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day primary reading cards |
-| `RECOVERY_MID_INTRO_BUDGET` | 1 active / 8 rollback | Recovery-mode budget after the 40-primary-card threshold with acceptable accuracy |
-| `RECOVERY_FULL_INTRO_BUDGET` | 2 active / 30 rollback | Recovery-mode budget after 100+ primary reading cards and ≥85% primary accuracy (= active `DAILY_INTRO_CAP`) |
+| `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 (**20** under `novel_sprint_v1`) | In recovery mode, no net-new acquisition before this many same-day primary reading cards |
+| `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 (**60** under `novel_sprint_v1`) | In recovery mode, allow the full earned budget only after this many same-day primary reading cards |
+| `RECOVERY_MID_INTRO_BUDGET` | 1 active / **4 under `novel_sprint_v1`** / 8 rollback | Recovery-mode budget after the 40-primary-card threshold with acceptable accuracy |
+| `RECOVERY_FULL_INTRO_BUDGET` | 2 active / **8 under `novel_sprint_v1`** / 30 rollback | Recovery-mode budget after 100+ primary reading cards and ≥85% primary accuracy (= active `DAILY_INTRO_CAP`) |
 | `RECOVERY_LOW_ACCURACY_FLOOR` / `RECOVERY_GOOD_ACCURACY_FLOOR` | 0.80 / 0.85 | Primary-reading accuracy gates. <80% pauses intros; 80–85% keeps the mid budget; ≥85% can unlock the full budget after enough card practice |
 | `INTRO_NEW_CARDS_PER_SESSION` | 6 | Per-session cap on first-time intro cards in `_build_intro_cards` and on cold-promoter promotions in `_ensure_session_words_have_intro_state` (2026-05-15) |
 | `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 200 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
@@ -2714,6 +2714,56 @@ Also update:
 - `IDEAS.md` for new ideas discovered during implementation
 
 <a id="reading-attention-v1--2026-09-19"></a>
+
+## Novel sprint v1 — 2026-10-04
+
+**Goal.** Finish one real novel (*رجال في الشمس*) by 31 December 2026 with a weekly
+recall/speed test. Protocol: `research/novel-sprint-2026-10/README.md`; decision record:
+experiment-log `2026-10-04 "Novel sprint v1"`.
+
+**Switch.** `ALIF_NOVEL_SPRINT=1` (default off; `learning_policy.novel_sprint_enabled()`).
+Active only while `low_energy_maintenance_v1` is also active, so every maintenance card
+rule stays in force and switching the sprint off restores the maintenance policy exactly.
+Policy version reported in `selection_diagnostics.learning_policy_version` becomes
+`novel_sprint_v1`. Constants are read at process start (restart after toggling).
+
+**What changes (intake only).**
+
+| Setting | Maintenance | Novel sprint |
+|---|---|---|
+| True-new cap per UTC day (`DAILY_INTRO_CAP`) | 2 | 8 |
+| Recovery ladder: primary reading cards for any intro / full budget | 40 / 100 | 20 / 60 |
+| Recovery budgets 0 / mid / full | 0 / 1 / 2 | 0 / 4 / 8 |
+| Accuracy floors (pause / mid / full) | <80% / 80–85% / ≥85% | unchanged |
+| Recovery triggers (Box-1 ≥5, Box-2 due ≥30, strict main due ≥750) | unchanged | unchanged |
+
+**Reading targets (`reading_targets`, model `ReadingTarget`).** Explicit per-text intent,
+separate from memory state and from attention: `(lemma_id, program)` unique, `chapter`,
+`text_count` (token frequency in the target text), `retired_at`. Staged by
+`scripts/novel_sprint_feed.py` through `reading_readiness.analyze()` (the hardened
+text→lemma path). Effects:
+
+- `word_selector.select_next_words`: an open target is the top priority tier
+  (`_TIER_READING_TARGET` 300 + 0.5 × min(text_count, 20)), above reading recurrence (260);
+  `score_breakdown.priority_tier == "reading_target"`. Tier applies whenever a target is
+  open, independent of the env switch (a target is explicit learner intent).
+- `automatic_attention.attention_plan`: a targeted word is `maintain` with reason
+  `reading_attention_v1:reading_target`, evaluated before recurrence/frequency, so rare
+  book words are not staged as `reading_support` and blocked at `is_maintained`. A
+  targeted lemma with no knowledge row receives an `encountered` staging row. Retiring
+  the target returns the word to the ordinary rules.
+- Nothing else: a target never creates a card, never bypasses `start_acquisition()` or its
+  budget, never changes `UserLemmaKnowledge.source`, and is inert once the word is acquiring
+  or beyond.
+
+**Gate audit (Rule 8).** Comprehensibility gates, unknown-scaffold cap, pipeline backlog
+gate, focus cohort, variant resolution (targets resolve to canonical before staging), intro
+card filter (`gates_completed_at` still required), listening readiness, function-word
+exclusion: unchanged. The only new interaction is the attention plan order above.
+
+**Guardrails carried over.** Old-word ≥7-day clean rate <80% or ≥14-day <78% is a warning;
+strict main FSRS due ≥1,000 after the first week is a stop. The maintenance stop rule
+"more than two true-new acquisitions in one UTC day" is retired for the sprint.
 
 ## Automatic reading attention v2 — 2026-09-19
 
