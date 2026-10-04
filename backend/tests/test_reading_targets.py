@@ -87,6 +87,20 @@ def test_open_target_is_the_top_intake_tier_ordered_by_text_count(db_session):
     assert result[2]["score_breakdown"]["priority_tier"] != "reading_target"
 
 
+def test_equal_count_targets_prefer_the_earlier_chapter(db_session):
+    db = db_session
+    later = _lemma(db, "غسق", "dusk", freq=50000)
+    earlier = _lemma(db, "وهج", "glow", freq=50000)
+    _target(db, later.lemma_id, count=1, chapter=2)
+    _target(db, earlier.lemma_id, count=1, chapter=1)
+    # A more frequent word in a later chapter still beats a one-off in chapter 1.
+    frequent_later = _lemma(db, "تزوج", "to marry", freq=50000)
+    _target(db, frequent_later.lemma_id, count=5, chapter=2)
+    db.commit()
+    ids = [r["lemma_id"] for r in select_next_words(db, count=5)]
+    assert ids == [frequent_later.lemma_id, earlier.lemma_id, later.lemma_id]
+
+
 def test_retired_target_no_longer_steers_selection(db_session):
     db = db_session
     common = _lemma(db, "كتاب", "book", freq=10)

@@ -54,6 +54,7 @@ _TIER_READING_RECURRENCE = 260.0  # Repeated need in authentic reading in the la
 _TIER_READING_TARGET = 300.0      # Explicit reading_targets row (novel sprint): always first
 _TIER_READING_TARGET_COUNT_STEP = 0.5  # Within the tier, more occurrences in the text go first
 _TIER_READING_TARGET_COUNT_MAX = 20
+_TIER_READING_TARGET_CHAPTER_STEP = 0.1  # ...and, at equal count, earlier chapters first
 _TIER_TEXTBOOK_SCAN = 0.0     # Provenance does not establish current curriculum priority
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
 # An explicitly selected imported story is active reading curriculum, like a
@@ -611,13 +612,19 @@ def select_next_words(
             UserLemmaKnowledge.attention_reason == READING_REASON,
         )
     }
-    # Open reading targets (novel sprint): lemma -> token count in the target
-    # text. A lemma targeted by several programs keeps its largest count.
-    reading_target_counts: dict[int, int] = {}
-    for lid, count in db.query(ReadingTarget.lemma_id, ReadingTarget.text_count).filter(
-        ReadingTarget.retired_at.is_(None)
-    ):
-        reading_target_counts[lid] = max(reading_target_counts.get(lid, 0), count or 1)
+    # Open reading targets (novel sprint): lemma -> (token count in the target
+    # text, earliest chapter). A lemma targeted by several programs/chapters
+    # keeps its largest count and its earliest chapter.
+    reading_target_counts: dict[int, tuple[int, int]] = {}
+    for lid, count, chapter in db.query(
+        ReadingTarget.lemma_id, ReadingTarget.text_count, ReadingTarget.chapter
+    ).filter(ReadingTarget.retired_at.is_(None)):
+        prev = reading_target_counts.get(lid)
+        chapter = chapter or 1
+        if prev is None:
+            reading_target_counts[lid] = (count or 1, chapter)
+        else:
+            reading_target_counts[lid] = (max(prev[0], count or 1), min(prev[1], chapter))
 
     # Grammar: get unlocked features once and batch-fetch exposure records
     from app.services.grammar_service import get_unlocked_features, compute_comfort
@@ -704,11 +711,13 @@ def select_next_words(
         # An open reading target is explicit learner intent for a specific real
         # text; it outranks every inferred tier. Ties inside the tier follow the
         # word's token frequency in that text (the biggest unlocks first).
-        target_count = reading_target_counts.get(lemma.lemma_id)
-        if target_count is not None:
-            priority_bonus = _TIER_READING_TARGET + (
-                min(target_count, _TIER_READING_TARGET_COUNT_MAX)
-                * _TIER_READING_TARGET_COUNT_STEP
+        target = reading_target_counts.get(lemma.lemma_id)
+        if target is not None:
+            target_count, target_chapter = target
+            priority_bonus = (
+                _TIER_READING_TARGET
+                + min(target_count, _TIER_READING_TARGET_COUNT_MAX) * _TIER_READING_TARGET_COUNT_STEP
+                - (target_chapter - 1) * _TIER_READING_TARGET_CHAPTER_STEP
             )
             priority_tier = "reading_target"
 
