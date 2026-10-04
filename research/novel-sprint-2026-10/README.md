@@ -32,7 +32,7 @@ Chapter schedule (token counts from the prepared text, 14,126 running words in a
 
 | Chapter | Words | Read during | Sunday test on it |
 |---|---:|---|---|
-| 1 أبو قيس | 1,807 | 5–11 Oct | 4 Oct (baseline, unscored practice allowed) |
+| 1 أبو قيس | 1,807 | 5–11 Oct | 4 Oct baseline: passage taken from the unread chapter 2 (chapter 1 was read in July), prepared as `sunday/week-01` |
 | 2 أسعد | 1,727 | 12–18 Oct | 11 Oct |
 | 3 مروان | 2,474 | 19 Oct – 1 Nov | 18 Oct |
 | 4 الصفقة | 1,817 | 2–8 Nov | 1 Nov (mid-course check) |
