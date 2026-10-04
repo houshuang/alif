@@ -62,6 +62,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Audit a "translation" complaint = check glosses too](feedback_audit_translation_check_glosses_too.md) — check BOTH `sentences.translation_en` AND `lemmas.gloss_en` (the lookup-card surface).
 
 ## Active / in-flight projects
+- [Novel sprint 2026 (ACTIVE to 2026-12-31)](project_novel_sprint_2026.md) — 🔴 finish *Men in the Sun*; Sunday L1-recall test; `reading_targets` intake; local main diverged from origin (branch from origin/main).
 - [Lemma decomposition audit](project_lemma_decomposition_audit.md) — 🟡 Phase 1 + Phase 2 steps 1–4c + 6 done; steps 7 (re-gloss ت.ر.ك #305) + 8 (Quran spot-check) OPEN.
 - [Polyglot Latin live](project_polyglot_latin_live.md) — shipped 2026-05-25 (PR #140); LatinCy + LLPSI/Roma Aeterna seed + Eutropius reader.
 - [Polyglot Latin picker exhaustion](project_polyglot_latin_picker_exhaustion.md) — diagnosed 2026-05-26; open levers (Coverage Reader / warm-on-intake / raise per-pass target). Revisit when more Latin lemmas due.

@@ -143,6 +143,7 @@ def analyze(db, text: str, top: int) -> dict:
 
     # Per-gap aggregation (frequency within THIS text).
     new_lemma_freq: dict[int, int] = defaultdict(int)        # lemma_id -> count
+    encountered_lemma_freq: dict[int, int] = defaultdict(int)  # encountered, not yet acquiring
     unmapped_surface_freq: dict[str, int] = defaultdict(int) # bare surface -> count
 
     for tok in tokens:
@@ -197,6 +198,8 @@ def analyze(db, text: str, top: int) -> dict:
             counts["known"] += 1
         elif state in PROGRESS:
             counts["in_progress"] += 1
+            if state == "encountered":
+                encountered_lemma_freq[lemma_id] += 1
         else:
             counts["new_in_vocab"] += 1
             new_lemma_freq[lemma_id] += 1
@@ -242,6 +245,13 @@ def analyze(db, text: str, top: int) -> dict:
         "coverage_curve": curve,
         "gaps_full": [{"lemma_id": g["lemma_id"], "kind": g["kind"],
                        "display": g["display"], "count": g["count"]} for g in gaps],
+        # Encountered-but-not-acquiring lemmas count as in-progress for coverage,
+        # but a curriculum feeder still has to introduce them: list them separately.
+        "encountered_gaps": sorted(
+            [{"lemma_id": lid, "kind": "encountered", "display": bares.get(lid, "?"),
+              "gloss": glosses.get(lid), "count": c} for lid, c in encountered_lemma_freq.items()],
+            key=lambda g: -g["count"],
+        ),
     }
 
 

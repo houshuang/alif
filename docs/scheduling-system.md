@@ -2744,7 +2744,7 @@ separate from memory state and from attention: `(lemma_id, program)` unique, `ch
 text→lemma path). Effects:
 
 - `word_selector.select_next_words`: an open target is the top priority tier
-  (`_TIER_READING_TARGET` 300 + 0.5 × min(text_count, 20)), above reading recurrence (260);
+  (`_TIER_READING_TARGET` 300 + 0.5 × min(text_count, 20) − 0.1 × (chapter − 1)), above reading recurrence (260);
   `score_breakdown.priority_tier == "reading_target"`. Tier applies whenever a target is
   open, independent of the env switch (a target is explicit learner intent).
 - `automatic_attention.attention_plan`: a targeted word is `maintain` with reason
