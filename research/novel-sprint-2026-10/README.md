@@ -27,9 +27,21 @@ Arabic literature rather than a translation, and short enough that one page a da
 | Mon–Sat | Alif reviews | 60–90 cards; intros come from the book's own gap list (reading targets), 8/day max |
 | Sunday | The test (below), ~10 minutes, then the week's row in `weekly.md` | one fresh passage from the chapter you start next |
 
-Reading targets per chapter are filled in from the chapter token counts once the full text
-manifest lands (`weekly.md` carries the live schedule). Working estimate: one chapter
-every 10–12 days finishes the book around 20 December with slack for a missed week.
+Chapter schedule (token counts from the prepared text, 14,126 running words in all; about
+250 words per reading day):
+
+| Chapter | Words | Read during | Sunday test on it |
+|---|---:|---|---|
+| 1 أبو قيس | 1,807 | 5–11 Oct | 4 Oct (baseline, unscored practice allowed) |
+| 2 أسعد | 1,727 | 12–18 Oct | 11 Oct |
+| 3 مروان | 2,474 | 19 Oct – 1 Nov | 18 Oct |
+| 4 الصفقة | 1,817 | 2–8 Nov | 1 Nov (mid-course check) |
+| 5 الطريق | 3,111 | 9–22 Nov | 8 Nov |
+| 6 الشمس والظل | 2,484 | 23 Nov – 6 Dec | 22 Nov |
+| 7 القبر | 706 | 7–13 Dec | 6 Dec |
+| Slack / reread / *Momo* | | 14–31 Dec | 13, 20, 27 Dec: fresh passages from *Momo* or a reread chapter |
+
+A missed week shifts the table by one row; the two slack weeks absorb it.
 
 Vocabulary ahead of the reader: stage the next chapter's gap words one chapter ahead
 (`scripts/novel_sprint_feed.py --text ch<N+1>.txt --program rijal_fi_al_shams --chapter N+1`),
