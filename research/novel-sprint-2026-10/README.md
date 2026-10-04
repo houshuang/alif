@@ -100,6 +100,38 @@ Recording for now: phone voice memo or dictation into the chat; transcription/sc
 conversation. The in-app path (chapter-reader recorder → Soniox → scoring) is specified in
 `petrarca-voice-audit.md` and is a follow-up, not a prerequisite.
 
+## Handoff: running a Sunday test from scratch
+
+Any agent can run a test with only this folder and the book folder
+(`~/src/bookifier/bilingual/input/rijal_full/`, chapters `0N_*.txt`, tests under `sunday/week-NN/`).
+
+1. **Prepare** (do this before the learner sits down; never show them `key.json`):
+   `cd research/novel-sprint-2026-10 && python3 sunday_test.py prepare --chapter-file ~/src/bookifier/bilingual/input/rijal_full/0N_<chapter>.txt --week N --coverage <chapter readable_now_pct from reading_readiness>`
+   It picks an unused 150–200 word window, writes `passage.txt`, the hidden `key.json`
+   (idea units + probes) and `test.html` (timer page). Needs the `claude` CLI.
+2. **Run**: learner opens `test.html`, reads, presses done, notes the seconds, hides the page
+   and records the recall. The agent only says the fixed instruction and, if needed, the
+   three neutral prompts in order (above). Then ask the probes from `key.json`, text visible.
+3. **Transcript**: save the recall as one text file; if prompts were used, put the line
+   `=== PROMPTED ===` between the free part and everything said after the first prompt.
+   Save probe answers to a second file, in order.
+4. **Score**:
+   `python3 sunday_test.py score --week N --seconds <s> --transcript recall.txt --probes probes.txt --willingness yes|meh|no [--chapters-finished K] [--old-word-7d <pct>]`
+   This appends the row to `weekly.jsonl` and `weekly.md` and prints every DIST and
+   intrusion decision with its transcript span. Hand-check those before trusting the row,
+   then set `hand_checked` in `week-NN/score.json`.
+5. **Vocabulary one chapter ahead**: on the server,
+   `scripts/novel_sprint_feed.py --text /tmp/0N_<next>.txt --program rijal_fi_al_shams --chapter N --limit 150 --glosses /tmp/glosses_chN.json`
+   after a `--dry-run` has listed the OOV words and a reviewed gloss JSON has been written
+   for them (format: `{"bare": {"lemma_ar": "...", "gloss_en": "...", "pos": "noun|verb|adj|adv"}}`;
+   proper names as `"pos": "noun_prop"` are skipped). Then `scripts/refresh_attention.py --apply`
+   and `novel_sprint_feed.py --status --program rijal_fi_al_shams`.
+6. **Bilingual EPUB for the next chapter**: follow `~/src/bookifier/bilingual/RUNBOOK.md`
+   with `audits/rijal_asad_v1.md` as the model build record.
+
+Week 1 (4 Oct 2026) was prepared from chapter 2 as the baseline; the learner had read
+chapter 1 in July.
+
 ## Success and stop rules
 
 - **Success on 31 December:** the book finished (every chapter completed in the reader or
