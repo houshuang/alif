@@ -3919,18 +3919,10 @@ function ProgressBar({
   onWrapUp?: (() => void) | null;
   onBack?: (() => void) | null;
 }) {
-  const readingRouter = useRouter();
   const pct = (current / total) * 100;
   const barColor = mode === "listening" ? colors.listening : colors.accent;
   return (
     <View style={styles.progressContainer}>
-      {mode === "reading" && (
-        <Pressable accessibilityRole="button" onPress={() => readingRouter.push("/read")}
-          style={{ paddingVertical: 10 }}>
-          <Text style={{ color: colors.accent, fontWeight: "600" }}>Read a passage →</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>A few reviews, then read. You can stop here.</Text>
-        </Pressable>
-      )}
       <View style={styles.progressHeader}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
