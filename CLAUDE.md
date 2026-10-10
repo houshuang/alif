@@ -68,6 +68,7 @@ activated policy; verify live deployment separately from merge/implementation la
 
 ## Parallel Reading experiment
 
+Deployed 10 October 2026 to private HTTPS web and the installed iPhone preview OTA.
 The shared `/parallel` tab bundles Arabic/Ancient-Greek/Latin/Russian editions for
 passage-first reading, saves device-local bookmarks and settings, and restores the
 last visible tab on a normal cold start. Its experiment journal and interaction

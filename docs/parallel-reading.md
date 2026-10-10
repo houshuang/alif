@@ -102,3 +102,30 @@ simulated storage failure and successful retry, completion/reflection, root resu
 and direct chapter-link precedence. Cold-launch transport capture contained no
 review endpoint call. Browser transport was an isolated recording stub; backend
 storage behavior was verified through hermetic pytest fixtures.
+
+
+## Publication receipt — 10 October 2026
+
+Published source: `314d26ffdc9c4fe2e0031b804b29cb62800355ae` (PR #287).
+Backend main and the new journal OpenAPI schema are verified live; an invalid
+empty event returns 422 without adding synthetic production reading evidence.
+The private HTTPS reader now serves this commit through `/opt/alif-web/current`;
+the previous static release `f901a1b447351ed1a0e2cdc82a48e9291f32cb77` remains
+available for rollback. HTTPS deep-link HTML and bundled library/last-tab/journal
+markers were verified with `private, no-cache` response policy. Legacy Metro was
+restarted with its Alif-scoped generated caches removed.
+
+Installed iPhone preview-channel OTA: update
+`01a12675-132e-7564-8459-037a2c340177`, group
+`44ea400b-4b4f-4550-b960-6f198ca2adbc`, runtime `1.0.0`.
+The guarded publisher verified the private API URL in the published manifest.
+The manifest source commit and downloaded launch asset SHA-256 match, and the
+published bytes contain both longer texts and bookmark/last-tab keys. Asset
+verification follows the update protocol's multipart extensions and its provided
+asset-request headers; a naked CDN URL is intentionally unauthorized.
+
+Fully terminate/reopen the installed app to let it download, then terminate/reopen
+again to run the downloaded update. Physical iPhone cold-start and reading feel
+remain for Stian to check. Server/OTA publication is complete; feedback and actual
+reading benefits remain unmeasured. Local preview and owned worktree are released
+and cleaned up after preserving the publication receipts and test/browser evidence.

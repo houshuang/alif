@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🟢 [IMPLEMENTED 2026-10-10 — publication pending] Four-language Parallel Reading experiment
+## 🟢 [DEPLOYED 2026-10-10 — reading feedback pending] Four-language Parallel Reading experiment
 
 Arabic-first literary reading with Greek, Latin and Russian clues, a small bundled
 library, independent passage bookmarks, Arabic-only rereads and optional effort
