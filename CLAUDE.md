@@ -73,7 +73,7 @@ The shared `/parallel` tab bundles Arabic/Ancient-Greek/Latin/Russian/English ed
 passage-first reading, saves device-local bookmarks and settings, and restores the
 last visible tab on a normal cold start. Its experiment journal and interaction
 logs are scheduling-inert; no normal book-completion/review endpoints are called.
-Edition two adds exact-token contextual word help, English support and compact
+Edition two is deployed (10 October 2026) and adds exact-token contextual word help, English support and compact
 controls with a fixed passage-navigation bar; edition-one bookmarks/outbox events
 migrate without losing history. The transient Arabic root screen is launch-gated so restoration cannot build a
 review session. See `docs/parallel-reading.md` for content, persistence and limits.

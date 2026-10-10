@@ -167,3 +167,16 @@ preflights pass. Browser QA at 390×844 and 320×740 exercised English persisten
 word meanings including attached pronouns, keyboard dismissal, fixed navigation,
 Compare all and normal-launch resume. Vowel-mode token identities are checked for
 every paragraph. No horizontal overflow was observed.
+
+
+Edition-two publication (10 October 2026): source
+`411e3f35656f7352afec83c783e3fd6ea9b2eb02` (PR #288) is live in the backend
+and private HTTPS reader. Both event versions, English and token identity appear
+in the live OpenAPI schema; an invalid empty payload returns 422 without creating
+synthetic reading evidence. The live JS contains English, v2 journal and word-card
+markers. The prior web release `314d26ffdc9c4fe2e0031b804b29cb62800355ae` is retained
+for rollback. iPhone preview update `01a12706-6cff-7d6b-89fd-ada4a3e110d8`, group
+`c8a725c9-7912-47b0-bb1b-1f80e1ec2048`, runtime `1.0.0`, is published. Its source
+commit, secure API configuration, downloaded launch-asset SHA-256 and English/word
+help/v2-journal markers are verified. Physical device checks remain for Stian;
+publication is complete. Local preview/worktree cleanup follows receipt preservation.
