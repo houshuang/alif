@@ -160,10 +160,12 @@ PUT /api/words/{lemma_id}/attention now returns 410 for legacy clients: prioriti
 
 ## Parallel reading journal
 
-`POST /api/books/parallel/events` accepts a version-1 parallel-reading event with
+`POST /api/books/parallel/events` accepts version-1 and version-2 parallel-reading events with
 `client_event_id`, `reader_id`, `text_id`, `paragraph_id`, timezone-aware
 `occurred_at`, `kind`, `support`, `revealed`, `all`, `vowels`, `size`, `reread` and
-`completed`. Clue actions include `clue_id`; optional reflection uses `effort`.
+`completed`. Clue actions include `clue_id`; edition-two word actions include exact `token_id`
+and actual clicked `paragraph_id`, and display actions specify `panel` (appearance
+or phrases). Edition two additionally accepts `support=en`; optional reflection uses `effort`.
 Returns `recorded` or `duplicate`; invalid identities and conflicting event IDs
 return 422. Writes experiment evidence only, without vocabulary/review credit.
 Content is bundled; see `parallel-reading.md`.
