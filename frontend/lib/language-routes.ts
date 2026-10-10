@@ -27,7 +27,7 @@ export type AppLanguage = "ar" | "el" | "la";
 // language. New polyglot screens just follow the `polyglot-*` filename
 // convention and inherit isolation automatically.
 export function routeLanguage(pathname: string): AppLanguage | "shared" {
-  if (pathname === "/languages") return "shared";
+  if (pathname === "/languages" || pathname === "/parallel") return "shared";
   if (
     pathname === "/polyglot" ||
     pathname.startsWith("/polyglot/") ||

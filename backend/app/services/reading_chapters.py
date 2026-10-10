@@ -68,6 +68,11 @@ class ChapterEventIn(BaseModel):
 
 
 def record_chapter_event(db: Session, event: ChapterEventIn, **extra) -> dict:
+    return record_reading_journal_event(db, event, **extra)
+
+
+def record_reading_journal_event(db: Session, event: BaseModel, **extra) -> dict:
+    """Idempotent experiment evidence, independent of vocabulary scheduling."""
     payload = event.model_dump(mode="json") | extra
     existing = db.get(ReadingPilotEvent, event.client_event_id)
     if existing is not None:

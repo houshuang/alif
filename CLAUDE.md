@@ -66,6 +66,15 @@ activated policy; verify live deployment separately from merge/implementation la
 | `docs/design-principles.md` | Feature-level design decisions (lemma identity, intro cards, tashkeel, fonts, graduation, etc.) |
 | `~/src/bookifier/bilingual/RUNBOOK.md` | Bilingual EPUB build pipeline (AR + tashkīl + faithful EN). Use when generating reader-grade bilingual material from raw Arabic text rather than studying it inside alif. |
 
+## Parallel Reading experiment
+
+The shared `/parallel` tab bundles Arabic/Ancient-Greek/Latin/Russian editions for
+passage-first reading, saves device-local bookmarks and settings, and restores the
+last visible tab on a normal cold start. Its experiment journal and interaction
+logs are scheduling-inert; no normal book-completion/review endpoints are called.
+The transient Arabic root screen is launch-gated so restoration cannot build a
+review session. See `docs/parallel-reading.md` for content, persistence and limits.
+
 ## Review Modes
 Sentence review keeps the progress header focused on review controls; it has no passage-reading link or reading prompt.
 Supported chapter reading (`/read`) preserves its no-review-credit behavior, with temporary vocabulary reminders and optional voice/text feedback. Under automatic attention v2, repeated uniquely resolved word help in distinct paragraphs can inform later maintenance eligibility. See `docs/supported-reading-chapters.md`; do not route its help/completion through review-credit APIs.

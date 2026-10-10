@@ -8,6 +8,7 @@ describe("statusBarStyleForPath", () => {
     "/polyglot-lemma/42",
     "/book-page",
     "/read",
+    "/parallel",
   ])("uses dark system text on light route %s", (pathname) => {
     expect(statusBarStyleForPath(pathname)).toBe("dark");
   });

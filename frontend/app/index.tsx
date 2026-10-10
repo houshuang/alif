@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useContext } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ReviewLaunchReadyContext } from "../lib/launch-ready";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
@@ -380,6 +381,15 @@ function getFormIBase(
 const introducedGrammarKeys = new Set<string>();
 
 export default function ReadingScreen() {
+  const launchReady = useContext(ReviewLaunchReadyContext);
+  const activated = useRef(false);
+  if (launchReady) activated.current = true;
+  // Preserve an existing review session when changing tabs, but do not create
+  // one while cold-start restoration briefly resolves to the root screen.
+  return activated.current ? <ReadingSessionScreen /> : null;
+}
+
+function ReadingSessionScreen() {
   return <ReviewScreen fixedMode="reading" />;
 }
 

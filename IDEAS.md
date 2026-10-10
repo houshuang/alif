@@ -1,5 +1,16 @@
 # Alif — Master Ideas File
 
+## 🟢 [IMPLEMENTED 2026-10-10 — publication pending] Four-language Parallel Reading experiment
+
+Arabic-first literary reading with Greek, Latin and Russian clues, a small bundled
+library, independent passage bookmarks, Arabic-only rereads and optional effort
+reflection. Visible Parallel tab resumes on normal launch when last used; direct
+bookmarks take precedence. Reading evidence is separate from vocabulary scheduling.
+Start with the Aesop demo, a longer Kalīla net episode and Enchiridion 4 & 6.
+Next: dogfood repeated sittings, prepare more aligned texts from actual feedback,
+and independently check generated language versions. See `docs/parallel-reading.md`.
+
+
 ## 🟢 [ACTIVE 2026-10-04 → 2026-12-31] Novel sprint: finish *رجال في الشمس*, weekly recall test
 
 One goal that can be failed instead of a drifting plateau: read Kanafani's *Men in the Sun*

@@ -13,6 +13,7 @@ export type QueueEntryType =
   | "reintro_result"
   | "experiment_intro_ack"
   | "reading_pilot_event"
+  | "parallel_reading_event"
   | "reading_chapter_event"
   | "reading_chapter_voice"
   | "grammar_intro"
@@ -101,6 +102,10 @@ const INDIVIDUAL_ACTIONS: Record<string, {
   url: (p: Record<string, unknown>) => string;
   body: (p: Record<string, unknown>) => Record<string, unknown>;
 }> = {
+  parallel_reading_event: {
+    url: () => `${BASE_URL}/api/books/parallel/events`,
+    body: (p) => p,
+  },
   reading_chapter_event: {
     url: () => `${BASE_URL}/api/books/chapters/events`,
     body: (p) => p,
@@ -311,8 +316,12 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
       if (!Number.isFinite(storyId) || !nextStatus) continue;
       await updateCachedStoryStatus(storyId, nextStatus).catch(() => {});
     }
-    await invalidateDataCaches();
-    syncEvents.emit("synced");
+    // Experiment evidence must not wake a hidden review screen's session
+    // refresh listener or invalidate vocabulary caches after every reveal.
+    if (queue.some(entry => removable.has(entry.client_review_id) && entry.type !== "parallel_reading_event")) {
+      await invalidateDataCaches();
+      syncEvents.emit("synced");
+    }
   }
 
   return { synced: totalSynced, failed };

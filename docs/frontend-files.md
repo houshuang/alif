@@ -66,3 +66,16 @@ All frontend in `frontend/`. The Expo app serves **two languages** (Arabic via t
 ### Automatic attention v2 (2026-09-19)
 
 Word detail has no attention controls. Book reader has no enrollment/opt-out toggles: a tap opens help, while completed reading supplies automatic relevance evidence. The review progress bar links directly to /read so reading can replace part of a review session.
+
+## Parallel reading and launch restoration (2026-10-10)
+
+- `app/parallel.tsx`: shared Parallel tab, catalogue, focused reader, four-language
+  support, curated clues, Arabic-only reread and optional effort reflection.
+- `lib/parallel-reading.ts`: bundled versioned content, serialized local bookmarks
+  and atomic evidence outbox handed to `parallel_reading_event` in the sync queue.
+- `lib/data/parallel-reading-v1.json`: bundled copy of the canonical backend edition.
+- `lib/last-tab.ts`: allowlisted visible-tab bookmarks; explicit links override resume.
+- `lib/launch-ready.ts`: context gates first mounting of Arabic review content until
+  startup restoration resolves and the actual review tab is selected.
+
+See `parallel-reading.md` for the experiment boundaries and verification.
