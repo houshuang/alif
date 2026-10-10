@@ -1,0 +1,371 @@
+{
+  "id": "parallel-reading",
+  "version": 1,
+  "texts": [
+    {
+      "id": "aesop-jar",
+      "title": "Zeus and the jar of good things",
+      "author": "Aesop",
+      "description": "A tiny complete story to settle into the method.",
+      "original_language": "grc",
+      "source_url": "https://el.wikisource.org/wiki/Αισώπου_Μύθοι/Ζεύς_και_πίθος_αγαθών",
+      "source_note": "Greek narrative from the handoff; the appended moral is omitted. Arabic, Latin and Russian are the experiment’s learning translations. Arabic vocalization is an added aid.",
+      "versions": {
+        "ar": "New AI learning translation",
+        "grc": "Original text",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "جمع زيوس كل الخيرات في جرّة مغلقة وتركها عند رجل.",
+          "ar_vowelled": "جَمَعَ زِيُوسُ كُلَّ الْخَيْرَاتِ فِي جَرَّةٍ مُغْلَقَةٍ وَتَرَكَهَا عِنْدَ رَجُلٍ.",
+          "grc": "Ζεὺς ἐν πίθῳ τὰ ἀγαθὰ πάντα συγκλείσας ἀφῆκε παρὰ ἀνθρώπῳ τινί.",
+          "la": "Iuppiter omnia bona in dolio clausit atque apud quendam hominem reliquit.",
+          "ru": "Зевс запер все блага в большом сосуде и оставил его у одного человека.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "الخيرات",
+              "meaning": "good things; blessings",
+              "bridge": "ἀγαθά · bona · блага"
+            },
+            {
+              "id": "2",
+              "form": "جرّة",
+              "meaning": "a jar",
+              "bridge": "πίθος · dolium · сосуд"
+            },
+            {
+              "id": "3",
+              "form": "تركها",
+              "meaning": "he left it; ـها refers to the jar",
+              "bridge": "ἀφῆκε · reliquit · оставил"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "وأراد الرجل الفضولي أن يعرف ما فيها، فحرّك الغطاء.",
+          "ar_vowelled": "وَأَرَادَ الرَّجُلُ الْفُضُولِيُّ أَنْ يَعْرِفَ مَا فِيهَا، فَحَرَّكَ الْغِطَاءَ.",
+          "grc": "Ὁ δὲ λίχνος ἄνθρωπος εἰδέναι θέλων τί ἐστιν ἐν αὐτῷ, τὸ πῶμα ἐκίνησε.",
+          "la": "Homo autem curiosus scire volens quid in eo esset operculum movit.",
+          "ru": "Любопытный человек захотел узнать, что в нём, и сдвинул крышку.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "أراد … أن يعرف",
+              "meaning": "he wanted to know",
+              "bridge": "εἰδέναι θέλων · scire volens · захотел узнать"
+            },
+            {
+              "id": "2",
+              "form": "فيها",
+              "meaning": "in it; ـها refers to the jar",
+              "bridge": "ἐν αὐτῷ · in eo · в нём"
+            },
+            {
+              "id": "3",
+              "form": "الغطاء",
+              "meaning": "the lid",
+              "bridge": "πῶμα · operculum · крышка"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فطارت الخيرات كلها إلى الآلهة.",
+          "ar_vowelled": "فَطَارَتِ الْخَيْرَاتُ كُلُّهَا إِلَى الْآلِهَةِ.",
+          "grc": "πάντα δὲ ἐπετάσθησαν πρὸς τοὺς θεούς.",
+          "la": "Omnia vero ad deos avolaverunt.",
+          "ru": "Все блага улетели к богам.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "فطارت",
+              "meaning": "so they flew away; nonhuman plural subject with feminine singular verb",
+              "bridge": "ἐπετάσθησαν · avolaverunt · улетели"
+            },
+            {
+              "id": "2",
+              "form": "كلها",
+              "meaning": "all of them",
+              "bridge": "πάντα · omnia · все"
+            },
+            {
+              "id": "3",
+              "form": "الآلهة",
+              "meaning": "the gods",
+              "bridge": "θεοί · dei · боги"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kalila-net",
+      "title": "The doves and the net",
+      "author": "Ibn al-Muqaffaʿ · Kalīla wa-Dimna",
+      "description": "A longer classical Arabic episode: escape depends on cooperation.",
+      "original_language": "ar",
+      "source_url": "https://www.safahat.org/books/29061736/6/",
+      "source_note": "A continuous excerpt beginning with the hunter setting his net and ending with the plan to reach the rodent. Arabic wording follows the Hindawi-hosted edition, with punctuation/spacing normalized. It is not the whole fable. The crow was watching from a tree before this excerpt. Supporting versions are newly generated prose, not the historical Greek or Latin translations; Greek/Latin use “mouse” for جرذ. Arabic has the source’s partial vowel marks, not newly added full vocalization.",
+      "versions": {
+        "ar": "Original text",
+        "grc": "New AI learning translation",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "فنصب الصيَّاد شبكته ونثر فيها حبَّه وكمَن قريبًا، فلم يلبث إلَّا قليلًا حتى مرَّت به حمامة يُقال لها المطوَّقة — وكانت سيدة الحمام — ومعها حمام كثير،",
+          "ar_vowelled": null,
+          "grc": "Ὁ θηρευτὴς τὸ δίκτυον ἔστησε καὶ σῖτον ἐν αὐτῷ διέσπειρεν, αὐτὸς δὲ πλησίον ἐκρύπτετο. Οὐ πολλοῦ χρόνου διελθόντος, περιστερὰ παρῆλθεν, ἣν περιδεραίαν ἐκάλουν· ἡγεμὼν δὲ τῶν περιστερῶν ἦν, καὶ πολλαὶ μετ᾽ αὐτῆς ἦσαν.",
+          "la": "Venator rete tetendit et grana in eo sparsit, ipse autem prope latuit. Paulo post columba praeteriit, quam Torquatam vocabant; ea columbis praeerat, multaeque cum ea erant.",
+          "ru": "Охотник расставил сеть, рассыпал в ней зерно и спрятался поблизости. Вскоре мимо пролетела голубка по имени Ожерелье. Она была предводительницей голубей, и с ней было много голубей.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "كمَن",
+              "meaning": "hid in ambush",
+              "bridge": "ἐκρύπτετο · latuit · спрятался"
+            },
+            {
+              "id": "2",
+              "form": "سيدة الحمام",
+              "meaning": "leader of the doves",
+              "bridge": "ἡγεμών · praeerat · предводительница"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "فرأت الحبَّ ولم ترَ الشبكة، فانقضَّت وانقضَّ الحمام معها، فوقعن في الشبكة جميعًا، وجعلت كل حمامة منهنَّ تضطرب على ناحيتها وتعالج الخلاص لنفسها،",
+          "ar_vowelled": null,
+          "grc": "Τὸν μὲν σῖτον εἶδε, τὸ δὲ δίκτυον οὐκ εἶδεν. Κατέπτη οὖν, καὶ αἱ ἄλλαι μετ᾽ αὐτῆς· πᾶσαι δὲ εἰς τὸ δίκτυον ἐνέπεσον. Ἑκάστη πρὸς τὸ ἑαυτῆς μέρος ἐταράττετο καὶ ἐπειρᾶτο μόνη σωθῆναι.",
+          "la": "Grana vidit, rete non vidit. Devolavit igitur, et aliae cum ea; omnes in rete inciderunt. Unaquaeque in sua parte agitabat se et sola effugere conabatur.",
+          "ru": "Она увидела зерно, но не заметила сети. Она бросилась вниз, и голуби последовали за ней. Все попали в сеть. Каждая голубка билась со своей стороны и пыталась спастись сама.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "فوقعن",
+              "meaning": "so they fell; feminine plural ending ـن",
+              "bridge": "ἐνέπεσον · inciderunt · попали"
+            },
+            {
+              "id": "2",
+              "form": "لنفسها",
+              "meaning": "for herself; each bird acts alone",
+              "bridge": "μόνη · sola · сама"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فقالت المطوَّقة: لا تَخاذَلن في المُعالجة، ولا تَكُنْ نفسُ كل واحدة منكنَّ أهمَّ إليها من نفس صاحبتها، ولكن تعاونَّ فلعلنا نَقلع الشبكة فيُنجي بعضُنا بعضًا،",
+          "ar_vowelled": null,
+          "grc": "Ἡ δὲ περιδεραία εἶπεν· «Μὴ ἀλλήλας ἐγκαταλείπετε ἐν τῷ ἀγῶνι, μηδὲ ἑκάστη τὴν ἑαυτῆς ψυχὴν περὶ πλείονος ποιείσθω ἢ τὴν τῆς ἑταίρας. Ἀλλὰ κοινῇ πονεῖτε· ἴσως τὸ δίκτυον ἀνασπάσομεν καὶ ἀλλήλας σώσομεν.»",
+          "la": "Torquata dixit: «Nolite in conatu aliae alias deserere, neque cuique sua vita carior sit quam sociae. Sed una laborate; fortasse rete tollemus et aliae alias servabimus.»",
+          "ru": "Ожерелье сказала: «Не оставляйте друг друга в беде. Пусть для каждой собственная жизнь не будет важнее жизни подруги. Действуйте вместе: может быть, мы поднимем сеть и спасём друг друга».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "تعاونَّ",
+              "meaning": "cooperate! addressed to female birds",
+              "bridge": "κοινῇ πονεῖτε · una laborate · действуйте вместе"
+            },
+            {
+              "id": "2",
+              "form": "بعضنا بعضًا",
+              "meaning": "one another",
+              "bridge": "ἀλλήλας · aliae alias · друг друга"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "ar": "ففعلن ذلك فانتزعن الشبكة حين تعاونَّ عليها، وطِرْنَ بها في عُلوِّ السماء، ورأى الصيادُ صنيعهنَّ فأتبعهنَّ يطلبهنَّ، ولم يَقطع رجاءه منهن وظنَّ أنهنَّ لا يطِرن إلَّا قريبًا حتى يقعنْ،",
+          "ar_vowelled": null,
+          "grc": "Οὕτως ἐποίησαν, καὶ κοινῇ πονήσασαι τὸ δίκτυον ἀνέσπασαν καὶ μετ᾽ αὐτοῦ ὑψηλὰ ἔπτησαν. Ὁ δὲ θηρευτὴς ἰδὼν τὸ ἔργον αὐτῶν ἐδίωκεν. Οὐ γὰρ ἀπέγνω, ἀλλ᾽ ᾤετο αὐτὰς οὐ μακρὰν πτήσεσθαι, εἶτα καταπεσεῖσθαι.",
+          "la": "Ita fecerunt et, coniunctis viribus, rete sustulerunt atque cum eo alte volaverunt. Venator, re earum visa, eas insequebatur. Spem enim non abiecerat, sed putabat eas non longe volaturas esse, deinde casuras.",
+          "ru": "Они так и сделали: общими усилиями подняли сеть и взлетели с ней высоко в небо. Охотник увидел это и побежал за ними. Он не терял надежды и думал, что они пролетят лишь небольшое расстояние, а потом упадут.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "بها",
+              "meaning": "with it; here the net",
+              "bridge": "μετ᾽ αὐτοῦ · cum eo · с ней"
+            },
+            {
+              "id": "2",
+              "form": "لم يقطع رجاءه",
+              "meaning": "did not abandon his hope",
+              "bridge": "οὐκ ἀπέγνω · spem non abiecerat · не терял надежды"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "ar": "وقال الغرابُ: لأُتبِعهنَّ حتى أنظر إلى ما يصير إليه أمرُهنَّ وأمرُه، والتفتت المطوقة فلما رأت الصياد يقفوهنَّ قالت للحمام: ها هو ذا جاء يطلبكنَّ،",
+          "ar_vowelled": null,
+          "grc": "Ὁ δὲ κόραξ εἶπεν· «Ἀκολουθήσω αὐταῖς, ἵνα ἴδω τί τέλος ἕξει τὰ αὐτῶν καὶ τὰ ἐκείνου.» Ἡ δὲ περιδεραία ἐπιστραφεῖσα καὶ τὸν θηρευτὴν διώκοντα ἰδοῦσα εἶπε ταῖς περιστεραῖς· «Ἰδοὺ οὗτος διώκει ὑμᾶς.»",
+          "la": "Corvus dixit: «Eas sequar, ut videam quem exitum res earum et illius habeant.» Torquata autem, conversa et venatorem insequentem conspicata, columbis dixit: «Ecce venit vos quaerens.»",
+          "ru": "Ворон сказал: «Полечу за ними, чтобы увидеть, чем всё закончится для них и для него». Ожерелье обернулась и, увидев преследующего их охотника, сказала голубям: «Вот он идёт за вами».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "يقفوهنَّ",
+              "meaning": "follows them; ـهن refers to the birds",
+              "bridge": "διώκοντα · insequentem · преследующего"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "ar": "فإن نحن أخذنا في الفضاء لم يَخْفَ عليه أمرنا، ولم يزل يُتبِعنا، وإن نحن أخذنا في الشجر والعُمران لم نلبث أن يَغبَى عليه أمرُنا، ولم يزَل يُتبِعنا حتى ييأس منَّا فينصرف، ومع ذلك إنَّ قريبًا من الطريق جُحْر جُرَذ، وهو صديقٌ لي، فلو انتهينا إليه لقطع عنَّا هذه الشبكة وخلَّصنا منها.",
+          "ar_vowelled": null,
+          "grc": "«Ἐὰν μὲν διὰ τοῦ πεδίου πορευώμεθα, φανεραὶ αὐτῷ ἐσόμεθα, καὶ ἀεὶ ἀκολουθήσει. Ἐὰν δὲ διὰ τῶν δένδρων καὶ τῶν οἰκήσεων πορευώμεθα, τάχα οὐκέτι εἴσεται ποῦ ἐσμεν· διώκων δὲ τέλος ἀπογνοὺς ἀπελεύσεται. Ἔστι δὲ πλησίον τῆς ὁδοῦ μυὸς φωλεός· φίλος δέ μοί ἐστιν. Ἐὰν πρὸς αὐτὸν ἀφικώμεθα, διακόψει τὸ δίκτυον καὶ ἐλευθερώσει ἡμᾶς.»",
+          "la": "«Si per apertum campum ibimus, ei patebimus et nos sequi perget. Si autem inter arbores et habitationes ibimus, mox nesciet ubi simus; nos persequetur donec spe amissa discedat. Praeterea prope viam est muris cuniculus; is mihi amicus est. Si ad eum pervenerimus, hoc rete nobis discindet atque nos liberabit.»",
+          "ru": "«Если мы полетим по открытому месту, он будет нас видеть и продолжит преследовать. Если же полетим среди деревьев и домов, он скоро потеряет нас из виду. Он будет искать нас, пока не потеряет надежду и не уйдёт. Кроме того, возле дороги есть нора грызуна, моего друга. Если доберёмся до него, он перегрызёт эту сеть и освободит нас».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "لم يخفَ عليه أمرنا",
+              "meaning": "our whereabouts would not be hidden from him",
+              "bridge": "φανεραί · patebimus · будет нас видеть"
+            },
+            {
+              "id": "2",
+              "form": "جحر جرذ",
+              "meaning": "a rodent’s burrow; Greek/Latin use mouse",
+              "bridge": "μυὸς φωλεός · muris cuniculus · нора грызуна"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "epictetus-bath",
+      "title": "The bathhouse and the beautiful horse",
+      "author": "Epictetus · Enchiridion 4 & 6",
+      "description": "Two complete arguments about what belongs to you.",
+      "original_language": "grc",
+      "source_url": "https://el.wikisource.org/wiki/Εγχειρίδιον",
+      "source_note": "Complete sections 4 and 6, joined as two separate arguments; section 5 is not included. Greek follows Wikisource with apostrophes normalized and new meaning-based paragraph breaks. Arabic, Latin and Russian are new AI learning translations, not published editions. προαίρεσις is rendered إرادة (faculty of choice), and φαντασίαι تصوّرات (impressions). Arabic has selective marks only; no full vocalization has been prepared.",
+      "versions": {
+        "ar": "New AI learning translation",
+        "grc": "Original text",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "عندما تنوي أن تبدأ عملًا، ذكّر نفسك بطبيعة ذلك العمل. فإذا ذهبت لتستحم، ضع أمام عينيك ما يحدث في الحمّام: أناس يرشّون الماء، وأناس يصطدمون بغيرهم، وأناس يشتمون، وأناس يسرقون.",
+          "ar_vowelled": null,
+          "grc": "Ὅταν ἅπτεσθαί τινος ἔργου μέλλῃς, ὑπομίμνῃσκε σεαυτόν, ὁποῖόν ἐστι τὸ ἔργον. ἐὰν λουσόμενος ἀπίῃς, πρόβαλλε σεαυτῷ τὰ γινόμενα ἐν βαλανείῳ, τοὺς ἀποῤῥαίνοντας, τοὺς ἐγκρουομένους, τοὺς λοιδοροῦντας, τοὺς κλέπτοντας.",
+          "la": "Cum opus aliquod suscipere velis, te admone quale sit. Si lavatum eas, ante oculos pone quae in balneo fiunt: alios aqua aspergentes, alios impingentes, alios conviciantes, alios furantes.",
+          "ru": "Когда собираешься взяться за дело, напомни себе, каково оно. Если идёшь мыться, представь, что происходит в бане: одни брызгают водой, другие толкаются, третьи ругаются, четвёртые крадут.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "ذكّر نفسك",
+              "meaning": "remind yourself",
+              "bridge": "ὑπομίμνῃσκε σεαυτόν · te admone · напомни себе"
+            },
+            {
+              "id": "2",
+              "form": "يرشّون",
+              "meaning": "they sprinkle or splash",
+              "bridge": "ἀποῤῥαίνοντας · aspergentes · брызгают"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "وهكذا تبدأ عملك بأمان أكبر إذا قلت لنفسك منذ البداية: «أريد أن أستحم، وأن أحافظ أيضًا على إرادتي موافقة للطبيعة». وافعل مثل ذلك في كل عمل.",
+          "ar_vowelled": null,
+          "grc": "καὶ οὕτως ἀσφαλέστερον ἅψῃ τοῦ ἔργου, ἐὰν ἐπιλέγῃς εὐθὺς ὅτι «λούσασθαι θέλω καὶ τὴν ἐμαυτοῦ προαίρεσιν κατὰ φύσιν ἔχουσαν τηρῆσαι». καὶ ὡσαύτως ἐφ᾽ ἑκάστου ἔργου.",
+          "la": "Sic tutius opus suscipies, si statim tibi dixeris: «Lavari volo atque etiam voluntatem meam naturae consentientem servare.» Idem in omni opere fac.",
+          "ru": "Так ты надёжнее приступишь к делу, если сразу скажешь себе: «Я хочу помыться и сохранить свою волю в согласии с природой». Так же поступай в любом деле.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "إرادتي",
+              "meaning": "my faculty of choice; rendering of προαίρεσις",
+              "bridge": "προαίρεσιν · voluntatem · волю"
+            },
+            {
+              "id": "2",
+              "form": "موافقة للطبيعة",
+              "meaning": "in accordance with nature",
+              "bridge": "κατὰ φύσιν · naturae consentientem · в согласии с природой"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فإذا حدث ما يعوق استحمامك، كان عندك هذا الجواب: «لم أرد هذا وحده، بل أردت أيضًا أن أحافظ على إرادتي موافقة للطبيعة. ولن أحافظ عليها إذا غضبت مما يحدث».",
+          "ar_vowelled": null,
+          "grc": "οὕτω γὰρ ἄν τι πρὸς τὸ λούσασθαι γένηται ἐμποδών, πρόχειρον ἔσται διότι «ἀλλ᾽ οὐ τοῦτο ἤθελον μόνον, ἀλλὰ καὶ τὴν ἐμαυτοῦ προαίρεσιν κατὰ φύσιν ἔχουσαν τηρῆσαι: οὐ τηρήσω δέ, ἐὰν ἀγανακτῶ πρὸς τὰ γινόμενα».",
+          "la": "Si quid igitur lavationi obstiterit, hoc responsum paratum habebis: «Non hoc solum volui, sed etiam voluntatem meam naturae consentientem servare. Non autem servabo, si iis quae fiunt indignor.»",
+          "ru": "Если что-то помешает мытью, у тебя будет готов ответ: «Я хотел не только этого, но и сохранить свою волю в согласии с природой. А я её не сохраню, если буду сердиться на происходящее».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "يعوق",
+              "meaning": "hinders, gets in the way",
+              "bridge": "ἐμποδών · obstiterit · помешает"
+            },
+            {
+              "id": "2",
+              "form": "لم أرد هذا وحده",
+              "meaning": "I did not want only this",
+              "bridge": "οὐ τοῦτο ἤθελον μόνον · non hoc solum volui · хотел не только этого"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "ar": "لا تتكبّر بسبب ميزة ليست لك. لو تكبّر حصان وقال: «أنا جميل»، لكان ذلك مقبولًا. أمّا أنت، فعندما تقول متكبّرًا: «عندي حصان جميل»، فاعلم أنك تتكبّر بسبب جمال الحصان.",
+          "ar_vowelled": null,
+          "grc": "Ἐπὶ μηδενὶ ἐπαρθῇς ἀλλοτρίῳ προτερήματι. εἰ ὁ ἵππος ἐπαιρόμενος ἔλεγεν ὅτι «καλός εἰμι», οἰστὸν ἂν ἦν: σὺ δέ, ὅταν λέγῃς ἐπαιρόμενος ὅτι «ἵππον καλὸν ἔχω», ἴσθι, ὅτι ἐπὶ ἵππου ἀγαθῷ ἐπαίρῃ.",
+          "la": "Ne te efferas bono alieno. Si equus superbiens diceret «Pulcher sum», tolerabile esset. Tu autem, cum superbiens dicis «Equum pulchrum habeo», scito te equi bono superbire.",
+          "ru": "Не гордись чужим достоинством. Если бы конь гордо сказал: «Я красив», это было бы терпимо. Но когда ты гордо говоришь: «У меня красивый конь», знай, что гордишься достоинством коня.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "ميزة ليست لك",
+              "meaning": "an advantage that is not yours",
+              "bridge": "ἀλλοτρίῳ προτερήματι · bono alieno · чужим достоинством"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "ar": "فما الذي يخصّك إذن؟ طريقة استعمالك للتصوّرات. فإذا كنت تستعمل التصوّرات وفقًا للطبيعة، فحينئذ افتخر؛ لأنك عندئذ تفتخر بخير يخصّك أنت.",
+          "ar_vowelled": null,
+          "grc": "τί οὖν ἐστι σόν; χρῆσις φαντασιῶν. ὥσθ᾽, ὅταν ἐν χρήσει φαντασιῶν κατὰ φύσιν σχῇς, τηνικαῦτα ἐπάρθητι: τότε γὰρ ἐπὶ σῷ τινι ἀγαθῷ ἐπαρθήσῃ.",
+          "la": "Quid igitur tuum est? Usus impressionum. Cum igitur impressionibus secundum naturam uteris, tum te effer: tunc enim bono quodam tuo te efferes.",
+          "ru": "Что же принадлежит тебе? То, как ты пользуешься впечатлениями. Когда пользуешься ими в согласии с природой, тогда гордись: ведь тогда ты будешь гордиться собственным достоинством.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "التصوّرات",
+              "meaning": "impressions or representations; Stoic term",
+              "bridge": "φαντασιῶν · impressionum · впечатлениями"
+            },
+            {
+              "id": "2",
+              "form": "يخصّك",
+              "meaning": "belongs to you",
+              "bridge": "σόν · tuum · принадлежит тебе"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

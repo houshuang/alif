@@ -12,7 +12,7 @@ from app.schemas import ProcessedBookImportIn, StoryDetailOut
 from app.services.book_import_service import import_book, import_processed_book
 from app.services.story_service import get_story_detail
 from app.services.reading_pilot import ReadingPilotEventIn, get_reading_pilot, record_reading_event
-from app.services import reading_chapters
+from app.services import reading_chapters, parallel_reading
 from app.models import ReadingPilotEvent
 from fastapi.responses import FileResponse
 
@@ -22,6 +22,14 @@ router = APIRouter(prefix="/api/books", tags=["books"])
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB per image
 UPLOAD_DIR = Path("data/book-uploads")
+
+
+@router.post("/parallel/events")
+def parallel_event(body: parallel_reading.ParallelEventIn, db: Session = Depends(get_db)):
+    try:
+        return parallel_reading.record_parallel_event(db, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/chapters")

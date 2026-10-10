@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { syncEvents } from "../sync-events";
+import { invalidateDataCaches } from "../offline-store";
 import { enqueueReview, flushQueue, removeFromQueue, pendingCount } from "../sync-queue";
 
 // Mock modules that sync-queue imports
@@ -7,6 +9,7 @@ jest.mock("../sync-events", () => ({
 }));
 jest.mock("../offline-store", () => ({
   invalidateSessions: jest.fn(),
+  invalidateDataCaches: jest.fn().mockResolvedValue(undefined),
   updateCachedStoryStatus: jest.fn(),
 }));
 
@@ -107,4 +110,18 @@ describe("durable retries", () => {
     expect(queue[0].client_review_id).toBe("durable-review");
     expect(queue[0].attempts).toBe(10);
   });
+});
+
+it("sends parallel evidence to the isolated journal endpoint and retains it on failure", async () => {
+  const payload = { reader_id: "parallel-reading", client_event_id: "parallel:sync:1", kind: "complete" };
+  await enqueueReview("parallel_reading_event", payload, "parallel:sync:1");
+  mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+  expect((await flushQueue()).failed).toBe(1);
+  expect(await pendingCount()).toBe(1);
+  mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ status: "recorded" }) });
+  expect((await flushQueue()).synced).toBe(1);
+  expect(await pendingCount()).toBe(0);
+  expect(syncEvents.emit).not.toHaveBeenCalledWith("synced");
+  expect(invalidateDataCaches).not.toHaveBeenCalled();
+  expect(mockFetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/books/parallel/events"), expect.objectContaining({ method: "POST", body: JSON.stringify(payload) }));
 });

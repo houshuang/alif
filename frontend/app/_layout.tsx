@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { View, Text, Pressable, StyleSheet, AppState, ActivityIndicator } from "react-native";
-import { Tabs, useRouter, usePathname } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, StyleSheet, AppState, ActivityIndicator, Platform } from "react-native";
+import { Tabs, useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +29,10 @@ import {
   EBGaramond_400Regular,
   EBGaramond_600SemiBold,
 } from "@expo-google-fonts/eb-garamond";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
+import { ReviewLaunchReadyContext } from "../lib/launch-ready";
+import { LAST_TAB_KEY, isRememberedTab, resumeTab } from "../lib/last-tab";
 import { colors } from "../lib/theme";
 import { statusBarStyleForPath } from "../lib/status-bar-style";
 import { detectNewlyAppliedUpdate, versionLabel } from "../lib/app-version";
@@ -102,6 +106,28 @@ function LayoutInner({ online }: { online: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const params = useGlobalSearchParams();
+  const [startupDone, setStartupDone] = useState(false);
+  const startupStarted = useRef(false);
+  const startupTarget = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready || startupStarted.current) return;
+    startupStarted.current = true;
+    Promise.all([AsyncStorage.getItem(LAST_TAB_KEY).catch(() => null), Linking.getInitialURL().catch(() => null)])
+      .then(([stored, url]) => {
+        const target = resumeTab(pathname, Object.keys(params).length > 0, stored, language, Platform.OS !== "web" && !!url);
+        if (target && target !== pathname) { startupTarget.current = target; router.replace(target as any); }
+        else setStartupDone(true);
+      });
+  }, [ready, pathname, language, params, router]);
+  useEffect(() => {
+    if (startupTarget.current === pathname) { startupTarget.current = null; setStartupDone(true); }
+  }, [pathname]);
+  useEffect(() => {
+    if (ready && startupDone && isRememberedTab(pathname) && routeMatchesLanguage(routeLanguage(pathname), language)) {
+      void AsyncStorage.setItem(LAST_TAB_KEY, pathname).catch(() => {});
+    }
+  }, [ready, startupDone, pathname, language]);
   const [pickerOpen, setPickerOpen] = useState(false);
   // "App updated" toast: shown once on the first launch that runs a new OTA
   // bundle, so "is the new version loaded?" is answerable at a glance.
@@ -132,7 +158,7 @@ function LayoutInner({ online }: { online: boolean }) {
   // tab bar. Also catches web reloads on a route that belongs to the other
   // surface. A polyglot route matches both el and la actives (routeMatchesLanguage).
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !startupDone) return;
     // A direct supported-reading bookmark explicitly selects Arabic, even if
     // the previous app visit was Greek/Latin. This screen has no language picker.
     if (pathname === "/read" && language !== "ar") {
@@ -144,7 +170,7 @@ function LayoutInner({ online }: { online: boolean }) {
     if (!routeMatchesLanguage(r, language)) {
       router.replace(homePathFor(language) as any);
     }
-  }, [ready, language, pathname, router, setLanguage]);
+  }, [ready, startupDone, language, pathname, router, setLanguage]);
 
   // NOTE: do NOT early-return a non-navigator (e.g. a bare spinner) while
   // `!ready`. The language-sync effect above calls router.replace(homePathFor)
@@ -156,6 +182,7 @@ function LayoutInner({ online }: { online: boolean }) {
   // by any navigator." Keep <Tabs> mounted from the first render and overlay
   // the spinner instead, so the redirect always targets a stable navigator.
   return (
+    <ReviewLaunchReadyContext.Provider value={startupDone && ready && pathname === "/" && language === "ar"}>
     <>
       <StatusBar style={statusBarStyleForPath(pathname)} />
       {!online && (
@@ -194,6 +221,9 @@ function LayoutInner({ online }: { online: boolean }) {
           tabBarInactiveTintColor: colors.textSecondary,
         }}
       >
+        <Tabs.Screen name="parallel" options={{ title: "Parallel Reading", headerShown: false, tabBarLabel: "Parallel",
+          tabBarIcon: ({ color, size }) => <Ionicons name="library-outline" size={size} color={color} />,
+        }} />
         {/* ─── Arabic (Alif) tabs ──────────────────────────────────── */}
         <Tabs.Screen
           name="index"
@@ -386,12 +416,13 @@ function LayoutInner({ online }: { online: boolean }) {
         </Pressable>
       )}
 
-      {!ready && (
+      {(!ready || !startupDone) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
       )}
     </>
+    </ReviewLaunchReadyContext.Provider>
   );
 }
 

@@ -54,6 +54,7 @@ const EXPECTED: Record<string, AppLanguage | "shared"> = {
   "polyglot-stats": "el",
   // ─── Shared (Globe tab) ─────────────────────────────────────────────
   languages: "shared",
+  parallel: "shared",
 };
 
 // Detail-route subdirectories (e.g. `app/word/[id].tsx`). Directory name →

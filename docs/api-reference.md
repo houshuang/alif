@@ -157,3 +157,13 @@ Payloads, offline behavior and release constraints: [supported-reading-chapters.
 ### Automatic attention v2 (2026-09-19)
 
 PUT /api/words/{lemma_id}/attention now returns 410 for legacy clients: priorities are automatic. GET word detail retains attention_disposition and attention_reason for diagnostics. Fresh non-prefetch sessions reconcile eligibility before building; prefetch is read-only. External discover adds stage novel vocabulary for automatic evaluation, and acquisition retains its recovery/daily cap.
+
+## Parallel reading journal
+
+`POST /api/books/parallel/events` accepts a version-1 parallel-reading event with
+`client_event_id`, `reader_id`, `text_id`, `paragraph_id`, timezone-aware
+`occurred_at`, `kind`, `support`, `revealed`, `all`, `vowels`, `size`, `reread` and
+`completed`. Clue actions include `clue_id`; optional reflection uses `effort`.
+Returns `recorded` or `duplicate`; invalid identities and conflicting event IDs
+return 422. Writes experiment evidence only, without vocabulary/review credit.
+Content is bundled; see `parallel-reading.md`.
