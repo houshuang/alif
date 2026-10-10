@@ -7,6 +7,8 @@ library, independent passage bookmarks, Arabic-only rereads and optional effort
 reflection. Visible Parallel tab resumes on normal launch when last used; direct
 bookmarks take precedence. Reading evidence is separate from vocabulary scheduling.
 Start with the Aesop demo, a longer Kalīla net episode and Enchiridion 4 & 6.
+Edition-two follow-up: optional English, exact-token offline Arabic word help,
+compact display controls and a fixed passage-navigation bar; old bookmarks survive.
 Next: dogfood repeated sittings, prepare more aligned texts from actual feedback,
 and independently check generated language versions. See `docs/parallel-reading.md`.
 

@@ -1,0 +1,2106 @@
+{
+  "id": "parallel-reading",
+  "version": 2,
+  "texts": [
+    {
+      "id": "aesop-jar",
+      "title": "Zeus and the jar of good things",
+      "author": "Aesop",
+      "description": "A tiny complete story to settle into the method.",
+      "original_language": "grc",
+      "source_url": "https://el.wikisource.org/wiki/Αισώπου_Μύθοι/Ζεύς_και_πίθος_αγαθών",
+      "source_note": "Greek narrative from the handoff; the appended moral is omitted. Arabic, Latin and Russian are the experiment’s learning translations. Arabic vocalization is an added aid.",
+      "versions": {
+        "ar": "New AI learning translation",
+        "grc": "Original text",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation",
+        "en": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "جمع زيوس كل الخيرات في جرّة مغلقة وتركها عند رجل.",
+          "ar_vowelled": "جَمَعَ زِيُوسُ كُلَّ الْخَيْرَاتِ فِي جَرَّةٍ مُغْلَقَةٍ وَتَرَكَهَا عِنْدَ رَجُلٍ.",
+          "grc": "Ζεὺς ἐν πίθῳ τὰ ἀγαθὰ πάντα συγκλείσας ἀφῆκε παρὰ ἀνθρώπῳ τινί.",
+          "la": "Iuppiter omnia bona in dolio clausit atque apud quendam hominem reliquit.",
+          "ru": "Зевс запер все блага в большом сосуде и оставил его у одного человека.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "الخيرات",
+              "meaning": "good things; blessings",
+              "bridge": "ἀγαθά · bona · блага"
+            },
+            {
+              "id": "2",
+              "form": "جرّة",
+              "meaning": "a jar",
+              "bridge": "πίθος · dolium · сосуд"
+            },
+            {
+              "id": "3",
+              "form": "تركها",
+              "meaning": "he left it; ـها refers to the jar",
+              "bridge": "ἀφῆκε · reliquit · оставил"
+            }
+          ],
+          "en": "Zeus gathered all good things in a closed jar and left it with a man.",
+          "tokens": [
+            {
+              "id": "1-1",
+              "surface": "جمع",
+              "gloss": "gathered"
+            },
+            {
+              "id": "1-2",
+              "surface": "زيوس",
+              "gloss": "Zeus"
+            },
+            {
+              "id": "1-3",
+              "surface": "كل",
+              "gloss": "all"
+            },
+            {
+              "id": "1-4",
+              "surface": "الخيرات",
+              "gloss": "the good things; blessings"
+            },
+            {
+              "id": "1-5",
+              "surface": "في",
+              "gloss": "in"
+            },
+            {
+              "id": "1-6",
+              "surface": "جرّة",
+              "gloss": "a jar"
+            },
+            {
+              "id": "1-7",
+              "surface": "مغلقة",
+              "gloss": "closed"
+            },
+            {
+              "id": "1-8",
+              "surface": "وتركها",
+              "gloss": "and left it; ـها refers to the jar"
+            },
+            {
+              "id": "1-9",
+              "surface": "عند",
+              "gloss": "with; in the keeping of"
+            },
+            {
+              "id": "1-10",
+              "surface": "رجل.",
+              "gloss": "a man"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "وأراد الرجل الفضولي أن يعرف ما فيها، فحرّك الغطاء.",
+          "ar_vowelled": "وَأَرَادَ الرَّجُلُ الْفُضُولِيُّ أَنْ يَعْرِفَ مَا فِيهَا، فَحَرَّكَ الْغِطَاءَ.",
+          "grc": "Ὁ δὲ λίχνος ἄνθρωπος εἰδέναι θέλων τί ἐστιν ἐν αὐτῷ, τὸ πῶμα ἐκίνησε.",
+          "la": "Homo autem curiosus scire volens quid in eo esset operculum movit.",
+          "ru": "Любопытный человек захотел узнать, что в нём, и сдвинул крышку.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "أراد … أن يعرف",
+              "meaning": "he wanted to know",
+              "bridge": "εἰδέναι θέλων · scire volens · захотел узнать"
+            },
+            {
+              "id": "2",
+              "form": "فيها",
+              "meaning": "in it; ـها refers to the jar",
+              "bridge": "ἐν αὐτῷ · in eo · в нём"
+            },
+            {
+              "id": "3",
+              "form": "الغطاء",
+              "meaning": "the lid",
+              "bridge": "πῶμα · operculum · крышка"
+            }
+          ],
+          "en": "The curious man wanted to know what was inside it, so he moved the lid.",
+          "tokens": [
+            {
+              "id": "2-1",
+              "surface": "وأراد",
+              "gloss": "and wanted"
+            },
+            {
+              "id": "2-2",
+              "surface": "الرجل",
+              "gloss": "the man"
+            },
+            {
+              "id": "2-3",
+              "surface": "الفضولي",
+              "gloss": "curious"
+            },
+            {
+              "id": "2-4",
+              "surface": "أن",
+              "gloss": "to; introduces the following verb"
+            },
+            {
+              "id": "2-5",
+              "surface": "يعرف",
+              "gloss": "know"
+            },
+            {
+              "id": "2-6",
+              "surface": "ما",
+              "gloss": "what"
+            },
+            {
+              "id": "2-7",
+              "surface": "فيها،",
+              "gloss": "inside it; ـها refers to the jar"
+            },
+            {
+              "id": "2-8",
+              "surface": "فحرّك",
+              "gloss": "so he moved"
+            },
+            {
+              "id": "2-9",
+              "surface": "الغطاء.",
+              "gloss": "the lid"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فطارت الخيرات كلها إلى الآلهة.",
+          "ar_vowelled": "فَطَارَتِ الْخَيْرَاتُ كُلُّهَا إِلَى الْآلِهَةِ.",
+          "grc": "πάντα δὲ ἐπετάσθησαν πρὸς τοὺς θεούς.",
+          "la": "Omnia vero ad deos avolaverunt.",
+          "ru": "Все блага улетели к богам.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "فطارت",
+              "meaning": "so they flew away; nonhuman plural subject with feminine singular verb",
+              "bridge": "ἐπετάσθησαν · avolaverunt · улетели"
+            },
+            {
+              "id": "2",
+              "form": "كلها",
+              "meaning": "all of them",
+              "bridge": "πάντα · omnia · все"
+            },
+            {
+              "id": "3",
+              "form": "الآلهة",
+              "meaning": "the gods",
+              "bridge": "θεοί · dei · боги"
+            }
+          ],
+          "en": "So all the good things flew away to the gods.",
+          "tokens": [
+            {
+              "id": "3-1",
+              "surface": "فطارت",
+              "gloss": "so they flew away; feminine singular verb for nonhuman plural subject"
+            },
+            {
+              "id": "3-2",
+              "surface": "الخيرات",
+              "gloss": "the good things"
+            },
+            {
+              "id": "3-3",
+              "surface": "كلها",
+              "gloss": "all of them; ـها refers to the good things"
+            },
+            {
+              "id": "3-4",
+              "surface": "إلى",
+              "gloss": "to"
+            },
+            {
+              "id": "3-5",
+              "surface": "الآلهة.",
+              "gloss": "the gods"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kalila-net",
+      "title": "The doves and the net",
+      "author": "Ibn al-Muqaffaʿ · Kalīla wa-Dimna",
+      "description": "A longer classical Arabic episode: escape depends on cooperation.",
+      "original_language": "ar",
+      "source_url": "https://www.safahat.org/books/29061736/6/",
+      "source_note": "A continuous excerpt beginning with the hunter setting his net and ending with the plan to reach the rodent. Arabic wording follows the Hindawi-hosted edition, with punctuation/spacing normalized. It is not the whole fable. The crow was watching from a tree before this excerpt. Supporting versions are newly generated prose, not the historical Greek or Latin translations; Greek/Latin use “mouse” for جرذ. Arabic has the source’s partial vowel marks, not newly added full vocalization.",
+      "versions": {
+        "ar": "Original text",
+        "grc": "New AI learning translation",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation",
+        "en": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "فنصب الصيَّاد شبكته ونثر فيها حبَّه وكمَن قريبًا، فلم يلبث إلَّا قليلًا حتى مرَّت به حمامة يُقال لها المطوَّقة — وكانت سيدة الحمام — ومعها حمام كثير،",
+          "ar_vowelled": null,
+          "grc": "Ὁ θηρευτὴς τὸ δίκτυον ἔστησε καὶ σῖτον ἐν αὐτῷ διέσπειρεν, αὐτὸς δὲ πλησίον ἐκρύπτετο. Οὐ πολλοῦ χρόνου διελθόντος, περιστερὰ παρῆλθεν, ἣν περιδεραίαν ἐκάλουν· ἡγεμὼν δὲ τῶν περιστερῶν ἦν, καὶ πολλαὶ μετ᾽ αὐτῆς ἦσαν.",
+          "la": "Venator rete tetendit et grana in eo sparsit, ipse autem prope latuit. Paulo post columba praeteriit, quam Torquatam vocabant; ea columbis praeerat, multaeque cum ea erant.",
+          "ru": "Охотник расставил сеть, рассыпал в ней зерно и спрятался поблизости. Вскоре мимо пролетела голубка по имени Ожерелье. Она была предводительницей голубей, и с ней было много голубей.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "كمَن",
+              "meaning": "hid in ambush",
+              "bridge": "ἐκρύπτετο · latuit · спрятался"
+            },
+            {
+              "id": "2",
+              "form": "سيدة الحمام",
+              "meaning": "leader of the doves",
+              "bridge": "ἡγεμών · praeerat · предводительница"
+            }
+          ],
+          "en": "The hunter set up his net, scattered his grain in it, and hid nearby. Before long a dove called the Collared Dove passed by. She was the leader of the doves, and many doves were with her.",
+          "tokens": [
+            {
+              "id": "1-1",
+              "surface": "فنصب",
+              "gloss": "so he set up"
+            },
+            {
+              "id": "1-2",
+              "surface": "الصيَّاد",
+              "gloss": "the hunter"
+            },
+            {
+              "id": "1-3",
+              "surface": "شبكته",
+              "gloss": "his net; ـه refers to the hunter"
+            },
+            {
+              "id": "1-4",
+              "surface": "ونثر",
+              "gloss": "and scattered"
+            },
+            {
+              "id": "1-5",
+              "surface": "فيها",
+              "gloss": "in it; ـها refers to the net"
+            },
+            {
+              "id": "1-6",
+              "surface": "حبَّه",
+              "gloss": "his grain"
+            },
+            {
+              "id": "1-7",
+              "surface": "وكمَن",
+              "gloss": "and hid in ambush"
+            },
+            {
+              "id": "1-8",
+              "surface": "قريبًا،",
+              "gloss": "nearby"
+            },
+            {
+              "id": "1-9",
+              "surface": "فلم",
+              "gloss": "and not; with يلبث: before long"
+            },
+            {
+              "id": "1-10",
+              "surface": "يلبث",
+              "gloss": "remained; فلم يلبث إلا قليلًا means it was not long"
+            },
+            {
+              "id": "1-11",
+              "surface": "إلَّا",
+              "gloss": "except; only"
+            },
+            {
+              "id": "1-12",
+              "surface": "قليلًا",
+              "gloss": "a little; here a short time"
+            },
+            {
+              "id": "1-13",
+              "surface": "حتى",
+              "gloss": "until"
+            },
+            {
+              "id": "1-14",
+              "surface": "مرَّت",
+              "gloss": "passed by; feminine singular"
+            },
+            {
+              "id": "1-15",
+              "surface": "به",
+              "gloss": "by him; the hunter"
+            },
+            {
+              "id": "1-16",
+              "surface": "حمامة",
+              "gloss": "a dove"
+            },
+            {
+              "id": "1-17",
+              "surface": "يُقال",
+              "gloss": "is said; يُقال لها means she is called"
+            },
+            {
+              "id": "1-18",
+              "surface": "لها",
+              "gloss": "to her; here part of “is called”"
+            },
+            {
+              "id": "1-19",
+              "surface": "المطوَّقة",
+              "gloss": "the Collared Dove; literally the collared one"
+            },
+            {
+              "id": "1-20",
+              "surface": "—",
+              "gloss": null
+            },
+            {
+              "id": "1-21",
+              "surface": "وكانت",
+              "gloss": "and she was"
+            },
+            {
+              "id": "1-22",
+              "surface": "سيدة",
+              "gloss": "leader; literally mistress"
+            },
+            {
+              "id": "1-23",
+              "surface": "الحمام",
+              "gloss": "the doves"
+            },
+            {
+              "id": "1-24",
+              "surface": "—",
+              "gloss": null
+            },
+            {
+              "id": "1-25",
+              "surface": "ومعها",
+              "gloss": "and with her"
+            },
+            {
+              "id": "1-26",
+              "surface": "حمام",
+              "gloss": "doves"
+            },
+            {
+              "id": "1-27",
+              "surface": "كثير،",
+              "gloss": "many"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "فرأت الحبَّ ولم ترَ الشبكة، فانقضَّت وانقضَّ الحمام معها، فوقعن في الشبكة جميعًا، وجعلت كل حمامة منهنَّ تضطرب على ناحيتها وتعالج الخلاص لنفسها،",
+          "ar_vowelled": null,
+          "grc": "Τὸν μὲν σῖτον εἶδε, τὸ δὲ δίκτυον οὐκ εἶδεν. Κατέπτη οὖν, καὶ αἱ ἄλλαι μετ᾽ αὐτῆς· πᾶσαι δὲ εἰς τὸ δίκτυον ἐνέπεσον. Ἑκάστη πρὸς τὸ ἑαυτῆς μέρος ἐταράττετο καὶ ἐπειρᾶτο μόνη σωθῆναι.",
+          "la": "Grana vidit, rete non vidit. Devolavit igitur, et aliae cum ea; omnes in rete inciderunt. Unaquaeque in sua parte agitabat se et sola effugere conabatur.",
+          "ru": "Она увидела зерно, но не заметила сети. Она бросилась вниз, и голуби последовали за ней. Все попали в сеть. Каждая голубка билась со своей стороны и пыталась спастись сама.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "فوقعن",
+              "meaning": "so they fell; feminine plural ending ـن",
+              "bridge": "ἐνέπεσον · inciderunt · попали"
+            },
+            {
+              "id": "2",
+              "form": "لنفسها",
+              "meaning": "for herself; each bird acts alone",
+              "bridge": "μόνη · sola · сама"
+            }
+          ],
+          "en": "She saw the grain but did not see the net. She swooped down, and the doves swooped down with her. They all fell into the net. Each dove began struggling on her own side, trying to free herself.",
+          "tokens": [
+            {
+              "id": "2-1",
+              "surface": "فرأت",
+              "gloss": "so she saw"
+            },
+            {
+              "id": "2-2",
+              "surface": "الحبَّ",
+              "gloss": "the grain"
+            },
+            {
+              "id": "2-3",
+              "surface": "ولم",
+              "gloss": "and did not"
+            },
+            {
+              "id": "2-4",
+              "surface": "ترَ",
+              "gloss": "see; shortened after لم"
+            },
+            {
+              "id": "2-5",
+              "surface": "الشبكة،",
+              "gloss": "the net"
+            },
+            {
+              "id": "2-6",
+              "surface": "فانقضَّت",
+              "gloss": "so she swooped down"
+            },
+            {
+              "id": "2-7",
+              "surface": "وانقضَّ",
+              "gloss": "and swooped down"
+            },
+            {
+              "id": "2-8",
+              "surface": "الحمام",
+              "gloss": "the doves"
+            },
+            {
+              "id": "2-9",
+              "surface": "معها،",
+              "gloss": "with her; the Collared Dove"
+            },
+            {
+              "id": "2-10",
+              "surface": "فوقعن",
+              "gloss": "so they fell; ـن marks feminine plural"
+            },
+            {
+              "id": "2-11",
+              "surface": "في",
+              "gloss": "into"
+            },
+            {
+              "id": "2-12",
+              "surface": "الشبكة",
+              "gloss": "the net"
+            },
+            {
+              "id": "2-13",
+              "surface": "جميعًا،",
+              "gloss": "all together"
+            },
+            {
+              "id": "2-14",
+              "surface": "وجعلت",
+              "gloss": "and began"
+            },
+            {
+              "id": "2-15",
+              "surface": "كل",
+              "gloss": "each; every"
+            },
+            {
+              "id": "2-16",
+              "surface": "حمامة",
+              "gloss": "dove"
+            },
+            {
+              "id": "2-17",
+              "surface": "منهنَّ",
+              "gloss": "of them; ـهن refers to the birds"
+            },
+            {
+              "id": "2-18",
+              "surface": "تضطرب",
+              "gloss": "struggles; flutters about"
+            },
+            {
+              "id": "2-19",
+              "surface": "على",
+              "gloss": "on"
+            },
+            {
+              "id": "2-20",
+              "surface": "ناحيتها",
+              "gloss": "her own side"
+            },
+            {
+              "id": "2-21",
+              "surface": "وتعالج",
+              "gloss": "and tries to achieve; works at"
+            },
+            {
+              "id": "2-22",
+              "surface": "الخلاص",
+              "gloss": "escape; freedom"
+            },
+            {
+              "id": "2-23",
+              "surface": "لنفسها،",
+              "gloss": "for herself"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فقالت المطوَّقة: لا تَخاذَلن في المُعالجة، ولا تَكُنْ نفسُ كل واحدة منكنَّ أهمَّ إليها من نفس صاحبتها، ولكن تعاونَّ فلعلنا نَقلع الشبكة فيُنجي بعضُنا بعضًا،",
+          "ar_vowelled": null,
+          "grc": "Ἡ δὲ περιδεραία εἶπεν· «Μὴ ἀλλήλας ἐγκαταλείπετε ἐν τῷ ἀγῶνι, μηδὲ ἑκάστη τὴν ἑαυτῆς ψυχὴν περὶ πλείονος ποιείσθω ἢ τὴν τῆς ἑταίρας. Ἀλλὰ κοινῇ πονεῖτε· ἴσως τὸ δίκτυον ἀνασπάσομεν καὶ ἀλλήλας σώσομεν.»",
+          "la": "Torquata dixit: «Nolite in conatu aliae alias deserere, neque cuique sua vita carior sit quam sociae. Sed una laborate; fortasse rete tollemus et aliae alias servabimus.»",
+          "ru": "Ожерелье сказала: «Не оставляйте друг друга в беде. Пусть для каждой собственная жизнь не будет важнее жизни подруги. Действуйте вместе: может быть, мы поднимем сеть и спасём друг друга».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "تعاونَّ",
+              "meaning": "cooperate! addressed to female birds",
+              "bridge": "κοινῇ πονεῖτε · una laborate · действуйте вместе"
+            },
+            {
+              "id": "2",
+              "form": "بعضنا بعضًا",
+              "meaning": "one another",
+              "bridge": "ἀλλήλας · aliae alias · друг друга"
+            }
+          ],
+          "en": "The Collared Dove said: “Do not abandon one another in the struggle. Let none of you care more for her own life than for her companion’s. Instead, work together: perhaps we can lift the net and save one another.”",
+          "tokens": [
+            {
+              "id": "3-1",
+              "surface": "فقالت",
+              "gloss": "so she said"
+            },
+            {
+              "id": "3-2",
+              "surface": "المطوَّقة:",
+              "gloss": "the Collared Dove"
+            },
+            {
+              "id": "3-3",
+              "surface": "لا",
+              "gloss": "do not; prohibition"
+            },
+            {
+              "id": "3-4",
+              "surface": "تَخاذَلن",
+              "gloss": "abandon one another; addressed to the female birds"
+            },
+            {
+              "id": "3-5",
+              "surface": "في",
+              "gloss": "in"
+            },
+            {
+              "id": "3-6",
+              "surface": "المُعالجة،",
+              "gloss": "the struggle; effort to escape"
+            },
+            {
+              "id": "3-7",
+              "surface": "ولا",
+              "gloss": "and do not"
+            },
+            {
+              "id": "3-8",
+              "surface": "تَكُنْ",
+              "gloss": "be; with ولا, “let ... not be”"
+            },
+            {
+              "id": "3-9",
+              "surface": "نفسُ",
+              "gloss": "life; literally self"
+            },
+            {
+              "id": "3-10",
+              "surface": "كل",
+              "gloss": "each"
+            },
+            {
+              "id": "3-11",
+              "surface": "واحدة",
+              "gloss": "one; feminine"
+            },
+            {
+              "id": "3-12",
+              "surface": "منكنَّ",
+              "gloss": "of you; addressed to the female birds"
+            },
+            {
+              "id": "3-13",
+              "surface": "أهمَّ",
+              "gloss": "more important"
+            },
+            {
+              "id": "3-14",
+              "surface": "إليها",
+              "gloss": "to her"
+            },
+            {
+              "id": "3-15",
+              "surface": "من",
+              "gloss": "than"
+            },
+            {
+              "id": "3-16",
+              "surface": "نفس",
+              "gloss": "the life; self"
+            },
+            {
+              "id": "3-17",
+              "surface": "صاحبتها،",
+              "gloss": "of her companion; ـها refers to each dove"
+            },
+            {
+              "id": "3-18",
+              "surface": "ولكن",
+              "gloss": "but; instead"
+            },
+            {
+              "id": "3-19",
+              "surface": "تعاونَّ",
+              "gloss": "cooperate! feminine plural command"
+            },
+            {
+              "id": "3-20",
+              "surface": "فلعلنا",
+              "gloss": "so perhaps we"
+            },
+            {
+              "id": "3-21",
+              "surface": "نَقلع",
+              "gloss": "lift; pull up"
+            },
+            {
+              "id": "3-22",
+              "surface": "الشبكة",
+              "gloss": "the net"
+            },
+            {
+              "id": "3-23",
+              "surface": "فيُنجي",
+              "gloss": "and so saves; in “save one another”"
+            },
+            {
+              "id": "3-24",
+              "surface": "بعضُنا",
+              "gloss": "some of us; the subject of ينجي"
+            },
+            {
+              "id": "3-25",
+              "surface": "بعضًا،",
+              "gloss": "others; together with بعضنا, “one another”"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "ar": "ففعلن ذلك فانتزعن الشبكة حين تعاونَّ عليها، وطِرْنَ بها في عُلوِّ السماء، ورأى الصيادُ صنيعهنَّ فأتبعهنَّ يطلبهنَّ، ولم يَقطع رجاءه منهن وظنَّ أنهنَّ لا يطِرن إلَّا قريبًا حتى يقعنْ،",
+          "ar_vowelled": null,
+          "grc": "Οὕτως ἐποίησαν, καὶ κοινῇ πονήσασαι τὸ δίκτυον ἀνέσπασαν καὶ μετ᾽ αὐτοῦ ὑψηλὰ ἔπτησαν. Ὁ δὲ θηρευτὴς ἰδὼν τὸ ἔργον αὐτῶν ἐδίωκεν. Οὐ γὰρ ἀπέγνω, ἀλλ᾽ ᾤετο αὐτὰς οὐ μακρὰν πτήσεσθαι, εἶτα καταπεσεῖσθαι.",
+          "la": "Ita fecerunt et, coniunctis viribus, rete sustulerunt atque cum eo alte volaverunt. Venator, re earum visa, eas insequebatur. Spem enim non abiecerat, sed putabat eas non longe volaturas esse, deinde casuras.",
+          "ru": "Они так и сделали: общими усилиями подняли сеть и взлетели с ней высоко в небо. Охотник увидел это и побежал за ними. Он не терял надежды и думал, что они пролетят лишь небольшое расстояние, а потом упадут.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "بها",
+              "meaning": "with it; here the net",
+              "bridge": "μετ᾽ αὐτοῦ · cum eo · с ней"
+            },
+            {
+              "id": "2",
+              "form": "لم يقطع رجاءه",
+              "meaning": "did not abandon his hope",
+              "bridge": "οὐκ ἀπέγνω · spem non abiecerat · не терял надежды"
+            }
+          ],
+          "en": "They did so. Working together, they pulled up the net and flew with it high into the sky. The hunter saw what they had done and followed in pursuit. He did not give up hope of catching them, thinking they would fly only a short distance before falling.",
+          "tokens": [
+            {
+              "id": "4-1",
+              "surface": "ففعلن",
+              "gloss": "so they did; feminine plural"
+            },
+            {
+              "id": "4-2",
+              "surface": "ذلك",
+              "gloss": "that"
+            },
+            {
+              "id": "4-3",
+              "surface": "فانتزعن",
+              "gloss": "so they pulled up; feminine plural"
+            },
+            {
+              "id": "4-4",
+              "surface": "الشبكة",
+              "gloss": "the net"
+            },
+            {
+              "id": "4-5",
+              "surface": "حين",
+              "gloss": "when"
+            },
+            {
+              "id": "4-6",
+              "surface": "تعاونَّ",
+              "gloss": "cooperated; feminine plural past tense here"
+            },
+            {
+              "id": "4-7",
+              "surface": "عليها،",
+              "gloss": "on it; working together to lift the net"
+            },
+            {
+              "id": "4-8",
+              "surface": "وطِرْنَ",
+              "gloss": "and they flew; feminine plural"
+            },
+            {
+              "id": "4-9",
+              "surface": "بها",
+              "gloss": "with it; the net"
+            },
+            {
+              "id": "4-10",
+              "surface": "في",
+              "gloss": "in"
+            },
+            {
+              "id": "4-11",
+              "surface": "عُلوِّ",
+              "gloss": "the height of"
+            },
+            {
+              "id": "4-12",
+              "surface": "السماء،",
+              "gloss": "the sky"
+            },
+            {
+              "id": "4-13",
+              "surface": "ورأى",
+              "gloss": "and saw"
+            },
+            {
+              "id": "4-14",
+              "surface": "الصيادُ",
+              "gloss": "the hunter"
+            },
+            {
+              "id": "4-15",
+              "surface": "صنيعهنَّ",
+              "gloss": "what they had done"
+            },
+            {
+              "id": "4-16",
+              "surface": "فأتبعهنَّ",
+              "gloss": "so he followed them"
+            },
+            {
+              "id": "4-17",
+              "surface": "يطلبهنَّ،",
+              "gloss": "pursuing them; ـهن refers to the birds"
+            },
+            {
+              "id": "4-18",
+              "surface": "ولم",
+              "gloss": "and did not"
+            },
+            {
+              "id": "4-19",
+              "surface": "يَقطع",
+              "gloss": "cut off; لم يقطع رجاءه means he did not give up hope"
+            },
+            {
+              "id": "4-20",
+              "surface": "رجاءه",
+              "gloss": "his hope"
+            },
+            {
+              "id": "4-21",
+              "surface": "منهن",
+              "gloss": "of them; hope of catching the birds"
+            },
+            {
+              "id": "4-22",
+              "surface": "وظنَّ",
+              "gloss": "and thought"
+            },
+            {
+              "id": "4-23",
+              "surface": "أنهنَّ",
+              "gloss": "that they; ـهن refers to the birds"
+            },
+            {
+              "id": "4-24",
+              "surface": "لا",
+              "gloss": "not"
+            },
+            {
+              "id": "4-25",
+              "surface": "يطِرن",
+              "gloss": "fly; feminine plural"
+            },
+            {
+              "id": "4-26",
+              "surface": "إلَّا",
+              "gloss": "except; only"
+            },
+            {
+              "id": "4-27",
+              "surface": "قريبًا",
+              "gloss": "a short distance"
+            },
+            {
+              "id": "4-28",
+              "surface": "حتى",
+              "gloss": "until; here before"
+            },
+            {
+              "id": "4-29",
+              "surface": "يقعنْ،",
+              "gloss": "they fall; feminine plural"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "ar": "وقال الغرابُ: لأُتبِعهنَّ حتى أنظر إلى ما يصير إليه أمرُهنَّ وأمرُه، والتفتت المطوقة فلما رأت الصياد يقفوهنَّ قالت للحمام: ها هو ذا جاء يطلبكنَّ،",
+          "ar_vowelled": null,
+          "grc": "Ὁ δὲ κόραξ εἶπεν· «Ἀκολουθήσω αὐταῖς, ἵνα ἴδω τί τέλος ἕξει τὰ αὐτῶν καὶ τὰ ἐκείνου.» Ἡ δὲ περιδεραία ἐπιστραφεῖσα καὶ τὸν θηρευτὴν διώκοντα ἰδοῦσα εἶπε ταῖς περιστεραῖς· «Ἰδοὺ οὗτος διώκει ὑμᾶς.»",
+          "la": "Corvus dixit: «Eas sequar, ut videam quem exitum res earum et illius habeant.» Torquata autem, conversa et venatorem insequentem conspicata, columbis dixit: «Ecce venit vos quaerens.»",
+          "ru": "Ворон сказал: «Полечу за ними, чтобы увидеть, чем всё закончится для них и для него». Ожерелье обернулась и, увидев преследующего их охотника, сказала голубям: «Вот он идёт за вами».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "يقفوهنَّ",
+              "meaning": "follows them; ـهن refers to the birds",
+              "bridge": "διώκοντα · insequentem · преследующего"
+            }
+          ],
+          "en": "The crow said: “I will follow them to see how things turn out for them and for him.” The Collared Dove turned around. When she saw the hunter following them, she said to the doves: “There he is, coming after you.”",
+          "tokens": [
+            {
+              "id": "5-1",
+              "surface": "وقال",
+              "gloss": "and said"
+            },
+            {
+              "id": "5-2",
+              "surface": "الغرابُ:",
+              "gloss": "the crow"
+            },
+            {
+              "id": "5-3",
+              "surface": "لأُتبِعهنَّ",
+              "gloss": "I will certainly follow them; لَ adds emphasis"
+            },
+            {
+              "id": "5-4",
+              "surface": "حتى",
+              "gloss": "so that"
+            },
+            {
+              "id": "5-5",
+              "surface": "أنظر",
+              "gloss": "I may see; observe"
+            },
+            {
+              "id": "5-6",
+              "surface": "إلى",
+              "gloss": "to; with أنظر, look at"
+            },
+            {
+              "id": "5-7",
+              "surface": "ما",
+              "gloss": "what"
+            },
+            {
+              "id": "5-8",
+              "surface": "يصير",
+              "gloss": "comes; turns out"
+            },
+            {
+              "id": "5-9",
+              "surface": "إليه",
+              "gloss": "to it; ما يصير إليه means how it turns out"
+            },
+            {
+              "id": "5-10",
+              "surface": "أمرُهنَّ",
+              "gloss": "their affair; their fate"
+            },
+            {
+              "id": "5-11",
+              "surface": "وأمرُه،",
+              "gloss": "and his affair; the hunter’s fate"
+            },
+            {
+              "id": "5-12",
+              "surface": "والتفتت",
+              "gloss": "and turned around"
+            },
+            {
+              "id": "5-13",
+              "surface": "المطوقة",
+              "gloss": "the Collared Dove"
+            },
+            {
+              "id": "5-14",
+              "surface": "فلما",
+              "gloss": "and when"
+            },
+            {
+              "id": "5-15",
+              "surface": "رأت",
+              "gloss": "she saw"
+            },
+            {
+              "id": "5-16",
+              "surface": "الصياد",
+              "gloss": "the hunter"
+            },
+            {
+              "id": "5-17",
+              "surface": "يقفوهنَّ",
+              "gloss": "following them; tracking the birds"
+            },
+            {
+              "id": "5-18",
+              "surface": "قالت",
+              "gloss": "she said"
+            },
+            {
+              "id": "5-19",
+              "surface": "للحمام:",
+              "gloss": "to the doves"
+            },
+            {
+              "id": "5-20",
+              "surface": "ها",
+              "gloss": "look; part of ها هو ذا, “there he is”"
+            },
+            {
+              "id": "5-21",
+              "surface": "هو",
+              "gloss": "he; in “there he is”"
+            },
+            {
+              "id": "5-22",
+              "surface": "ذا",
+              "gloss": "this; in “there he is”"
+            },
+            {
+              "id": "5-23",
+              "surface": "جاء",
+              "gloss": "came; has come"
+            },
+            {
+              "id": "5-24",
+              "surface": "يطلبكنَّ،",
+              "gloss": "pursuing you; ـكن refers to the female birds"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "ar": "فإن نحن أخذنا في الفضاء لم يَخْفَ عليه أمرنا، ولم يزل يُتبِعنا، وإن نحن أخذنا في الشجر والعُمران لم نلبث أن يَغبَى عليه أمرُنا، ولم يزَل يُتبِعنا حتى ييأس منَّا فينصرف، ومع ذلك إنَّ قريبًا من الطريق جُحْر جُرَذ، وهو صديقٌ لي، فلو انتهينا إليه لقطع عنَّا هذه الشبكة وخلَّصنا منها.",
+          "ar_vowelled": null,
+          "grc": "«Ἐὰν μὲν διὰ τοῦ πεδίου πορευώμεθα, φανεραὶ αὐτῷ ἐσόμεθα, καὶ ἀεὶ ἀκολουθήσει. Ἐὰν δὲ διὰ τῶν δένδρων καὶ τῶν οἰκήσεων πορευώμεθα, τάχα οὐκέτι εἴσεται ποῦ ἐσμεν· διώκων δὲ τέλος ἀπογνοὺς ἀπελεύσεται. Ἔστι δὲ πλησίον τῆς ὁδοῦ μυὸς φωλεός· φίλος δέ μοί ἐστιν. Ἐὰν πρὸς αὐτὸν ἀφικώμεθα, διακόψει τὸ δίκτυον καὶ ἐλευθερώσει ἡμᾶς.»",
+          "la": "«Si per apertum campum ibimus, ei patebimus et nos sequi perget. Si autem inter arbores et habitationes ibimus, mox nesciet ubi simus; nos persequetur donec spe amissa discedat. Praeterea prope viam est muris cuniculus; is mihi amicus est. Si ad eum pervenerimus, hoc rete nobis discindet atque nos liberabit.»",
+          "ru": "«Если мы полетим по открытому месту, он будет нас видеть и продолжит преследовать. Если же полетим среди деревьев и домов, он скоро потеряет нас из виду. Он будет искать нас, пока не потеряет надежду и не уйдёт. Кроме того, возле дороги есть нора грызуна, моего друга. Если доберёмся до него, он перегрызёт эту сеть и освободит нас».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "لم يخفَ عليه أمرنا",
+              "meaning": "our whereabouts would not be hidden from him",
+              "bridge": "φανεραί · patebimus · будет нас видеть"
+            },
+            {
+              "id": "2",
+              "form": "جحر جرذ",
+              "meaning": "a rodent’s burrow; Greek/Latin use mouse",
+              "bridge": "μυὸς φωλεός · muris cuniculus · нора грызуна"
+            }
+          ],
+          "en": "“If we go across the open ground, our whereabouts will not be hidden from him, and he will keep following us. If we go among the trees and buildings, he will soon lose track of us. He will keep pursuing us until he gives up hope and turns away. Besides, near the road there is a rodent’s burrow. He is a friend of mine. If we reach him, he will cut this net away from us and free us from it.”",
+          "tokens": [
+            {
+              "id": "6-1",
+              "surface": "فإن",
+              "gloss": "so if"
+            },
+            {
+              "id": "6-2",
+              "surface": "نحن",
+              "gloss": "we"
+            },
+            {
+              "id": "6-3",
+              "surface": "أخذنا",
+              "gloss": "went; took a route"
+            },
+            {
+              "id": "6-4",
+              "surface": "في",
+              "gloss": "through; across"
+            },
+            {
+              "id": "6-5",
+              "surface": "الفضاء",
+              "gloss": "the open ground"
+            },
+            {
+              "id": "6-6",
+              "surface": "لم",
+              "gloss": "not; with يخفَ"
+            },
+            {
+              "id": "6-7",
+              "surface": "يَخْفَ",
+              "gloss": "be hidden; لم يخفَ means would not be hidden"
+            },
+            {
+              "id": "6-8",
+              "surface": "عليه",
+              "gloss": "from him; the hunter"
+            },
+            {
+              "id": "6-9",
+              "surface": "أمرنا،",
+              "gloss": "our whereabouts; literally our affair"
+            },
+            {
+              "id": "6-10",
+              "surface": "ولم",
+              "gloss": "and not; with يزل, continues to"
+            },
+            {
+              "id": "6-11",
+              "surface": "يزل",
+              "gloss": "cease; لم يزل means kept on"
+            },
+            {
+              "id": "6-12",
+              "surface": "يُتبِعنا،",
+              "gloss": "following us"
+            },
+            {
+              "id": "6-13",
+              "surface": "وإن",
+              "gloss": "and if"
+            },
+            {
+              "id": "6-14",
+              "surface": "نحن",
+              "gloss": "we"
+            },
+            {
+              "id": "6-15",
+              "surface": "أخذنا",
+              "gloss": "went; took a route"
+            },
+            {
+              "id": "6-16",
+              "surface": "في",
+              "gloss": "among"
+            },
+            {
+              "id": "6-17",
+              "surface": "الشجر",
+              "gloss": "the trees"
+            },
+            {
+              "id": "6-18",
+              "surface": "والعُمران",
+              "gloss": "and the buildings; inhabited areas"
+            },
+            {
+              "id": "6-19",
+              "surface": "لم",
+              "gloss": "not; with نلبث, before long"
+            },
+            {
+              "id": "6-20",
+              "surface": "نلبث",
+              "gloss": "remain; لم نلبث means it would not be long"
+            },
+            {
+              "id": "6-21",
+              "surface": "أن",
+              "gloss": "that; introduces the following verb"
+            },
+            {
+              "id": "6-22",
+              "surface": "يَغبَى",
+              "gloss": "become obscure; he would lose track"
+            },
+            {
+              "id": "6-23",
+              "surface": "عليه",
+              "gloss": "from him; the hunter"
+            },
+            {
+              "id": "6-24",
+              "surface": "أمرُنا،",
+              "gloss": "our whereabouts"
+            },
+            {
+              "id": "6-25",
+              "surface": "ولم",
+              "gloss": "and not; with يزل, keeps on"
+            },
+            {
+              "id": "6-26",
+              "surface": "يزَل",
+              "gloss": "cease; لم يزل means keeps on"
+            },
+            {
+              "id": "6-27",
+              "surface": "يُتبِعنا",
+              "gloss": "pursuing us"
+            },
+            {
+              "id": "6-28",
+              "surface": "حتى",
+              "gloss": "until"
+            },
+            {
+              "id": "6-29",
+              "surface": "ييأس",
+              "gloss": "gives up hope"
+            },
+            {
+              "id": "6-30",
+              "surface": "منَّا",
+              "gloss": "of us; of catching us"
+            },
+            {
+              "id": "6-31",
+              "surface": "فينصرف،",
+              "gloss": "so he turns away"
+            },
+            {
+              "id": "6-32",
+              "surface": "ومع",
+              "gloss": "and with; مع ذلك means besides / moreover here"
+            },
+            {
+              "id": "6-33",
+              "surface": "ذلك",
+              "gloss": "that; in مع ذلك"
+            },
+            {
+              "id": "6-34",
+              "surface": "إنَّ",
+              "gloss": "indeed; introduces the next statement"
+            },
+            {
+              "id": "6-35",
+              "surface": "قريبًا",
+              "gloss": "near"
+            },
+            {
+              "id": "6-36",
+              "surface": "من",
+              "gloss": "to; from"
+            },
+            {
+              "id": "6-37",
+              "surface": "الطريق",
+              "gloss": "the road"
+            },
+            {
+              "id": "6-38",
+              "surface": "جُحْر",
+              "gloss": "a burrow"
+            },
+            {
+              "id": "6-39",
+              "surface": "جُرَذ،",
+              "gloss": "a rodent; traditionally a rat"
+            },
+            {
+              "id": "6-40",
+              "surface": "وهو",
+              "gloss": "and he"
+            },
+            {
+              "id": "6-41",
+              "surface": "صديقٌ",
+              "gloss": "a friend"
+            },
+            {
+              "id": "6-42",
+              "surface": "لي،",
+              "gloss": "of mine; to me"
+            },
+            {
+              "id": "6-43",
+              "surface": "فلو",
+              "gloss": "so if"
+            },
+            {
+              "id": "6-44",
+              "surface": "انتهينا",
+              "gloss": "we reached"
+            },
+            {
+              "id": "6-45",
+              "surface": "إليه",
+              "gloss": "him; the rodent"
+            },
+            {
+              "id": "6-46",
+              "surface": "لقطع",
+              "gloss": "he would cut away; لَ marks the result of لو"
+            },
+            {
+              "id": "6-47",
+              "surface": "عنَّا",
+              "gloss": "from us"
+            },
+            {
+              "id": "6-48",
+              "surface": "هذه",
+              "gloss": "this"
+            },
+            {
+              "id": "6-49",
+              "surface": "الشبكة",
+              "gloss": "net"
+            },
+            {
+              "id": "6-50",
+              "surface": "وخلَّصنا",
+              "gloss": "and would free us"
+            },
+            {
+              "id": "6-51",
+              "surface": "منها.",
+              "gloss": "from it; the net"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "epictetus-bath",
+      "title": "The bathhouse and the beautiful horse",
+      "author": "Epictetus · Enchiridion 4 & 6",
+      "description": "Two complete arguments about what belongs to you.",
+      "original_language": "grc",
+      "source_url": "https://el.wikisource.org/wiki/Εγχειρίδιον",
+      "source_note": "Complete sections 4 and 6, joined as two separate arguments; section 5 is not included. Greek follows Wikisource with apostrophes normalized and new meaning-based paragraph breaks. Arabic, Latin and Russian are new AI learning translations, not published editions. προαίρεσις is rendered إرادة (faculty of choice), and φαντασίαι تصوّرات (impressions). Arabic has selective marks only; no full vocalization has been prepared.",
+      "versions": {
+        "ar": "New AI learning translation",
+        "grc": "Original text",
+        "la": "New AI learning translation",
+        "ru": "New AI learning translation",
+        "en": "New AI learning translation"
+      },
+      "paragraphs": [
+        {
+          "id": "1",
+          "ar": "عندما تنوي أن تبدأ عملًا، ذكّر نفسك بطبيعة ذلك العمل. فإذا ذهبت لتستحم، ضع أمام عينيك ما يحدث في الحمّام: أناس يرشّون الماء، وأناس يصطدمون بغيرهم، وأناس يشتمون، وأناس يسرقون.",
+          "ar_vowelled": null,
+          "grc": "Ὅταν ἅπτεσθαί τινος ἔργου μέλλῃς, ὑπομίμνῃσκε σεαυτόν, ὁποῖόν ἐστι τὸ ἔργον. ἐὰν λουσόμενος ἀπίῃς, πρόβαλλε σεαυτῷ τὰ γινόμενα ἐν βαλανείῳ, τοὺς ἀποῤῥαίνοντας, τοὺς ἐγκρουομένους, τοὺς λοιδοροῦντας, τοὺς κλέπτοντας.",
+          "la": "Cum opus aliquod suscipere velis, te admone quale sit. Si lavatum eas, ante oculos pone quae in balneo fiunt: alios aqua aspergentes, alios impingentes, alios conviciantes, alios furantes.",
+          "ru": "Когда собираешься взяться за дело, напомни себе, каково оно. Если идёшь мыться, представь, что происходит в бане: одни брызгают водой, другие толкаются, третьи ругаются, четвёртые крадут.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "ذكّر نفسك",
+              "meaning": "remind yourself",
+              "bridge": "ὑπομίμνῃσκε σεαυτόν · te admone · напомни себе"
+            },
+            {
+              "id": "2",
+              "form": "يرشّون",
+              "meaning": "they sprinkle or splash",
+              "bridge": "ἀποῤῥαίνοντας · aspergentes · брызгают"
+            }
+          ],
+          "en": "When you intend to begin a task, remind yourself what kind of task it is. If you go to bathe, picture what happens in the bathhouse: people splashing water, people bumping into others, people insulting others, and people stealing.",
+          "tokens": [
+            {
+              "id": "1-1",
+              "surface": "عندما",
+              "gloss": "when"
+            },
+            {
+              "id": "1-2",
+              "surface": "تنوي",
+              "gloss": "you intend"
+            },
+            {
+              "id": "1-3",
+              "surface": "أن",
+              "gloss": "to"
+            },
+            {
+              "id": "1-4",
+              "surface": "تبدأ",
+              "gloss": "begin"
+            },
+            {
+              "id": "1-5",
+              "surface": "عملًا،",
+              "gloss": "a task"
+            },
+            {
+              "id": "1-6",
+              "surface": "ذكّر",
+              "gloss": "remind! imperative"
+            },
+            {
+              "id": "1-7",
+              "surface": "نفسك",
+              "gloss": "yourself"
+            },
+            {
+              "id": "1-8",
+              "surface": "بطبيعة",
+              "gloss": "of the nature; بِ means of/about here"
+            },
+            {
+              "id": "1-9",
+              "surface": "ذلك",
+              "gloss": "that"
+            },
+            {
+              "id": "1-10",
+              "surface": "العمل.",
+              "gloss": "task"
+            },
+            {
+              "id": "1-11",
+              "surface": "فإذا",
+              "gloss": "so if"
+            },
+            {
+              "id": "1-12",
+              "surface": "ذهبت",
+              "gloss": "you go; literally you went, after if"
+            },
+            {
+              "id": "1-13",
+              "surface": "لتستحم،",
+              "gloss": "to bathe"
+            },
+            {
+              "id": "1-14",
+              "surface": "ضع",
+              "gloss": "put; place! imperative"
+            },
+            {
+              "id": "1-15",
+              "surface": "أمام",
+              "gloss": "before; in front of"
+            },
+            {
+              "id": "1-16",
+              "surface": "عينيك",
+              "gloss": "your eyes; dual with ـك “your”"
+            },
+            {
+              "id": "1-17",
+              "surface": "ما",
+              "gloss": "what"
+            },
+            {
+              "id": "1-18",
+              "surface": "يحدث",
+              "gloss": "happens"
+            },
+            {
+              "id": "1-19",
+              "surface": "في",
+              "gloss": "in"
+            },
+            {
+              "id": "1-20",
+              "surface": "الحمّام:",
+              "gloss": "the bathhouse"
+            },
+            {
+              "id": "1-21",
+              "surface": "أناس",
+              "gloss": "people"
+            },
+            {
+              "id": "1-22",
+              "surface": "يرشّون",
+              "gloss": "splash; sprinkle"
+            },
+            {
+              "id": "1-23",
+              "surface": "الماء،",
+              "gloss": "the water"
+            },
+            {
+              "id": "1-24",
+              "surface": "وأناس",
+              "gloss": "and people"
+            },
+            {
+              "id": "1-25",
+              "surface": "يصطدمون",
+              "gloss": "bump; collide"
+            },
+            {
+              "id": "1-26",
+              "surface": "بغيرهم،",
+              "gloss": "with others"
+            },
+            {
+              "id": "1-27",
+              "surface": "وأناس",
+              "gloss": "and people"
+            },
+            {
+              "id": "1-28",
+              "surface": "يشتمون،",
+              "gloss": "insult; swear at others"
+            },
+            {
+              "id": "1-29",
+              "surface": "وأناس",
+              "gloss": "and people"
+            },
+            {
+              "id": "1-30",
+              "surface": "يسرقون.",
+              "gloss": "steal"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "ar": "وهكذا تبدأ عملك بأمان أكبر إذا قلت لنفسك منذ البداية: «أريد أن أستحم، وأن أحافظ أيضًا على إرادتي موافقة للطبيعة». وافعل مثل ذلك في كل عمل.",
+          "ar_vowelled": null,
+          "grc": "καὶ οὕτως ἀσφαλέστερον ἅψῃ τοῦ ἔργου, ἐὰν ἐπιλέγῃς εὐθὺς ὅτι «λούσασθαι θέλω καὶ τὴν ἐμαυτοῦ προαίρεσιν κατὰ φύσιν ἔχουσαν τηρῆσαι». καὶ ὡσαύτως ἐφ᾽ ἑκάστου ἔργου.",
+          "la": "Sic tutius opus suscipies, si statim tibi dixeris: «Lavari volo atque etiam voluntatem meam naturae consentientem servare.» Idem in omni opere fac.",
+          "ru": "Так ты надёжнее приступишь к делу, если сразу скажешь себе: «Я хочу помыться и сохранить свою волю в согласии с природой». Так же поступай в любом деле.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "إرادتي",
+              "meaning": "my faculty of choice; rendering of προαίρεσις",
+              "bridge": "προαίρεσιν · voluntatem · волю"
+            },
+            {
+              "id": "2",
+              "form": "موافقة للطبيعة",
+              "meaning": "in accordance with nature",
+              "bridge": "κατὰ φύσιν · naturae consentientem · в согласии с природой"
+            }
+          ],
+          "en": "You will begin your task more securely if you tell yourself at the outset: “I want to bathe, and also to keep my faculty of choice in accordance with nature.” Do the same with every task.",
+          "tokens": [
+            {
+              "id": "2-1",
+              "surface": "وهكذا",
+              "gloss": "and thus"
+            },
+            {
+              "id": "2-2",
+              "surface": "تبدأ",
+              "gloss": "you begin"
+            },
+            {
+              "id": "2-3",
+              "surface": "عملك",
+              "gloss": "your task"
+            },
+            {
+              "id": "2-4",
+              "surface": "بأمان",
+              "gloss": "with safety; securely"
+            },
+            {
+              "id": "2-5",
+              "surface": "أكبر",
+              "gloss": "greater; here “more securely”"
+            },
+            {
+              "id": "2-6",
+              "surface": "إذا",
+              "gloss": "if"
+            },
+            {
+              "id": "2-7",
+              "surface": "قلت",
+              "gloss": "you say; literally said, after if"
+            },
+            {
+              "id": "2-8",
+              "surface": "لنفسك",
+              "gloss": "to yourself"
+            },
+            {
+              "id": "2-9",
+              "surface": "منذ",
+              "gloss": "from; since"
+            },
+            {
+              "id": "2-10",
+              "surface": "البداية:",
+              "gloss": "the beginning; at the outset"
+            },
+            {
+              "id": "2-11",
+              "surface": "«أريد",
+              "gloss": "I want"
+            },
+            {
+              "id": "2-12",
+              "surface": "أن",
+              "gloss": "to"
+            },
+            {
+              "id": "2-13",
+              "surface": "أستحم،",
+              "gloss": "bathe"
+            },
+            {
+              "id": "2-14",
+              "surface": "وأن",
+              "gloss": "and to"
+            },
+            {
+              "id": "2-15",
+              "surface": "أحافظ",
+              "gloss": "preserve; maintain"
+            },
+            {
+              "id": "2-16",
+              "surface": "أيضًا",
+              "gloss": "also"
+            },
+            {
+              "id": "2-17",
+              "surface": "على",
+              "gloss": "on; أحافظ على means preserve"
+            },
+            {
+              "id": "2-18",
+              "surface": "إرادتي",
+              "gloss": "my faculty of choice; Stoic προαίρεσις"
+            },
+            {
+              "id": "2-19",
+              "surface": "موافقة",
+              "gloss": "in agreement; describing the faculty of choice"
+            },
+            {
+              "id": "2-20",
+              "surface": "للطبيعة».",
+              "gloss": "with nature; لِ attaches to الطبيعة"
+            },
+            {
+              "id": "2-21",
+              "surface": "وافعل",
+              "gloss": "and do! imperative"
+            },
+            {
+              "id": "2-22",
+              "surface": "مثل",
+              "gloss": "the like of; the same as"
+            },
+            {
+              "id": "2-23",
+              "surface": "ذلك",
+              "gloss": "that"
+            },
+            {
+              "id": "2-24",
+              "surface": "في",
+              "gloss": "in"
+            },
+            {
+              "id": "2-25",
+              "surface": "كل",
+              "gloss": "every"
+            },
+            {
+              "id": "2-26",
+              "surface": "عمل.",
+              "gloss": "task"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "ar": "فإذا حدث ما يعوق استحمامك، كان عندك هذا الجواب: «لم أرد هذا وحده، بل أردت أيضًا أن أحافظ على إرادتي موافقة للطبيعة. ولن أحافظ عليها إذا غضبت مما يحدث».",
+          "ar_vowelled": null,
+          "grc": "οὕτω γὰρ ἄν τι πρὸς τὸ λούσασθαι γένηται ἐμποδών, πρόχειρον ἔσται διότι «ἀλλ᾽ οὐ τοῦτο ἤθελον μόνον, ἀλλὰ καὶ τὴν ἐμαυτοῦ προαίρεσιν κατὰ φύσιν ἔχουσαν τηρῆσαι: οὐ τηρήσω δέ, ἐὰν ἀγανακτῶ πρὸς τὰ γινόμενα».",
+          "la": "Si quid igitur lavationi obstiterit, hoc responsum paratum habebis: «Non hoc solum volui, sed etiam voluntatem meam naturae consentientem servare. Non autem servabo, si iis quae fiunt indignor.»",
+          "ru": "Если что-то помешает мытью, у тебя будет готов ответ: «Я хотел не только этого, но и сохранить свою волю в согласии с природой. А я её не сохраню, если буду сердиться на происходящее».",
+          "clues": [
+            {
+              "id": "1",
+              "form": "يعوق",
+              "meaning": "hinders, gets in the way",
+              "bridge": "ἐμποδών · obstiterit · помешает"
+            },
+            {
+              "id": "2",
+              "form": "لم أرد هذا وحده",
+              "meaning": "I did not want only this",
+              "bridge": "οὐ τοῦτο ἤθελον μόνον · non hoc solum volui · хотел не только этого"
+            }
+          ],
+          "en": "If something gets in the way of your bathing, you will have this answer ready: “That was not all I wanted. I also wanted to keep my faculty of choice in accordance with nature. I will not preserve it if I become angry at what happens.”",
+          "tokens": [
+            {
+              "id": "3-1",
+              "surface": "فإذا",
+              "gloss": "so if"
+            },
+            {
+              "id": "3-2",
+              "surface": "حدث",
+              "gloss": "happens"
+            },
+            {
+              "id": "3-3",
+              "surface": "ما",
+              "gloss": "something that"
+            },
+            {
+              "id": "3-4",
+              "surface": "يعوق",
+              "gloss": "hinders; gets in the way of"
+            },
+            {
+              "id": "3-5",
+              "surface": "استحمامك،",
+              "gloss": "your bathing"
+            },
+            {
+              "id": "3-6",
+              "surface": "كان",
+              "gloss": "was; here “would be”"
+            },
+            {
+              "id": "3-7",
+              "surface": "عندك",
+              "gloss": "with you; عندك means you have"
+            },
+            {
+              "id": "3-8",
+              "surface": "هذا",
+              "gloss": "this"
+            },
+            {
+              "id": "3-9",
+              "surface": "الجواب:",
+              "gloss": "answer"
+            },
+            {
+              "id": "3-10",
+              "surface": "«لم",
+              "gloss": "not; with أرد, “I did not want”"
+            },
+            {
+              "id": "3-11",
+              "surface": "أرد",
+              "gloss": "I want; after لم, “I wanted”"
+            },
+            {
+              "id": "3-12",
+              "surface": "هذا",
+              "gloss": "this"
+            },
+            {
+              "id": "3-13",
+              "surface": "وحده،",
+              "gloss": "alone; only"
+            },
+            {
+              "id": "3-14",
+              "surface": "بل",
+              "gloss": "rather; but"
+            },
+            {
+              "id": "3-15",
+              "surface": "أردت",
+              "gloss": "I wanted"
+            },
+            {
+              "id": "3-16",
+              "surface": "أيضًا",
+              "gloss": "also"
+            },
+            {
+              "id": "3-17",
+              "surface": "أن",
+              "gloss": "to"
+            },
+            {
+              "id": "3-18",
+              "surface": "أحافظ",
+              "gloss": "preserve; maintain"
+            },
+            {
+              "id": "3-19",
+              "surface": "على",
+              "gloss": "on; أحافظ على means preserve"
+            },
+            {
+              "id": "3-20",
+              "surface": "إرادتي",
+              "gloss": "my faculty of choice"
+            },
+            {
+              "id": "3-21",
+              "surface": "موافقة",
+              "gloss": "in agreement; describing إرادتي"
+            },
+            {
+              "id": "3-22",
+              "surface": "للطبيعة.",
+              "gloss": "with nature"
+            },
+            {
+              "id": "3-23",
+              "surface": "ولن",
+              "gloss": "and will not"
+            },
+            {
+              "id": "3-24",
+              "surface": "أحافظ",
+              "gloss": "preserve"
+            },
+            {
+              "id": "3-25",
+              "surface": "عليها",
+              "gloss": "it; ـها refers to the faculty of choice"
+            },
+            {
+              "id": "3-26",
+              "surface": "إذا",
+              "gloss": "if"
+            },
+            {
+              "id": "3-27",
+              "surface": "غضبت",
+              "gloss": "I become angry; غَضِبْتُ in this quotation"
+            },
+            {
+              "id": "3-28",
+              "surface": "مما",
+              "gloss": "at what; مِن + ما"
+            },
+            {
+              "id": "3-29",
+              "surface": "يحدث».",
+              "gloss": "happens"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "ar": "لا تتكبّر بسبب ميزة ليست لك. لو تكبّر حصان وقال: «أنا جميل»، لكان ذلك مقبولًا. أمّا أنت، فعندما تقول متكبّرًا: «عندي حصان جميل»، فاعلم أنك تتكبّر بسبب جمال الحصان.",
+          "ar_vowelled": null,
+          "grc": "Ἐπὶ μηδενὶ ἐπαρθῇς ἀλλοτρίῳ προτερήματι. εἰ ὁ ἵππος ἐπαιρόμενος ἔλεγεν ὅτι «καλός εἰμι», οἰστὸν ἂν ἦν: σὺ δέ, ὅταν λέγῃς ἐπαιρόμενος ὅτι «ἵππον καλὸν ἔχω», ἴσθι, ὅτι ἐπὶ ἵππου ἀγαθῷ ἐπαίρῃ.",
+          "la": "Ne te efferas bono alieno. Si equus superbiens diceret «Pulcher sum», tolerabile esset. Tu autem, cum superbiens dicis «Equum pulchrum habeo», scito te equi bono superbire.",
+          "ru": "Не гордись чужим достоинством. Если бы конь гордо сказал: «Я красив», это было бы терпимо. Но когда ты гордо говоришь: «У меня красивый конь», знай, что гордишься достоинством коня.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "ميزة ليست لك",
+              "meaning": "an advantage that is not yours",
+              "bridge": "ἀλλοτρίῳ προτερήματι · bono alieno · чужим достоинством"
+            }
+          ],
+          "en": "Do not be proud of an advantage that is not yours. If a horse proudly said, “I am beautiful,” that would be tolerable. But when you proudly say, “I have a beautiful horse,” know that you are proud of the horse’s beauty.",
+          "tokens": [
+            {
+              "id": "4-1",
+              "surface": "لا",
+              "gloss": "do not; prohibition"
+            },
+            {
+              "id": "4-2",
+              "surface": "تتكبّر",
+              "gloss": "be proud; act arrogantly"
+            },
+            {
+              "id": "4-3",
+              "surface": "بسبب",
+              "gloss": "because of"
+            },
+            {
+              "id": "4-4",
+              "surface": "ميزة",
+              "gloss": "an advantage; merit"
+            },
+            {
+              "id": "4-5",
+              "surface": "ليست",
+              "gloss": "is not; feminine form"
+            },
+            {
+              "id": "4-6",
+              "surface": "لك.",
+              "gloss": "yours; لك means belongs to you"
+            },
+            {
+              "id": "4-7",
+              "surface": "لو",
+              "gloss": "if; hypothetical"
+            },
+            {
+              "id": "4-8",
+              "surface": "تكبّر",
+              "gloss": "was proud"
+            },
+            {
+              "id": "4-9",
+              "surface": "حصان",
+              "gloss": "a horse"
+            },
+            {
+              "id": "4-10",
+              "surface": "وقال:",
+              "gloss": "and said"
+            },
+            {
+              "id": "4-11",
+              "surface": "«أنا",
+              "gloss": "I"
+            },
+            {
+              "id": "4-12",
+              "surface": "جميل»،",
+              "gloss": "beautiful"
+            },
+            {
+              "id": "4-13",
+              "surface": "لكان",
+              "gloss": "then it would be"
+            },
+            {
+              "id": "4-14",
+              "surface": "ذلك",
+              "gloss": "that"
+            },
+            {
+              "id": "4-15",
+              "surface": "مقبولًا.",
+              "gloss": "acceptable; tolerable"
+            },
+            {
+              "id": "4-16",
+              "surface": "أمّا",
+              "gloss": "as for"
+            },
+            {
+              "id": "4-17",
+              "surface": "أنت،",
+              "gloss": "you"
+            },
+            {
+              "id": "4-18",
+              "surface": "فعندما",
+              "gloss": "so when"
+            },
+            {
+              "id": "4-19",
+              "surface": "تقول",
+              "gloss": "you say"
+            },
+            {
+              "id": "4-20",
+              "surface": "متكبّرًا:",
+              "gloss": "proudly; literally being proud"
+            },
+            {
+              "id": "4-21",
+              "surface": "«عندي",
+              "gloss": "I have; literally with me"
+            },
+            {
+              "id": "4-22",
+              "surface": "حصان",
+              "gloss": "a horse"
+            },
+            {
+              "id": "4-23",
+              "surface": "جميل»،",
+              "gloss": "beautiful"
+            },
+            {
+              "id": "4-24",
+              "surface": "فاعلم",
+              "gloss": "so know! imperative"
+            },
+            {
+              "id": "4-25",
+              "surface": "أنك",
+              "gloss": "that you"
+            },
+            {
+              "id": "4-26",
+              "surface": "تتكبّر",
+              "gloss": "are proud"
+            },
+            {
+              "id": "4-27",
+              "surface": "بسبب",
+              "gloss": "because of"
+            },
+            {
+              "id": "4-28",
+              "surface": "جمال",
+              "gloss": "the beauty of"
+            },
+            {
+              "id": "4-29",
+              "surface": "الحصان.",
+              "gloss": "the horse"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "ar": "فما الذي يخصّك إذن؟ طريقة استعمالك للتصوّرات. فإذا كنت تستعمل التصوّرات وفقًا للطبيعة، فحينئذ افتخر؛ لأنك عندئذ تفتخر بخير يخصّك أنت.",
+          "ar_vowelled": null,
+          "grc": "τί οὖν ἐστι σόν; χρῆσις φαντασιῶν. ὥσθ᾽, ὅταν ἐν χρήσει φαντασιῶν κατὰ φύσιν σχῇς, τηνικαῦτα ἐπάρθητι: τότε γὰρ ἐπὶ σῷ τινι ἀγαθῷ ἐπαρθήσῃ.",
+          "la": "Quid igitur tuum est? Usus impressionum. Cum igitur impressionibus secundum naturam uteris, tum te effer: tunc enim bono quodam tuo te efferes.",
+          "ru": "Что же принадлежит тебе? То, как ты пользуешься впечатлениями. Когда пользуешься ими в согласии с природой, тогда гордись: ведь тогда ты будешь гордиться собственным достоинством.",
+          "clues": [
+            {
+              "id": "1",
+              "form": "التصوّرات",
+              "meaning": "impressions or representations; Stoic term",
+              "bridge": "φαντασιῶν · impressionum · впечатлениями"
+            },
+            {
+              "id": "2",
+              "form": "يخصّك",
+              "meaning": "belongs to you",
+              "bridge": "σόν · tuum · принадлежит тебе"
+            }
+          ],
+          "en": "What, then, belongs to you? The way you use impressions. When you use impressions in accordance with nature, then be proud: for then you are proud of a good that belongs to you.",
+          "tokens": [
+            {
+              "id": "5-1",
+              "surface": "فما",
+              "gloss": "so what"
+            },
+            {
+              "id": "5-2",
+              "surface": "الذي",
+              "gloss": "that which"
+            },
+            {
+              "id": "5-3",
+              "surface": "يخصّك",
+              "gloss": "belongs to you"
+            },
+            {
+              "id": "5-4",
+              "surface": "إذن؟",
+              "gloss": "then"
+            },
+            {
+              "id": "5-5",
+              "surface": "طريقة",
+              "gloss": "the way; manner"
+            },
+            {
+              "id": "5-6",
+              "surface": "استعمالك",
+              "gloss": "you use; literally your use"
+            },
+            {
+              "id": "5-7",
+              "surface": "للتصوّرات.",
+              "gloss": "of impressions; Stoic representations"
+            },
+            {
+              "id": "5-8",
+              "surface": "فإذا",
+              "gloss": "so if"
+            },
+            {
+              "id": "5-9",
+              "surface": "كنت",
+              "gloss": "you are; literally were, after if"
+            },
+            {
+              "id": "5-10",
+              "surface": "تستعمل",
+              "gloss": "use"
+            },
+            {
+              "id": "5-11",
+              "surface": "التصوّرات",
+              "gloss": "the impressions"
+            },
+            {
+              "id": "5-12",
+              "surface": "وفقًا",
+              "gloss": "in accordance"
+            },
+            {
+              "id": "5-13",
+              "surface": "للطبيعة،",
+              "gloss": "with nature"
+            },
+            {
+              "id": "5-14",
+              "surface": "فحينئذ",
+              "gloss": "then at that time"
+            },
+            {
+              "id": "5-15",
+              "surface": "افتخر؛",
+              "gloss": "be proud! imperative"
+            },
+            {
+              "id": "5-16",
+              "surface": "لأنك",
+              "gloss": "because you"
+            },
+            {
+              "id": "5-17",
+              "surface": "عندئذ",
+              "gloss": "then; at that time"
+            },
+            {
+              "id": "5-18",
+              "surface": "تفتخر",
+              "gloss": "are proud"
+            },
+            {
+              "id": "5-19",
+              "surface": "بخير",
+              "gloss": "of a good; بِ attaches to خير"
+            },
+            {
+              "id": "5-20",
+              "surface": "يخصّك",
+              "gloss": "belongs to you"
+            },
+            {
+              "id": "5-21",
+              "surface": "أنت.",
+              "gloss": "you; emphatic"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

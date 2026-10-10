@@ -73,7 +73,7 @@ Word detail has no attention controls. Book reader has no enrollment/opt-out tog
   support, curated clues, Arabic-only reread and optional effort reflection.
 - `lib/parallel-reading.ts`: bundled versioned content, serialized local bookmarks
   and atomic evidence outbox handed to `parallel_reading_event` in the sync queue.
-- `lib/data/parallel-reading-v1.json`: bundled copy of the canonical backend edition.
+- `lib/data/parallel-reading-v2.json`: current bundled copy (v1 remains frozen) of the canonical backend edition.
 - `lib/last-tab.ts`: allowlisted visible-tab bookmarks; explicit links override resume.
 - `lib/launch-ready.ts`: context gates first mounting of Arabic review content until
   startup restoration resolves and the actual review tab is selected.

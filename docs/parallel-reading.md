@@ -1,7 +1,7 @@
 # Parallel Reading experiment
 
 Implemented 10 October 2026. A shared **Parallel** tab and direct `/parallel`
-bookmark offer Arabic-first reading with Ancient Greek, Latin and Russian.
+bookmark offer Arabic-first reading with Ancient Greek, Latin, Russian and optional English.
 The app remembers the last visible tab and restores it on a normal launch at `/`.
 Explicit non-root bookmarks, query links and native deep links take precedence.
 A saved tab from an incompatible language surface falls back to that language's
@@ -14,10 +14,11 @@ review session remains mounted when switching tabs, preserving existing behavior
 
 A small library opens each text at its independently saved passage. Arabic is
 above a selectable supporting version; support can remain visible across passages.
-All-four mode stacks versions vertically. Reader controls include text size,
-vowel marks, curated optional English phrase clues, numbered passage navigation,
+Compare all stacks all five versions vertically. Reader controls include text size,
+vowel marks under Aa, contextual Arabic word help, collapsible phrase clues, numbered passage navigation,
 an Arabic-only whole-text reread, completion and optional effort reflection.
-Passage reading hides the app tab bar to give the text room. Library returns to
+Passage reading hides the app tab bar to give the text room. A fixed bottom bar keeps
+Previous/Next and passage position reachable while translations scroll. Library returns to
 the catalogue; Alif returns to the normal review tab. The catalogue shows tabs.
 Changing passages returns to the top; the bookmark is a passage, not a pixel offset.
 
@@ -34,8 +35,8 @@ The first three pieces are:
   complete *Enchiridion* sections 4 and 6, with original Greek and new translations.
   The two arguments are joined; intervening section 5 is not included.
 
-Word totals use whitespace splitting, including standalone punctuation; they are
-orientation labels, not NLP-derived vocabulary counts. Source URLs and version
+The catalogue shows passage counts; the word counts above describe the source
+edition and include standalone punctuation, rather than NLP-derived vocabulary counts. Source URLs and version
 provenance are visible in About. New translations are AI learning aids, reviewed
 in preparation but not independently checked by a language specialist. Longer
 pieces retain selective vowel marks only; the UI says so rather than claiming
@@ -44,13 +45,17 @@ full vocalization. Optional English is confined to phrase clues.
 ## Persistence and evidence boundaries
 
 Content is bundled with the app for immediate offline reading. Canonical content
-is `backend/app/data/parallel_reading_v1.json`; the byte-identical frontend copy is
-`frontend/lib/data/parallel-reading-v1.json`, enforced by frontend/backend tests.
+is `backend/app/data/parallel_reading_v2.json`; the byte-identical frontend copy is
+`frontend/lib/data/parallel-reading-v2.json`, enforced by frontend/backend tests.
 Treat released content as immutable: a future edition must bump content identity,
 backend accepted version and storage key together, preserving old evidence.
 Web still needs the app bundle loaded; this does not add an installable offline PWA.
 
-Device-local journal: `@alif:parallel-reading:v1`. It contains each text's passage,
+Device-local journal: `@alif:parallel-reading:v2`. Edition-one bookmarks, preferences
+and queued events are copied on first successful save from `@alif:parallel-reading:v1`,
+without editing or deleting the old journal. Both event versions remain accepted. New server-only token/panel fields are omitted
+when serializing a version-one event, so delayed retries still match pre-upgrade
+stored payloads exactly. It contains each text's passage,
 reread and completion state, the active text/catalogue view, supporting-language
 preference, reveal/all-four/marks/size settings and an unsent event outbox. Updates
 serialize read-modify-write operations. Progress plus event are committed in one
@@ -63,14 +68,14 @@ Bookmarks do not synchronize across devices. Effort reflection is journal eviden
 not a persistent draft or a retention assessment.
 
 `POST /api/books/parallel/events` validates content version, text, paragraph,
-clue identity, support language, settings, action and timezone-aware client time.
+clue/token identity, display-panel identity, support language, settings, action and timezone-aware client time.
 It stores only `ReadingPilotEvent`, reusing the supported readers' idempotent
 journal writer. Conflicting payloads for the same ID are rejected. Newly recorded
 events also append `parallel_reading` to interaction JSONL. The durable database
 journal is authoritative if a process dies between commit and JSONL append.
 
 Actions: open/leave/library/select/passage/support/reveal/all/vowels/size/clue/about/
-reread/complete/reflection. Events retain settings and exact text/paragraph identity.
+reread/complete/reflection, plus word/display in edition two. Events retain settings and exact text/paragraph identity.
 Opening is not proof of reading, support use is not a failed vocabulary review,
 and completion is not proof of unaided comprehension. There are no ULK, ReviewLog,
 SentenceReviewLog, lemma, acquisition, exposure-ledger or due-date writes. There
@@ -85,6 +90,29 @@ attributable events, idempotency, collisions and absence of scheduler writes.
 Phone-sized browser QA exercises the reading flow, restart/resume, support modes,
 large text, completion/reflection, failed-save recovery and direct links.
 Physical iPhone cold-start/OTA behavior still requires device verification.
+
+## Edition two — English and word help
+
+The Arabic, Greek, Latin and Russian source strings from edition one are unchanged.
+Edition two adds an English learning translation for every paragraph, and 338 exact
+whitespace-token records, of which two are punctuation-only and not tappable.
+Every Arabic word has a prepared contextual English gloss, including attached
+particles, pronoun referents and feminine plural endings. These are editorial aids,
+not dictionary/lemma identities, runtime AI answers or retention judgments.
+
+Inline token presses preserve the full Arabic text, word order, source whitespace
+and punctuation. The same token IDs work with hidden/selective/full vowel marks.
+A word card shows the displayed form and meaning; close/backdrop/Escape returns to
+reading. It uses no animation so web dismissal does not depend on CSS animation-end
+callbacks. Word help also works in the whole-text Arabic reread; events carry the
+actual clicked paragraph and exact token, even if it differs from the saved passage.
+No lookup enrolls a word or changes knowledge/scheduling state.
+
+English is an optional fourth support tab. Selecting a language switches to a pair
+and reveals it; Hide translation restores Arabic alone. Compare all includes English.
+Display controls and phrase clues are collapsed to reduce the main screen's clutter.
+The word-card content scrolls if needed at large text sizes, while the return action
+remains inside that scrollable content. Physical iPhone taps still need user verification.
 
 ## Experiment aim
 
@@ -129,3 +157,13 @@ again to run the downloaded update. Physical iPhone cold-start and reading feel
 remain for Stian to check. Server/OTA publication is complete; feedback and actual
 reading benefits remain unmeasured. Local preview and owned worktree are released
 and cleaned up after preserving the publication receipts and test/browser evidence.
+
+
+Edition-two validation (10 October 2026): all 269 frontend tests / 25 suites and
+2,150 backend tests passed (9 slow tests deselected). The 52 focused reader tests
+cover edition-one stored-event retries, edition-two validation, exact-token help
+and the continued scheduling boundary. Typecheck, iOS export and layout/API
+preflights pass. Browser QA at 390×844 and 320×740 exercised English persistence,
+word meanings including attached pronouns, keyboard dismissal, fixed navigation,
+Compare all and normal-launch resume. Vowel-mode token identities are checked for
+every paragraph. No horizontal overflow was observed.
