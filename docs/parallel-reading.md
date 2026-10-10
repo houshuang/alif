@@ -93,3 +93,12 @@ which supporting version resolves a difficult Arabic clause, and whether the
 Arabic-only reread feels easier. Optional effort is descriptive, not controlled
 learning evidence. Prepare further coherent pieces based on actual reading
 feedback; do not automatically increase difficulty or introduce review debt.
+
+Validation receipt (10 October 2026): all 25 frontend suites / 265 tests and
+2,140 backend tests passed (9 slow tests deselected). iOS/web exports, layout
+preflight and secure API configuration preflight passed. Local browser QA at
+390×844 and 320×740 confirmed no horizontal overflow, a preserved passage after
+simulated storage failure and successful retry, completion/reflection, root resume
+and direct chapter-link precedence. Cold-launch transport capture contained no
+review endpoint call. Browser transport was an isolated recording stub; backend
+storage behavior was verified through hermetic pytest fixtures.
