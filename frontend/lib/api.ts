@@ -578,7 +578,7 @@ export function prefetchSessions(mode: ReviewMode, force = false): Promise<void>
   const last = lastPrefetchedAt.get(mode);
   if (!force && last !== undefined && Date.now() - last < PREFETCH_REFRESH_MS) return Promise.resolve();
   const job = (async () => {
-    const fetched = await deepPrefetchSessions(mode, 1);
+    const fetched = await deepPrefetchSessions(mode, 1, undefined, false);
     if (fetched > 0) lastPrefetchedAt.set(mode, Date.now());
   })().finally(() => { prefetchInFlight.delete(mode); });
   prefetchInFlight.set(mode, job);
@@ -595,6 +595,7 @@ export async function deepPrefetchSessions(
   mode: ReviewMode,
   count: number = 6,
   onProgress?: (fetched: number) => void,
+  waitForLookups: boolean = true,
 ): Promise<number> {
   // Collect sentence IDs from already-cached sessions to get diverse results
   const excludeIds = await getCachedSentenceIds(mode);
@@ -614,7 +615,8 @@ export async function deepPrefetchSessions(
       if (!data.items || data.items.length === 0) break;
       const session = { ...data, session_id: data.session_id || generateSessionId() };
       await cacheSessions(mode, [session]);
-      prefetchWordLookupsForSession(session).catch(() => {});
+      if (waitForLookups) await prefetchWordLookupsForSession(session);
+      else prefetchWordLookupsForSession(session).catch(() => {});
 
       // Add new sentence IDs to exclusion set for next iteration
       for (const item of session.items) {
