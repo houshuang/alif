@@ -114,6 +114,23 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+
+## 2026-10-12 — Immediate sentence-review delivery and stable resume
+
+**User request:** opening review must show saved content immediately and optimize future
+queues robustly in the background, including direct continuation into Next Session.
+**Delivery change:** pin the active queue, accept stale/small remaining tails, consume
+preloaded next queues, download near session end, deduplicate and bound background
+requests, and cache optional grammar lessons. Remove the 15-minute queue swap; preserve
+current cards and in-session progress. Scheduling algorithms and review-credit rules are
+unchanged. Prefetch remains `allow_intro_mutations=False`; fresh new-word admission can
+be deferred until a cache-empty or explicitly fresh build. This is a known delivery tradeoff,
+not evidence of improved retention. See `docs/scheduling-system.md` for restoration limits.
+**Validation:** focused cache/API/sync/duplicate-skip/retest/reintro tests and TypeScript;
+browser fixture with 15-hour-old one-card active tail, a newer download, unavailable APIs,
+and missing grammar lesson. Publication and phone cold-launch measurement remain separate.
+
+
 ## 2026-09-19 — Automatic attention v2 activated; replacement phone update verified
 
 Deployed PR #280 at `b0969c39` after a fresh stopped-service online backup. Initial

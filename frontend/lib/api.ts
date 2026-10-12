@@ -49,6 +49,7 @@ import {
   invalidateDataCaches,
   cacheSessions,
   getCachedSession,
+  getActiveCachedSession,
   markReviewed,
   unmarkReviewed,
   cacheData,
@@ -63,13 +64,12 @@ import {
   cacheWordLookupBatch,
   getCachedSentenceIds,
   markIntroShown,
+  cacheGrammarLesson,
 } from "./offline-store";
 import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
-
-const MIN_ONLINE_CACHED_SESSION_ITEMS = 5;
 
 interface RawWord {
   lemma_id: number;
@@ -424,10 +424,14 @@ export async function getLemmaSentence(
   return fetchApi(`/api/learn/sentences/${lemmaId}`);
 }
 
-// Background prefetch: after serving a session, silently cache 2 more
+// One bounded background job per mode. A failed job may retry on the next
+// resume/end-of-queue trigger; successful refreshes are throttled on app resume.
+const prefetchInFlight = new Map<ReviewMode, Promise<void>>();
+const lastPrefetchedAt = new Map<ReviewMode, number>();
+const PREFETCH_REFRESH_MS = 5 * 60 * 1000;
+
 function backgroundPrefetch(mode: ReviewMode): void {
-  if (!netStatus.isOnline) return;
-  deepPrefetchSessions(mode, 2).catch(() => {});
+  void prefetchSessions(mode).catch(() => {});
 }
 
 export async function fetchFreshSession(
@@ -466,21 +470,16 @@ export async function fetchFreshSession(
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
-  // Try prefetched cache first for instant load
-  const cached = await getCachedSession(mode, false, MIN_ONLINE_CACHED_SESSION_ITEMS);
+  // Resume the owned queue before considering newer speculative downloads.
+  // Age and small tails affect refresh priority, never whether content can show.
+  const cached = await getActiveCachedSession(mode)
+    ?? await getCachedSession(mode)
+    ?? await getCachedSession(mode, true);
   if (cached && cached.items.length > 0) {
     backgroundPrefetch(mode);
     return cached;
   }
-
-  // If offline, retry cache ignoring staleness — sessions are still valid
-  // because no backend state changes while offline
-  if (!netStatus.isOnline) {
-    const stale = await getCachedSession(mode, true);
-    if (stale && stale.items.length > 0) {
-      return stale;
-    }
-  }
+  if (!netStatus.isOnline) throw new Error("No sessions available offline");
 
   try {
     const data = await fetchApi<SentenceReviewSession>(
@@ -488,7 +487,7 @@ export async function getSentenceReviewSession(
       { timeoutMs: 12_000 }
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
-    cacheSessions(mode, [session]).catch(() => {});
+    await cacheSessions(mode, [session]).catch(() => {});
     prefetchWordLookupsForSession(session).catch(() => {});
     backgroundPrefetch(mode);
     return session;
@@ -572,14 +571,18 @@ export async function undoSentenceReview(
   }
 }
 
-export async function prefetchSessions(mode: ReviewMode): Promise<void> {
-  try {
-    const data = await fetchApi<SentenceReviewSession>(
-      `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
-    );
-    const session = { ...data, session_id: data.session_id || generateSessionId() };
-    await cacheSessions(mode, [session]);
-  } catch {}
+export function prefetchSessions(mode: ReviewMode, force = false): Promise<void> {
+  if (!netStatus.isOnline) return Promise.resolve();
+  const pending = prefetchInFlight.get(mode);
+  if (pending) return pending;
+  const last = lastPrefetchedAt.get(mode);
+  if (!force && last !== undefined && Date.now() - last < PREFETCH_REFRESH_MS) return Promise.resolve();
+  const job = (async () => {
+    const fetched = await deepPrefetchSessions(mode, 1);
+    if (fetched > 0) lastPrefetchedAt.set(mode, Date.now());
+  })().finally(() => { prefetchInFlight.delete(mode); });
+  prefetchInFlight.set(mode, job);
+  return job;
 }
 
 export async function warmSentences(): Promise<void> {
@@ -605,12 +608,13 @@ export async function deepPrefetchSessions(
         ? `&${Array.from(excludeIds).map(id => `exclude=${id}`).join('&')}`
         : '';
       const data = await fetchApi<SentenceReviewSession>(
-        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true${excludeParam}`
+        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true${excludeParam}`,
+        { timeoutMs: 12_000 }
       );
       if (!data.items || data.items.length === 0) break;
       const session = { ...data, session_id: data.session_id || generateSessionId() };
       await cacheSessions(mode, [session]);
-      await prefetchWordLookupsForSession(session);
+      prefetchWordLookupsForSession(session).catch(() => {});
 
       // Add new sentence IDs to exclusion set for next iteration
       for (const item of session.items) {
@@ -981,7 +985,9 @@ export async function getChatConversation(conversationId: string): Promise<Conve
 // --- Grammar ---
 
 export async function getGrammarLesson(featureKey: string): Promise<GrammarLesson> {
-  return fetchApi<GrammarLesson>(`/api/grammar/lesson/${featureKey}`);
+  const lesson = await fetchApi<GrammarLesson>(`/api/grammar/lesson/${featureKey}`, { timeoutMs: 12_000 });
+  await cacheGrammarLesson(featureKey, lesson).catch(() => {});
+  return lesson;
 }
 
 export async function introduceGrammarFeature(featureKey: string): Promise<{ feature_key: string; introduced_at: string }> {

@@ -1,5 +1,15 @@
 # Alif — Master Ideas File
 
+## 🟢 [IMPLEMENTED 2026-10-12 — publication pending] Immediate sentence-review resume
+
+Persist the active queue separately from speculative downloads; show even an old one-card
+tail immediately, download the next queue near completion, and consume it on Next Session.
+Background refresh must not replace the visible queue or reset review progress. Optional
+grammar/lookup requests must not block startup. Keep preloads read-only; new intake can be
+deferred while downloaded maintenance material remains. Follow-up: two-phase read-only
+intro planning plus actual-start admission, to combine immediate starts with fresh intake
+without spending learning budgets speculatively. See `docs/scheduling-system.md`.
+
 ## 🟢 [DEPLOYED 2026-10-10 — reading feedback pending] Four-language Parallel Reading experiment
 
 Arabic-first literary reading with Greek, Latin and Russian clues, a small bundled

@@ -4,6 +4,8 @@ import {
   unmarkReviewed,
   getCachedSession,
   cacheSessions,
+  activateCachedSession,
+  getActiveCachedSession,
   dropCachedSession,
   invalidateSessions,
   cacheData,
@@ -395,5 +397,39 @@ describe("word lookup cache", () => {
     expect(result!.gloss_en).toBe("book");
 
     jest.restoreAllMocks();
+  });
+});
+
+describe("durable active review queue", () => {
+  const session = (id: string, sid: number) => ({
+    session_id: id, items: [{ sentence_id: sid, primary_lemma_id: sid, words: [] }] as any[],
+    total_due_words: 1, covered_due_words: 1, intro_candidates: [],
+  });
+  it("resumes an old one-card tail ahead of a newer download", async () => {
+    await activateCachedSession("reading", session("unfinished", 1));
+    const entries = JSON.parse(store["@alif/sessions/v2/reading"]);
+    entries[0].cached_at = Date.now() - 15 * 60 * 60 * 1000;
+    store["@alif/sessions/v2/reading"] = JSON.stringify(entries);
+    await cacheSessions("reading", [session("download", 2)]);
+    expect((await getActiveCachedSession("reading"))?.session_id).toBe("unfinished");
+    await markReviewed("unfinished", 1, 1, "reading");
+    expect(await getActiveCachedSession("reading")).toBeNull();
+  });
+  it("protects the active queue when flight downloads overflow capacity", async () => {
+    await activateCachedSession("reading", session("active", 1));
+    await cacheSessions("reading", Array.from({length: 55}, (_, i) => session(`download-${i}`, i + 2)));
+    expect((await getActiveCachedSession("reading"))?.session_id).toBe("active");
+    expect(JSON.parse(store["@alif/sessions/v2/reading"])).toHaveLength(50);
+  });
+  it("dropping a tail clears its pointer without losing a concurrent download", async () => {
+    await activateCachedSession("reading", session("done", 1));
+    await Promise.all([dropCachedSession("reading", "done"), cacheSessions("reading", [session("next", 2)])]);
+    expect(await getActiveCachedSession("reading")).toBeNull();
+    expect((await getCachedSession("reading"))?.session_id).toBe("next");
+    await activateCachedSession("reading", session("next", 2));
+    await dropCachedSession("reading", "done");
+    expect((await getActiveCachedSession("reading"))?.session_id).toBe("next");
+    await invalidateSessions();
+    expect(await getActiveCachedSession("reading")).toBeNull();
   });
 });
