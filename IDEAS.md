@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🟢 [IMPLEMENTED 2026-10-12 — publication pending] Immediate sentence-review resume
+## 🟢 [DEPLOYED 2026-10-12 — phone usage feedback pending] Immediate sentence-review resume
 
 Persist the active queue separately from speculative downloads; show even an old one-card
 tail immediately, download the next queue near completion, and consume it on Next Session.

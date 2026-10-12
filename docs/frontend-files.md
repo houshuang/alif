@@ -79,3 +79,17 @@ Word detail has no attention controls. Book reader has no enrollment/opt-out tog
   startup restoration resolves and the actual review tab is selected.
 
 See `parallel-reading.md` for the experiment boundaries and verification.
+
+## Sentence-review publication — 12 October 2026
+
+Source `41b40355e0841fd28b6e0fda4d5551087726b8fb` (PR #289) is deployed to the
+private HTTPS web app and the Metro web endpoint. The live HTTPS bundle matches the
+exported SHA-256 and carries the active-session and grammar-cache keys; Metro carries
+the same markers. Web rollback remains
+`411e3f35656f7352afec83c783e3fd6ea9b2eb02` in `/opt/alif-web/releases/`.
+iPhone preview update `01a12ead-04bb-7dd8-b00c-44759c43f5e4`, group
+`7b51c2d0-cb01-426d-8c1a-c92c29664c61`, runtime `1.0.0`, is published.
+Its source commit, secure API manifest, authenticated launch-asset download/hash and
+resume markers are verified. A plain CDN download needs the manifest-provided asset
+authorization headers. Physical-device application and startup latency remain for the
+learner to observe; the normal background-download flow can need two cold launches.

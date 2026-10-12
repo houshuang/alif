@@ -115,6 +115,17 @@ This changes the model, not the existing Arabic quality calibration.
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
 
+## 2026-10-12 — Immediate review resume published to web and iPhone
+
+PR #289 source `41b40355e0841fd28b6e0fda4d5551087726b8fb` is live in both web
+frontends and iPhone preview group `7b51c2d0-cb01-426d-8c1a-c92c29664c61`
+(update `01a12ead-04bb-7dd8-b00c-44759c43f5e4`, runtime `1.0.0`). The HTTPS
+web asset matches its export hash; both web routes contain resume/grammar-cache
+markers. iOS source identity, secure manifest and the authenticated downloaded bundle
+hash/markers passed. Device application and measured phone startup remain unobserved.
+See `docs/frontend-files.md` for the release and rollback record.
+
+
 ## 2026-10-12 — Immediate sentence-review delivery and stable resume
 
 **User request:** opening review must show saved content immediately and optimize future
