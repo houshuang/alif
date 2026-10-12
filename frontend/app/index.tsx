@@ -60,7 +60,7 @@ import {
 } from "../lib/types";
 import { posLabel, FormsRow, FormsStrip, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { syncEvents } from "../lib/sync-events";
-import { dropCachedSession, getShownIntroLemmaIds, markIntroShown } from "../lib/offline-store";
+import { dropCachedSession, getShownIntroLemmaIds, markIntroShown, getCachedGrammarLesson, activateCachedSession } from "../lib/offline-store";
 import { flushQueue } from "../lib/sync-queue";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
@@ -149,7 +149,7 @@ function buildInterleavedSession(
     ...items.map((_, index) => index).filter((index) => !reservedItemIndexSet.has(index)),
   ];
 
-  // Drop intros for lemmas the user already saw this UI session — applyFreshSession
+  // Drop intros for lemmas the user already saw this UI session — session startup
   // rebuilds slots on every prefetch; without this, an intro re-fires whenever
   // the server's ack hasn't propagated yet.
   if (alreadyShownIntroLemmaIds.size > 0) {
@@ -483,10 +483,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
   const prefetchTriggered = useRef(false);
-  const lastReviewedAt = useRef<number>(0);
-  const pendingRefreshRef = useRef<SentenceReviewSession | null>(null);
-  const refreshingRef = useRef(false);
-  const hasActiveSessionRef = useRef(false);
+  const sessionLoadGeneration = useRef(0);
+  const loadingSessionRef = useRef(false);
+  const reviewHydratedRef = useRef(false);
   const introScrollRef = useRef<ScrollView>(null);
 
   const resetSentenceCardUi = useCallback((nextState?: CardState) => {
@@ -586,15 +585,21 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     // Hydrate the persisted shown-intro set BEFORE loading the session, so
     // buildInterleavedSession can filter out already-acked intros even on a
     // fresh component mount (iOS app suspend / restart).
+    let disposed = false;
     (async () => {
       try {
         shownIntroLemmaIdsRef.current = await getShownIntroLemmaIds();
       } catch {
         shownIntroLemmaIdsRef.current = new Set();
       }
-      await loadSession();
+      if (!disposed) {
+        reviewHydratedRef.current = true;
+        await loadSession();
+      }
     })();
     return () => {
+      disposed = true;
+      sessionLoadGeneration.current += 1;
       cleanupSound();
     };
   }, []);
@@ -835,48 +840,28 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (totalCards > 0 && cardIndex >= totalCards - 3 && !prefetchTriggered.current) {
       prefetchTriggered.current = true;
       warmSentences().catch(() => {});
+      prefetchSessions(mode, true).catch(() => {});
     }
   }, [cardIndex, totalCards, mode]);
 
   // Reload session when sync completes and user is between sessions
   useEffect(() => {
     return syncEvents.on("synced", () => {
-      if (totalCards === 0) {
+      if (totalCards === 0 && reviewHydratedRef.current) {
         loadSession();
       }
     });
   }, [totalCards]);
 
-  // Track whether we have an active (in-progress) session
+  // Resume keeps the visible queue intact. Refresh only future content, and
+  // retry when connectivity returns; API single-flight/throttling bounds work.
   useEffect(() => {
-    hasActiveSessionRef.current = sentenceSession !== null && results === null;
-  }, [sentenceSession, results]);
-
-  // Background refresh: when app resumes after 15+ min gap, fetch fresh session
-  const STALE_IN_SESSION_MS = 15 * 60 * 1000;
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", async (nextState) => {
-      if (
-        nextState === "active" &&
-        lastReviewedAt.current > 0 &&
-        hasActiveSessionRef.current &&
-        !refreshingRef.current &&
-        !pendingRefreshRef.current
-      ) {
-        const gap = Date.now() - lastReviewedAt.current;
-        if (gap > STALE_IN_SESSION_MS) {
-          refreshingRef.current = true;
-          try {
-            const fresh = await fetchFreshSession(mode);
-            if (fresh.items.length > 0) {
-              pendingRefreshRef.current = fresh;
-            }
-          } catch {}
-          refreshingRef.current = false;
-        }
-      }
+    const refresh = () => { prefetchSessions(mode).catch(() => {}); };
+    const sub = AppState.addEventListener("change", state => {
+      if (state === "active") refresh();
     });
-    return () => sub.remove();
+    const unsubscribe = syncEvents.on("online", refresh);
+    return () => { sub.remove(); unsubscribe(); };
   }, [mode]);
 
   async function cleanupSound() {
@@ -928,8 +913,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function loadSession(newMode?: ReviewMode, skipCache?: boolean) {
     const m = newMode ?? mode;
-    pendingRefreshRef.current = null;
-    lastReviewedAt.current = 0;
+    if (loadingSessionRef.current) return;
+    loadingSessionRef.current = true;
+    const generation = ++sessionLoadGeneration.current;
     setLoading(true);
     setResults(null);
     setCardIndex(0);
@@ -953,8 +939,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setInWrapUp(false);
     setWrapUpVariant("wrapup");
     // NB: retestQueueRef deliberately survives session loads. The user reviews
-    // in short fragments (sessions abandoned mid-way, swapped by staleness
-    // refresh) — resetting here silently discarded pending re-tests (observed
+    // in short fragments (sessions abandoned mid-way, explicitly restarted) — resetting here silently
+    // discarded pending re-tests (observed
     // 2026-07-25: treatment failures in 2 consecutive fragments, 0 delivered).
     // Entries expire by wall-clock (RETEST_EXPIRE_MS) instead.
     retestTestedRef.current = new Set();
@@ -993,7 +979,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     try {
       const ss = skipCache ? await fetchFreshSession(m) : await getSentenceReviewSession(m);
+      if (generation !== sessionLoadGeneration.current) return;
       if (ss.items.length > 0) {
+        await activateCachedSession(m, ss).catch(() => {});
+        if (generation !== sessionLoadGeneration.current) return;
         setSentenceSession(ss);
         // Build interleaved session slots: intro cards distributed among sentences
         if (ss.intro_candidates && ss.intro_candidates.length > 0 && m === "reading") {
@@ -1025,29 +1014,25 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           ...(ss.grammar_refresher_needed ?? []),
           ...(ss.grammar_intro_needed ?? []),
         ].filter(k => !introducedGrammarKeys.has(k));
-        if (featureKeys.length > 0) {
-          setGrammarLessonsLoading(true);
-          const lessons: GrammarLesson[] = [];
-          for (const key of featureKeys) {
-            try {
-              const lesson = await getGrammarLesson(key);
-              if (ss.grammar_refresher_needed?.includes(key)) {
-                lesson.is_refresher = true;
-              }
-              lessons.push(lesson);
-            } catch {}
-          }
-          setGrammarLessons(lessons);
-          setGrammarLessonIndex(0);
-          setGrammarLessonsLoading(false);
-        }
-        setLoading(false);
+        // Network lesson requests used to keep even a cached sentence behind
+        // the spinner. Show cached lessons only; late responses never interrupt
+        // a card, and are available at the next session boundary.
+        const lessons = await Promise.all(featureKeys.map(async key => {
+          const lesson = await getCachedGrammarLesson(key).catch(() => null);
+          if (!lesson) return null;
+          return { ...lesson, is_refresher: ss.grammar_refresher_needed?.includes(key) ?? false };
+        }));
+        if (generation !== sessionLoadGeneration.current) return;
+        setGrammarLessons(lessons.filter((lesson): lesson is GrammarLesson & { is_refresher: boolean } => lesson !== null));
+        for (const key of featureKeys) void getGrammarLesson(key).catch(() => {});
         return;
       }
     } catch (e) {
       console.error("Failed to load review session:", e);
+    } finally {
+      loadingSessionRef.current = false;
+      if (generation === sessionLoadGeneration.current) setLoading(false);
     }
-    setLoading(false);
   }
 
   const toggleMissed = useCallback((index: number) => {
@@ -1721,89 +1706,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return false;
   }, [sentenceSession, cardIndex, sessionSlots, cardReviewIds]);
 
-  function applyFreshSession(fresh: SentenceReviewSession) {
-    setSentenceSession(fresh);
-    if (fresh.intro_candidates && fresh.intro_candidates.length > 0 && mode === "reading") {
-      setAutoIntroduced(fresh.intro_candidates);
-    } else {
-      setAutoIntroduced([]);
-    }
-    const preparedFlow = prepareSessionFlow(
-      fresh.items,
-      fresh.experiment_intro_cards ?? [],
-      fresh.intro_candidates ?? [],
-      mode === "reading",
-      fresh.verse_cards ?? [],
-      shownIntroLemmaIdsRef.current,
-      fresh.reintro_cards ?? [],
-    );
-    setVerseCards(fresh.verse_cards ?? []);
-    setSessionSlots(preparedFlow.slots);
-    setCardIndex(0);
-    setCardState(mode === "listening" ? "audio" : "front");
-    setResults(null);
-    setMissedIndices(new Set());
-    setConfusedIndices(new Set());
-    setTappedOrder([]);
-    setTappedCursor(-1);
-    tappedCacheRef.current = new Map();
-    setAudioPlaying(false);
-    setAudioPlayCount(0);
-    setLookupCount(0);
-    setLookupResult(null);
-    setLookupSurfaceForm(null);
-    setLookupLemmaId(null);
-    setFocusedWordMark(null);
-    setLookupShowMeaning(false);
-    setFailureCausesByIndex({});
-    setRating2PromptShownSentenceWordIds(new Set());
-    setFailureCausePromptShownSentenceWordIds(new Set());
-    setTashkeelInteraction(EMPTY_TASHKEEL_INTERACTION);
-    setWordOutcomes(new Map());
-    setSeenLemmaIds(new Set());
-    setCardReviewIds([]);
-    setCardSnapshots([]);
-    setUndoing(false);
-    setInWrapUp(false);
-    setWrapUpVariant("wrapup");
-    // retestQueueRef survives the swap — see the loadSession comment.
-    retestTestedRef.current = new Set();
-    checkpointShownCountRef.current = 0;
-    checkpointFetchingRef.current = false;
-    autoWrapUpTriggeredRef.current = false;
-    prefetchTriggered.current = false;
-    if (preparedFlow.reintroCards.length > 0) {
-      setReintroCards(preparedFlow.reintroCards);
-      setReintroIndex(0);
-    } else {
-      setReintroCards([]);
-    }
-    setExperimentIntroCards(fresh.experiment_intro_cards ?? []);
-    const featureKeys: string[] = [
-      ...(fresh.grammar_refresher_needed ?? []),
-      ...(fresh.grammar_intro_needed ?? []),
-    ];
-    if (featureKeys.length > 0) {
-      (async () => {
-        const lessons: GrammarLesson[] = [];
-        for (const key of featureKeys) {
-          try {
-            const lesson = await getGrammarLesson(key);
-            if (fresh.grammar_refresher_needed?.includes(key)) {
-              lesson.is_refresher = true;
-            }
-            lessons.push(lesson);
-          } catch {}
-        }
-        setGrammarLessons(lessons);
-        setGrammarLessonIndex(0);
-      })();
-    } else {
-      setGrammarLessons([]);
-      setGrammarLessonIndex(0);
-    }
-  }
-
   function enqueueRetest(lemmaId: number) {
     if (!sentenceSession) return;
     if (retestArm(sentenceSession.session_id, lemmaId) !== "treatment") return;
@@ -1863,7 +1765,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function advanceAfterSubmit(signal: ComprehensionSignal) {
-    lastReviewedAt.current = Date.now();
     lookupRequestRef.current += 1;
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
@@ -1874,14 +1775,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     };
 
     const nextCardIndex = cardIndex + 1;
-
-    // Swap in background-refreshed session if available
-    const pendingRefresh = pendingRefreshRef.current;
-    if (pendingRefresh) {
-      pendingRefreshRef.current = null;
-      applyFreshSession(pendingRefresh);
-      return;
-    }
 
     if (nextCardIndex >= totalCards) {
       // End of session. Bump total to totalCards so isSessionDone fires —
@@ -2244,7 +2137,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             if (sentenceSession?.session_id) {
               await dropCachedSession(mode, sentenceSession.session_id).catch(() => {});
             }
-            await loadSession(undefined, true);
+            await loadSession();
           })();
         }}
       />
@@ -4127,7 +4020,7 @@ function SessionComplete({
     }
     flushQueue().catch(() => {});
     const prefetchTimer = setTimeout(() => {
-      prefetchSessions(mode).catch(() => {});
+      prefetchSessions(mode, true).catch(() => {});
     }, 3000);
     return () => clearTimeout(prefetchTimer);
   }, []);

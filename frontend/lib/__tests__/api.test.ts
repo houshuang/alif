@@ -18,6 +18,7 @@ import {
   getStats,
   getSentenceReviewSession,
   fetchFreshSession,
+  prefetchSessions,
   submitSentenceReview,
   undoSentenceReview,
   lookupReviewWord,
@@ -822,5 +823,65 @@ describe("getStats", () => {
 
     const stats = await getStats();
     expect(stats.total_words).toBe(100);
+  });
+});
+
+describe("instant review and background preparation", () => {
+  const cached = (id: string, sid: number) => ({
+    session_id: id, items: [{ sentence_id: sid, primary_lemma_id: sid, words: [] }],
+    total_due_words: 1, covered_due_words: 1, intro_candidates: [],
+  });
+  it("returns a 15-hour-old active tail while refresh remains unresolved", async () => {
+    store[SESSION_CACHE_KEY] = JSON.stringify([
+      { session: cached("active", 31), cached_at: Date.now() - 15 * 60 * 60 * 1000 },
+      { session: cached("newer", 32), cached_at: Date.now() },
+    ]);
+    store["@alif/active-session/v1/reading"] = JSON.stringify("active");
+    let finish!: (value: unknown) => void;
+    mockFetch.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const session = await getSentenceReviewSession("reading");
+    expect(session.session_id).toBe("active");
+    const pending = prefetchSessions("reading", true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    finish(await mockJsonResponse({ ...cached("prepared", 33), items: [] }));
+    await pending;
+    expect(JSON.parse(store["@alif/active-session/v1/reading"])).toBe("active");
+  });
+  it("deduplicates preparations and excludes the visible sentence", async () => {
+    store[SESSION_CACHE_KEY] = JSON.stringify([{session: cached("visible", 41), cached_at: Date.now()}]);
+    let finish!: (value: unknown) => void;
+    mockFetch.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const first = prefetchSessions("reading", true);
+    expect(prefetchSessions("reading", true)).toBe(first);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain("prefetch=true");
+    expect(mockFetch.mock.calls[0][0]).toContain("exclude=41");
+    finish(await mockJsonResponse(cached("prepared", 42)));
+    await first;
+    expect(JSON.parse(store[SESSION_CACHE_KEY]).some((e: any) => e.session.session_id === "prepared")).toBe(true);
+  });
+  it("times out a stalled preload and releases its single-flight slot", async () => {
+    jest.useFakeTimers();
+    try {
+      mockFetch.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")));
+      }));
+      const pending = prefetchSessions("quiz", true);
+      await jest.advanceTimersByTimeAsync(12_000);
+      await pending;
+      mockFetch.mockReturnValueOnce(mockJsonResponse(cached("after-timeout", 61)));
+      await prefetchSessions("quiz", true);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    } finally { jest.useRealTimers(); }
+  });
+  it("retries failed preparations without damaging saved content", async () => {
+    store[SESSION_CACHE_KEY] = JSON.stringify([{session: cached("saved", 51), cached_at: Date.now()}]);
+    mockFetch.mockRejectedValueOnce(new Error("Connection lost"));
+    await prefetchSessions("reading", true);
+    expect(JSON.parse(store[SESSION_CACHE_KEY])[0].session.session_id).toBe("saved");
+    mockFetch.mockReturnValueOnce(mockJsonResponse(cached("retry", 52)));
+    await prefetchSessions("reading", true);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

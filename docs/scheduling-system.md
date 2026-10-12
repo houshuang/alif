@@ -883,7 +883,8 @@ build_session(db, limit=10, mode="reading")
 
 The frontend warms material and caches speculative fallback sessions:
 
-1. **Near end of session (3 cards left)**: `POST /api/review/warm-sentences` (returns 202)
+1. **Near end of session (3 cards left)**: download one speculative next queue, and
+   `POST /api/review/warm-sentences` (returns 202)
    pre-generates sentences in the background using multi-target generation for focus cohort
    gaps and likely auto-introduction candidates with < 2 active sentences.
 
@@ -893,9 +894,11 @@ The frontend warms material and caches speculative fallback sessions:
    Before returning, it omits any whole card containing a cold word that the live path would
    have promoted and taught first, then recomputes actual due coverage and intro cards.
    The session-complete request is deferred 3s so it does not compete with `session-end`.
-   Background prefetch may cache additional fallback sessions. The explicit **Next Session**
-   action deliberately forces a fresh non-prefetch build, which is where stateful introduction
-   decisions happen; cached sessions serve resume/offline/failure fallback instead.
+   Background prefetch stages future queues. **Next Session** consumes downloaded content
+   immediately, after disposing of the completed/abandoned tail. Only a cache-empty load or
+   explicit fresh-session action performs a non-prefetch build and stateful introduction.
+   Repeated downloaded maintenance sessions can therefore defer new intake; preloading must
+   never bypass the cold-word/intro-budget safety gates to compensate.
 
 3. **Background warm after session load**: Every non-prefetch session load triggers
    `warm_sentence_cache()` as a FastAPI background task. It generates new sentences
@@ -922,33 +925,31 @@ for them via `_find_pregenerated_sentences_for_words()`. Prefetch requests still
 LLM generation since they already run in the background.
 (Fix: 2026-02-18, perf: 2026-02-22, fill-phase-always: 2026-02-23)
 
-**Why only one prefetch**: Previously 7 prefetch requests fired per session cycle (from
-session start, near-end, session-complete, and next-session-start). Each triggered on-demand
-generation (DB writes). Concurrent SQLite writes caused "database is locked" errors that
-cascaded into PendingRollbackError, producing single-card sessions. Reduced to 1 prefetch
-at session-complete to eliminate write contention. (Fix: 2026-02-18)
+**Bounded background work (2026-10-12)**: ordinary preload jobs select one queue at a time,
+share a per-mode in-flight promise, and use a 12-second request timeout. Successful jobs
+are throttled for five minutes on startup/resume/reconnect; near-end and completion may
+force refresh, but still share an in-flight job. Failed/empty jobs are retryable on the next
+trigger. Explicit flight downloads keep their multi-queue behavior. Lookup downloads run
+separately and never delay making the queue available.
 
-**Staleness — Two Levels**:
+**Resume and freshness (2026-10-12)**: an unfinished active queue is a durable per-mode
+pointer into the session cache, protected from eviction. Startup serves its unreviewed tail
+regardless of age or remaining count, retaining its session ID. Otherwise it prefers the
+newest downloaded queue younger than 30 minutes, then stale downloaded content, then a
+fresh non-prefetch build if no content remains. The 30-minute TTL is a preference, not a
+loading barrier or cache deletion rule. Background work prepares future queues; it never
+swaps an in-progress queue or resets its results. Grammar requests populate a local cache
+for a later queue instead of delaying or interrupting the current sentence.
 
-1. **Cache-level staleness (30 min)**: Cached sessions in AsyncStorage expire after 30 minutes.
-   If the user starts a new session after a break, `getCachedSession()` skips stale entries
-   and `build_session()` runs fresh.
-
-2. **In-session staleness (15 min)**: Once a session is loaded into React state, the cache
-   staleness check no longer applies. If the user puts the phone down mid-session and returns
-   after 15+ minutes, an `AppState` listener detects the gap (comparing `Date.now()` to
-   `lastReviewedAt`) and triggers `fetchFreshSession()` in the background. The user continues
-   reviewing the current card uninterrupted. On the next card advance (`advanceAfterSubmit`),
-   the fresh session is seamlessly swapped in via `applyFreshSession()` — no loading screen,
-   the progress bar resets and the first card of the fresh session appears immediately.
-
-   **Data justification (2026-02-15 analysis)**: 48% of sessions were abandoned mid-review.
-   9 stale resumptions (>30 min gap) showed an average -22% comprehension drop. The 15-minute
-   threshold catches all problematic cases while avoiding false positives (76% of normal
-   inter-card gaps are <1 minute).
-
-Pre-generated sentences from the warm-up are already in DB, so on-demand generation is
-rarely needed for fresh sessions.
+The prior 15-minute in-session swap was also incorrectly gated on `results === null`,
+which becomes false after the first submitted review. It has been removed. Earlier
+observational associations between long gaps and comprehension do not demonstrate that
+replacing a queue improves recall. Reviews still use current server learning state at
+submission; delivery freshness does not change FSRS/acquisition algorithms or credit rules.
+Cold-start restoration returns to the first unsubmitted sentence on its front side; unsent
+word markings, undo history, and in-memory checkpoint/wrap-up state are not restored.
+A device with no downloaded content still needs a successful network selection; the app
+cannot promise first-ever/offline content it has never received.
 
 ### Scoring Deep Dive
 

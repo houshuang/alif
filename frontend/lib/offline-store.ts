@@ -5,6 +5,7 @@ import type {
   StoryListItem,
   StoryDetail,
   WordLookupResult,
+  GrammarLesson,
 } from "./types";
 
 const SESSION_CACHE_VERSION = 2;
@@ -15,6 +16,8 @@ const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAINTENANCE_PASSAGE_REVIEW_ENABLED = false;
 
 const KEYS = {
+  grammarLesson: (key: string) => `@alif/grammar-lesson/v1/${key}`,
+  activeSession: (mode: ReviewMode) => `@alif/active-session/v1/${mode}`,
   sessions: (mode: ReviewMode) => `@alif/sessions/v${SESSION_CACHE_VERSION}/${mode}`,
   legacySessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
   reviewed: `@alif/reviewed/v${SESSION_CACHE_VERSION}`,
@@ -130,7 +133,8 @@ function itemSentenceIds(item: {
 
 async function getJson<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 async function setJson(key: string, value: unknown): Promise<void> {
@@ -139,7 +143,8 @@ async function setJson(key: string, value: unknown): Promise<void> {
 
 export async function cacheSessions(
   mode: ReviewMode,
-  sessions: SentenceReviewSession[]
+  sessions: SentenceReviewSession[],
+  activate: boolean = false,
 ): Promise<void> {
   await withSessionCacheLock(async () => {
     const key = KEYS.sessions(mode);
@@ -155,8 +160,14 @@ export async function cacheSessions(
     // not erase durable offline material. Previously, any later cache write
     // deleted every downloaded session older than 30 minutes, which could
     // reduce a pre-flight download to a single background-prefetched session.
-    const combined = [...existing, ...newEntries].slice(-MAX_CACHED_SESSIONS);
+    const activeId = activate ? sessions[0]?.session_id : await getJson<string>(KEYS.activeSession(mode));
+    const all = [...existing, ...newEntries];
+    const active = all.find(e => e.session.session_id === activeId);
+    const combined = active
+      ? [active, ...all.filter(e => e !== active).slice(-(MAX_CACHED_SESSIONS - 1))]
+      : all.slice(-MAX_CACHED_SESSIONS);
     await setJson(key, combined);
+    if (activate && activeId) await setJson(KEYS.activeSession(mode), activeId);
   });
 }
 
@@ -164,6 +175,7 @@ export async function getCachedSession(
   mode: ReviewMode,
   allowStale: boolean = false,
   minRemaining: number = 1,
+  sessionId?: string,
 ): Promise<SentenceReviewSession | null> {
   const key = KEYS.sessions(mode);
   const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
@@ -176,6 +188,7 @@ export async function getCachedSession(
   // Prefer the newest cached session. Older partial sessions are often
   // abandoned tails after the user manually wrapped up.
   for (const entry of [...entries].reverse()) {
+    if (sessionId && entry.session.session_id !== sessionId) continue;
     // Skip stale sessions (> 30 min old) unless explicitly allowed (e.g. offline)
     if (!allowStale && entry.cached_at > 0 && now - entry.cached_at > SESSION_STALENESS_MS) {
       continue;
@@ -209,6 +222,17 @@ export async function getCachedSession(
   return null;
 }
 
+// A durable pointer distinguishes the learner's queue from speculative downloads.
+// Keep the original session identity; reviewed tracking supplies the remaining tail.
+export async function getActiveCachedSession(mode: ReviewMode): Promise<SentenceReviewSession | null> {
+  const id = await getJson<string>(KEYS.activeSession(mode));
+  return id ? getCachedSession(mode, true, 1, id) : null;
+}
+
+export async function activateCachedSession(mode: ReviewMode, session: SentenceReviewSession): Promise<void> {
+  await cacheSessions(mode, [session], true);
+}
+
 export async function dropCachedSession(
   mode: ReviewMode,
   sessionId: string,
@@ -219,6 +243,9 @@ export async function dropCachedSession(
     const entries = normalizeSessionEntries(raw);
     const filtered = entries.filter((e) => e.session.session_id !== sessionId);
     await setJson(key, filtered);
+    if (await getJson<string>(KEYS.activeSession(mode)) === sessionId) {
+      await AsyncStorage.removeItem(KEYS.activeSession(mode));
+    }
   });
 }
 
@@ -349,6 +376,9 @@ export async function pruneReviewedSet(): Promise<void> {
 
 export async function invalidateSessions(): Promise<void> {
   await AsyncStorage.multiRemove([
+    KEYS.activeSession("reading"),
+    KEYS.activeSession("listening"),
+    KEYS.activeSession("quiz"),
     KEYS.sessions("reading"),
     KEYS.sessions("listening"),
     KEYS.sessions("quiz"),
@@ -508,4 +538,12 @@ export async function getLastSessionWords(): Promise<LastSessionWordEntry[]> {
 
 export async function clearLastSessionWords(): Promise<void> {
   await AsyncStorage.removeItem(KEYS.lastSessionWords);
+}
+
+// Lessons are optional startup support: use disk now, refresh for the next queue.
+export async function getCachedGrammarLesson(key: string): Promise<GrammarLesson | null> {
+  return getJson<GrammarLesson>(KEYS.grammarLesson(key));
+}
+export async function cacheGrammarLesson(key: string, lesson: GrammarLesson): Promise<void> {
+  await setJson(KEYS.grammarLesson(key), lesson);
 }
