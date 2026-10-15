@@ -807,7 +807,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // Check only between cards; never replace a sentence the learner is reading.
   useEffect(() => {
-    if (!loading && !submittingReview && !sessionStopped && cardIndex < totalCards) maybeFireCheckpoint();
+    const done = results && results.total >= totalCards;
+    if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) maybeFireCheckpoint();
   }, [loading, submittingReview, cardIndex, sentenceSession?.session_id]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
