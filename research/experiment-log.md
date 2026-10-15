@@ -114,6 +114,28 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-10-15: Continuous practice published to web and iPhone
+
+Published source `0a0d993ce132f35067b22eab0cb90f9807a5d393` (PR #290).
+The private HTTPS reader serves this source through `/opt/alif-web/current`;
+its downloaded JS SHA-256 matches the exported release, contains the protocol-v3
+retry queue, and uses the private API configuration. Deep links and the
+`private, no-cache` response policy are verified. The previous web release
+`41b40355e0841fd28b6e0fda4d5551087726b8fb` remains available for rollback.
+Legacy Metro was restarted and its fetched bundle contains the v3 queue too.
+
+The installed iPhone preview channel has update
+`01a13f3e-e393-7ff5-8193-e23892c3193b`, group
+`fcfe3834-2ee6-4f30-bfde-b21275ac0eab`, runtime `1.0.0`.
+The publisher verifies the secure API configuration; independent checks confirm
+source commit, downloaded launch-asset SHA-256, and retry queue marker. No native
+rebuild or backend migration was needed. Pre-publication TypeScript, layout and
+secure configuration preflights pass; PR validation covered 76 focused tests
+and browser acceptance for batch continuation and the twenty-minute cold return.
+Physical-device activation and feel remain unobserved: one cold launch can download
+the update, and the following cold launch can apply it.
+
+
 ## 2026-10-15: Continuous practice and elapsed-time missing-word retries (protocol v3)
 
 User feedback: instant startup now exposes short ten-card batches as frequent stops,
