@@ -71,11 +71,10 @@ import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
 import {
-  CHECKPOINT_MAX_PER_SESSION,
   RETEST_PROTOCOL_VERSION,
   pickReadyRetest,
-  retestArm,
 } from "../lib/review/retest";
+import { loadRetests, saveRetests } from "../lib/review/retest-store";
 import {
   itemHasExactReintroTest,
   reintrosWithinVisibleWindow,
@@ -467,15 +466,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wrapUpIndex, setWrapUpIndex] = useState(0);
   const [wrapUpRevealed, setWrapUpRevealed] = useState(false);
   const [inWrapUp, setInWrapUp] = useState(false);
-  // Rapid re-exposure re-test (2026-07-25): distinguishes the mid-session
-  // checkpoint and end-of-session auto wrap-up from the manual wrap-up so
-  // analytics can split the delivery tiers via parent_card_type.
-  const [wrapUpVariant, setWrapUpVariant] = useState<"wrapup" | "wrapup_auto" | "checkpoint">("wrapup");
+  // Protocol v3: elapsed-time checks are independent of batch boundaries.
+  const [wrapUpVariant, setWrapUpVariant] = useState<"wrapup" | "checkpoint">("wrapup");
   const retestQueueRef = useRef<Array<{ lemmaId: number; failedAtMs: number; cardsSince: number }>>([]);
-  const retestTestedRef = useRef<Set<number>>(new Set());
-  const checkpointShownCountRef = useRef(0);
+  const lastCheckpointAtRef = useRef(0);
+  const checkpointBoundaryRef = useRef(0);
+  const [sessionStopped, setSessionStopped] = useState(false);
+  const continuingRef = useRef(false);
   const checkpointFetchingRef = useRef(false);
-  const autoWrapUpTriggeredRef = useRef(false);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const [storyInfoVisible, setStoryInfoVisible] = useState(false);
@@ -589,6 +587,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     (async () => {
       try {
         shownIntroLemmaIdsRef.current = await getShownIntroLemmaIds();
+        const retries = await loadRetests();
+        retestQueueRef.current = retries.queue;
+        lastCheckpointAtRef.current = retries.lastShownAtMs;
       } catch {
         shownIntroLemmaIdsRef.current = new Set();
       }
@@ -674,6 +675,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     if (target < sessionSlots.length) {
       resetSentenceCardUi();
+      checkpointBoundaryRef.current += 1;
       setCardIndex(target);
     } else {
       // All remaining slots were skippable — end the session. We must bump
@@ -787,43 +789,27 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         lemma_id: card.lemma_id,
         card_index: wrapUpIndex,
         total_cards: wrapUpCards.length,
-        detail: wrapUpVariant === "wrapup_auto" ? { variant: "wrapup_auto", v: RETEST_PROTOCOL_VERSION } : undefined,
+        detail: { v: RETEST_PROTOCOL_VERSION },
       });
     }
   }, [inWrapUp, wrapUpIndex, wrapUpCards, wrapUpVariant, sentenceSession?.session_id]);
 
-  // Tier 2: when the session completes, auto-run a wrap-up quiz for ALL failed
-  // words not already checkpointed. Since 2026-07-25 (user feedback: "marking
-  // things wrong is pointless unless I get to try again") this covers both
-  // arms — the 50/50 experiment applies only to the mid-session checkpoint.
+  // Batches are an implementation detail. Only an explicit Wrap Up stops practice.
   useEffect(() => {
-    const done = !!(results && !inWrapUp && totalCards > 0 && results.total >= totalCards);
-    if (!done || autoWrapUpTriggeredRef.current) return;
-    if (mode !== "reading" || !sentenceSession) return;
-    autoWrapUpTriggeredRef.current = true;
-    const missedTreatment: number[] = [];
-    for (const [lemmaId, outcome] of wordOutcomes) {
-      // rating-1 only (conformance v2): confused/rating-2 words belong to the
-      // exact-surface pilot and must not receive bare-recall re-tests.
-      if (!outcome.rating1) continue;
-      const cid = outcome.canonical_lemma_id ?? lemmaId;
-      if (retestTestedRef.current.has(cid)) continue;
-      if (!missedTreatment.includes(cid)) missedTreatment.push(cid);
-    }
-    if (missedTreatment.length === 0) return;
-    getWrapUpCards([], missedTreatment, sentenceSession.session_id)
-      .then(cards => {
-        if (cards.length === 0) return;
-        for (const c of cards) retestTestedRef.current.add(c.lemma_id);
-        setWrapUpCards(cards);
-        setWrapUpIndex(0);
-        setWrapUpRevealed(false);
-        setWrapUpVariant("wrapup_auto");
-        setInWrapUp(true);
-        showTime.current = Date.now();
-      })
-      .catch(() => {}); // offline → tier 3 (next-build priority) covers it
-  }, [results, inWrapUp, totalCards, mode, sentenceSession, wordOutcomes]);
+    const done = results && results.total >= totalCards && totalCards > 0;
+    if (!done || inWrapUp || sessionStopped || loading || submittingReview || continuingRef.current) return;
+    continuingRef.current = true;
+    void (async () => {
+      if (sentenceSession) await dropCachedSession(mode, sentenceSession.session_id).catch(() => {});
+      await loadSession();
+    })().finally(() => { continuingRef.current = false; });
+  }, [results, totalCards, inWrapUp, sessionStopped, loading, submittingReview, sentenceSession, mode]);
+
+  // Check only between cards; never replace a sentence the learner is reading.
+  useEffect(() => {
+    const done = results && results.total >= totalCards;
+    if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) maybeFireCheckpoint();
+  }, [loading, submittingReview, cardIndex, sentenceSession?.session_id]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {
@@ -917,6 +903,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     loadingSessionRef.current = true;
     const generation = ++sessionLoadGeneration.current;
     setLoading(true);
+    setSessionStopped(false);
+    checkpointBoundaryRef.current += 1;
     setResults(null);
     setCardIndex(0);
     setCardState(m === "listening" ? "audio" : "front");
@@ -942,11 +930,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     // in short fragments (sessions abandoned mid-way, explicitly restarted) — resetting here silently
     // discarded pending re-tests (observed
     // 2026-07-25: treatment failures in 2 consecutive fragments, 0 delivered).
-    // Entries expire by wall-clock (RETEST_EXPIRE_MS) instead.
-    retestTestedRef.current = new Set();
-    checkpointShownCountRef.current = 0;
-    checkpointFetchingRef.current = false;
-    autoWrapUpTriggeredRef.current = false;
+    // Entries expire after 24 hours of wall-clock time instead.
     setSeenLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
@@ -1608,6 +1592,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function handleGoBack() {
     if (!sentenceSession || undoing) return;
+    checkpointBoundaryRef.current += 1;
 
     // Find the previous sentence slot (skip intro slots)
     let targetIndex = cardIndex - 1;
@@ -1708,44 +1693,45 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   function enqueueRetest(lemmaId: number) {
     if (!sentenceSession) return;
-    if (retestArm(sentenceSession.session_id, lemmaId) !== "treatment") return;
-    if (retestTestedRef.current.has(lemmaId)) return;
-    if (retestQueueRef.current.some(e => e.lemmaId === lemmaId)) return;
+    // A fresh miss resets the delay even if an earlier miss was already queued.
+    retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== lemmaId);
     retestQueueRef.current.push({ lemmaId, failedAtMs: Date.now(), cardsSince: 0 });
+    persistRetests();
   }
 
-  /** Fire a mid-session checkpoint re-test when a queued failure has matured:
-   * ≥4 min AND ≥3 intervening cards (avoid the massed-practice window), not
-   * yet expired (>20 min → the word's short due-date reaches the next session
-   * build instead). Hard caps: 2 checkpoints/session, 1 per lemma. */
+  function persistRetests() {
+    saveRetests(retestQueueRef.current, lastCheckpointAtRef.current);
+  }
+
+  /** Elapsed time determines eligibility; batch length never forces a retry. */
   function maybeFireCheckpoint() {
-    if (mode !== "reading" || !sentenceSession) return;
+    if (mode !== "reading" || !sentenceSession || sessionStopped) return;
     if (inWrapUp || checkpointFetchingRef.current) return;
-    if (checkpointShownCountRef.current >= CHECKPOINT_MAX_PER_SESSION) {
-      retestQueueRef.current = [];
-      return;
-    }
     const now = Date.now();
-    const { queue, ready } = pickReadyRetest(retestQueueRef.current, now);
+    const { queue, ready } = pickReadyRetest(retestQueueRef.current, now, lastCheckpointAtRef.current);
     retestQueueRef.current = queue;
     if (!ready) return;
-    // Conformance v2: the entry stays queued (and un-"tested") until the card
-    // fetch returns a non-empty result — a network failure must not consume
-    // the learner's one re-test. Double-fire is prevented by the fetching flag.
+    // Network failures retain the retry. In-flight fetches cannot cross a
+    // card advance, mode change, explicit stop, or unmount.
     checkpointFetchingRef.current = true;
+    const generation = sessionLoadGeneration.current;
+    const boundary = checkpointBoundaryRef.current;
     const gapMs = now - ready.failedAtMs;
     getWrapUpCards([], [ready.lemmaId], sentenceSession.session_id)
       .then(cards => {
+        if (generation !== sessionLoadGeneration.current || boundary !== checkpointBoundaryRef.current) return;
         if (cards.length === 0) {
           // Endpoint filtered the lemma (suspended / function word / open
           // exact-surface episode) — retrying would return empty again. Drop
-          // the entry but leave it un-tested so tier 3 handles it normally.
+          // the entry but leave ordinary sentence scheduling intact.
           retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
+          persistRetests();
           return;
         }
-        retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== ready.lemmaId);
-        retestTestedRef.current.add(ready.lemmaId);
-        checkpointShownCountRef.current += 1;
+        // Keep the entry until answered, including if the phone closes on this check.
+        lastCheckpointAtRef.current = Date.now();
+        persistRetests();
+        showTime.current = Date.now();
         setWrapUpCards(cards);
         setWrapUpIndex(0);
         setWrapUpRevealed(false);
@@ -1755,7 +1741,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           card_type: "checkpoint",
           session_id: sentenceSession.session_id,
           lemma_id: ready.lemmaId,
-          detail: { arm: "treatment", gap_ms: gapMs, cards_since: ready.cardsSince, v: RETEST_PROTOCOL_VERSION },
+          detail: { arm: "all", gap_ms: gapMs, cards_since: ready.cardsSince, v: RETEST_PROTOCOL_VERSION },
         });
       })
       .catch(() => {}) // network error — entry stays queued; retried on a later advance until expiry
@@ -1765,6 +1751,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function advanceAfterSubmit(signal: ComprehensionSignal) {
+    checkpointBoundaryRef.current += 1;
     lookupRequestRef.current += 1;
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
@@ -1789,12 +1776,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       resetSentenceCardUi();
       setCardIndex(nextCardIndex);
       for (const e of retestQueueRef.current) e.cardsSince += 1;
-      maybeFireCheckpoint();
+      persistRetests();
     }
   }
 
   async function handleSubmit(signal: ComprehensionSignal) {
     if (submittingReview) return;
+    checkpointBoundaryRef.current += 1;
     setSubmittingReview(true);
     try {
       await handleSentenceSubmit(signal);
@@ -1804,7 +1792,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   async function handleWrapUp() {
-    if (seenLemmaIds.size === 0) return;
+    checkpointBoundaryRef.current += 1;
+    setSessionStopped(true);
+    if (seenLemmaIds.size === 0) {
+      setResults({ total: totalCards, gotIt: 0, missed: 0, noIdea: 0 });
+      return;
+    }
     // Collect lemma IDs of words the user missed (failed=true in wordOutcomes)
     const missedIds: number[] = [];
     for (const [lemmaId, outcome] of wordOutcomes) {
@@ -1836,10 +1829,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function handleWrapUpAnswer(gotIt: boolean) {
     const card = wrapUpCards[wrapUpIndex];
-    // A quizzed lemma is done for this session — the re-test cap is 1/lemma
-    // regardless of which tier (checkpoint / auto / manual) delivered it.
-    retestTestedRef.current.add(card.lemma_id);
+    // Consume on answer; another miss starts a fresh four-minute delay.
     retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== card.lemma_id);
+    if (!gotIt) enqueueRetest(card.lemma_id);
+    persistRetests();
     // Submit as acquisition review
     try {
       await submitSentenceReview({
@@ -1873,6 +1866,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function advanceState() {
+    checkpointBoundaryRef.current += 1;
     if (mode === "listening") {
       if (cardState === "audio") setCardState("arabic");
       else if (cardState === "arabic") setCardState("answer");
@@ -2123,7 +2117,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // Session complete takes priority over loading — prevents flash-and-disappear
   // when background sync triggers a reload
-  if (isSessionDone) {
+  if (isSessionDone && sessionStopped) {
     return (
       <SessionComplete
         results={results}
@@ -2144,7 +2138,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  if (loading) {
+  if (loading || isSessionDone) {
     return (
       <View style={styles.centeredContainer}>
         <ActivityIndicator size="large" color={colors.accent} />

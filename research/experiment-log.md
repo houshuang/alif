@@ -114,6 +114,24 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-10-15: Continuous practice and elapsed-time missing-word retries (protocol v3)
+
+User feedback: instant startup now exposes short ten-card batches as frequent stops,
+and immediate automatic wrap-up defeats spacing. Practice should continue until
+the learner stops; missing-word checks should return soon after a twenty-minute
+break even with few intervening cards.
+
+Replace automatic end-of-batch wrap-up with cache-backed continuation. Explicit
+Wrap Up remains available. All rating-1 misses enter a persisted queue (retiring
+the 50/50 assignment); eligibility is four elapsed minutes, with a 24-hour stale
+cutoff rather than twenty minutes. No minimum card count or per-session cap.
+Only show a check at a sentence boundary or initial session load, one at a time;
+space successive checks by one minute of wall-clock time. Failed checks are
+queued afresh with the same four-minute delay. Network failures retain entries.
+Existing quiz credit guards and exact-surface exclusion remain authoritative.
+
+
+
 
 ## 2026-10-12 — Immediate review resume published to web and iPhone
 
