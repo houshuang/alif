@@ -2313,22 +2313,25 @@ massed-practice inflation.
 (word + transliteration front; gloss/root/wazn/forms/hook back; Got it / Missed →
 real review with `review_mode="quiz"`, `sentence_id: null`). It now excludes
 function words, proper names, and lemmas with an open exact-surface pilot episode.
-Since 2026-07-25 it is delivered three ways (the **rapid re-exposure experiment**,
-treatment arm = deterministic hash of `session_id:lemma_id`, see experiment-log):
+Since 2026-10-15 (protocol v3), delivery follows elapsed time:
 
-1. **Mid-session checkpoint** ("Quick check", treatment arm only): a rating-1 failure
-   queues a re-test; after ≥4 min AND ≥3 cards (expires at 20 min) the card renders
-   as an out-of-band phase. Caps: 3/session, 1/lemma/session; a failed re-test drops
-   the lemma for the session. The queue **persists across session fragments/swaps**
-   (wall-clock expiry only) and an entry is consumed **only by a successful non-empty
-   card fetch** — network errors leave it queued for retry (conformance v2). Pure
-   queue logic lives in `frontend/lib/review/retest.ts` (`pickReadyRetest`, `retestArm`,
-   `RETEST_PROTOCOL_VERSION`). Client-side only — no session-build involvement.
-2. **Auto wrap-up** (both arms — product policy, not a treatment, per same-day
-   amendment): at session completion the quiz auto-runs for ALL **rating-1** lemmas
-   not already checkpointed (`parent_card_type="wrapup_auto"`). Rating-2/confused
-   words are excluded (exact-surface pilot population; conformance v2).
-3. **Manual wrap-up**: unchanged action-menu button.
+1. **Interleaved Quick check:** every rating-1 miss queues one pending retry.
+   It becomes eligible after four minutes, regardless of intervening card count
+   or session boundaries. One check is served at a card boundary or initial load;
+   successive checks are separated by at least one minute. Nothing interrupts
+   a card after the learner reveals its answer. Failed checks restart the four-minute
+   delay. There is no per-session cap or random control arm.
+2. **Persistent queue:** AsyncStorage retains pending retries and the last-check
+   timestamp across cold starts. A twenty-minute absence keeps retries eligible;
+   only entries older than 24 hours expire back to ordinary SRS. Network failures
+   keep entries, and successful fetches retain them until answered. Endpoint
+   exclusions still apply. Pure timing: `frontend/lib/review/retest.ts`; persistence:
+   `frontend/lib/review/retest-store.ts`.
+3. **Continuous practice:** the frontend still fetches ten-card batches to keep
+   startup fast, but a finished batch automatically consumes the next cached/fresh
+   batch. No automatic wrap-up or completion screen. Empty supply stops normally.
+   Explicit **Wrap Up** still ends practice and offers the manual quiz/results.
+   Rating-2/confused words remain outside this rating-1 retry queue.
 
 **Credit guard** (`RETEST_CREDIT_GAP = 30 min`, `acquisition_service.py`): a quiz-mode
 success within the gap of a rating-1 review clears the 5-min retry due-date to the box

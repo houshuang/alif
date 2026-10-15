@@ -79,6 +79,8 @@ controls with a fixed passage-navigation bar; edition-one bookmarks/outbox event
 migrate without losing history. The transient Arabic root screen is launch-gated so restoration cannot build a
 review session. See `docs/parallel-reading.md` for content, persistence and limits.
 
+Sentence review continues automatically across ten-card batches (2026-10-15). Missing-word Quick checks use elapsed time, persist across app restarts, and never run automatically at a batch ending. See `docs/scheduling-system.md` §19.4 for protocol v3.
+
 ## Review Modes
 Sentence review keeps the progress header focused on review controls; it has no passage-reading link or reading prompt.
 Supported chapter reading (`/read`) preserves its no-review-credit behavior, with temporary vocabulary reminders and optional voice/text feedback. Under automatic attention v2, repeated uniquely resolved word help in distinct paragraphs can inform later maintenance eligibility. See `docs/supported-reading-chapters.md`; do not route its help/completion through review-credit APIs.
