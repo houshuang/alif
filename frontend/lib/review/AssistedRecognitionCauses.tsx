@@ -10,12 +10,16 @@ const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
 ];
 
 export function AssistedRecognitionCauses({
+  otherWordSurface,
   rating,
   selected,
   missingTashkeelApplicable,
   onToggle,
   children,
 }: {
+  /** Set when the chips describe a marked word other than the one in the
+   *  word panel above, so the row names the word it applies to. */
+  otherWordSurface: string | null;
   rating: 1 | 2;
   selected: readonly WordFailureCause[];
   missingTashkeelApplicable: boolean;
@@ -35,6 +39,11 @@ export function AssistedRecognitionCauses({
   return (
     <View style={styles.container}>
       <View style={styles.row}>
+        {otherWordSurface ? (
+          <Text style={[styles.arabic, { color: accent }]} numberOfLines={1}>
+            {otherWordSurface}
+          </Text>
+        ) : null}
         <Text style={[styles.label, { color: accent }]}>Why?</Text>
         {causes.map((cause) => {
           const active = selected.includes(cause.value);
@@ -77,6 +86,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+  },
+  arabic: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 18,
+    maxWidth: 90,
   },
   label: {
     fontFamily: fontFamily.translitRegular,

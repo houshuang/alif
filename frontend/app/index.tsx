@@ -3241,6 +3241,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         && assistedWord != null
         && (
           <AssistedRecognitionCauses
+            otherWordSurface={
+              activeAssistedRecognitionIndex !== focusedReviewWordIndex
+                ? assistedWord.surface_form
+                : null
+            }
             rating={missedIndices.has(activeAssistedRecognitionIndex) ? 1 : 2}
             selected={
               failureCausesByIndex[activeAssistedRecognitionIndex] ?? []
