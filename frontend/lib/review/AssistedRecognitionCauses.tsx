@@ -4,28 +4,24 @@ import { WordFailureCause } from "../types";
 import { colors, fontFamily } from "../theme";
 
 const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
-  { value: "retrieval_lapse", label: "Just forgot" },
-  { value: "mixed_up", label: "Mixed it up" },
-  { value: "unfamiliar_form", label: "Unfamiliar form" },
+  { value: "retrieval_lapse", label: "Forgot" },
+  { value: "mixed_up", label: "Mixed up" },
+  { value: "unfamiliar_form", label: "New form" },
 ];
 
 export function AssistedRecognitionCauses({
-  surfaceForm,
-  assistedWordCount,
   rating,
   selected,
   missingTashkeelApplicable,
   onToggle,
   children,
 }: {
-  surfaceForm: string;
-  assistedWordCount: number;
   rating: 1 | 2;
   selected: readonly WordFailureCause[];
   missingTashkeelApplicable: boolean;
   onToggle: (cause: WordFailureCause) => void;
-  /** Rendered inside the panel, below the chips — the review screen uses this
-   *  for the confusion picker once "Mixed it up" is selected. */
+  /** Rendered below the chips — the review screen uses this for the
+   *  confusion picker once "Mixed up" is selected. */
   children?: React.ReactNode;
 }) {
   const causes = missingTashkeelApplicable
@@ -34,18 +30,12 @@ export function AssistedRecognitionCauses({
         { value: "missing_tashkeel" as const, label: "No tashkeel" },
       ]
     : BASE_CAUSES;
+  const accent = rating === 1 ? colors.missed : colors.confused;
 
   return (
     <View style={styles.container}>
-      <View style={styles.heading}>
-        <Text style={styles.arabic}>{surfaceForm}</Text>
-        <Text style={styles.prompt} numberOfLines={1}>
-          {rating === 1
-            ? "What made this form hard? (optional)"
-            : "Knew it after reveal — why? (optional)"}
-        </Text>
-      </View>
-      <View style={styles.chips}>
+      <View style={styles.row}>
+        <Text style={[styles.label, { color: accent }]}>Why?</Text>
         {causes.map((cause) => {
           const active = selected.includes(cause.value);
           return (
@@ -54,9 +44,15 @@ export function AssistedRecognitionCauses({
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => onToggle(cause.value)}
-              style={[styles.chip, active && styles.chipActive]}
+              style={[
+                styles.chip,
+                active && { borderColor: accent, backgroundColor: `${accent}29` },
+              ]}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              <Text
+                style={[styles.chipText, active && { color: accent, fontWeight: "700" }]}
+                numberOfLines={1}
+              >
                 {cause.label}
               </Text>
             </Pressable>
@@ -64,76 +60,44 @@ export function AssistedRecognitionCauses({
         })}
       </View>
       {children}
-      {assistedWordCount > 1 && (
-        <Text style={styles.detail}>
-          Use the word arrows to switch between yellow words.
-        </Text>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 6,
-    marginHorizontal: 2,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(243, 156, 18, 0.55)",
-    backgroundColor: "rgba(243, 156, 18, 0.12)",
+    width: "100%",
+    maxWidth: 500,
+    alignSelf: "center",
+    marginTop: -2,
+    marginBottom: 2,
+    paddingHorizontal: 2,
   },
-  heading: {
+  row: {
     flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-    marginBottom: 6,
+    alignItems: "center",
+    gap: 5,
   },
-  arabic: {
-    color: colors.confused,
-    fontFamily: fontFamily.arabic,
-    fontSize: 19,
-    fontWeight: "700",
-  },
-  prompt: {
-    color: colors.text,
+  label: {
     fontFamily: fontFamily.translitRegular,
     fontSize: 12,
     fontWeight: "600",
-    flexShrink: 1,
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
+    marginRight: 2,
   },
   chip: {
+    flex: 1,
+    alignItems: "center",
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-  },
-  chipActive: {
-    borderColor: colors.confused,
-    backgroundColor: "rgba(243, 156, 18, 0.16)",
+    backgroundColor: colors.surfaceLight,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   chipText: {
-    color: colors.textSecondary,
+    color: "#c8c8d8",
     fontFamily: fontFamily.translitRegular,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "500",
-  },
-  chipTextActive: {
-    color: colors.confused,
-    fontWeight: "700",
-  },
-  detail: {
-    color: colors.textSecondary,
-    fontFamily: fontFamily.translitRegular,
-    fontSize: 10,
-    marginTop: 6,
   },
 });
