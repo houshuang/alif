@@ -114,6 +114,26 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-10-30: Compact word panel after reveal (UI; cause-capture and confusion-help logging shift)
+
+**Why.** After marking a word and revealing the translation, the word panel and
+the cause box below it took most of the phone screen, so the Arabic sentence and
+its translation scrolled out of view. The learner could not keep reading while
+looking at the word.
+
+**Change.** `WordInfoCard` became a header plus one-line labelled rows (parts,
+forms, pattern, root family, note); full etymology and memory hooks moved to the
+word page only. The cause prompt became a single `Why?` row with shorter labels
+(`Forgot`, `Mixed up`, `New form`, `No tashkeel`); the stored cause values are
+unchanged. The review screen now also requests `/confusion-help` for red words
+so their panel shows the clitic breakdown.
+
+**Data discontinuities.** (1) Cause-selection rates may shift with the new
+prompt wording and placement; compare causes per assisted word before and after
+this date rather than pooling. (2) `confusion_help` interaction events now also
+fire for red (rating-1) marks; filter to yellow marks when comparing with
+earlier confusion-help volumes. No scheduling or evidence logic changed.
+
 ## 2026-10-15: Continuous practice published to web and iPhone
 
 Published source `0a0d993ce132f35067b22eab0cb90f9807a5d393` (PR #290).

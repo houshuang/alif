@@ -3,11 +3,11 @@ import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, Style
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily, ltr } from "../theme";
 import { WordLookupResult, ConfusionAnalysis } from "../types";
-import { getFrequencyBand, getCefrColor } from "../frequency";
+import { getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
-import { FormsStrip } from "../WordCardComponents";
 import { bareArabicForm, bestVocalizedDisplayForm, stripArabicDiacritics } from "../arabic-display";
 import { showMnemonic } from "../feature-flags";
+import { UNTRUSTED_FORM_KEYS, sliceSurface } from "./surface-parts";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -126,35 +126,6 @@ function bareForm(text: string): string {
   return bareArabicForm(text);
 }
 
-const FORM_LABELS: Record<string, string> = {
-  plural: "plural",
-  feminine: "fem.",
-  elative: "comparative",
-  present: "present",
-  masdar: "verbal noun",
-  active_participle: "active part.",
-  passive_participle: "passive part.",
-  imperative: "imperative",
-  past_3fs: "past fem.",
-  past_3p: "past pl.",
-};
-
-function getFormLabel(
-  surfaceForm: string | null,
-  lemmaAr: string | null,
-  forms: import("../types").WordForms | null,
-): string | null {
-  if (!surfaceForm || !lemmaAr || !forms) return null;
-  const surfBare = bareForm(surfaceForm);
-  const lemmaBare = bareForm(lemmaAr);
-  if (surfBare === lemmaBare) return null; // same as lemma, no label needed
-  for (const [key, value] of Object.entries(forms)) {
-    if (!value || typeof value !== "string") continue;
-    if (bareForm(value) === surfBare) return FORM_LABELS[key] ?? key;
-  }
-  return null;
-}
-
 export default function WordInfoCard({
   loading,
   surfaceForm,
@@ -223,31 +194,34 @@ export default function WordInfoCard({
     return reserveSpace ? <View style={styles.spacer} /> : null;
   }
 
+  const nav = showNav ? (
+    <View style={styles.navRow}>
+      <Pressable
+        onPress={onPrev}
+        disabled={!hasPrev}
+        hitSlop={12}
+        style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
+      >
+        <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.textSecondary : colors.border} />
+      </Pressable>
+      <Pressable
+        onPress={onNext}
+        disabled={!hasNext}
+        hitSlop={12}
+        style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
+      >
+        <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.textSecondary : colors.border} />
+      </Pressable>
+    </View>
+  ) : null;
+  const yellow = markState === "did_not_recognize";
+
   return (
     <Animated.View
       style={[styles.card, { transform: [{ translateX }] }]}
       {...(showNav ? panResponder.panHandlers : {})}
     >
-      {showNav && (
-        <View style={styles.navRow}>
-          <Pressable
-            onPress={onPrev}
-            disabled={!hasPrev}
-            hitSlop={16}
-            style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
-          >
-            <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.textSecondary : colors.border} />
-          </Pressable>
-          <Pressable
-            onPress={onNext}
-            disabled={!hasNext}
-            hitSlop={16}
-            style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
-          >
-            <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.textSecondary : colors.border} />
-          </Pressable>
-        </View>
-      )}
+      {loading || particleInfo ? <View style={styles.navFloat}>{nav}</View> : null}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color={colors.accent} />
@@ -255,18 +229,20 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+        <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={true} nestedScrollEnabled>
           <RevealedView
             result={result}
             surfaceForm={surfaceForm}
+            markState={markState}
             onNavigateToDetail={onNavigateToDetail}
             onNavigateToPattern={onNavigateToPattern}
             onNavigateToRoot={onNavigateToRoot}
             surfaceTranslit={surfaceTranslit}
-            confusionData={markState === "did_not_recognize" ? confusionData : null}
-            onPickConfusion={markState === "did_not_recognize" ? onPickConfusion : undefined}
-            pickedConfusionLemmaId={markState === "did_not_recognize" ? pickedConfusionLemmaId ?? null : null}
-            showConfusionCandidates={showConfusionCandidates}
+            confusionData={confusionData}
+            onPickConfusion={yellow ? onPickConfusion : undefined}
+            pickedConfusionLemmaId={yellow ? pickedConfusionLemmaId ?? null : null}
+            showConfusionCandidates={yellow && showConfusionCandidates}
+            nav={nav}
           />
         </ScrollView>
       )}
@@ -299,9 +275,78 @@ function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
 }
 
 
+const FORM_CHIP_LABELS: Record<string, string> = {
+  plural: "pl",
+  feminine: "f",
+  elative: "more",
+  present: "pres",
+  masdar: "noun",
+  active_participle: "doer",
+  passive_participle: "done",
+  imperative: "imp",
+};
+
+const FORM_CHIP_ORDER: Record<string, string[]> = {
+  verb: ["present", "masdar", "active_participle"],
+  noun: ["plural", "feminine"],
+  adj: ["feminine", "plural", "elative"],
+  adjective: ["feminine", "plural", "elative"],
+};
+
+function lemmaChipLabel(pos: string | null): string {
+  const p = (pos || "").toLowerCase();
+  if (p === "verb") return "past";
+  if (p === "adj" || p === "adjective") return "m";
+  return "sg";
+}
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+/** Verb wazn is stored as "form_5"; show it the way grammars do ("Form V"). */
+function patternLabel(wazn: string): string {
+  const m = /^form_(\d+)$/i.exec(wazn.trim());
+  return m ? `Form ${ROMAN[Number(m[1])] ?? m[1]}` : wazn;
+}
+
+function shortGloss(gloss: string | null | undefined): string {
+  return (gloss ?? "").split(/[,;]/)[0].trim();
+}
+
+const FAMILY_DOT: Record<string, string> = {
+  known: colors.gotIt,
+  learning: colors.stateLearning,
+  acquiring: colors.stateLearning,
+  lapsed: colors.stateLearning,
+};
+
+function familyRank(state: string): number {
+  if (state === "known") return 0;
+  if (FAMILY_DOT[state]) return 1;
+  return 2;
+}
+
+function PanelRow({ label, children, onPress }: { label: React.ReactNode; children: React.ReactNode; onPress?: () => void }) {
+  const body = (
+    <>
+      <View style={rowStyles.labelCol}>
+        {typeof label === "string" ? <Text style={rowStyles.label} numberOfLines={1}>{label}</Text> : label}
+      </View>
+      <View style={rowStyles.value}>{children}</View>
+    </>
+  );
+  return onPress ? (
+    <Pressable onPress={onPress} style={({ pressed }) => [rowStyles.row, pressed && { opacity: 0.6 }]}>
+      {body}
+    </Pressable>
+  ) : (
+    <View style={rowStyles.row}>{body}</View>
+  );
+}
+
 function RevealedView({
   result,
   surfaceForm,
+  markState,
   onNavigateToDetail,
   onNavigateToPattern,
   onNavigateToRoot,
@@ -310,9 +355,11 @@ function RevealedView({
   onPickConfusion,
   pickedConfusionLemmaId,
   showConfusionCandidates = true,
+  nav,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
+  markState: FocusWordMark | null;
   onNavigateToDetail?: (lemmaId: number) => void;
   onNavigateToPattern?: (wazn: string) => void;
   onNavigateToRoot?: (rootId: number) => void;
@@ -321,97 +368,214 @@ function RevealedView({
   onPickConfusion?: (lemmaId: number) => void;
   pickedConfusionLemmaId?: number | null;
   showConfusionCandidates?: boolean;
+  nav?: React.ReactNode;
 }) {
   if (!result) return null;
 
+  // The headword is the dictionary form: borrow the sentence's vowels only
+  // when the sentence shows that same form.
+  const surfaceIsLemma = !!surfaceForm && bareForm(surfaceForm) === bareForm(result.lemma_ar);
   const displayForm = bestVocalizedDisplayForm({
     lemmaAr: result.lemma_ar,
     lemmaTransliteration: result.transliteration,
-    surfaceForm,
-    surfaceTranslit,
+    surfaceForm: surfaceIsLemma ? surfaceForm : null,
+    surfaceTranslit: surfaceIsLemma ? surfaceTranslit : null,
     forms: result.forms_json,
     formsTranslit: result.forms_translit,
   });
-  const lemmaAr = displayForm.arabic;
-  const displayTranslit = displayForm.transliteration;
+  const lemmaAr = displayForm.arabic || result.lemma_ar;
+  const lemmaTranslit = displayForm.transliteration || result.transliteration;
   const posLabel = result.pos ? result.pos.replace(/_/g, " ") : null;
-  const formLabel = getFormLabel(surfaceForm ?? null, result.lemma_ar?.trim() || lemmaAr, result.forms_json ?? null);
+  const markColor = markState === "missed" ? colors.missed : colors.confused;
 
-  // Known/learning siblings only, deduplicate by gloss overlap
-  const knownSiblings = result.root_family.filter((s) => {
-    if (s.lemma_id === result.lemma_id) return false;
-    if (s.state !== "known" && s.state !== "learning") return false;
-    if (glossesOverlap(s.gloss_en, result.gloss_en)) return false;
-    return true;
-  });
+  // Analysis arrives asynchronously; ignore one that belongs to another tapped word.
+  const analysis = confusionData && confusionData.surface_form === surfaceForm ? confusionData : null;
+  const decomp = analysis?.decomposition ?? null;
+  const prefixHint = analysis?.prefix_hint;
+  const morphExplanation = analysis?.morphology?.explanation ?? null;
+  const similarWords = showConfusionCandidates ? analysis?.similar_words : null;
+  const phoneticSimilar = showConfusionCandidates ? analysis?.phonetic_similar : null;
 
-  const decomp = confusionData?.decomposition;
-  const morphExplanation = confusionData?.morphology?.explanation;
-  const similarWords = showConfusionCandidates ? confusionData?.similar_words : null;
-  const phoneticSimilar = showConfusionCandidates ? confusionData?.phonetic_similar : null;
-  const prefixHint = confusionData?.prefix_hint;
+  // Which form of the lemma appears in the sentence: the decomposition's match
+  // when there are clitics, otherwise a bare comparison against forms_json.
+  const forms = (result.forms_json ?? {}) as Record<string, string | undefined>;
+  const decompKey = decomp?.matched_form_key ?? null;
+  const trustedDecompKey = decompKey && !UNTRUSTED_FORM_KEYS.has(decompKey) ? decompKey : null;
+  // "lemma" = dictionary form; null = the sentence form is not among the chips.
+  let currentFormKey: string | null = decomp ? (decompKey ? trustedDecompKey : "lemma") : null;
+  if (!decomp && surfaceForm) {
+    const surfBare = bareForm(surfaceForm);
+    if (surfBare === bareForm(result.lemma_ar)) currentFormKey = "lemma";
+    for (const [key, value] of Object.entries(forms)) {
+      if (typeof value === "string" && FORM_CHIP_LABELS[key] && bareForm(value) === surfBare) {
+        currentFormKey = key;
+        break;
+      }
+    }
+  }
+  const formChips: { key: string; ar: string; tr: string | null; label: string }[] = [
+    { key: "lemma", ar: lemmaAr, tr: lemmaTranslit, label: lemmaChipLabel(result.pos) },
+  ];
+  const order = FORM_CHIP_ORDER[(result.pos || "").toLowerCase()] ?? ["plural", "feminine"];
+  for (const key of order) {
+    const val = forms[key];
+    if (typeof val === "string" && val) {
+      formChips.push({ key, ar: val, tr: result.forms_translit?.[key] ?? null, label: FORM_CHIP_LABELS[key] });
+    }
+  }
+  const hasFormMatch = currentFormKey != null && formChips.some((c) => c.key === currentFormKey);
+  const activeChip = hasFormMatch ? currentFormKey : null;
+
+  const parts: { ar: string; en: string }[] = [];
+  if (decomp && surfaceForm && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0)) {
+    const sliced = sliceSurface(
+      surfaceForm,
+      decomp.prefix_clitics.map((c) => c.text),
+      decomp.suffix_clitics.map((c) => c.text),
+    );
+    if (sliced) {
+      decomp.prefix_clitics.forEach((c, i) => parts.push({ ar: sliced.prefixes[i], en: c.label }));
+      const stemLabel = trustedDecompKey ? decomp.matched_form_label : shortGloss(result.gloss_en);
+      parts.push({ ar: sliced.stem, en: stemLabel });
+      decomp.suffix_clitics.forEach((c, i) => parts.push({ ar: `\u0640${sliced.suffixes[i]}`, en: c.label }));
+    }
+  }
+  const partsText = parts.length === 0
+    ? (prefixHint && !prefixHint.is_prefix ? prefixHint.hint_text : !hasFormMatch ? morphExplanation : null)
+    : null;
+
+  const patternExamples = (result.pattern_examples ?? [])
+    .filter((e) => e.lemma_id !== result.lemma_id && e.knowledge_state === "known")
+    .slice(0, 2);
+
+  const family = result.root_family
+    .filter((s) => s.lemma_id !== result.lemma_id && !glossesOverlap(s.gloss_en, result.gloss_en))
+    .sort((a, b) => familyRank(a.state) - familyRank(b.state))
+    .slice(0, 5);
+
+  const note = showMnemonic(result.memory_hooks_json)
+    ? result.memory_hooks_json!.mnemonic!
+    : result.etymology_json?.derivation ?? null;
 
   return (
-    <View style={styles.revealedWrap}>
-      {/* Combined: meaning + lemma + POS */}
-      <View style={styles.headRow}>
-        {result.gloss_en && (
-          <Text style={styles.glossText}>{result.gloss_en}</Text>
-        )}
-        {lemmaAr && (
-          <Text style={styles.lemmaAr}>{lemmaAr}</Text>
-        )}
-        {displayTranslit && (
-          <Text style={styles.translitText}>{displayTranslit}</Text>
-        )}
-        {posLabel && (
-          <View style={styles.posPill}>
-            <Text style={styles.posText}>{posLabel}</Text>
-          </View>
-        )}
-        {formLabel && (
-          <>
-            <View style={styles.formPill}>
-              <Text style={styles.formPillText}>{formLabel}</Text>
-            </View>
-            {surfaceTranslit && surfaceTranslit !== displayTranslit && (
-              <Text style={styles.surfaceTranslitText}>{surfaceTranslit}</Text>
-            )}
-          </>
-        )}
-        {result.word_category && (
-          <View style={[styles.posPill, { backgroundColor: "rgba(243, 156, 18, 0.2)" }]}>
-            <Text style={[styles.posText, { color: colors.confused }]}>
-              {result.word_category === "proper_name" ? "Name" : "Sound"}
+    <View>
+      <View style={rowStyles.head}>
+        <Pressable
+          onPress={onNavigateToDetail ? () => onNavigateToDetail(result.lemma_id) : undefined}
+          style={rowStyles.headMain}
+          accessibilityRole={onNavigateToDetail ? "link" : undefined}
+        >
+          <Text style={rowStyles.lemma}>{lemmaAr}</Text>
+          <View style={rowStyles.headText}>
+            <Text style={rowStyles.gloss} numberOfLines={1}>{result.gloss_en ?? "?"}</Text>
+            <Text style={rowStyles.meta} numberOfLines={1}>
+              {lemmaTranslit ? <Text style={rowStyles.metaTranslit}>{lemmaTranslit}</Text> : null}
+              {posLabel ? ` · ${posLabel}` : ""}
+              {result.word_category ? ` · ${result.word_category === "proper_name" ? "name" : "sound"}` : ""}
+              {result.cefr_level ? (
+                <Text style={{ color: getCefrColor(result.cefr_level), fontWeight: "700" }}>
+                  {` · ${result.cefr_level.toUpperCase()}`}
+                </Text>
+              ) : null}
             </Text>
           </View>
-        )}
-        {result.cefr_level && (
-          <View style={[styles.posPill, { backgroundColor: getCefrColor(result.cefr_level) }]}>
-            <Text style={[styles.posText, { color: "#fff", fontWeight: "700" }]}>{result.cefr_level}</Text>
-          </View>
-        )}
-        {result.frequency_rank != null && (
-          <Text style={{ color: getFrequencyBand(result.frequency_rank).color, fontSize: 10 }}>
-            #{result.frequency_rank}
-          </Text>
-        )}
+        </Pressable>
+        {nav}
       </View>
 
-      {/* Confusion analysis — prefix disambiguation */}
-      {prefixHint && (
-        <View style={[styles.prefixHintSection, prefixHint.is_prefix && styles.prefixHintIsPrefix]}>
-          <View style={styles.prefixHintRow}>
-            <Text style={styles.prefixHintLetter}>{prefixHint.letter}</Text>
-            <Text style={styles.prefixHintLabel}>
-              {prefixHint.is_prefix ? `= "${prefixHint.letter === "و" ? "and" : prefixHint.letter === "ف" ? "so/then" : prefixHint.letter === "ب" ? "with/by" : prefixHint.letter === "ل" ? "for/to" : "like/as"}" prefix` : "= part of the root"}
-            </Text>
-            {prefixHint.root_ar && !prefixHint.is_prefix && (
-              <Text style={styles.prefixHintRoot}>{prefixHint.root_ar}</Text>
-            )}
+      {parts.length > 0 && (
+        <PanelRow label="parts">
+          <View style={rowStyles.partsRow}>
+            {parts.map((p, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <Text style={rowStyles.plus}>+</Text>}
+                <View style={rowStyles.part}>
+                  <Text style={[rowStyles.partAr, { color: markColor }]}>{p.ar}</Text>
+                  <Text style={rowStyles.partEn} numberOfLines={1}>{p.en}</Text>
+                </View>
+              </React.Fragment>
+            ))}
           </View>
-          <Text style={styles.prefixHintText}>{prefixHint.hint_text}</Text>
-        </View>
+        </PanelRow>
+      )}
+      {partsText && (
+        <PanelRow label="form">
+          <Text style={rowStyles.text}>{ltr(partsText)}</Text>
+        </PanelRow>
+      )}
+
+      {formChips.length > 1 && (
+        <PanelRow label="forms">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rowStyles.chips}>
+            {formChips.map((c) => {
+              const active = c.key === activeChip;
+              return (
+                <View key={c.key} style={[rowStyles.chip, active && rowStyles.chipActive]}>
+                  <View style={rowStyles.chipCap}>
+                    {c.tr ? <Text style={rowStyles.chipTr} numberOfLines={1}>{c.tr}</Text> : null}
+                    <Text style={[rowStyles.chipLabel, active && rowStyles.chipLabelActive]}>{c.label}</Text>
+                  </View>
+                  <Text style={rowStyles.chipAr}>{c.ar}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </PanelRow>
+      )}
+
+      {result.wazn && !/^form_1$/i.test(result.wazn) && (
+        <PanelRow
+          label="pattern"
+          onPress={onNavigateToPattern ? () => onNavigateToPattern(result.wazn!) : undefined}
+        >
+          <Text style={rowStyles.text}>
+            {/^form_\d+$/i.test(result.wazn) ? (
+              <Text style={rowStyles.waznLatin}>{patternLabel(result.wazn)}</Text>
+            ) : (
+              <Text style={rowStyles.wazn}>{result.wazn}</Text>
+            )}
+            {result.wazn_meaning ? `  ${result.wazn_meaning}` : ""}
+            {patternExamples.length > 0 ? "  · like " : ""}
+            {patternExamples.map((e, i) => (
+              <Text key={e.lemma_id}>
+                {i > 0 ? ", " : ""}
+                <Text style={rowStyles.inlineAr}>{e.lemma_ar}</Text>
+              </Text>
+            ))}
+          </Text>
+        </PanelRow>
+      )}
+
+      {result.root && (
+        <PanelRow label="root">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rowStyles.family}>
+            <Pressable
+              onPress={onNavigateToRoot && result.root_id ? () => onNavigateToRoot(result.root_id!) : undefined}
+              style={rowStyles.rootKey}
+            >
+              <Text style={rowStyles.rootLetters}>{result.root}</Text>
+              {result.root_meaning ? <Text style={rowStyles.rootMeaning}>{result.root_meaning}</Text> : null}
+            </Pressable>
+            {family.length > 0 && <View style={rowStyles.sep} />}
+            {family.map((s) => (
+              <Pressable
+                key={s.lemma_id}
+                onPress={onNavigateToDetail ? () => onNavigateToDetail(s.lemma_id) : undefined}
+                style={rowStyles.sibling}
+              >
+                <View style={[rowStyles.dot, { backgroundColor: FAMILY_DOT[s.state] ?? colors.stateEncountered }]} />
+                <Text style={rowStyles.siblingAr}>{s.lemma_ar}</Text>
+                <Text style={rowStyles.siblingEn}>{shortGloss(s.gloss_en) || "?"}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </PanelRow>
+      )}
+
+      {note && (
+        <PanelRow label={<Ionicons name="bulb-outline" size={13} color="#c9a54a" />}>
+          <Text style={[rowStyles.text, rowStyles.note]} numberOfLines={3}>{ltr(note)}</Text>
+        </PanelRow>
       )}
 
       {/* Confusion analysis — similar words (inline highlighting) */}
@@ -537,177 +701,6 @@ function RevealedView({
         </View>
       )}
 
-      {/* Confusion analysis — morphological decomposition (color bands) */}
-      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0 || decomp.matched_form_key) && (() => {
-        const MORPH_COLORS = ["#9b59b6", "#e67e22", colors.accent, "#2ecc71"];
-        const pieces: { text: string; label: string; color: string }[] = [];
-        let ci = 0;
-        for (const c of decomp.prefix_clitics) {
-          pieces.push({ text: c.text, label: c.label, color: MORPH_COLORS[ci % MORPH_COLORS.length] });
-          ci++;
-        }
-        pieces.push({ text: decomp.stem, label: decomp.matched_form_label, color: colors.accent });
-        ci = MORPH_COLORS.length - 1;
-        for (const c of decomp.suffix_clitics) {
-          pieces.push({ text: c.text, label: c.label, color: MORPH_COLORS[ci % MORPH_COLORS.length] });
-          ci--;
-        }
-        return (
-          <View style={styles.decompSection}>
-            <Text style={styles.decompColorWord}>
-              {pieces.map((p, i) => (
-                <Text key={i} style={[cfStyles.highlightedChar, { color: p.color, fontFamily: fontFamily.arabic, fontSize: 20 }]}>
-                  {p.text}
-                </Text>
-              ))}
-            </Text>
-            <View style={styles.decompLegend}>
-              {pieces.map((p, i) => (
-                <View key={i} style={styles.decompLegendItem}>
-                  <View style={[styles.decompLegendDot, { backgroundColor: p.color }]} />
-                  <Text style={styles.decompLegendText}>{p.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        );
-      })()}
-
-      {/* Morphology bridge — one-line surface->lemma link for verb-tense forms the
-          color bands can't decompose (e.g. "present-tense form of «to spoil»"). */}
-      {morphExplanation && (
-        <View style={styles.morphBridge}>
-          <Ionicons name="git-compare-outline" size={13} color={colors.accent} />
-          <Text style={styles.morphBridgeText}>{morphExplanation}</Text>
-        </View>
-      )}
-
-      {/* Forms strip */}
-      <FormsStrip
-        pos={result.pos}
-        forms={result.forms_json}
-        formsTranslit={result.forms_translit}
-        compact
-      />
-
-      {/* Pattern link */}
-      {result.wazn && (
-        onNavigateToPattern ? (
-          <Pressable onPress={() => onNavigateToPattern(result.wazn!)} style={styles.patternLink}>
-            <Text style={styles.patternText}>{result.wazn_meaning || result.wazn}</Text>
-            <Ionicons name="chevron-forward" size={12} color={colors.accent} />
-          </Pressable>
-        ) : (
-          <Text style={styles.patternText}>{result.wazn_meaning || result.wazn}</Text>
-        )
-      )}
-
-      {/* Root info */}
-      {result.root && (
-        onNavigateToRoot && result.root_id ? (
-          <Pressable onPress={() => onNavigateToRoot(result.root_id!)} style={styles.rootLink}>
-            <Text style={styles.rootLetters}>{result.root}</Text>
-            {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
-            <Ionicons name="chevron-forward" size={12} color="#9b59b6" />
-          </Pressable>
-        ) : (
-          <View style={styles.rootLine}>
-            <Text style={styles.rootLetters}>{result.root}</Text>
-            {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
-          </View>
-        )
-      )}
-
-      {/* Known root siblings */}
-      {knownSiblings.length > 0 && (
-        <View style={styles.siblingRow}>
-          {knownSiblings.slice(0, 5).map((s) => (
-            <Pressable key={s.lemma_id} style={styles.siblingPill} onPress={onNavigateToDetail ? () => onNavigateToDetail(s.lemma_id) : undefined}>
-              <Text style={styles.siblingAr}>{s.lemma_ar}</Text>
-              <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {/* Etymology */}
-      {result.etymology_json && (
-        <View style={styles.etymologyCompact}>
-          {result.etymology_json.derivation && (
-            <Text style={styles.etymologyDerivationSmall}>
-              {ltr(result.etymology_json.derivation)}
-            </Text>
-          )}
-          {result.etymology_json.related_loanwords && result.etymology_json.related_loanwords.length > 0 && (
-            <Text style={styles.etymologyLoanwords}>
-              cf. {result.etymology_json.related_loanwords.join(", ")}
-            </Text>
-          )}
-          {result.etymology_json.cultural_note && (
-            <Text style={styles.etymologyCulturalNote}>
-              {ltr(result.etymology_json.cultural_note)}
-            </Text>
-          )}
-        </View>
-      )}
-
-      {/* Memory hooks — mnemonic line requires judge approval; cognates and
-          collocations are unaffected by the mnemonic gate (2026-05-22 rule) */}
-      {result.memory_hooks_json && (
-        <View style={styles.hooksSection}>
-          {showMnemonic(result.memory_hooks_json) && (
-            <View style={styles.mnemonicLine}>
-              <Ionicons name="bulb-outline" size={12} color={colors.accent} />
-              <Text style={styles.mnemonicSmall}>
-                {ltr(result.memory_hooks_json.mnemonic!)}
-              </Text>
-            </View>
-          )}
-
-          {result.memory_hooks_json.cognates && result.memory_hooks_json.cognates.length > 0 && (
-            <View style={styles.hooksSub}>
-              {result.memory_hooks_json.cognates.map((c, i) => (
-                <Text key={i} style={styles.hooksDetail}>
-                  <Text style={styles.hooksLangTag}>{c.lang}</Text> {c.word}{c.note ? ` — ${c.note}` : ""}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {result.memory_hooks_json.collocations && result.memory_hooks_json.collocations.length > 0 && (
-            <View style={styles.hooksSub}>
-              {result.memory_hooks_json.collocations.slice(0, 2).map((c, i) => (
-                <Text key={i} style={styles.hooksCollocation}>
-                  <Text style={styles.hooksCollocationAr}>{c.ar}</Text>
-                  {c.en ? <Text style={styles.hooksCollocationEn}> — {c.en}</Text> : null}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {result.memory_hooks_json.usage_context && (
-            <Text style={styles.hooksDetail}>
-              {ltr(result.memory_hooks_json.usage_context)}
-            </Text>
-          )}
-
-          {result.memory_hooks_json.fun_fact && (
-            <Text style={[styles.hooksDetail, { fontStyle: "italic" }]}>
-              {ltr(result.memory_hooks_json.fun_fact)}
-            </Text>
-          )}
-        </View>
-      )}
-
-      {onNavigateToDetail && (
-        <Pressable
-          onPress={() => onNavigateToDetail(result.lemma_id)}
-          hitSlop={8}
-          style={styles.detailLink}
-        >
-          <Text style={styles.detailLinkText}>View details ›</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -724,11 +717,12 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 500,
     alignSelf: "center",
-    minHeight: 90,
+    minHeight: 56,
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 4,
     marginVertical: 6,
     justifyContent: "center",
     borderWidth: 1,
@@ -740,67 +734,7 @@ const styles = StyleSheet.create({
     minHeight: 50,
   },
 
-  /* Revealed state */
-  revealedWrap: {
-    gap: 5,
-  },
 
-  /* Combined head row: meaning + lemma + translit + POS */
-  headRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  glossText: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "700",
-    flexShrink: 1,
-  },
-  lemmaAr: {
-    color: colors.arabic,
-    fontSize: 20,
-    fontFamily: fontFamily.arabic,
-    writingDirection: "rtl",
-    lineHeight: 28,
-    flexShrink: 1,
-  },
-  translitText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontFamily: fontFamily.translit,
-    flexShrink: 1,
-  },
-  posPill: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  posText: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: "600",
-    textTransform: "lowercase",
-  },
-  formPill: {
-    backgroundColor: "rgba(243, 156, 18, 0.15)",
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  formPillText: {
-    color: "#e5a117",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  surfaceTranslitText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontFamily: fontFamily.translit,
-    flexShrink: 1,
-  },
   /* Grammar particle info */
   particleHeader: {
     flexDirection: "row",
@@ -866,93 +800,25 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  /* Root */
-  rootLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  rootLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  rootLetters: {
-    color: colors.accent,
-    fontSize: 15,
-    fontFamily: fontFamily.arabic,
-    writingDirection: "rtl",
-    fontWeight: "600",
-  },
-  rootMeaning: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    flexShrink: 1,
-  },
 
-  /* Root family siblings */
-  siblingRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 5,
-  },
-  siblingPill: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 7,
-    paddingVertical: 2,
-    paddingHorizontal: 7,
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-    maxWidth: "48%",
-  },
-  siblingAr: {
-    fontSize: 16,
-    fontFamily: fontFamily.arabic,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    lineHeight: 22,
-  },
-  siblingEn: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    flexShrink: 1,
-  },
 
-  /* Pattern decomposition */
-  patternLine: {
-    gap: 2,
-  },
-  patternText: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  patternLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  patternDecomp: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontFamily: fontFamily.arabic,
-    writingDirection: "rtl",
-  },
 
   /* Back/forward nav arrows */
   navRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginLeft: 8,
+  },
+  navFloat: {
     position: "absolute",
     top: 6,
     right: 6,
-    flexDirection: "row",
-    gap: 4,
     zIndex: 1,
   },
   navBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.surfaceLight,
     alignItems: "center",
     justifyContent: "center",
@@ -961,126 +827,9 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
 
-  /* Etymology compact */
-  etymologyCompact: {
-    gap: 2,
-  },
-  etymologyDerivationSmall: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 16,
-    writingDirection: "ltr" as const,
-  },
-  etymologyLoanwords: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontStyle: "italic",
-    writingDirection: "ltr" as const,
-  },
-  etymologyCulturalNote: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    writingDirection: "ltr" as const,
-  },
 
-  /* Memory hooks */
-  hooksSection: {
-    gap: 4,
-    paddingTop: 2,
-  },
-  mnemonicLine: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 4,
-  },
-  mnemonicSmall: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "500",
-    flex: 1,
-    lineHeight: 16,
-    writingDirection: "ltr" as const,
-  },
-  hooksSub: {
-    gap: 2,
-    paddingLeft: 16,
-  },
-  hooksDetail: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-    paddingLeft: 16,
-    writingDirection: "ltr" as const,
-  },
-  hooksLangTag: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  hooksCollocation: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  hooksCollocationAr: {
-    fontFamily: fontFamily.arabic,
-    color: colors.text,
-  },
-  hooksCollocationEn: {
-    color: colors.textSecondary,
-  },
 
-  /* Detail navigation link */
-  detailLink: {
-    alignSelf: "flex-end",
-    paddingTop: 2,
-  },
-  detailLinkText: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: "600",
-  },
 
-  /* Confusion analysis — prefix disambiguation */
-  prefixHintSection: {
-    backgroundColor: "rgba(46, 204, 113, 0.08)",
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: "rgba(46, 204, 113, 0.4)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 3,
-  },
-  prefixHintIsPrefix: {
-    backgroundColor: "rgba(100, 140, 180, 0.08)",
-    borderLeftColor: "rgba(100, 140, 180, 0.4)",
-  },
-  prefixHintRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  prefixHintLetter: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 20,
-    color: colors.accent,
-    fontWeight: "700",
-  },
-  prefixHintLabel: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: "600",
-  },
-  prefixHintRoot: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 15,
-    color: colors.accent,
-    writingDirection: "rtl",
-  },
-  prefixHintText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
 
   /* Confusion analysis — similar words */
   confusionSection: {
@@ -1211,54 +960,199 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
   },
 
-  /* Confusion analysis — color band decomposition */
-  decompSection: {
-    backgroundColor: "rgba(100, 140, 180, 0.06)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-    alignItems: "center",
-  },
-  decompColorWord: {
-    writingDirection: "rtl",
-    textAlign: "center",
-    lineHeight: 30,
-  },
-  decompLegend: {
+});
+
+const rowStyles = StyleSheet.create({
+  head: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 4,
+  },
+  headMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  lemma: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    fontSize: 30,
+    lineHeight: 44,
+    writingDirection: "rtl",
+  },
+  headText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  gloss: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  meta: {
+    color: colors.textSecondary,
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  metaTranslit: {
+    fontFamily: fontFamily.translit,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 34,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
     gap: 10,
   },
-  decompLegendItem: {
+  labelCol: {
+    width: 54,
+    flexShrink: 0,
+  },
+  label: {
+    color: "#6e6e8c",
+    fontSize: 9.5,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  value: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 3,
+  },
+  text: {
+    color: "#c8c8dc",
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  note: {
+    color: "#b4b4c8",
+  },
+  inlineAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 16,
+    color: colors.arabic,
+  },
+  partsRow: {
+    flexDirection: "row-reverse",
+    alignSelf: "flex-start",
+    alignItems: "center",
+    gap: 2,
+  },
+  part: {
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  partAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 20,
+    lineHeight: 28,
+  },
+  partEn: {
+    color: "#a8a8c0",
+    fontSize: 10.5,
+    marginTop: -2,
+  },
+  plus: {
+    color: "#4a4a6a",
+    fontSize: 12,
+  },
+  chips: {
+    alignItems: "center",
+    gap: 2,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingLeft: 6,
+    paddingRight: 7,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  chipActive: {
+    backgroundColor: "#26264c",
+    borderColor: "#3c3c6c",
+  },
+  chipCap: {
+    alignItems: "flex-start",
+  },
+  chipTr: {
+    color: "#9090aa",
+    fontFamily: fontFamily.translit,
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  chipLabel: {
+    color: "#7a7a98",
+    fontSize: 10.5,
+    fontWeight: "600",
+    lineHeight: 13,
+  },
+  chipLabelActive: {
+    color: "#b8b8ff",
+  },
+  chipAr: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    fontSize: 20,
+    lineHeight: 30,
+  },
+  wazn: {
+    color: colors.accent,
+    fontFamily: fontFamily.arabic,
+    fontSize: 17,
+  },
+  waznLatin: {
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  family: {
+    alignItems: "center",
+    gap: 10,
+  },
+  rootKey: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rootLetters: {
+    color: "#7cb8ff",
+    fontFamily: fontFamily.arabic,
+    fontSize: 17,
+    lineHeight: 24,
+  },
+  rootMeaning: {
+    color: "#7cb8ff",
+    fontSize: 12.5,
+  },
+  sep: {
+    width: 1,
+    height: 14,
+    backgroundColor: "#33334f",
+  },
+  sibling: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  decompLegendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  decompLegendText: {
-    fontSize: 11,
-    color: colors.textSecondary,
+  siblingAr: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    fontSize: 17,
+    lineHeight: 24,
   },
-  morphBridge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(100, 140, 180, 0.06)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  morphBridgeText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    fontFamily: fontFamily.translitRegular,
+  siblingEn: {
+    color: "#c8c8dc",
+    fontSize: 12.5,
   },
 });
 

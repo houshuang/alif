@@ -1053,7 +1053,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
-  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark | null; showMeaning: boolean; surfaceTranslit?: string | null };
+  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark | null; showMeaning: boolean; surfaceTranslit?: string | null; confusion?: ConfusionAnalysis | null };
 
   const applyTappedEntry = useCallback((entry: TappedEntry) => {
     setLookupSurfaceForm(entry.surfaceForm);
@@ -1062,6 +1062,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupResult(entry.result);
     setLookupShowMeaning(entry.showMeaning);
     setLookupSurfaceTranslit(entry.surfaceTranslit ?? null);
+    setConfusionData(entry.confusion ?? null);
     setLookupLoading(false);
   }, []);
 
@@ -1306,12 +1307,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setLookupSurfaceTranslit(wordTranslit);
       addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning, surfaceTranslit: wordTranslit });
 
-      // Fetch confusion analysis when marking as "did not recognize" (yellow)
-      if (nextMark === "did_not_recognize" && tappedSurface) {
+      // Confusion analysis supplies the word-panel part breakdown for every
+      // marked word; its confusion candidates only matter for yellow marks.
+      if (nextMark !== null && tappedSurface) {
         getConfusionHelp(lemmaId, tappedSurface).then((data) => {
+          if (!data) return;
+          const cached = tappedCacheRef.current.get(index);
+          if (cached) tappedCacheRef.current.set(index, { ...cached, confusion: data });
           if (lookupRequestRef.current !== requestId) return;
-          if (data?.confusion_type) {
-            setConfusionData(data);
+          setConfusionData(data);
+          if (nextMark === "did_not_recognize" && data.confusion_type) {
             const candidateIds = [
               ...data.similar_words.map((w) => w.lemma_id),
               ...data.phonetic_similar.map((w) => w.lemma_id),
@@ -3236,8 +3241,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         && assistedWord != null
         && (
           <AssistedRecognitionCauses
-            surfaceForm={assistedWord.surface_form}
-            assistedWordCount={missedIndices.size + confusedIndices.size}
+            otherWordSurface={
+              activeAssistedRecognitionIndex !== focusedReviewWordIndex
+                ? assistedWord.surface_form
+                : null
+            }
             rating={missedIndices.has(activeAssistedRecognitionIndex) ? 1 : 2}
             selected={
               failureCausesByIndex[activeAssistedRecognitionIndex] ?? []
