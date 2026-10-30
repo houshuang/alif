@@ -114,6 +114,19 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-10-30: Compact word panel published to web and iPhone
+
+Published source `a670fac0b774658d31316e1d201f87f2ad5297ed` (PR #291). The private
+HTTPS reader serves it through `/opt/alif-web/current`; the downloaded JS SHA-256
+(`1f659a4b…a378`) matches the exported release and the response policy is still
+`private, no-cache`. Previous web release `0a0d993ce132f35067b22eab0cb90f9807a5d393`
+remains for rollback. Legacy Metro was restarted with cleared caches and its fetched
+bundle contains the new panel. iPhone preview update
+`01a18c91-d21b-7009-98b9-061d3fe7e330`, group
+`09861e27-9bcb-44d7-892f-88cbc1c698a0`, runtime `1.0.0`, was published and verified
+by the publisher. No backend change or restart. Device application needs the usual
+one or two cold launches.
+
 ## 2026-10-30: Compact word panel after reveal (UI; cause-capture and confusion-help logging shift)
 
 **Why.** After marking a word and revealing the translation, the word panel and
