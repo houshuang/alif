@@ -1885,6 +1885,7 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - [TODO] Per-lemma gloss instead of per-surface — currently `طَوَّقَ` tags as "passive participle" because that's the surface; `رَأَى` glossed as "I saw" not "to see". Fix at enrichment time, re-run quality gates on the 19 new imports.
 - [TODO] Homograph cleanups beyond فلم: آن ("time" / "that"), ملك ("angel" / "king"). Could use CAMeL MADAMIRA or one-shot claude -p disambiguation.
 - [TODO] Layl / TV transcript pipeline: same ingest stage but source = ASR transcript. Lebanese dialect vocab not in Alif; mixed French/English code-switch.
+  - 2026-11-01: first manual pass done for ep. 18 from a 40-min own recording (Tana ASR → corrected transcript, dialect glossary ranked by in-episode frequency, phrases, grammar sheet; kept outside this public repo). `reading_readiness.py` on prod: 87% of the 3,077 tokens are known MSA words or function words, 7% unmapped; the gap is dialect grammar words (شي، مش، شوي، معقول، مصاري، بصير), not content vocabulary. The MSA lookup also mis-maps dialect homographs (مش→مَشَّ, مو→plant). A dialect layer would need its own surface list before any Alif import, and `_is_function_word` must learn the Levantine particles first.
 
 ---
 
