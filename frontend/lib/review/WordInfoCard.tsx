@@ -981,8 +981,10 @@ const rowStyles = StyleSheet.create({
   headMain: {
     flex: 1,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    columnGap: 10,
+    rowGap: 0,
     minWidth: 0,
   },
   lemma: {
@@ -991,10 +993,12 @@ const rowStyles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 44,
     writingDirection: "rtl",
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   headText: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 96,
   },
   gloss: {
     color: colors.text,

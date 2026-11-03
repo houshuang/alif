@@ -10,6 +10,7 @@ import {
   Platform,
   AppState,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReviewLaunchReadyContext } from "../lib/launch-ready";
@@ -397,6 +398,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const mode = fixedMode;
   const online = useNetStatus();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation();
   const [lookupMinimized, setLookupMinimized] = useState(false);
@@ -3195,7 +3197,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       />
 
       <ScrollView
-        style={{ flex: 1 }}
+        style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[styles.sentenceArea, !isListening && styles.readingSentenceArea]}
         showsVerticalScrollIndicator={false}
       >
@@ -3234,6 +3236,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
 
+      </ScrollView>
+
+      {!isListening && (lookupSurfaceForm != null || lookupLoading) && (
+      <ScrollView
+        style={[styles.wordDock, { maxHeight: Math.min(340, viewportHeight * 0.42) }]}
+        contentContainerStyle={styles.wordDockContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled
+      >
         <View style={styles.lookupRow}>
           <View style={styles.lookupContent}>
             {!isListening && !lookupMinimized && (
@@ -3332,6 +3344,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               )}
         </>)}
       </ScrollView>
+      )}
 
       <View style={styles.bottomActions}>
         {isListening ? (
@@ -4661,6 +4674,12 @@ const styles = StyleSheet.create({
   },
   readingArabicRevealed: { lineHeight: 56 },
   readingSentenceArea: { paddingTop: 4, paddingBottom: 8 },
+  wordDock: {
+    flexGrow: 0, flexShrink: 1, marginTop: 8,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  wordDockContent: { paddingTop: 8, width: "100%", maxWidth: 500, alignSelf: "center" },
   lookupRow: {
     flexDirection: "row", alignItems: "flex-start", width: "100%", gap: 6,
   },

@@ -366,3 +366,7 @@ interruption/clock/manual exclusions. Freeze at first reveal; never restart afte
 a distraction. Timing has no scheduling effects. Red and yellow both support
 compact named confusion capture; retain the actual red/1 or yellow/2 outcome.
 See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.
+
+Reading word help is docked above the answer buttons, outside the sentence scroll.
+Cap its height (42% viewport, max 340pt), preserve independent scrolling and the
+minimize/restore behavior, and never cover the final lines with an absolute overlay.

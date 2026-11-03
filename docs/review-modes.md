@@ -12,10 +12,16 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 
 ### Compact reading review layout
 
-On sentence and passage reading cards, Arabic, English, transliteration, and the
-selected word explanation share one scroll area. Revealed sentence Arabic uses a
-56-point line height; the answer divider and top padding are tighter. Long cards
-remain scrollable without moving the bottom actions off screen.
+On sentence and passage reading cards, Arabic, English, and transliteration share
+one scroll area. The selected word explanation and optional confusion entry sit
+in a separate dock immediately above the bottom actions, so tapping a word in a
+long sentence never requires scrolling to the end to find its explanation. The
+dock is capped at 42% of the viewport height (340 points maximum) and scrolls
+independently; minimizing collapses it to the restore control. It reserves its
+space rather than covering text. The header wraps on narrow screens to preserve
+a readable gloss. Revealed sentence Arabic uses a 56-point line height; the answer
+divider and top padding are tighter. Long cards remain scrollable without moving
+the bottom actions off screen.
 
 Only the revealed reading card hides the navigation tabs. No idea and
 Continue/Know All use the full bottom row above the device safe area. Tabs return

@@ -12,6 +12,8 @@ collapses after saving. Observed clusters include بالغ/بلغ, هدف/هتف
 morning/swimming seed before a short contrast pilot; require transfer to fresh
 sentences and a delayed check rather than treating rehearsed success as resolution.
 No contrast-drill scheduler or global FSRS retuning in this change.
+Long-sentence preview feedback: anchor word help above the answer buttons in a
+height-capped dock, keeping it reachable without scrolling to the sentence end.
 
 
 ## 🟢 [DEPLOYED 2026-10-12 — phone usage feedback pending] Immediate sentence-review resume

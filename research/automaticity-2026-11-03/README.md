@@ -207,3 +207,15 @@ Native lifecycle behavior is implemented but has not been observed on a physical
 phone. The design detector reports no findings.
 
 ![Collapsed capture at 393px using mock vocabulary](compact-capture.png)
+
+### Long-sentence preview refinement
+
+The 47/57/70-word preview exposed an off-screen lookup problem: an explanation
+inside the sentence scroll required reaching the end of a long card. Reading word
+help now occupies a separate bottom dock above the actions, capped at 42% of the
+viewport (max 340pt). The text and dock scroll independently; the dock reserves
+space rather than hiding text underneath an overlay. Minimize/restore and the
+confusion editor remain in the dock. Narrow headers wrap the English gloss below
+long Arabic forms. TypeScript and the static web export pass; the 320px preview
+was visually checked with entry open/closed and minimize/restore. No native
+keyboard or physical-phone acceptance claim is made.
