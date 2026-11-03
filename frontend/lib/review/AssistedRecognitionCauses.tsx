@@ -1,4 +1,5 @@
 import React from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WordFailureCause } from "../types";
 import { colors, fontFamily } from "../theme";
@@ -10,6 +11,7 @@ const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
 ];
 
 export function AssistedRecognitionCauses({
+  compact = false,
   otherWordSurface,
   rating,
   selected,
@@ -19,6 +21,7 @@ export function AssistedRecognitionCauses({
 }: {
   /** Set when the chips describe a marked word other than the one in the
    *  word panel above, so the row names the word it applies to. */
+  compact?: boolean;
   otherWordSurface: string | null;
   rating: 1 | 2;
   selected: readonly WordFailureCause[];
@@ -37,33 +40,41 @@ export function AssistedRecognitionCauses({
   const accent = rating === 1 ? colors.missed : colors.confused;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
+    <View style={[styles.container, compact && styles.compactContainer]}>
+      <View style={[styles.row, compact && styles.compactRow]}>
         {otherWordSurface ? (
           <Text style={[styles.arabic, { color: accent }]} numberOfLines={1}>
             {otherWordSurface}
           </Text>
         ) : null}
-        <Text style={[styles.label, { color: accent }]}>Why?</Text>
+        {!compact && <Text style={[styles.label, { color: accent }]}>Why?</Text>}
         {causes.map((cause) => {
           const active = selected.includes(cause.value);
           return (
             <Pressable
               key={cause.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`${cause.label}${otherWordSurface ? `: ${otherWordSurface}` : ""}`}
+              accessibilityHint="Optional reason this word was hard"
+              accessibilityState={{ checked: active }}
+              aria-checked={active}
               onPress={() => onToggle(cause.value)}
               style={[
                 styles.chip,
+                compact && styles.iconButton,
                 active && { borderColor: accent, backgroundColor: `${accent}29` },
               ]}
             >
-              <Text
+              {compact ? <Ionicons
+                name={cause.value === "retrieval_lapse" ? "refresh-outline"
+                  : cause.value === "mixed_up" ? "shuffle-outline"
+                  : cause.value === "unfamiliar_form" ? "layers-outline" : "text-outline"}
+                size={20} color={active ? accent : colors.textSecondary} /> : <Text
                 style={[styles.chipText, active && { color: accent, fontWeight: "700" }]}
                 numberOfLines={1}
               >
                 {cause.label}
-              </Text>
+              </Text>}
             </Pressable>
           );
         })}
@@ -74,6 +85,9 @@ export function AssistedRecognitionCauses({
 }
 
 const styles = StyleSheet.create({
+  compactContainer: { width: 44, marginTop: 6, paddingHorizontal: 0, alignSelf: "flex-start" },
+  compactRow: { flexDirection: "column", gap: 4 },
+  iconButton: { flexGrow: 0, flexShrink: 0, flexBasis: 44, width: 44, height: 44, paddingVertical: 0, paddingHorizontal: 0, justifyContent: "center", borderRadius: 12 },
   container: {
     width: "100%",
     maxWidth: 500,

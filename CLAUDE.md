@@ -85,6 +85,8 @@ Sentence review continues automatically across ten-card batches (2026-10-15). Mi
 Sentence review keeps the progress header focused on review controls; it has no passage-reading link or reading prompt.
 Supported chapter reading (`/read`) preserves its no-review-credit behavior, with temporary vocabulary reminders and optional voice/text feedback. Under automatic attention v2, repeated uniquely resolved word help in distinct paragraphs can inform later maintenance eligibility. See `docs/supported-reading-chapters.md`; do not route its help/completion through review-credit APIs.
 
+Reading review layout: revealed cards hide the tabs and pin actions above the safe area; Arabic/English and the minimizable word explanation share a scroll area, with failure-reason icons beside the explanation. See `docs/review-modes.md` for details.
+
 See `docs/review-modes.md` for full UX flows. Modes: Sentence-First Review (primary), Reading Mode, Listening Mode, Learn Mode, Story Mode, Quran Reading Mode (suspended 2026-04-07), Podcast Mode. The bilingual Book Reader is deliberately passage-first rather than a review card: opening and drafting are inert; only a successful Next commits exact-range evidence. Clean policy uses Box-2 recognition floors and authoritative rating-1 misses. Guided policy leaves unintroduced words inert behind inline glosses; repeated reading relevance may later select them through ordinary capped Box 1. Under automatic attention v2, clean reading also stages new vocabulary; legacy enrollment buttons cannot override automatic eligibility. Already introduced, maintained taps remain rating-1 misses. Reading support/parked words never schedule from a lookup alone.
 
 ## Hard Invariants

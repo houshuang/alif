@@ -10,6 +10,27 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 4 hour cooldown, no_idea: 30 min cooldown (`sentence_selector.py` cutoffs). The rescue pass may reuse a recently failed sentence, but never bypasses the understood cooldown.
 7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in reading sessions (gated by 75% accuracy over last 20 reviews). **Not auto-introduced** — candidates are returned to the frontend for user to accept via Learn mode. No intro candidates in listening mode.
 
+### Compact reading review layout
+
+On sentence and passage reading cards, Arabic, English, transliteration, and the
+selected word explanation share one scroll area. Revealed sentence Arabic uses a
+56-point line height; the answer divider and top padding are tighter. Long cards
+remain scrollable without moving the bottom actions off screen.
+
+Only the revealed reading card hides the navigation tabs. No idea and
+Continue/Know All use the full bottom row above the device safe area. Tabs return
+on the next front, auxiliary card, session completion, or navigation away;
+listening keeps its existing tabs and spacing.
+
+Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
+Mixed up, layers = New form. The conditional No tashkeel reason remains available.
+Each icon has a 44-point target, an accessibility label and checked state. The existing confusion picker still opens for Mixed up.
+
+The minus button minimizes the selected word explanation and its reason rail.
+A small Word explanation control restores them; selecting another word also
+opens its explanation. Minimizing never changes word marks, selected failure
+causes, or review evidence.
+
 ### Pre-Sentence Cards
 
 Before sentences begin, the session may include informational cards (no FSRS review — pure re-exposure):
