@@ -22,7 +22,10 @@ export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave
     : candidates.find(w => w.lemma_id === existing?.confused_with_lemma_id)?.gloss_en
       ?? (existing ? "word selected" : null);
   const close = () => { setExpanded(false); Keyboard.dismiss(); };
-  const save = (capture: ConfusionCaptureIn) => { onSave(capture); close(); };
+  const save = (capture: ConfusionCaptureIn) => {
+    setText(capture.capture_method === "free_text" ? capture.confused_with_text ?? "" : "");
+    onSave(capture); close();
+  };
   const saveText = () => {
     if (text.trim()) save({ failed_lemma_id: failedLemmaId, capture_method: "free_text",
       confused_with_text: text.trim(), candidates_shown: ids });
