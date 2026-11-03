@@ -22,6 +22,7 @@ interface WordInfoCardProps {
   onNavigateToDetail?: (lemmaId: number) => void;
   onNavigateToPattern?: (wazn: string) => void;
   onNavigateToRoot?: (rootId: number) => void;
+  onMinimize?: () => void;
   onPrev?: () => void;
   onNext?: () => void;
   hasPrev?: boolean;
@@ -137,6 +138,7 @@ export default function WordInfoCard({
   onNavigateToDetail,
   onNavigateToPattern,
   onNavigateToRoot,
+  onMinimize,
   onPrev,
   onNext,
   hasPrev = false,
@@ -194,24 +196,32 @@ export default function WordInfoCard({
     return reserveSpace ? <View style={styles.spacer} /> : null;
   }
 
-  const nav = showNav ? (
+  const nav = showNav || onMinimize ? (
     <View style={styles.navRow}>
-      <Pressable
+      {showNav && <>
+      {(!onMinimize || hasPrev) && <Pressable
         onPress={onPrev}
         disabled={!hasPrev}
         hitSlop={12}
         style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
       >
         <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.textSecondary : colors.border} />
-      </Pressable>
-      <Pressable
+      </Pressable>}
+      {(!onMinimize || hasNext) && <Pressable
         onPress={onNext}
         disabled={!hasNext}
         hitSlop={12}
         style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
       >
         <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.textSecondary : colors.border} />
-      </Pressable>
+      </Pressable>}
+      </>}
+      {onMinimize && (
+        <Pressable onPress={onMinimize} accessibilityRole="button"
+          accessibilityLabel="Minimize word explanation" style={[styles.navBtn, { width: 44, height: 44 }]}>
+          <Ionicons name="remove-outline" size={18} color={colors.textSecondary} />
+        </Pressable>
+      )}
     </View>
   ) : null;
   const yellow = markState === "did_not_recognize";
@@ -467,7 +477,7 @@ function RevealedView({
         >
           <Text style={rowStyles.lemma}>{lemmaAr}</Text>
           <View style={rowStyles.headText}>
-            <Text style={rowStyles.gloss} numberOfLines={1}>{result.gloss_en ?? "?"}</Text>
+            <Text style={rowStyles.gloss}>{result.gloss_en ?? "?"}</Text>
             <Text style={rowStyles.meta} numberOfLines={1}>
               {lemmaTranslit ? <Text style={rowStyles.metaTranslit}>{lemmaTranslit}</Text> : null}
               {posLabel ? ` · ${posLabel}` : ""}
