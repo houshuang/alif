@@ -237,3 +237,22 @@ checks at the narrow preview verify minimal/full cards, Close and outside-tap
 dismissal, saved confusion reopening, and focus legends. No console errors were
 observed. The latest screenshots are private preview evidence; physical-phone
 keyboard and lifecycle acceptance remain pending.
+
+### Comprehension-first modal draft
+
+The full-word-page comparison identified previous sentence encounters as the
+main missing learning resource. The modal now orders content by comprehension:
+surface/meaning and current form, optional saved confusion pair, phrases/usage,
+and two prior reviewed contexts. The current sentence is excluded; a previously
+difficult context and a different successfully understood context are preferred.
+The existing word-detail endpoint is fetched only on opening, with stale-response
+guards and loading/empty/error-retry states; dictionary material stays available.
+Root/pattern family, memory/language notes and aggregate history use disclosures.
+Relevant forms retain transliteration and current-form highlighting; untrusted
+imperative evidence is excluded. The pair is a record of the learner's report,
+not a generated linguistic contrast lesson.
+
+The private preview has explicitly synthetic prior encounters for morning.
+TypeScript, 289 frontend tests, static export and the design detector pass; narrow
+rendered checks cover saved-pair display, highlighted history, disclosures and
+quick dismissal. No production data or scheduling changes are made by the draft.

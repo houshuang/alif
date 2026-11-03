@@ -22,7 +22,14 @@ space rather than covering text. The minimal card shows the surface, a two-line 
 and a short morphology or dictionary-form bridge. Its expand button opens a
 scrollable full-card modal; tapping outside or Close dismisses it without
 expanding the dock or reflowing the sentence. The modal includes forms, grammar,
-root/pattern family, examples and available enrichment notes. Revealed sentence Arabic uses a 56-point line height; the answer
+root/pattern family, examples and available enrichment notes.
+The comprehension-first modal presents the sentence surface and dictionary form,
+relevant forms, the saved confusion pair (when supplied), phrases, then up to two
+previous reviewed sentence contexts with the word highlighted. It excludes the
+current sentence and prefers a difficult context plus a different successful one.
+History loads only when opened; unavailable history offers retry while dictionary
+help remains readable. Root/pattern material, language notes, and aggregate review
+history use separate collapsed disclosures. Counts are not described as fluency. Revealed sentence Arabic uses a 56-point line height; the answer
 divider and top padding are tighter. Long cards remain scrollable without moving
 the bottom actions off screen.
 

@@ -3378,8 +3378,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         )}
       </View>
 
-      <WordDetailsModal visible={largeWordOpen} onClose={() => setLargeWordOpen(false)}
-        result={lookupResult} surfaceForm={lookupSurfaceForm} markState={focusedWordMark} confusionData={confusionData}
+      <WordDetailsModal key={lookupResult?.lemma_id ?? "none"} visible={largeWordOpen} onClose={() => setLargeWordOpen(false)}
+        result={lookupResult} surfaceForm={lookupSurfaceForm} surfaceTranslit={lookupSurfaceTranslit}
+        markState={focusedWordMark} confusionData={confusionData}
+        capture={lookupLemmaId != null ? confusionCaptures[lookupLemmaId] : undefined} currentSentenceId={item.sentence_id}
         onWord={id => router.push(`/word/${id}`)} onRoot={id => router.push(`/root/${id}`)}
         onPattern={wazn => router.push(`/pattern/${encodeURIComponent(wazn)}`)} />
 
