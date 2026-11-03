@@ -67,6 +67,7 @@ import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
+import { useReadingTimer } from "../lib/review/use-reading-timer";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
@@ -480,6 +481,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const [storyInfoVisible, setStoryInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
+  const readingTimingRef = useRef<ReturnType<typeof useReadingTimer> | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
   const prefetchTriggered = useRef(false);
@@ -1022,6 +1024,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const toggleMissed = useCallback((index: number) => {
+    readingTimingRef.current?.mark();
     // Triple-tap cycle: off → missed (red) → confused (yellow) → off
     const isConfused = confusedIndices.has(index);
     const isMissed = missedIndices.has(index);
@@ -1127,6 +1130,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, [applyTappedEntry]);
 
   const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
+    readingTimingRef.current?.assist();
     setLookupMinimized(false);
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
@@ -1312,7 +1316,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning, surfaceTranslit: wordTranslit });
 
       // Confusion analysis supplies the word-panel part breakdown for every
-      // marked word; its confusion candidates only matter for yellow marks.
+      // marked word; red and yellow both support named confusion capture.
       if (nextMark !== null && tappedSurface) {
         getConfusionHelp(lemmaId, tappedSurface).then((data) => {
           if (!data) return;
@@ -1373,6 +1377,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!sentenceSession) return;
     const item = sentenceSession.items[sentenceItemIndex];
     const responseMs = Date.now() - showTime.current;
+    const readingTiming = mode === "reading" ? readingTimingRef.current?.finish() : undefined;
 
     const missedLemmaIds: number[] = [];
     for (const idx of missedIndices) {
@@ -1550,10 +1555,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         confusion_candidate_lemma_ids: hasConfusionCandidates ? confusionCandidateMap : undefined,
         confusion_captures: Object.values(confusionCaptures).length > 0 ? Object.values(confusionCaptures) : undefined,
         response_ms: responseMs,
+        reading_timing: readingTiming,
         session_id: sentenceSession.session_id,
         review_mode: mode,
-        audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
-        lookup_count: lookupCount > 0 ? lookupCount : undefined,
+        audio_play_count: audioPlayCount,
+        lookup_count: lookupCount,
         parent_card_type: isPassageCard(item) ? "passage" : "sentence",
         rating2_prompt_shown_sentence_word_ids:
           rating2PromptShownSentenceWordIds.size > 0
@@ -1881,6 +1887,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       else if (cardState === "arabic") setCardState("answer");
     } else {
       if (cardState === "front") {
+        readingTimingRef.current?.finish();
         setCardState("back");
         setLookupShowMeaning(true);
       }
@@ -2018,6 +2025,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   const showingGrammarLesson = grammarLessons.length > 0 && grammarLessonIndex < grammarLessons.length;
   const showingReintro = reintroCards.length > 0 && reintroIndex < reintroCards.length;
+  const timing = useReadingTimer(sentenceSession ? `${sentenceSession.session_id}:${cardIndex}` : null,
+    mode === "reading" && !loading && !isSessionDone && !inWrapUp
+    && !showingGrammarLesson && !showingReintro && currentSlot?.type === "sentence");
+
+  readingTimingRef.current = timing;
+
   // Only the revealed reading card borrows the tab bar's space. Restore tabs
   // on card changes, auxiliary screens, and navigation away.
   const compactReveal = mode === "reading" && cardState === "back"
@@ -3072,12 +3085,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const assistedWordInitiallyShowedTashkeel = assistedWord
     ? assistedWord.show_tashkeel !== false && assistedWordHasStoredTashkeel
     : true;
-  // The confusion candidates and the free-text box stay hidden until the learner
-  // says the word was mixed up with another one — otherwise a single yellow word
-  // stacks three panels below the sentence.
-  const mixedUpSelected =
-    activeAssistedRecognitionIndex != null
-    && (failureCausesByIndex[activeAssistedRecognitionIndex] ?? []).includes("mixed_up");
   const ensureFocusedCause = (cause: WordFailureCause) => {
     if (focusedWordIndex == null) return;
     setFailureCausesByIndex((prev) => {
@@ -3133,6 +3140,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   };
 
   const handleTashkeelToggle = () => {
+    if (cardState === "front") readingTimingRef.current?.assist();
     const side = cardState === "back" || cardState === "answer"
       ? "back"
       : "front";
@@ -3157,6 +3165,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         onBack={canGoBack ? handleGoBack : null}
         actionMenu={
           <ActionMenu
+            onOpen={() => readingTimingRef.current?.assist()}
             focusedLemmaId={lookupLemmaId}
             focusedLemmaAr={lookupResult?.lemma_ar ?? null}
             sentenceId={item.sentence_id}
@@ -3209,6 +3218,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         ) : (
           <SentenceReadingCard
+            timingIgnored={timing.ignored}
+            onIgnoreTiming={timing.ignore}
             item={item}
             cardState={cardState as ReadingCardState}
             missedIndices={missedIndices}
@@ -3233,6 +3244,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 markState={focusedWordMark}
                 showMeaning={lookupShowMeaning}
                 onShowMeaning={() => {
+                  readingTimingRef.current?.assist();
                   setLookupShowMeaning(true);
                   if (tappedCursor >= 0 && tappedCursor < tappedOrder.length) {
                     const idx = tappedOrder[tappedCursor];
@@ -3253,7 +3265,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 confusionData={confusionData}
                 onPickConfusion={handlePickConfusion}
                 pickedConfusionLemmaId={pickedConfusionLemmaId}
-                showConfusionCandidates={mixedUpSelected}
+                showConfusionCandidates={false}
               />
             )}
 
@@ -3268,6 +3280,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
           {!lookupMinimized && !isListening
             && activeAssistedRecognitionIndex != null
+            && activeAssistedRecognitionIndex === focusedReviewWordIndex
             && assistedWord != null
             && (
               <AssistedRecognitionCauses
@@ -3290,17 +3303,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           )}
         </View>
         {!isListening && !lookupMinimized && (<>
-              {/* focusedWordMark check keeps the capture bound to the word the
-                  chips describe — assistedRecognitionIndex() only equals the
-                  focused word while that word is yellow. */}
-              {mixedUpSelected
-                && focusedWordMark === "did_not_recognize"
+              {/* Capture stays bound to the focused red or yellow token. */}
+              {activeAssistedRecognitionIndex === focusedReviewWordIndex
+                && (focusedWordMark === "did_not_recognize" || focusedWordMark === "missed")
                 && lookupLemmaId != null && (
                 <ConfusionPicker
+                  key={`${sentenceSession.session_id}:${cardIndex}:${focusedReviewWordIndex}`}
+                  onOpen={() => ensureFocusedCause("mixed_up")}
                   failedLemmaId={lookupLemmaId}
                   confusionData={confusionData}
                   existing={confusionCaptures[lookupLemmaId]}
                   onSave={(capture) => {
+                    ensureFocusedCause("mixed_up");
                     setConfusionCaptures((prev) => ({
                       ...prev,
                       [capture.failed_lemma_id]: capture,
@@ -3414,6 +3428,8 @@ function PassagePairedReveal({
 }
 
 function SentenceReadingCard({
+  timingIgnored,
+  onIgnoreTiming,
   item,
   cardState,
   missedIndices,
@@ -3422,6 +3438,8 @@ function SentenceReadingCard({
   overridden,
   onToggleTashkeel,
 }: {
+  timingIgnored: boolean;
+  onIgnoreTiming: () => void;
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
@@ -3467,6 +3485,13 @@ function SentenceReadingCard({
       </Text>}
 
       <View style={[styles.cardToggles, { marginTop: 0, marginBottom: 0 }]}>
+        <Pressable onPress={onIgnoreTiming} style={styles.timingControl} hitSlop={6}
+          accessibilityRole="button" accessibilityLabel={timingIgnored ? "Timing ignored for this sentence" : "Ignore timing for this sentence"}
+          accessibilityHint="Use after a distraction. Your review still counts."
+          accessibilityState={{ disabled: timingIgnored }} disabled={timingIgnored}>
+          <Ionicons name={timingIgnored ? "time-outline" : "timer-outline"} size={14}
+            color={colors.textSecondary} style={{ opacity: timingIgnored ? 0.3 : 0.65 }} />
+        </Pressable>
         <Pressable
           onPress={onToggleTashkeel}
           style={styles.toggleDot}
@@ -4582,6 +4607,7 @@ function GrammarLessonCard({
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  timingControl: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   container: {
     flex: 1,
     backgroundColor: colors.bg,

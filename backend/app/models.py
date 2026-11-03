@@ -380,6 +380,7 @@ class SentenceReviewLog(Base):
     reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     comprehension = Column(String(20), nullable=False)  # understood/partial/no_idea
     response_ms = Column(Integer, nullable=True)
+    reading_timing_json = Column(JSON, nullable=True)
     review_mode = Column(String(20), default="reading")
     client_review_id = Column(String(50), nullable=True, unique=True)
 

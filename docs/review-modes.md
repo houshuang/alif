@@ -24,12 +24,28 @@ listening keeps its existing tabs and spacing.
 
 Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
 Mixed up, layers = New form. The conditional No tashkeel reason remains available.
-Each icon has a 44-point target, an accessibility label and checked state. The existing confusion picker still opens for Mixed up.
+Each icon has a 44-point target, an accessibility label and checked state. Both red and yellow focused words also offer an optional “Mixed up with another word?” row. It expands into a word/English-meaning field with up to four suggestions, then collapses on save or close; saved captures remain editable. It hides with the word explanation. Candidate lists no longer expand the explanation panel itself.
 
 The minus button minimizes the selected word explanation and its reason rail.
 A small Word explanation control restores them; selecting another word also
 opens its explanation. Minimizing never changes word marks, selected failure
 causes, or review evidence.
+
+### Clean sentence reading timing
+
+The small timer control beside the tashkeel dot discards timing for a distracted
+presentation without changing the review. It never restarts a timer on text
+already read. Timing starts only on the visible, focused reading card and freezes
+at first reveal or direct answer. Backgrounding, blur, navigation, clock gaps,
+word help, marks, and front tashkeel toggles exclude the presentation.
+
+Version-1 `reading_timing` survives offline submission and is stored separately
+from legacy `response_ms` in `SentenceReviewLog.reading_timing_json`. The server
+marks eligibility only for correct single-sentence reading cards with explicit
+zero lookup/audio counts and complete validated protocol-v3 clean token evidence.
+Legacy clients have no measurement. This signal never changes FSRS or ratings.
+See `research/automaticity-2026-11-03/README.md` for the production baseline,
+exclusion thresholds, limits, and observed confusion clusters.
 
 ### Pre-Sentence Cards
 

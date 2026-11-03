@@ -658,6 +658,15 @@ class WordReviewEvidenceIn(BaseModel):
     failure_causes: list[WordFailureCause] = Field(default_factory=list)
 
 
+class ReadingTimingIn(BaseModel):
+    version: Literal[1]
+    elapsed_ms: int | None = Field(default=None, ge=0, le=86_400_000, strict=True)
+    exclusions: list[Literal[
+        "manual", "background", "navigation", "clock_gap", "clock_error",
+        "assistance", "marked_word", "not_started",
+    ]] = Field(default_factory=list, max_length=8)
+
+
 class SentenceReviewSubmitIn(BaseModel):
     sentence_id: int | None = None
     sentence_ids: list[int] = []
@@ -668,6 +677,7 @@ class SentenceReviewSubmitIn(BaseModel):
     confusion_candidate_lemma_ids: dict[int, list[int]] = {}
     confusion_captures: list[ConfusionCaptureIn] = []
     response_ms: int | None = None
+    reading_timing: ReadingTimingIn | None = None
     session_id: str | None = None
     review_mode: str = "reading"
     client_review_id: str | None = None

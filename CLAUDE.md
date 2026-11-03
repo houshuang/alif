@@ -355,3 +355,14 @@ Run these every month or two when working on alif. Append a date + result line t
 
 - **Check forks for upstream-worthy work** — `gh api repos/houshuang/alif/forks --jq '.[] | {full_name, pushed_at, created_at}'` then for each fork: `gh api repos/houshuang/alif/compare/main...OWNER:main --jq '{ahead_by, behind_by}'`. Only forks with `ahead_by > 0` are worth inspecting. A fork where `pushed_at < created_at` has zero new commits. Note: `gh` in the Claude Code sandbox hits TLS error `OSStatus -26276`; use sandbox-disabled bash.
   - 2026-04-24 — 1 fork (`eurunuela/alif`), 0 ahead, 119 behind. Nothing to merge.
+
+## Reading automaticity observation (2026-11-03)
+
+Version-1 sentence `reading_timing` is separate from legacy `response_ms` and
+persisted in nullable `SentenceReviewLog.reading_timing_json`. Only server-computed
+`eligible=true` is clean timing: correct single-sentence reading, no help or marks,
+explicit zero lookup/audio counts, complete validated v3 token evidence, and no
+interruption/clock/manual exclusions. Freeze at first reveal; never restart after
+a distraction. Timing has no scheduling effects. Red and yellow both support
+compact named confusion capture; retain the actual red/1 or yellow/2 outcome.
+See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.

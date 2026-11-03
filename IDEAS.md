@@ -1,5 +1,19 @@
 # Alif — Master Ideas File
 
+## Reading automaticity and named confusion clusters — 2026-11-03
+
+[Audit and implementation](research/automaticity-2026-11-03/README.md): last-week
+clean/no-help sentence proxy is 37/75 (49.3%). Legacy response time mixes front
+reading, help, answer checking, and interruptions. Implement versioned first-reveal
+timing, tiny manual discard, and server-validated clean eligibility; keep it
+independent of scheduling. Red and yellow both need optional named capture that
+collapses after saving. Observed clusters include بالغ/بلغ, هدف/هتف,
+استقبال/مستقبل/استقبل, and وجه/وجع. Confirm these plus the learner's
+morning/swimming seed before a short contrast pilot; require transfer to fresh
+sentences and a delayed check rather than treating rehearsed success as resolution.
+No contrast-drill scheduler or global FSRS retuning in this change.
+
+
 ## 🟢 [DEPLOYED 2026-10-12 — phone usage feedback pending] Immediate sentence-review resume
 
 Persist the active queue separately from speculative downloads; show even an old one-card
