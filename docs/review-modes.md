@@ -18,8 +18,11 @@ in a separate dock immediately above the bottom actions, so tapping a word in a
 long sentence never requires scrolling to the end to find its explanation. The
 dock is capped at 42% of the viewport height (340 points maximum) and scrolls
 independently; minimizing collapses it to the restore control. It reserves its
-space rather than covering text. The header wraps on narrow screens to preserve
-a readable gloss. Revealed sentence Arabic uses a 56-point line height; the answer
+space rather than covering text. The minimal card shows the surface, a two-line gloss, pronunciation/POS/root,
+and a short morphology or dictionary-form bridge. Its expand button opens a
+scrollable full-card modal; tapping outside or Close dismisses it without
+expanding the dock or reflowing the sentence. The modal includes forms, grammar,
+root/pattern family, examples and available enrichment notes. Revealed sentence Arabic uses a 56-point line height; the answer
 divider and top padding are tighter. Long cards remain scrollable without moving
 the bottom actions off screen.
 
@@ -30,7 +33,11 @@ listening keeps its existing tabs and spacing.
 
 Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
 Mixed up, layers = New form. The conditional No tashkeel reason remains available.
-Each icon has a 44-point target, an accessibility label and checked state. Both red and yellow focused words also offer an optional “Mixed up with another word?” row. It expands into a word/English-meaning field with up to four suggestions, then collapses on save or close; saved captures remain editable. It hides with the word explanation. Candidate lists no longer expand the explanation panel itself.
+Each icon has a 44-point target, an accessibility label and a hover/focus legend.
+Forgot and New form toggle reasons. Mixed up opens a dismissible popover on both
+red and yellow words, with an Arabic/English field and up to four suggestions.
+Saving closes the popover; reopening allows editing or clearing. There is no
+duplicate bottom row and candidate lists never expand the reading layout.
 
 The minus button minimizes the selected word explanation and its reason rail.
 A small Word explanation control restores them; selecting another word also

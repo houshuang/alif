@@ -1,27 +1,25 @@
 import React, { useState } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
 import { ConfusionAnalysis, ConfusionCaptureIn } from "../types";
 
-/** One optional row on red or yellow. Close after save; key by token in parent. */
-export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave, onClear, onOpen }: {
+/** Side-icon launched popover; no persistent row in the reading dock. */
+export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave, onClear, visible, onClose }: {
   failedLemmaId: number;
   confusionData: ConfusionAnalysis | null;
   existing?: ConfusionCaptureIn;
   onSave: (capture: ConfusionCaptureIn) => void;
   onClear: () => void;
-  onOpen: () => void;
+  visible: boolean;
+  onClose: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const { width, height } = useWindowDimensions();
   const [text, setText] = useState(existing?.confused_with_text ?? "");
   const candidates = [...(confusionData?.similar_words ?? []), ...(confusionData?.phonetic_similar ?? [])]
     .filter((w, i, all) => w.lemma_id !== failedLemmaId && all.findIndex(x => x.lemma_id === w.lemma_id) === i);
   const ids = candidates.slice(0, 4).map(w => w.lemma_id);
-  const saved = existing?.capture_method === "free_text" ? existing.confused_with_text
-    : candidates.find(w => w.lemma_id === existing?.confused_with_lemma_id)?.gloss_en
-      ?? (existing ? "word selected" : null);
-  const close = () => { setExpanded(false); Keyboard.dismiss(); };
+  const close = () => { onClose(); Keyboard.dismiss(); };
   const save = (capture: ConfusionCaptureIn) => {
     setText(capture.capture_method === "free_text" ? capture.confused_with_text ?? "" : "");
     onSave(capture); close();
@@ -30,21 +28,17 @@ export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave
     if (text.trim()) save({ failed_lemma_id: failedLemmaId, capture_method: "free_text",
       confused_with_text: text.trim(), candidates_shown: ids });
   };
-  return <View style={styles.container}>
-    <View style={styles.row}>
-      <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Edit confusion: ${saved}` : "Mixed up with another word?"}
-        accessibilityState={{ expanded }} onPress={() => {
-          if (expanded) close(); else { setExpanded(true); onOpen(); }
-        }} style={styles.prompt}>
-        <Ionicons name={saved ? "checkmark-outline" : "shuffle-outline"} size={15} color={colors.textSecondary} />
-        <Text style={styles.promptText} numberOfLines={1}>{saved ? `Mixed up: ${saved}` : "Mixed up with another word?"}</Text>
-      </Pressable>
-      {expanded ? <Pressable accessibilityRole="button" accessibilityLabel="Close confusion entry" onPress={close} style={styles.smallButton}>
-        <Ionicons name="close-outline" size={20} color={colors.textSecondary} />
-      </Pressable> : existing ? <Pressable accessibilityRole="button" accessibilityLabel="Clear confusion" style={styles.smallButton}
-        onPress={() => { setText(""); onClear(); }}><Ionicons name="close-outline" size={18} color={colors.textSecondary} /></Pressable> : null}
-    </View>
-    {expanded && <>
+  return <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
+    <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}>
+      <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Dismiss confusion popover" onPress={close} />
+      <View accessibilityViewIsModal style={[styles.popover, { width: Math.min(380, width - 32), maxHeight: height * 0.7 }]}>
+        <View style={styles.row}>
+          <Text style={styles.heading}>Mixed up with which word?</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close confusion entry" onPress={close} style={styles.smallButton}>
+            <Ionicons name="close-outline" size={22} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        <ScrollView keyboardShouldPersistTaps="handled">
       <View style={styles.row}>
         <TextInput value={text} onChangeText={setText} onSubmitEditing={saveText}
           accessibilityLabel="Word or English meaning you confused this with"
@@ -63,13 +57,20 @@ export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave
           <Text style={styles.arabic}>{w.lemma_ar}</Text><Text style={styles.gloss} numberOfLines={1}>{w.gloss_en}</Text>
         </Pressable>)}
       </View>}
-    </>}
-  </View>;
+      {existing && <Pressable accessibilityRole="button" accessibilityLabel="Clear confusion" onPress={() => { setText(""); onClear(); close(); }} style={styles.clear}>
+        <Text style={styles.promptText}>Clear this confusion</Text>
+      </Pressable>}
+      </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
+  </Modal>;
 }
 const styles = StyleSheet.create({
-  container: { marginTop: 2, width: "100%", maxWidth: 500, alignSelf: "center" },
+  overlay: { flex: 1, justifyContent: "flex-end", alignItems: "center", padding: 16, paddingBottom: 86, backgroundColor: "rgba(0,0,0,0.25)" },
+  popover: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12 },
+  heading: { flex: 1, color: colors.text, fontSize: 16, fontWeight: "600" },
+  clear: { minHeight: 44, justifyContent: "center", marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
-  prompt: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 },
   promptText: { color: colors.textSecondary, fontSize: 12, fontFamily: fontFamily.translitRegular, flexShrink: 1 },
   smallButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   input: { flex: 1, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 6,

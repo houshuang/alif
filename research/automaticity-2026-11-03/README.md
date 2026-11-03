@@ -176,10 +176,10 @@ old rows remain NULL, never backfilled as clean. Direct and offline submission
 both persist the field, deduplicate, and undo through the existing review receipt.
 Only `eligible=true` belongs in a fluency analysis; retain exclusions for audit.
 
-Both red and yellow focused words offer an optional “Mixed up with another word?”
-row. It opens a word/English-meaning field plus at most four suggestions, collapses
-after save or close, and hides with the minimized word panel. A saved row remains
-editable/clearable. Suggestions shown are recorded accurately; a free-text answer
+Both red and yellow focused words offer optional capture through the side
+Mixed up icon. It opens a dismissible popover with a word/English-meaning field
+plus at most four suggestions, then closes after saving. Reopening allows editing
+or clearing the capture. There is no duplicate bottom row. Suggestions shown are recorded accurately; a free-text answer
 is available even with no suggestions. The backend preserves a red token's
 rating 1 even on a partial sentence, rather than labeling it yellow.
 
@@ -219,3 +219,21 @@ confusion editor remain in the dock. Narrow headers wrap the English gloss below
 long Arabic forms. TypeScript and the static web export pass; the 320px preview
 was visually checked with entry open/closed and minimize/restore. No native
 keyboard or physical-phone acceptance claim is made.
+
+### Minimal card and modal experiment
+
+The next preview iteration reduces the dock to the surface, meaning, pronunciation,
+POS/root, and a one-line morphology/dictionary bridge. Expand opens a centered,
+scrollable modal; Close or a tap outside dismisses it without reflowing the sentence.
+Full details include forms, grammar, root/pattern family, examples and available
+cognates, collocations, cultural and usage notes. Some enrichment had been omitted
+by earlier compact-card work; it is now available in the modal. Side reason icons
+have hover and keyboard-focus legends, and shuffle is the sole confusion launcher.
+The timer/tashkeel row, divider, dock padding and empty transliteration slot are
+tighter.
+
+TypeScript and all 289 frontend tests pass; static export succeeds. Rendered
+checks at the narrow preview verify minimal/full cards, Close and outside-tap
+dismissal, saved confusion reopening, and focus legends. No console errors were
+observed. The latest screenshots are private preview evidence; physical-phone
+keyboard and lifecycle acceptance remain pending.

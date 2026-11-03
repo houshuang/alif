@@ -370,3 +370,8 @@ See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.
 Reading word help is docked above the answer buttons, outside the sentence scroll.
 Cap its height (42% viewport, max 340pt), preserve independent scrolling and the
 minimize/restore behavior, and never cover the final lines with an absolute overlay.
+
+Keep the dock minimal: meaning, pronunciation/POS/root and a short form bridge.
+Open richer word details in a tap-dismissable modal, not an expanding inline panel.
+The side shuffle icon alone launches confusion entry; no duplicate bottom row.
+Reason icons expose hover/focus legends and retain 44pt targets.
