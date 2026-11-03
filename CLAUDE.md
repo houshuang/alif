@@ -17,7 +17,7 @@ python3 -m uvicorn app.main:app --port 8000
 # Frontend
 cd frontend
 npm install
-npx expo start --web  # opens on localhost:8081
+ALIF_API_URL=http://localhost:8000 npx expo start --web  # opens on localhost:8081
 ```
 
 ## Architecture
@@ -146,7 +146,7 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 - **Bundled commits are dangerous** — if a commit touches >5 files across different features, split it or review each file's diff individually.
 
 ### 7. Branch Workflow for Non-Trivial Changes — Self-Review Gate
-**The user does not review PRs — Claude owns self-review end-to-end.** Do NOT pause after opening a PR to ask the user to review; do NOT ask for approval to merge. Self-review and merge yourself.
+**Agents own self-review end-to-end.** Complete the review and fixes without asking Stian to perform routine review. Leave the PR ready for him; never merge, queue, or enable auto-merge without a specific user request. Broad instructions such as "ship it" or "finish" do not authorize merging.
 
 For changes that touch core algorithm files (`sentence_selector.py`, `session_builder`, `fsrs_service.py`, `acquisition_service.py`) or modify >3 files:
 1. Create a branch: `git checkout -b sh/<feature-name>`
@@ -159,8 +159,8 @@ For changes that touch core algorithm files (`sentence_selector.py`, `session_bu
    - No schema fields lost that the backend still computes
    - Net line counts make sense (a "feature addition" shouldn't have large net deletions)
    - Logic equivalence in refactors (trace through the new code vs old behavior)
-6. If the self-review passes, merge immediately: `gh pr merge <N> --squash --delete-branch`
-7. If issues found, fix on the branch, push, and re-review. Never merge with known issues.
+6. If self-review passes, leave the PR ready. Merge only when Stian specifically requests it.
+7. If issues are found, fix on the branch, push, and re-review. Never merge with known issues.
 
 After merge: `git checkout main && git pull --ff-only`. Deploy only if the user explicitly asked for it — merging and deploying are separate decisions.
 
