@@ -12,10 +12,26 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 
 ### Compact reading review layout
 
-On sentence and passage reading cards, Arabic, English, transliteration, and the
-selected word explanation share one scroll area. Revealed sentence Arabic uses a
-56-point line height; the answer divider and top padding are tighter. Long cards
-remain scrollable without moving the bottom actions off screen.
+On sentence and passage reading cards, Arabic, English, and transliteration share
+one scroll area. The selected word explanation and optional confusion entry sit
+in a separate dock immediately above the bottom actions, so tapping a word in a
+long sentence never requires scrolling to the end to find its explanation. The
+dock is capped at 42% of the viewport height (340 points maximum) and scrolls
+independently; minimizing collapses it to the restore control. It reserves its
+space rather than covering text. The minimal card shows the surface, a two-line gloss, pronunciation/POS/root,
+and a short morphology or dictionary-form bridge. Its expand button opens a
+scrollable full-card modal; tapping outside or Close dismisses it without
+expanding the dock or reflowing the sentence. The modal includes forms, grammar,
+root/pattern family, examples and available enrichment notes.
+The comprehension-first modal presents the sentence surface and dictionary form,
+relevant forms, the saved confusion pair (when supplied), phrases, then up to two
+previous reviewed sentence contexts with the word highlighted. It excludes the
+current sentence and prefers a difficult context plus a different successful one.
+History loads only when opened; unavailable history offers retry while dictionary
+help remains readable. Root/pattern material, language notes, and aggregate review
+history use separate collapsed disclosures. Counts are not described as fluency. Revealed sentence Arabic uses a 56-point line height; the answer
+divider and top padding are tighter. Long cards remain scrollable without moving
+the bottom actions off screen.
 
 Only the revealed reading card hides the navigation tabs. No idea and
 Continue/Know All use the full bottom row above the device safe area. Tabs return
@@ -24,12 +40,32 @@ listening keeps its existing tabs and spacing.
 
 Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
 Mixed up, layers = New form. The conditional No tashkeel reason remains available.
-Each icon has a 44-point target, an accessibility label and checked state. The existing confusion picker still opens for Mixed up.
+Each icon has a 44-point target, an accessibility label and a hover/focus legend.
+Forgot and New form toggle reasons. Mixed up opens a dismissible popover on both
+red and yellow words, with an Arabic/English field and up to four suggestions.
+Saving closes the popover; reopening allows editing or clearing. There is no
+duplicate bottom row and candidate lists never expand the reading layout.
 
 The minus button minimizes the selected word explanation and its reason rail.
 A small Word explanation control restores them; selecting another word also
 opens its explanation. Minimizing never changes word marks, selected failure
 causes, or review evidence.
+
+### Clean sentence reading timing
+
+The small timer control beside the tashkeel dot discards timing for a distracted
+presentation without changing the review. It never restarts a timer on text
+already read. Timing starts only on the visible, focused reading card and freezes
+at first reveal or direct answer. Backgrounding, blur, navigation, clock gaps,
+word help, marks, and front tashkeel toggles exclude the presentation.
+
+Version-1 `reading_timing` survives offline submission and is stored separately
+from legacy `response_ms` in `SentenceReviewLog.reading_timing_json`. The server
+marks eligibility only for correct single-sentence reading cards with explicit
+zero lookup/audio counts and complete validated protocol-v3 clean token evidence.
+Legacy clients have no measurement. This signal never changes FSRS or ratings.
+See `research/automaticity-2026-11-03/README.md` for the production baseline,
+exclusion thresholds, limits, and observed confusion clusters.
 
 ### Pre-Sentence Cards
 

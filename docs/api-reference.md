@@ -169,3 +169,17 @@ or phrases). Edition two additionally accepts `support=en`; optional reflection 
 Returns `recorded` or `duplicate`; invalid identities and conflicting event IDs
 return 422. Writes experiment evidence only, without vocabulary/review credit.
 Content is bundled; see `parallel-reading.md`.
+
+### Sentence reading timing
+
+`POST /api/review/submit-sentence` and sentence entries in `/api/review/sync`
+accept optional `reading_timing: {version: 1, elapsed_ms: integer|null,
+exclusions: string[]}`. Client exclusions are `manual`, `background`, `navigation`,
+`clock_gap`, `clock_error`, `assistance`, `marked_word`, or `not_started`.
+For clean eligibility send explicit `lookup_count: 0`, `audio_play_count: 0`,
+`parent_card_type: "sentence"`, and complete validated protocol-v3 token evidence.
+The server stores the observation with its own `eligible` decision and additional
+contradiction/missing-evidence exclusions in `sentence_review_log.reading_timing_json`.
+Legacy `response_ms`, review ratings and scheduling retain their meaning; old
+clients need no new fields. Unknown/malformed timing in a queued sync review is
+recorded as excluded without discarding the underlying review.

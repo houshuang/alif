@@ -12,6 +12,8 @@ import { UNTRUSTED_FORM_KEYS, sliceSurface } from "./surface-parts";
 export type FocusWordMark = "missed" | "did_not_recognize";
 
 interface WordInfoCardProps {
+  minimal?: boolean;
+  onOpenDetails?: () => void;
   loading: boolean;
   surfaceForm: string | null;
   markState: FocusWordMark | null;
@@ -128,6 +130,8 @@ function bareForm(text: string): string {
 }
 
 export default function WordInfoCard({
+  minimal = false,
+  onOpenDetails,
   loading,
   surfaceForm,
   markState,
@@ -194,6 +198,30 @@ export default function WordInfoCard({
 
   if (!hasFocus && !loading) {
     return reserveSpace ? <View style={styles.spacer} /> : null;
+  }
+
+  if (minimal) {
+    const gloss = particleInfo?.meaning ?? result?.gloss_en;
+    const bridge = confusionData?.morphology?.explanation || (result && bareForm(surfaceForm || "") !== bareForm(result.lemma_ar) ? `Dictionary form: ${result.lemma_ar}` : null);
+    const meta = [surfaceTranslit || result?.transliteration, result?.pos, result?.root].filter(Boolean).join(" · ");
+    return <View style={miniStyles.card}>
+      <View style={miniStyles.header}>
+        <Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>
+        <View style={miniStyles.actions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open full word card" onPress={onOpenDetails} style={miniStyles.button}>
+            <Ionicons name="expand-outline" size={19} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Minimize word explanation" onPress={onMinimize} style={miniStyles.button}>
+            <Ionicons name="remove-outline" size={19} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      </View>
+      {loading ? <ActivityIndicator size="small" color={colors.accent} /> : <>
+        <Text style={miniStyles.gloss} numberOfLines={2}>{gloss || "Word explanation"}</Text>
+        {!!meta && <Text style={miniStyles.meta} numberOfLines={1}>{meta}</Text>}
+        {!!bridge && <Text style={miniStyles.meta} numberOfLines={1}>{bridge}</Text>}
+      </>}
+    </View>;
   }
 
   const nav = showNav || onMinimize ? (
@@ -353,7 +381,7 @@ function PanelRow({ label, children, onPress }: { label: React.ReactNode; childr
   );
 }
 
-function RevealedView({
+export function RevealedView({
   result,
   surfaceForm,
   markState,
@@ -365,6 +393,7 @@ function RevealedView({
   onPickConfusion,
   pickedConfusionLemmaId,
   showConfusionCandidates = true,
+  expanded = false,
   nav,
 }: {
   result: WordLookupResult | null;
@@ -378,6 +407,7 @@ function RevealedView({
   onPickConfusion?: (lemmaId: number) => void;
   pickedConfusionLemmaId?: number | null;
   showConfusionCandidates?: boolean;
+  expanded?: boolean;
   nav?: React.ReactNode;
 }) {
   if (!result) return null;
@@ -456,12 +486,12 @@ function RevealedView({
 
   const patternExamples = (result.pattern_examples ?? [])
     .filter((e) => e.lemma_id !== result.lemma_id && e.knowledge_state === "known")
-    .slice(0, 2);
+    .slice(0, expanded ? undefined : 2);
 
   const family = result.root_family
     .filter((s) => s.lemma_id !== result.lemma_id && !glossesOverlap(s.gloss_en, result.gloss_en))
     .sort((a, b) => familyRank(a.state) - familyRank(b.state))
-    .slice(0, 5);
+    .slice(0, expanded ? undefined : 5);
 
   const note = showMnemonic(result.memory_hooks_json)
     ? result.memory_hooks_json!.mnemonic!
@@ -514,7 +544,7 @@ function RevealedView({
         </PanelRow>
       )}
 
-      {formChips.length > 1 && (
+      {!expanded && formChips.length > 1 && (
         <PanelRow label="forms">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rowStyles.chips}>
             {formChips.map((c) => {
@@ -533,7 +563,7 @@ function RevealedView({
         </PanelRow>
       )}
 
-      {result.wazn && !/^form_1$/i.test(result.wazn) && (
+      {result.wazn && (expanded || !/^form_1$/i.test(result.wazn)) && (
         <PanelRow
           label="pattern"
           onPress={onNavigateToPattern ? () => onNavigateToPattern(result.wazn!) : undefined}
@@ -582,7 +612,7 @@ function RevealedView({
         </PanelRow>
       )}
 
-      {note && (
+      {!expanded && note && (
         <PanelRow label={<Ionicons name="bulb-outline" size={13} color="#c9a54a" />}>
           <Text style={[rowStyles.text, rowStyles.note]} numberOfLines={3}>{ltr(note)}</Text>
         </PanelRow>
@@ -981,8 +1011,10 @@ const rowStyles = StyleSheet.create({
   headMain: {
     flex: 1,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    columnGap: 10,
+    rowGap: 0,
     minWidth: 0,
   },
   lemma: {
@@ -991,10 +1023,12 @@ const rowStyles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 44,
     writingDirection: "rtl",
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   headText: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 96,
   },
   gloss: {
     color: colors.text,
@@ -1179,4 +1213,14 @@ const cfStyles = StyleSheet.create({
   dimChar: {
     color: "rgba(232, 232, 240, 0.25)",
   },
+});
+
+const miniStyles = StyleSheet.create({
+  card: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, paddingHorizontal: 10, paddingBottom: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  arabic: { fontFamily: fontFamily.arabic, color: colors.arabic, fontSize: 27, lineHeight: 40, flex: 1, minWidth: 0, writingDirection: "rtl" },
+  actions: { flexDirection: "row" },
+  button: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  gloss: { fontSize: 16, fontWeight: "600", color: colors.text },
+  meta: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
 });

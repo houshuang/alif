@@ -568,6 +568,7 @@ export interface SentenceReviewSubmission {
   confusion_candidate_lemma_ids?: Record<number, number[]>;
   confusion_captures?: ConfusionCaptureIn[];
   response_ms: number;
+  reading_timing?: import("./review/reading-timer").ReadingTiming;
   session_id: string;
   review_mode: ReviewMode;
   client_review_id?: string;

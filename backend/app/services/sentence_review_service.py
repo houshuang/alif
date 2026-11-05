@@ -134,6 +134,10 @@ def submit_sentence_review(
     sentence_ids: list[int] | None = None,
     word_evidence_protocol_version: int | None = None,
     word_review_evidence: list[dict] | None = None,
+    reading_timing: dict | None = None,
+    lookup_count: int | None = None,
+    audio_play_count: int | None = None,
+    parent_card_type: str | None = None,
 ) -> dict:
     """Submit a review for a whole sentence, distributing ratings to words.
 
@@ -684,6 +688,16 @@ def submit_sentence_review(
             .filter(Sentence.id.in_(review_sentence_ids))
             .all()
         }
+        from app.services.reading_timing import normalize_reading_timing
+        timing = normalize_reading_timing(
+            reading_timing, review_mode=review_mode,
+            comprehension_signal=comprehension_signal, sentence_ids=review_sentence_ids,
+            missed_ids=missed_lemma_ids, confused_ids=confused_lemma_ids,
+            word_evidence=validated_word_evidence if word_evidence_protocol_version == 3 else [],
+            expected_token_ids=[sw.id for sw in sentence_words if sw.lemma_id is not None],
+            lookup_count=lookup_count, audio_play_count=audio_play_count,
+            parent_card_type=parent_card_type,
+        )
         for idx, sid in enumerate(review_sentence_ids):
             sent_log = SentenceReviewLog(
                 sentence_id=sid,
@@ -691,6 +705,7 @@ def submit_sentence_review(
                 reviewed_at=now,
                 comprehension=comprehension_signal,
                 response_ms=response_ms,
+                reading_timing_json=timing if idx == 0 else None,
                 review_mode=review_mode,
                 client_review_id=(
                     client_review_id
@@ -737,7 +752,11 @@ def submit_sentence_review(
                 continue
             confused_with_text = text
             confused_with_lid = None
-        rating_for_capture = 1 if comprehension_signal == "no_idea" else 2
+        # Preserve the actual red/yellow product outcome for this word. The
+        # sentence may be partial with a red mark, not only whole-card no_idea.
+        if failed_lid not in (missed_set | confused_set) and comprehension_signal != "no_idea":
+            continue
+        rating_for_capture = 1 if comprehension_signal == "no_idea" or failed_lid in missed_set else 2
         db.add(ConfusionCapture(
             failed_lemma_id=failed_lid,
             sentence_id=primary_sentence_id,

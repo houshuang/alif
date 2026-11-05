@@ -65,3 +65,12 @@ schema change. Reasons beginning `automatic_attention_v2:` explain the current
 decision. Identity-QA parked rows remain excluded. New reading-relevant words can
 receive an encountered staging row; reconciliation never changes existing memory
 fields. Audit transitions are stored as `activity_log.event_type=automatic_attention`.
+
+### Sentence reading timing (2026-11-03)
+
+`sentence_review_log.reading_timing_json` is nullable JSON: `{version: 1,
+elapsed_ms: number|null, exclusions: string[], eligible: boolean}`. It measures
+front reading to first reveal/answer, separately from whole-card `response_ms`.
+Eligibility is server-computed; legacy NULL is unknown. Excluded observations
+remain auditable, and receipt undo deletes them with the sentence log.
+Migration: `e1a3c5d7f9b2`, after `d0f2b4c6e8a1`.

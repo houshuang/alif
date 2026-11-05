@@ -348,6 +348,9 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         confusion_candidate_lemma_ids=body.confusion_candidate_lemma_ids,
         confusion_captures=[c.model_dump() for c in body.confusion_captures],
         response_ms=body.response_ms,
+        reading_timing=body.reading_timing.model_dump() if body.reading_timing else None,
+        lookup_count=body.lookup_count, audio_play_count=body.audio_play_count,
+        parent_card_type=body.parent_card_type,
         session_id=body.session_id,
         review_mode=body.review_mode,
         client_review_id=body.client_review_id,
@@ -378,6 +381,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
             for w in result.get("word_results", [])
             if w.get("form_recovery_protected")
         ],
+        reading_timing=body.reading_timing.model_dump() if body.reading_timing else None,
         audio_play_count=body.audio_play_count,
         lookup_count=body.lookup_count,
         parent_card_type=body.parent_card_type,
@@ -653,6 +657,9 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     confusion_candidate_lemma_ids=payload.get("confusion_candidate_lemma_ids", {}),
                     confusion_captures=payload.get("confusion_captures") or [],
                     response_ms=payload.get("response_ms"),
+                    reading_timing=payload.get("reading_timing"),
+                    lookup_count=payload.get("lookup_count"), audio_play_count=payload.get("audio_play_count"),
+                    parent_card_type=payload.get("parent_card_type"),
                     session_id=payload.get("session_id"),
                     review_mode=payload.get("review_mode", "reading"),
                     client_review_id=item.client_review_id,
@@ -683,6 +690,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                             for w in result.get("word_results", [])
                             if w.get("form_recovery_protected")
                         ],
+                        reading_timing=payload.get("reading_timing"),
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
                         parent_card_type=payload.get("parent_card_type"),

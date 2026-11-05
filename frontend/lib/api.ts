@@ -518,6 +518,7 @@ export async function submitSentenceReview(
     confusion_candidate_lemma_ids: submission.confusion_candidate_lemma_ids,
     confusion_captures: submission.confusion_captures,
     response_ms: submission.response_ms,
+    reading_timing: submission.reading_timing,
     session_id: submission.session_id,
     review_mode: submission.review_mode,
     audio_play_count: submission.audio_play_count,

@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Navigation.** Append-only, newest-first. New entries go directly below the `ENTRIES (newest first)` marker — never above the index. The index below maps the *load-bearing* entries by area: search the quoted `date "title fragment"` to jump to one (line numbers drift on every append, so the index cites titles, not lines). Update the index only when a new entry becomes the **definitive reference** for an area (or opens a new area) — not on every append. Current-state **synthesis** lives elsewhere — `docs/scheduling-system.md` (scheduling/constants), `docs/design-principles.md` (feature decisions), `polyglot/CLAUDE.md` (Polyglot rules + gates audit); this log is the **why / audit trail** those docs distill. Per CLAUDE.md Rule #14, grep here before proposing fixes in any iterated area.
 
+## 2026-11-03: Reading automaticity baseline and clean timing
+
+[Production audit and implementation](automaticity-2026-11-03/README.md) examines
+September–November engagement, primary retention by scheduling gap, the clean
+sentence proxy, current policy, and 39 observed confusion components. Last-week
+clean/no-help proxy: 37/75 (49.3%); this morning: 17/28 (60.7%). These are legacy
+proxies, not interruption-safe fluency measurements.
+
+Implementation adds observational, versioned first-reveal reading timing with
+manual discard and interruption/help exclusions, persists eligibility separately
+from `response_ms`, and exposes compact named capture for red and yellow words.
+No scheduler/intake policy change or historical backfill. Production DB/logs were
+read only. Code remains unactivated until the PR is merged and deployed.
+
 ## 2026-10-04 — Novel sprint v1: finish *رجال في الشمس* by 31 December, measured weekly by L1 recall
 
 **Decision (learner, this date).** Replace the open-ended plateau with one goal that can
