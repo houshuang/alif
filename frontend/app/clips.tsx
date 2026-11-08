@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, AVPlaybackStatus, ResizeMode, Video } from "expo-av";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clipVideoUrl, getClips, recordClipEvent } from "../lib/api";
 import { Clip, ClipCatalogue, ClipLine, ClipProgress } from "../lib/types";
 import { colors, fontFamily } from "../lib/theme";
@@ -20,6 +21,9 @@ import { colors, fontFamily } from "../lib/theme";
 const SPEEDS = [0.75, 0.9, 1];
 const STAGES = ["Listen", "Shadow", "Blind", "TikTok"];
 const SHADOW_REPEATS = 3;
+
+const PREFS_KEY = "@alif/clip-prefs";
+const textPrefs = { vowels: true, english: false };
 
 const stripVowels = (text: string) => text.replace(/[ً-ْ]/g, "");
 
@@ -45,6 +49,11 @@ export default function ClipsScreen() {
 
   useEffect(() => {
     getClips().then(setCatalogue).catch(() => setError(true));
+    AsyncStorage.getItem(PREFS_KEY)
+      .then((raw) => {
+        if (raw) Object.assign(textPrefs, JSON.parse(raw));
+      })
+      .catch(() => {});
   }, []);
 
   const updateProgress = useCallback((clipId: string, progress: ClipProgress) => {
@@ -144,8 +153,10 @@ function ClipPlayer({
   );
   const [speed, setSpeed] = useState(1);
   const [cur, setCurState] = useState(0);
-  const [vowels, setVowels] = useState(true);
-  const [english, setEnglish] = useState(false);
+  const [vowels, setVowels] = useState(textPrefs.vowels);
+  const [english, setEnglish] = useState(textPrefs.english);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [heardBlind, setHeardBlind] = useState(false);
   const [loopLine, setLoopLine] = useState(false);
   const [hideShadowText, setHideShadowText] = useState(false);
   const [showPicture, setShowPicture] = useState(false);
@@ -240,6 +251,7 @@ function ClipPlayer({
 
   const playAll = async () => {
     cancelPlayback();
+    if (stage === 3) setHeardBlind(true);
     try {
       await videoRef.current?.setPositionAsync(0);
       await videoRef.current?.playAsync();
@@ -259,6 +271,7 @@ function ClipPlayer({
       return;
     }
     cancelPlayback();
+    if (stage === 3) setHeardBlind(true);
     const video = videoRef.current;
     if (!video) return;
     try {
@@ -307,9 +320,11 @@ function ClipPlayer({
     once();
   };
 
-  const changeStage = (next: number) => {
+  const changeStage = (next: number, message: string | null = null) => {
     pause();
     if (next === 2) setCur(0);
+    if (next === 3) setHeardBlind(false);
+    setNotice(message);
     setStage(next);
     send({ event: "stage", stage: next }).catch(() => {});
   };
@@ -321,7 +336,9 @@ function ClipPlayer({
 
   const rateBlind = (rating: "bits" | "most" | "all") => {
     send({ event: "blind_rating", rating }).catch(() => {});
-    changeStage(rating === "all" ? 4 : rating === "most" ? 2 : 1);
+    if (rating === "all") changeStage(4);
+    else if (rating === "most") changeStage(2, "Most: shadow the lines you lost");
+    else changeStage(1, "Bits: loop the lines one by one");
   };
 
   const pass = async () => {
@@ -332,6 +349,13 @@ function ClipPlayer({
     } catch {
       Alert.alert("Not saved", "Check the connection and try again.");
     }
+  };
+
+  const updateTextPrefs = (next: Partial<typeof textPrefs>) => {
+    Object.assign(textPrefs, next);
+    AsyncStorage.setItem(PREFS_KEY, JSON.stringify(textPrefs)).catch(() => {});
+    if (next.vowels !== undefined) setVowels(next.vowels);
+    if (next.english !== undefined) setEnglish(next.english);
   };
 
   const arabic = (l: ClipLine) => (vowels ? l.ar : stripVowels(l.ar));
@@ -353,7 +377,7 @@ function ClipPlayer({
             progressUpdateIntervalMillis={50}
             rate={speed}
             shouldCorrectPitch
-            videoStyle={StyleSheet.absoluteFill}
+            videoStyle={styles.videoFill}
             onLoad={() => videoRef.current?.setRateAsync(speed, true).catch(() => {})}
             onPlaybackStatusUpdate={onStatus}
             onError={() => setVideoFailed(true)}
@@ -384,11 +408,12 @@ function ClipPlayer({
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
+        {!!notice && <Text style={styles.notice}>{notice}</Text>}
         {stage === 1 && (
           <>
             <View style={styles.bar}>
-              <Btn label="Vowels" on={vowels} onPress={() => setVowels(!vowels)} />
-              <Btn label="English" on={english} onPress={() => setEnglish(!english)} />
+              <Btn label="Vowels" on={vowels} onPress={() => updateTextPrefs({ vowels: !vowels })} />
+              <Btn label="English" on={english} onPress={() => updateTextPrefs({ english: !english })} />
               <View style={{ flex: 1 }} />
               <Btn icon="repeat" label="Loop" on={loopLine} onPress={toggleLoop} />
             </View>
@@ -444,9 +469,9 @@ function ClipPlayer({
             </View>
             <Text style={styles.h2}>How much did you follow?</Text>
             <View style={styles.bar}>
-              <Btn label="Bits" grow onPress={() => rateBlind("bits")} />
-              <Btn label="Most" grow onPress={() => rateBlind("most")} />
-              <Btn label="Everything" grow onPress={() => rateBlind("all")} />
+              <Btn label="Bits" grow disabled={!heardBlind} onPress={() => rateBlind("bits")} />
+              <Btn label="Most" grow disabled={!heardBlind} onPress={() => rateBlind("most")} />
+              <Btn label="Everything" grow disabled={!heardBlind} onPress={() => rateBlind("all")} />
             </View>
           </>
         )}
@@ -464,7 +489,7 @@ function ClipPlayer({
             />
             <Text style={styles.h2}>Did you follow every word, at full speed, without text?</Text>
             <View style={styles.bar}>
-              <Btn label="Not yet" grow onPress={() => changeStage(1)} />
+              <Btn label="Not yet" grow onPress={() => changeStage(1, "Not yet: back to the lines")} />
               <Btn label="Yes" on grow onPress={pass} />
             </View>
           </>
@@ -510,17 +535,23 @@ function Btn({
   icon,
   on,
   grow,
+  disabled,
   onPress,
 }: {
   label?: string;
   icon?: keyof typeof Ionicons.glyphMap;
   on?: boolean;
   grow?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const color = on ? "#ffffff" : colors.text;
   return (
-    <Pressable style={[styles.btn, on && styles.btnOn, grow && { flex: 1 }]} onPress={onPress}>
+    <Pressable
+      style={[styles.btn, on && styles.btnOn, grow && { flex: 1 }, disabled && { opacity: 0.35 }]}
+      disabled={disabled}
+      onPress={onPress}
+    >
       {icon && <Ionicons name={icon} size={15} color={color} />}
       {!!label && (
         <Text style={[styles.btnText, { color }]} numberOfLines={1}>
@@ -578,6 +609,8 @@ const styles = StyleSheet.create({
   playerTop: { paddingHorizontal: 16 },
   videoBox: { height: 230, backgroundColor: "#000", borderRadius: 12, overflow: "hidden" },
   cover: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
+  videoFill: { width: "100%", height: "100%" },
+  notice: { color: colors.confused, fontSize: 14, marginTop: 10 },
   videoError: { color: colors.missed, textAlign: "center", marginTop: 100 },
   bar: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   btn: {
