@@ -1448,6 +1448,18 @@ export interface DiscoverAddResult {
   already_known: boolean;
 }
 
+export interface ClipWord {
+  t: string;
+  s: number;
+  e: number;
+}
+
+export interface ClipPhrase {
+  s: number;
+  e: number;
+  words: ClipWord[];
+}
+
 export interface ClipLine {
   s: number;
   e: number;
@@ -1455,6 +1467,14 @@ export interface ClipLine {
   en: string;
   n: string;
   u?: boolean;
+  phrases: ClipPhrase[];
+}
+
+export interface ClipVocab {
+  ar: string;
+  en: string;
+  ph: number;
+  w: [number, number];
 }
 
 export interface ClipProgress {
@@ -1471,6 +1491,7 @@ export interface Clip {
   sec: number;
   creator: string;
   lines: ClipLine[];
+  vocab: ClipVocab[];
   progress: ClipProgress;
 }
 
