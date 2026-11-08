@@ -113,3 +113,7 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 ### Automatic attention v2 (2026-09-19)
 
 `automatic_attention.py` computes reversible maintenance eligibility from broad frequency, independent reading contexts and recent practice cost. Ordinary cron and fresh sessions refresh it automatically. `attention_policy.py` remains the shared enforcement layer. The classifier never calls a provider or rewrites memory; all decisions retain reasons in the activity log.
+
+## Dialect listening clips
+
+`app/routers/clips.py` serves the catalogue `data/clips/clips.json` and videos in `data/clips/video/`. On production `data/clips` is a symlink to `/srv/media/egy-clips`. This content is third-party material for private use, so it stays out of Git and is reachable only through the private API capability. Clips do not produce lemma, FSRS or acquisition evidence: Egyptian forms are outside the MSA lemma inventory.

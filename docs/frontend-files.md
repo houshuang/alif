@@ -93,3 +93,7 @@ Its source commit, secure API manifest, authenticated launch-asset download/hash
 resume markers are verified. A plain CDN download needs the manifest-provided asset
 authorization headers. Physical-device application and startup latency remain for the
 learner to observe; the normal background-download flow can need two cold launches.
+
+## Clips
+
+`app/clips.tsx` is the Egyptian Clips screen, opened from More. It lists clips and a core phrase table, then practises one clip in four steps: Listen (tap to play or loop a line), Shadow (one line repeated three times with speaking gaps), Blind (no text, picture covered because many videos have burned-in captions) and TikTok (the original, then a pass that schedules re-tests). Uses the `expo-av` `Video` already in the native build, so it ships over the air.

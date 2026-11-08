@@ -1,5 +1,9 @@
 # Alif — Master Ideas File
 
+## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
+
+Short real clips, drilled through Listen, Shadow, Blind and the original on TikTok, until followed at full speed without text. Open: move more of the ~100 remaining captioned clips in; per-clip pre-teaching of unknown words and set phrases; a separate spaced deck for Egyptian chunks; feeding clip words that also exist in MSA into Alif; other dialects (Levantine, Gulf); blurred rather than covered picture in Blind (needs `expo-blur` and a native build).
+
 ## 🟢 [DEPLOYED 2026-10-12 — phone usage feedback pending] Immediate sentence-review resume
 
 Persist the active queue separately from speculative downloads; show even an old one-card

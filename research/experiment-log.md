@@ -114,6 +114,10 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-08: Egyptian clips added as an isolated listening practice
+
+**Why.** Reading comprehension does not transfer to fast Egyptian speech: the bottleneck is parsing speed and dialect function words more than vocabulary size. **What.** 18 short TikTok clips from Egyptian creators, with TikTok captions reconciled against ElevenLabs Scribe, are practised in four steps until followed without text; passes schedule re-tests at 1, 3, 7, 21 and 60 days. **Scope.** No lemma, FSRS or acquisition effects, so nothing here changes MSA scheduling. **Gotcha.** yt-dlp's `audio` format for TikTok is the separate music track; take the audio from a video format. **Measure.** Whether clips reach a pass, and whether re-tests hold. Events: `clip_stage`, `clip_blind_rating`, `clip_pass`.
+
 ## 2026-10-30: Compact word panel published to web and iPhone
 
 Published source `a670fac0b774658d31316e1d201f87f2ad5297ed` (PR #291). The private

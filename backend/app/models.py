@@ -156,6 +156,22 @@ class ReadingTarget(Base):
     lemma = relationship("Lemma")
 
 
+class ClipProgress(Base):
+    """Learner progress through one dialect listening clip.
+
+    Clip content and video live outside the repo in `data/clips/`; this row only
+    records practice state. It never touches lemmas, FSRS or acquisition.
+    """
+    __tablename__ = "clip_progress"
+
+    clip_id = Column(String(40), primary_key=True)
+    stage = Column(Integer, nullable=False, default=1, server_default="1")
+    pass_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_passed_at = Column(DateTime, nullable=True)
+    next_check_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class FrequencyCoreEntry(Base):
     __tablename__ = "frequency_core_entries"
 

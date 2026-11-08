@@ -1447,3 +1447,39 @@ export interface DiscoverAddResult {
   state: string;
   already_known: boolean;
 }
+
+export interface ClipLine {
+  s: number;
+  e: number;
+  ar: string;
+  en: string;
+  n: string;
+  u?: boolean;
+}
+
+export interface ClipProgress {
+  stage: number;
+  pass_count: number;
+  retest_due: boolean;
+  next_check_at: string | null;
+}
+
+export interface Clip {
+  id: string;
+  title: string;
+  en: string;
+  sec: number;
+  creator: string;
+  lines: ClipLine[];
+  progress: ClipProgress;
+}
+
+export interface ClipCatalogue {
+  clips: Clip[];
+  core: [string, string, string][];
+}
+
+export type ClipEvent =
+  | { event: "stage"; stage: number }
+  | { event: "blind_rating"; rating: "bits" | "most" | "all" }
+  | { event: "pass" };
