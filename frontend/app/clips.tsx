@@ -133,6 +133,7 @@ function ClipPlayer({
   const [loopLine, setLoopLine] = useState(false);
   const [hideShadowText, setHideShadowText] = useState(false);
   const [showPicture, setShowPicture] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const loopRef = useRef(loopLine);
   loopRef.current = loopLine;
 
@@ -147,6 +148,10 @@ function ClipPlayer({
     [clip.id, onProgress],
   );
 
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const initialStage = useRef(clip.progress.stage);
+
   const cancelPlayback = useCallback(() => {
     runId.current += 1;
     segment.current = null;
@@ -156,9 +161,9 @@ function ClipPlayer({
 
   useEffect(() => {
     Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
-    if (clip.progress.stage === 0) send({ event: "stage", stage: 1 }).catch(() => {});
+    if (initialStage.current === 0) sendRef.current({ event: "stage", stage: 1 }).catch(() => {});
     return cancelPlayback;
-  }, [cancelPlayback, clip.progress.stage, send]);
+  }, [cancelPlayback]);
 
   const later = (fn: () => void, ms: number) => {
     timers.current.push(setTimeout(fn, ms));
@@ -171,13 +176,17 @@ function ClipPlayer({
       segment.current = null;
       const line = clip.lines[i];
       setCur(i);
-      await video.pauseAsync().catch(() => {});
-      await video.setPositionAsync(Math.max(0, line.s * 1000 - 50), {
-        toleranceMillisBefore: 0,
-        toleranceMillisAfter: 0,
-      });
-      segment.current = { endMs: line.e * 1000 + 120, onEnd };
-      await video.playAsync();
+      try {
+        await video.pauseAsync();
+        await video.setPositionAsync(Math.max(0, line.s * 1000 - 50), {
+          toleranceMillisBefore: 0,
+          toleranceMillisAfter: 0,
+        });
+        segment.current = { endMs: line.e * 1000 + 120, onEnd };
+        await video.playAsync();
+      } catch {
+        segment.current = null;
+      }
     },
     [clip.lines, setCur],
   );
@@ -206,8 +215,12 @@ function ClipPlayer({
 
   const playAll = async () => {
     cancelPlayback();
-    await videoRef.current?.setPositionAsync(0);
-    await videoRef.current?.playAsync();
+    try {
+      await videoRef.current?.setPositionAsync(0);
+      await videoRef.current?.playAsync();
+    } catch {
+      setVideoFailed(true);
+    }
   };
 
   const pause = () => {
@@ -287,8 +300,10 @@ function ClipPlayer({
             rate={speed}
             shouldCorrectPitch
             onPlaybackStatusUpdate={onStatus}
+            onError={() => setVideoFailed(true)}
           />
           {coverPicture && <View style={styles.cover} />}
+          {videoFailed && <Text style={styles.videoError}>Video could not load</Text>}
         </View>
         <View style={styles.bar}>
           {SPEEDS.map((x) => (
@@ -492,6 +507,7 @@ const styles = StyleSheet.create({
   playerTop: { paddingHorizontal: 16 },
   videoBox: { height: 230, backgroundColor: "#000", borderRadius: 12, overflow: "hidden" },
   cover: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
+  videoError: { color: colors.missed, textAlign: "center", marginTop: 100 },
   bar: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   btn: {
     flexDirection: "row",
