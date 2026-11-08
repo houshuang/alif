@@ -116,4 +116,4 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 
 ## Dialect listening clips
 
-`app/routers/clips.py` serves the catalogue `data/clips/clips.json` and videos in `data/clips/video/`. On production `data/clips` is a symlink to `/srv/media/egy-clips`. This content is third-party material for private use, so it stays out of Git and is reachable only through the private API capability. Clips do not produce lemma, FSRS or acquisition evidence: Egyptian forms are outside the MSA lemma inventory.
+`app/routers/clips.py` serves the catalogue `data/clips/clips.json` and videos in `data/clips/video/`. On production `data/clips` is a symlink to `/srv/media/egy-clips`. This content is third-party material for private use, so it stays out of Git and is reachable only through the private API capability. Each line carries phrases with word timings, each clip has a `vocab` list and a `wps` speech rate, and the catalogue is ordered slowest first. Clips do not produce lemma, FSRS or acquisition evidence: Egyptian forms are outside the MSA lemma inventory.

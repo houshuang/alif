@@ -114,6 +114,10 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-08: Egyptian clips rebuilt around phrases after first real use
+
+**Observed.** First use: too fast, and hard to match speech to transcript; the Shadow step was confusing. Measured 2.6–3.7 words per second, with a median line of 10 words and a maximum of 22. **Changed.** Word-level timing highlight, 2–6 word phrases, 0.5× and 0.6× speeds, a Words step before listening, seven slower clips, slowest-first ordering, and Shadow replaced by a repeat button on each phrase. **Watch.** Whether the slowest clips (about 2.1 words per second) are followable with this support. If not, add a graded on-ramp rather than more TikToks.
+
 ## 2026-11-08: Egyptian clips added as an isolated listening practice
 
 **Why.** Reading comprehension does not transfer to fast Egyptian speech: the bottleneck is parsing speed and dialect function words more than vocabulary size. **What.** 18 short TikTok clips from Egyptian creators, with TikTok captions reconciled against ElevenLabs Scribe, are practised in four steps until followed without text; passes schedule re-tests at 1, 3, 7, 21 and 60 days. **Scope.** No lemma, FSRS or acquisition effects, so nothing here changes MSA scheduling. **Gotcha.** yt-dlp's `audio` format for TikTok is the separate music track; take the audio from a video format. **Measure.** Whether clips reach a pass, and whether re-tests hold. Events: `clip_stage`, `clip_blind_rating`, `clip_pass`.

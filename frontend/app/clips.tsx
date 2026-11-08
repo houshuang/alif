@@ -5,8 +5,10 @@ import {
   Linking,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
+  TextStyle,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,15 +17,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio, AVPlaybackStatus, ResizeMode, Video } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clipVideoUrl, getClips, recordClipEvent } from "../lib/api";
-import { Clip, ClipCatalogue, ClipLine, ClipProgress } from "../lib/types";
+import { Clip, ClipCatalogue, ClipPhrase, ClipProgress } from "../lib/types";
 import { colors, fontFamily } from "../lib/theme";
 
-const SPEEDS = [0.75, 0.9, 1];
-const STAGES = ["Listen", "Shadow", "Blind", "TikTok"];
-const SHADOW_REPEATS = 3;
+const SPEEDS = [0.5, 0.6, 0.75, 0.9, 1];
+const STAGES = ["Words", "Listen", "Blind", "TikTok"];
+const SPEAK_REPEATS = 3;
 
 const PREFS_KEY = "@alif/clip-prefs";
-const textPrefs = { vowels: true, english: false };
+const textPrefs = { vowels: true, english: false, speed: 0.75 };
 
 const stripVowels = (text: string) => text.replace(/[ً-ْ]/g, "");
 
@@ -131,6 +133,37 @@ export default function ClipsScreen() {
   );
 }
 
+function PhraseText({
+  phrase,
+  vowels,
+  activeWord,
+  target,
+  style,
+}: {
+  phrase: ClipPhrase;
+  vowels: boolean;
+  activeWord: number;
+  target?: [number, number];
+  style: StyleProp<TextStyle>;
+}) {
+  return (
+    <Text style={style}>
+      {phrase.words.map((w, i) => (
+        <Text
+          key={i}
+          style={[
+            target && i >= target[0] && i <= target[1] && { color: colors.confused },
+            i === activeWord && { color: colors.targetWord },
+          ]}
+        >
+          {vowels ? w.t : stripVowels(w.t)}
+          {i < phrase.words.length - 1 ? " " : ""}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
 function ClipPlayer({
   clip,
   onBack,
@@ -147,23 +180,26 @@ function ClipPlayer({
   const runId = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const curRef = useRef(0);
+  const curWordRef = useRef(-1);
+  const phrases = useRef(
+    clip.lines.flatMap((line, lineIndex) => line.phrases.map((p) => ({ ...p, line: lineIndex }))),
+  ).current;
 
   const [stage, setStage] = useState(
     clip.progress.pass_count > 0 ? 3 : Math.max(clip.progress.stage, 1),
   );
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(textPrefs.speed);
   const [cur, setCurState] = useState(0);
+  const [curWord, setCurWordState] = useState(-1);
   const [vowels, setVowels] = useState(textPrefs.vowels);
   const [english, setEnglish] = useState(textPrefs.english);
   const [notice, setNotice] = useState<string | null>(null);
   const [heardBlind, setHeardBlind] = useState(false);
   const [loopLine, setLoopLine] = useState(false);
-  const [hideShadowText, setHideShadowText] = useState(false);
   const [showPicture, setShowPicture] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [shadowEnglish, setShadowEnglish] = useState(false);
-  const [shadowPlay, setShadowPlay] = useState(0);
+  const [repeating, setRepeating] = useState<{ phrase: number; play: number } | null>(null);
   const loopRef = useRef(loopLine);
   loopRef.current = loopLine;
 
@@ -172,12 +208,17 @@ function ClipPlayer({
     setCurState(i);
   }, []);
 
+  const setCurWord = useCallback((i: number) => {
+    if (curWordRef.current === i) return;
+    curWordRef.current = i;
+    setCurWordState(i);
+  }, []);
+
   const send = useCallback(
     (event: Parameters<typeof recordClipEvent>[1]) =>
       recordClipEvent(clip.id, event).then(onProgress),
     [clip.id, onProgress],
   );
-
   const sendRef = useRef(send);
   sendRef.current = send;
   const initialStage = useRef(clip.progress.stage);
@@ -187,8 +228,9 @@ function ClipPlayer({
     segment.current = null;
     timers.current.forEach(clearTimeout);
     timers.current = [];
-    setShadowPlay(0);
-  }, []);
+    setRepeating(null);
+    setCurWord(-1);
+  }, [setCurWord]);
 
   useEffect(() => {
     videoRef.current?.setRateAsync(speed, true).catch(() => {});
@@ -204,27 +246,35 @@ function ClipPlayer({
     timers.current.push(setTimeout(fn, ms));
   };
 
-  const playLine = useCallback(
+  const playPhrase = useCallback(
     async (i: number, onEnd?: () => void) => {
       const video = videoRef.current;
       if (!video) return;
       segment.current = null;
-      const line = clip.lines[i];
+      const phrase = phrases[i];
       setCur(i);
       try {
         await video.pauseAsync();
-        await video.setPositionAsync(Math.max(0, line.s * 1000 - 50), {
+        await video.setPositionAsync(Math.max(0, phrase.s * 1000 - 50), {
           toleranceMillisBefore: 0,
           toleranceMillisAfter: 0,
         });
-        segment.current = { endMs: line.e * 1000 + 120, onEnd };
+        segment.current = { endMs: phrase.e * 1000 + 120, onEnd };
         await video.playAsync();
       } catch {
         segment.current = null;
       }
     },
-    [clip.lines, setCur],
+    [phrases, setCur],
   );
+
+  const wordAt = (i: number, seconds: number) => {
+    let found = -1;
+    phrases[i].words.forEach((w, k) => {
+      if (w.s <= seconds) found = k;
+    });
+    return found;
+  };
 
   const onStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -232,20 +282,30 @@ function ClipPlayer({
     const pos = status.positionMillis;
     const seg = segment.current;
     if (seg) {
+      setCurWord(wordAt(curRef.current, pos / 1000));
       if (pos >= seg.endMs) {
         segment.current = null;
+        setCurWord(-1);
         videoRef.current?.pauseAsync().catch(() => {});
         seg.onEnd?.();
       }
       return;
     }
     if (status.isPlaying) {
-      const i = clip.lines.findIndex((l) => pos / 1000 >= l.s && pos / 1000 < l.e + 0.3);
-      if (i >= 0 && i !== curRef.current) {
-        setCur(i);
-        const y = lineY.current[i];
-        if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 60), animated: true });
+      const seconds = pos / 1000;
+      const i = phrases.findIndex((p) => seconds >= p.s - 0.05 && seconds < p.e + 0.25);
+      if (i < 0) {
+        setCurWord(-1);
+        return;
       }
+      if (i !== curRef.current) {
+        setCur(i);
+        const y = lineY.current[phrases[i].line];
+        if (stage === 2 && y != null) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - 60), animated: true });
+        }
+      }
+      setCurWord(wordAt(i, seconds));
     }
   };
 
@@ -266,7 +326,7 @@ function ClipPlayer({
   };
 
   const togglePlay = async () => {
-    if (isPlaying || shadowPlay > 0) {
+    if (isPlaying || repeating) {
       pause();
       return;
     }
@@ -285,36 +345,35 @@ function ClipPlayer({
     }
   };
 
+  const tapPhrase = (i: number) => {
+    cancelPlayback();
+    const run = runId.current;
+    const repeat = () => {
+      if (run === runId.current && loopRef.current) later(() => playPhrase(i, repeat), 500);
+    };
+    playPhrase(i, repeat);
+  };
+
   const toggleLoop = () => {
     const next = !loopLine;
     setLoopLine(next);
     loopRef.current = next;
-    if (next && !isPlaying) tapLine(curRef.current);
+    if (next && !isPlaying) tapPhrase(curRef.current);
   };
 
-  const tapLine = (i: number) => {
+  const repeatToSpeak = (i: number) => {
     cancelPlayback();
     const run = runId.current;
-    const repeat = () => {
-      if (run === runId.current && loopRef.current) later(() => playLine(i, repeat), 500);
-    };
-    playLine(i, repeat);
-  };
-
-  const shadow = () => {
-    cancelPlayback();
-    const run = runId.current;
-    const i = curRef.current;
-    const line = clip.lines[i];
-    const gap = Math.max(1200, ((line.e - line.s) * 1000) / speed + 700);
+    const phrase = phrases[i];
+    const gap = Math.max(1200, ((phrase.e - phrase.s) * 1000) / speed + 700);
     let plays = 0;
     const once = () => {
       if (run !== runId.current) return;
-      setShadowPlay(plays + 1);
-      playLine(i, () => {
+      setRepeating({ phrase: i, play: plays + 1 });
+      playPhrase(i, () => {
         plays += 1;
-        if (plays < SHADOW_REPEATS) later(once, gap);
-        else setShadowPlay(0);
+        if (plays < SPEAK_REPEATS) later(once, gap);
+        else setRepeating(null);
       });
     };
     once();
@@ -322,23 +381,18 @@ function ClipPlayer({
 
   const changeStage = (next: number, message: string | null = null) => {
     pause();
-    if (next === 2) setCur(0);
     if (next === 3) setHeardBlind(false);
     setNotice(message);
     setStage(next);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
     send({ event: "stage", stage: next }).catch(() => {});
-  };
-
-  const stepLine = (delta: number) => {
-    pause();
-    setCur(Math.min(clip.lines.length - 1, Math.max(0, curRef.current + delta)));
   };
 
   const rateBlind = (rating: "bits" | "most" | "all") => {
     send({ event: "blind_rating", rating }).catch(() => {});
     if (rating === "all") changeStage(4);
-    else if (rating === "most") changeStage(2, "Most: shadow the lines you lost");
-    else changeStage(1, "Bits: loop the lines one by one");
+    else if (rating === "most") changeStage(2, "Most: repeat the phrases you lost");
+    else changeStage(1, "Bits: back to the words");
   };
 
   const pass = async () => {
@@ -356,11 +410,11 @@ function ClipPlayer({
     AsyncStorage.setItem(PREFS_KEY, JSON.stringify(textPrefs)).catch(() => {});
     if (next.vowels !== undefined) setVowels(next.vowels);
     if (next.english !== undefined) setEnglish(next.english);
+    if (next.speed !== undefined) setSpeed(next.speed);
   };
 
-  const arabic = (l: ClipLine) => (vowels ? l.ar : stripVowels(l.ar));
-  const line = clip.lines[cur];
   const coverPicture = stage === 3 && !showPicture;
+  let phraseIndex = -1;
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -388,11 +442,17 @@ function ClipPlayer({
         <View style={styles.bar}>
           {stage !== 4 &&
             SPEEDS.map((x) => (
-              <Btn key={x} label={`${x}×`} on={speed === x} onPress={() => setSpeed(x)} />
+              <Btn
+                key={x}
+                compact
+                label={`${x}×`}
+                on={speed === x}
+                onPress={() => updateTextPrefs({ speed: x })}
+              />
             ))}
           <View style={{ flex: 1 }} />
-          <Btn icon="play-skip-back" label="Start" onPress={playAll} />
-          <Btn icon={isPlaying || shadowPlay > 0 ? "pause" : "play"} onPress={togglePlay} />
+          <Btn icon="play-skip-back" onPress={playAll} />
+          <Btn icon={isPlaying || repeating ? "pause" : "play"} onPress={togglePlay} />
         </View>
         <View style={styles.bar}>
           {STAGES.map((name, k) => (
@@ -409,7 +469,29 @@ function ClipPlayer({
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
         {!!notice && <Text style={styles.notice}>{notice}</Text>}
-        {stage === 1 && (
+
+        {stage === 1 &&
+          clip.vocab.map((v, i) => (
+            <Pressable
+              key={i}
+              style={[styles.vocabRow, cur === v.ph && curWord >= 0 && styles.lineCur]}
+              onPress={() => tapPhrase(v.ph)}
+            >
+              <View style={styles.vocabHead}>
+                <Text style={styles.vocabEn}>{v.en}</Text>
+                <Text style={styles.vocabAr}>{v.ar}</Text>
+              </View>
+              <PhraseText
+                phrase={phrases[v.ph]}
+                vowels
+                activeWord={cur === v.ph ? curWord : -1}
+                target={v.w}
+                style={styles.vocabContext}
+              />
+            </Pressable>
+          ))}
+
+        {stage === 2 && (
           <>
             <View style={styles.bar}>
               <Btn label="Vowels" on={vowels} onPress={() => updateTextPrefs({ vowels: !vowels })} />
@@ -417,16 +499,39 @@ function ClipPlayer({
               <View style={{ flex: 1 }} />
               <Btn icon="repeat" label="Loop" on={loopLine} onPress={toggleLoop} />
             </View>
-            {clip.lines.map((l, i) => (
-              <Pressable
-                key={i}
-                style={[styles.line, i === cur && styles.lineCur]}
+            {clip.lines.map((l, lineIndex) => (
+              <View
+                key={lineIndex}
+                style={styles.line}
                 onLayout={(e) => {
-                  lineY.current[i] = e.nativeEvent.layout.y;
+                  lineY.current[lineIndex] = e.nativeEvent.layout.y;
                 }}
-                onPress={() => tapLine(i)}
               >
-                <Text style={styles.ar}>{arabic(l)}</Text>
+                {l.phrases.map((p, k) => {
+                  phraseIndex += 1;
+                  const i = phraseIndex;
+                  const active = i === cur;
+                  return (
+                    <View key={k} style={[styles.phraseRow, active && styles.phraseCur]}>
+                      <Pressable style={styles.speakBtn} onPress={() => repeatToSpeak(i)} hitSlop={6}>
+                        <Ionicons name="mic-outline" size={15} color={colors.textSecondary} />
+                        <Text style={styles.speakText}>
+                          {repeating?.phrase === i
+                            ? `${repeating.play}/${SPEAK_REPEATS}`
+                            : `×${SPEAK_REPEATS}`}
+                        </Text>
+                      </Pressable>
+                      <Pressable style={{ flex: 1 }} onPress={() => tapPhrase(i)}>
+                        <PhraseText
+                          phrase={p}
+                          vowels={vowels}
+                          activeWord={active ? curWord : -1}
+                          style={styles.ar}
+                        />
+                      </Pressable>
+                    </View>
+                  );
+                })}
                 {english && (
                   <>
                     <Text style={styles.en}>{l.en}</Text>
@@ -436,25 +541,9 @@ function ClipPlayer({
                     </Text>
                   </>
                 )}
-              </Pressable>
+              </View>
             ))}
           </>
-        )}
-
-        {stage === 2 && (
-          <View style={styles.shadowBox}>
-            <Text style={styles.meta}>
-              {cur + 1} / {clip.lines.length}
-            </Text>
-            <Pressable onPress={() => setHideShadowText(!hideShadowText)}>
-              <Text style={[styles.arBig, hideShadowText && styles.invisible]}>{arabic(line)}</Text>
-            </Pressable>
-            <Pressable onPress={() => setShadowEnglish(!shadowEnglish)}>
-              <Text style={[styles.en, (hideShadowText || !shadowEnglish) && styles.invisible]}>
-                {line.en}
-              </Text>
-            </Pressable>
-          </View>
         )}
 
         {stage === 3 && (
@@ -489,43 +578,12 @@ function ClipPlayer({
             />
             <Text style={styles.h2}>Did you follow every word, at full speed, without text?</Text>
             <View style={styles.bar}>
-              <Btn label="Not yet" grow onPress={() => changeStage(1, "Not yet: back to the lines")} />
+              <Btn label="Not yet" grow onPress={() => changeStage(2, "Not yet: back to the phrases")} />
               <Btn label="Yes" on grow onPress={pass} />
             </View>
           </>
         )}
       </ScrollView>
-
-      {stage === 2 && (
-        <View style={styles.footer}>
-          <View style={styles.bar}>
-            <Btn label="Prev" grow onPress={() => stepLine(-1)} />
-            <Btn
-              label={shadowPlay > 0 ? `${shadowPlay} / ${SHADOW_REPEATS}` : `Repeat ×${SHADOW_REPEATS}`}
-              on
-              grow
-              onPress={shadow}
-            />
-            <Btn label="Next" grow onPress={() => stepLine(1)} />
-          </View>
-          <View style={styles.bar}>
-            <Btn
-              label="Once"
-              grow
-              onPress={() => {
-                cancelPlayback();
-                playLine(curRef.current);
-              }}
-            />
-            <Btn
-              label={hideShadowText ? "Show text" : "Hide text"}
-              grow
-              onPress={() => setHideShadowText(!hideShadowText)}
-            />
-            <Btn label="English" on={shadowEnglish} grow onPress={() => setShadowEnglish(!shadowEnglish)} />
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -535,6 +593,7 @@ function Btn({
   icon,
   on,
   grow,
+  compact,
   disabled,
   onPress,
 }: {
@@ -542,13 +601,20 @@ function Btn({
   icon?: keyof typeof Ionicons.glyphMap;
   on?: boolean;
   grow?: boolean;
+  compact?: boolean;
   disabled?: boolean;
   onPress: () => void;
 }) {
   const color = on ? "#ffffff" : colors.text;
   return (
     <Pressable
-      style={[styles.btn, on && styles.btnOn, grow && { flex: 1 }, disabled && { opacity: 0.35 }]}
+      style={[
+        styles.btn,
+        compact && { paddingHorizontal: 6 },
+        on && styles.btnOn,
+        grow && { flex: 1 },
+        disabled && { opacity: 0.35 },
+      ]}
       disabled={disabled}
       onPress={onPress}
     >
@@ -607,7 +673,7 @@ const styles = StyleSheet.create({
   coreEn: { color: colors.text, fontSize: 15 },
   coreAr: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 21, lineHeight: 34 },
   playerTop: { paddingHorizontal: 16 },
-  videoBox: { height: 230, backgroundColor: "#000", borderRadius: 12, overflow: "hidden" },
+  videoBox: { height: 200, backgroundColor: "#000", borderRadius: 12, overflow: "hidden" },
   cover: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
   videoFill: { width: "100%", height: "100%" },
   notice: { color: colors.confused, fontSize: 14, marginTop: 10 },
@@ -646,17 +712,36 @@ const styles = StyleSheet.create({
     textAlign: "right",
     writingDirection: "rtl",
   },
-  arBig: {
-    color: colors.arabic,
+  en: { color: colors.textSecondary, fontSize: 14, marginTop: 2 },
+  note: { color: colors.confused, fontSize: 12.5, marginTop: 4 },
+  phraseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+  },
+  phraseCur: { backgroundColor: colors.surfaceLight },
+  speakBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 8, minWidth: 40 },
+  speakText: { color: colors.textSecondary, fontSize: 12 },
+  vocabRow: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  vocabHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  vocabEn: { flex: 1, color: colors.text, fontSize: 15 },
+  vocabAr: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 25, lineHeight: 42 },
+  vocabContext: {
+    color: colors.textSecondary,
     fontFamily: fontFamily.arabic,
-    fontSize: 30,
-    lineHeight: 56,
+    fontSize: 19,
+    lineHeight: 34,
     textAlign: "right",
     writingDirection: "rtl",
   },
-  en: { color: colors.textSecondary, fontSize: 14, marginTop: 2 },
-  note: { color: colors.confused, fontSize: 12.5, marginTop: 4 },
-  shadowBox: { marginTop: 18, gap: 8 },
-  invisible: { opacity: 0 },
-  footer: { paddingHorizontal: 16, paddingBottom: 28 },
 });
