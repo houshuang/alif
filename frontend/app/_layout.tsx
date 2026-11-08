@@ -356,6 +356,7 @@ function LayoutInner({ online }: { online: boolean }) {
         />
 
         {/* ─── Hidden screens (Arabic-side detail/nested routes) ──── */}
+        <Tabs.Screen name="clips" options={{ href: null, title: "Clips", headerShown: false, tabBarStyle: { display: "none" } }} />
         <Tabs.Screen name="scanner" options={{ href: null, title: "Scanner" }} />
         <Tabs.Screen name="chats" options={{ href: null, title: "Chats" }} />
         <Tabs.Screen name="learn" options={{ href: null, title: "New Words" }} />

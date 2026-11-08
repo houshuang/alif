@@ -41,6 +41,9 @@ import {
   SessionSummary,
   SessionEndData,
   PretestWord,
+  ClipCatalogue,
+  ClipEvent,
+  ClipProgress,
 } from "./types";
 import { netStatus } from "./net-status";
 import { syncEvents } from "./sync-events";
@@ -1415,4 +1418,27 @@ export async function getPatterns(): Promise<PatternListItem[]> {
 
 export async function getPatternDetail(wazn: string): Promise<PatternDetail> {
   return fetchApi<PatternDetail>(`/api/patterns/${encodeURIComponent(wazn)}`);
+}
+
+export async function getClips(): Promise<ClipCatalogue> {
+  try {
+    const catalogue = await fetchApi<ClipCatalogue>("/api/clips");
+    cacheData("clips", catalogue).catch(() => {});
+    return catalogue;
+  } catch (e) {
+    const cached = await getCachedData<ClipCatalogue>("clips");
+    if (cached) return cached;
+    throw e;
+  }
+}
+
+export function clipVideoUrl(clipId: string): string {
+  return `${BASE_URL}/api/clips/${clipId}/video`;
+}
+
+export async function recordClipEvent(clipId: string, event: ClipEvent): Promise<ClipProgress> {
+  return fetchApi<ClipProgress>(`/api/clips/${clipId}/event`, {
+    method: "POST",
+    body: JSON.stringify(event),
+  });
 }

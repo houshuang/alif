@@ -65,3 +65,7 @@ schema change. Reasons beginning `automatic_attention_v2:` explain the current
 decision. Identity-QA parked rows remain excluded. New reading-relevant words can
 receive an encountered staging row; reconciliation never changes existing memory
 fields. Audit transitions are stored as `activity_log.event_type=automatic_attention`.
+
+## ClipProgress (`clip_progress`)
+
+Practice state for one dialect listening clip: `clip_id` (primary key), `stage` (1 Listen, 2 Shadow, 3 Blind, 4 TikTok), `pass_count`, `last_passed_at`, `next_check_at`, `updated_at`. It has no link to lemmas, FSRS or acquisition.

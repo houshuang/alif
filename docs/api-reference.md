@@ -169,3 +169,9 @@ or phrases). Edition two additionally accepts `support=en`; optional reflection 
 Returns `recorded` or `duplicate`; invalid identities and conflicting event IDs
 return 422. Writes experiment evidence only, without vocabulary/review credit.
 Content is bundled; see `parallel-reading.md`.
+
+## Dialect listening clips
+
+- `GET /api/clips` returns `{clips, core}`. Each clip has its timed `lines` and `progress` (`stage`, `pass_count`, `retest_due`, `next_check_at`).
+- `GET /api/clips/{clip_id}/video` streams the MP4 with HTTP Range support.
+- `POST /api/clips/{clip_id}/event` records `{event: "stage", stage}`, `{event: "blind_rating", rating}` or `{event: "pass"}`. A pass schedules the next check after 1, 3, 7, 21, then 60 days. Events log as `clip_stage`, `clip_blind_rating` and `clip_pass`.
