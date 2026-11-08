@@ -40,6 +40,8 @@ export default function ClipsScreen() {
   const [catalogue, setCatalogue] = useState<ClipCatalogue | null>(null);
   const [error, setError] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const listRef = useRef<ScrollView>(null);
+  const listY = useRef(0);
 
   useEffect(() => {
     getClips().then(setCatalogue).catch(() => setError(true));
@@ -68,13 +70,25 @@ export default function ClipsScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
-      <Pressable style={styles.back} onPress={() => router.back()} hitSlop={12}>
+      <Pressable
+        style={styles.back}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/more"))}
+        hitSlop={12}
+      >
         <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
       </Pressable>
       {!catalogue && !error && <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />}
       {error && <Text style={styles.error}>Clips could not load</Text>}
       {catalogue && (
-        <ScrollView contentContainerStyle={styles.listContent}>
+        <ScrollView
+          ref={listRef}
+          contentContainerStyle={styles.listContent}
+          scrollEventThrottle={100}
+          onScroll={(e) => {
+            listY.current = e.nativeEvent.contentOffset.y;
+          }}
+          onContentSizeChange={() => listRef.current?.scrollTo({ y: listY.current, animated: false })}
+        >
           <Text style={styles.h1}>Egyptian Clips</Text>
           {sortClips(catalogue.clips).map((c) => {
             const status = statusLabel(c.progress);
@@ -125,7 +139,9 @@ function ClipPlayer({
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const curRef = useRef(0);
 
-  const [stage, setStage] = useState(Math.min(Math.max(clip.progress.stage, 1), 3));
+  const [stage, setStage] = useState(
+    clip.progress.pass_count > 0 ? 3 : Math.max(clip.progress.stage, 1),
+  );
   const [speed, setSpeed] = useState(1);
   const [cur, setCurState] = useState(0);
   const [vowels, setVowels] = useState(true);
@@ -134,6 +150,9 @@ function ClipPlayer({
   const [hideShadowText, setHideShadowText] = useState(false);
   const [showPicture, setShowPicture] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [shadowEnglish, setShadowEnglish] = useState(false);
+  const [shadowPlay, setShadowPlay] = useState(0);
   const loopRef = useRef(loopLine);
   loopRef.current = loopLine;
 
@@ -157,7 +176,12 @@ function ClipPlayer({
     segment.current = null;
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    setShadowPlay(0);
   }, []);
+
+  useEffect(() => {
+    videoRef.current?.setRateAsync(speed, true).catch(() => {});
+  }, [speed]);
 
   useEffect(() => {
     Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
@@ -193,6 +217,7 @@ function ClipPlayer({
 
   const onStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
+    setIsPlaying(status.isPlaying);
     const pos = status.positionMillis;
     const seg = segment.current;
     if (seg) {
@@ -228,6 +253,32 @@ function ClipPlayer({
     videoRef.current?.pauseAsync().catch(() => {});
   };
 
+  const togglePlay = async () => {
+    if (isPlaying || shadowPlay > 0) {
+      pause();
+      return;
+    }
+    cancelPlayback();
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      const status = await video.getStatusAsync();
+      const atEnd =
+        status.isLoaded && !!status.durationMillis && status.positionMillis >= status.durationMillis - 100;
+      if (atEnd) await video.setPositionAsync(0);
+      await video.playAsync();
+    } catch {
+      setVideoFailed(true);
+    }
+  };
+
+  const toggleLoop = () => {
+    const next = !loopLine;
+    setLoopLine(next);
+    loopRef.current = next;
+    if (next && !isPlaying) tapLine(curRef.current);
+  };
+
   const tapLine = (i: number) => {
     cancelPlayback();
     const run = runId.current;
@@ -246,9 +297,11 @@ function ClipPlayer({
     let plays = 0;
     const once = () => {
       if (run !== runId.current) return;
+      setShadowPlay(plays + 1);
       playLine(i, () => {
         plays += 1;
         if (plays < SHADOW_REPEATS) later(once, gap);
+        else setShadowPlay(0);
       });
     };
     once();
@@ -256,6 +309,7 @@ function ClipPlayer({
 
   const changeStage = (next: number) => {
     pause();
+    if (next === 2) setCur(0);
     setStage(next);
     send({ event: "stage", stage: next }).catch(() => {});
   };
@@ -299,6 +353,8 @@ function ClipPlayer({
             progressUpdateIntervalMillis={50}
             rate={speed}
             shouldCorrectPitch
+            videoStyle={StyleSheet.absoluteFill}
+            onLoad={() => videoRef.current?.setRateAsync(speed, true).catch(() => {})}
             onPlaybackStatusUpdate={onStatus}
             onError={() => setVideoFailed(true)}
           />
@@ -306,12 +362,13 @@ function ClipPlayer({
           {videoFailed && <Text style={styles.videoError}>Video could not load</Text>}
         </View>
         <View style={styles.bar}>
-          {SPEEDS.map((x) => (
-            <Btn key={x} label={`${x}×`} on={speed === x} onPress={() => setSpeed(x)} />
-          ))}
+          {stage !== 4 &&
+            SPEEDS.map((x) => (
+              <Btn key={x} label={`${x}×`} on={speed === x} onPress={() => setSpeed(x)} />
+            ))}
           <View style={{ flex: 1 }} />
-          <Btn icon="play" label="All" onPress={playAll} />
-          <Btn icon="pause" onPress={pause} />
+          <Btn icon="play-skip-back" label="Start" onPress={playAll} />
+          <Btn icon={isPlaying || shadowPlay > 0 ? "pause" : "play"} onPress={togglePlay} />
         </View>
         <View style={styles.bar}>
           {STAGES.map((name, k) => (
@@ -333,7 +390,7 @@ function ClipPlayer({
               <Btn label="Vowels" on={vowels} onPress={() => setVowels(!vowels)} />
               <Btn label="English" on={english} onPress={() => setEnglish(!english)} />
               <View style={{ flex: 1 }} />
-              <Btn icon="repeat" label="Loop" on={loopLine} onPress={() => setLoopLine(!loopLine)} />
+              <Btn icon="repeat" label="Loop" on={loopLine} onPress={toggleLoop} />
             </View>
             {clip.lines.map((l, i) => (
               <Pressable
@@ -367,29 +424,11 @@ function ClipPlayer({
             <Pressable onPress={() => setHideShadowText(!hideShadowText)}>
               <Text style={[styles.arBig, hideShadowText && styles.invisible]}>{arabic(line)}</Text>
             </Pressable>
-            <Pressable onPress={() => setEnglish(!english)}>
-              <Text style={[styles.en, !english && styles.invisible]}>{line.en}</Text>
+            <Pressable onPress={() => setShadowEnglish(!shadowEnglish)}>
+              <Text style={[styles.en, (hideShadowText || !shadowEnglish) && styles.invisible]}>
+                {line.en}
+              </Text>
             </Pressable>
-            <View style={styles.bar}>
-              <Btn label="Prev" grow onPress={() => stepLine(-1)} />
-              <Btn label={`Repeat ×${SHADOW_REPEATS}`} on grow onPress={shadow} />
-              <Btn label="Next" grow onPress={() => stepLine(1)} />
-            </View>
-            <View style={styles.bar}>
-              <Btn
-                label="Once"
-                grow
-                onPress={() => {
-                  cancelPlayback();
-                  playLine(curRef.current);
-                }}
-              />
-              <Btn
-                label={hideShadowText ? "Show text" : "Hide text"}
-                grow
-                onPress={() => setHideShadowText(!hideShadowText)}
-              />
-            </View>
           </View>
         )}
 
@@ -414,6 +453,7 @@ function ClipPlayer({
 
         {stage === 4 && (
           <>
+            <View style={{ height: 14 }} />
             <Btn
               label="Open in TikTok"
               on
@@ -430,6 +470,37 @@ function ClipPlayer({
           </>
         )}
       </ScrollView>
+
+      {stage === 2 && (
+        <View style={styles.footer}>
+          <View style={styles.bar}>
+            <Btn label="Prev" grow onPress={() => stepLine(-1)} />
+            <Btn
+              label={shadowPlay > 0 ? `${shadowPlay} / ${SHADOW_REPEATS}` : `Repeat ×${SHADOW_REPEATS}`}
+              on
+              grow
+              onPress={shadow}
+            />
+            <Btn label="Next" grow onPress={() => stepLine(1)} />
+          </View>
+          <View style={styles.bar}>
+            <Btn
+              label="Once"
+              grow
+              onPress={() => {
+                cancelPlayback();
+                playLine(curRef.current);
+              }}
+            />
+            <Btn
+              label={hideShadowText ? "Show text" : "Hide text"}
+              grow
+              onPress={() => setHideShadowText(!hideShadowText)}
+            />
+            <Btn label="English" on={shadowEnglish} grow onPress={() => setShadowEnglish(!shadowEnglish)} />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -553,5 +624,6 @@ const styles = StyleSheet.create({
   en: { color: colors.textSecondary, fontSize: 14, marginTop: 2 },
   note: { color: colors.confused, fontSize: 12.5, marginTop: 4 },
   shadowBox: { marginTop: 18, gap: 8 },
-  invisible: { opacity: 0.04 },
+  invisible: { opacity: 0 },
+  footer: { paddingHorizontal: 16, paddingBottom: 28 },
 });

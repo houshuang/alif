@@ -46,10 +46,10 @@ def test_unknown_or_invalid_clip_is_404(client, catalogue, clip_id):
     assert client.get(f"/api/clips/{clip_id}/video").status_code == 404
 
 
-def test_stage_only_moves_forward(client, catalogue):
+def test_stage_records_the_current_step(client, catalogue):
     url = f"/api/clips/{CLIP_ID}/event"
     assert client.post(url, json={"event": "stage", "stage": 3}).json()["stage"] == 3
-    assert client.post(url, json={"event": "stage", "stage": 2}).json()["stage"] == 3
+    assert client.post(url, json={"event": "stage", "stage": 1}).json()["stage"] == 1
 
 
 def test_pass_walks_the_retest_ladder(client, catalogue, db_session):

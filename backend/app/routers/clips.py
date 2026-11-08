@@ -98,7 +98,7 @@ def record_clip_event(clip_id: str, body: ClipEventIn, db: Session = Depends(get
         db.add(row)
 
     if body.event == "stage":
-        row.stage = max(row.stage, body.stage)
+        row.stage = body.stage
     elif body.event == "pass":
         step = min(row.pass_count, len(RETEST_LADDER_DAYS) - 1)
         row.pass_count += 1
