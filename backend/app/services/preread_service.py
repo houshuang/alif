@@ -382,8 +382,6 @@ def practice_names(db: Session, names: list[dict]) -> dict:
                     w["skipped"] = "ordinary word"
                     continue
                 lemma.word_category = PRACTICED_NAME_CATEGORY
-                if lemma.gates_completed_at is None:
-                    gate_ids.append(lemma.lemma_id)
             else:
                 gloss = (w.get("gloss_en") or "").strip()
                 if not gloss:
@@ -402,12 +400,14 @@ def practice_names(db: Session, names: list[dict]) -> dict:
                 db.add(lemma)
                 db.flush()
                 assign_frequency_rank(lemma)
-                gate_ids.append(lemma.lemma_id)
             res = introduce_word(
                 db, lemma.lemma_id, source=PREREAD_SOURCE,
                 due_immediately=True, enforce_daily_cap=True, learner_pick=True,
             )
+            needs_gates = lemma.gates_completed_at is None
             db.commit()
+            if needs_gates:
+                gate_ids.append(lemma.lemma_id)
             w["lemma_id"] = lemma.lemma_id
             w["added"] = res.get("state") == "acquiring"
             ids.append(lemma.lemma_id)
