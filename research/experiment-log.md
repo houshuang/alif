@@ -135,7 +135,8 @@ total; `reasoning_effort="low"` 38 words / 398 tokens / 33 s; `minimal` 39 / 417
 (`{p, ar, en, links: [{ar, en}]}`); links that do not literally occur are dropped. Live
 test on a textbook page: 14 sentences, 70 links over 162 words, 14.6 s, 4,056 output
 tokens (old snap: 18.9 s). The app shows Arabic sentences with English underneath; an
-English tap highlights its Arabic source and opens that word's definition.
+English tap highlights its Arabic source and opens that word's definition. Shipped as
+backend `3d3252a` (#299) and iOS update `01a1dead-35c7-739c-b026-34d9a51558d9`.
 
 ## 2026-11-15: Learner picks v1 — Snap adds and textbook scans enter learning at once
 
