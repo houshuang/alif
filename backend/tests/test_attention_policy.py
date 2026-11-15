@@ -81,7 +81,7 @@ def test_canonical_choice_blocks_variant_inventory_and_stale_review(db_session):
     assert lemma.knowledge.total_encounters == 1
 
 
-@pytest.mark.parametrize('source', ['bookifier','dragoman','book','textbook_scan','story_import','book_ocr'])
+@pytest.mark.parametrize('source', ['bookifier','dragoman','book','story_import','book_ocr'])
 def test_new_import_is_staged_and_legacy_ui_cannot_override(db_session, client, source):
     lemma = _seed_word(db_session, 1, 'كتاب', 'book', with_card=False)
     ulk = start_acquisition(db_session, 1, source=source, enforce_daily_cap=False)
@@ -137,3 +137,35 @@ def test_curation_preimages_fail_before_any_write(db_session):
     with pytest.raises(ValueError,match='Stale identity'):
         apply_curation(db,manifest,True)
     assert db.query(UserLemmaKnowledge).one().attention_disposition == 'maintain'
+
+
+@pytest.mark.parametrize('source', ['snap', 'textbook_scan'])
+def test_learner_pick_enters_acquisition_and_overrides_staging(db_session, source):
+    _seed_word(db_session, 1, 'كتاب', 'book', with_card=False)
+    ulk = start_acquisition(db_session, 1, source=source, learner_pick=True)
+    assert ulk.knowledge_state == 'acquiring'
+    assert ulk.attention_disposition == 'maintain'
+
+    _seed_word(db_session, 2, 'قلم', 'pen', with_card=False)
+    staged = start_acquisition(db_session, 2, source='bookifier', enforce_daily_cap=False)
+    assert staged.attention_disposition == 'reading_support'
+    picked = start_acquisition(db_session, 2, source=source, learner_pick=True)
+    assert picked is staged
+    assert picked.knowledge_state == 'acquiring'
+    assert picked.attention_disposition == 'maintain'
+
+
+@pytest.mark.parametrize('source', ['snap', 'textbook_scan'])
+def test_learner_pick_never_resumes_parked_or_reviewed_words(db_session, source):
+    _seed_word(db_session, 1, 'كتاب', 'book', with_card=False)
+    db_session.add(UserLemmaKnowledge(lemma_id=1, knowledge_state='encountered',
+                                     attention_disposition='parked'))
+    db_session.commit()
+    assert start_acquisition(db_session, 1, source=source, learner_pick=True).knowledge_state == 'encountered'
+
+    lemma = _seed_word(db_session, 2, 'قلم', 'pen')
+    set_disposition(db_session, 2, 'reading_support', 'costly')
+    before = lemma.knowledge.knowledge_state
+    ulk = start_acquisition(db_session, 2, source=source, restart_known=True, learner_pick=True)
+    assert ulk.knowledge_state == before
+    assert ulk.attention_disposition == 'reading_support'

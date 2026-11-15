@@ -1429,6 +1429,8 @@ export interface DiscoverWord {
   count_in_text: number;
   example_ar: string | null;
   lemma_source: string;
+  lemma_id?: number | null;
+  knowledge_state?: string | null;
 }
 
 export interface SnapResult {

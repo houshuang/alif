@@ -1,5 +1,16 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED 2026-11-15 — not yet deployed] Learner picks + Snap as a reading companion
+
+Snap adds and every textbook-scan word enter acquisition at once, even under recovery,
+and rank above reading targets (`docs/scheduling-system.md` "Learner picks v1"). Snap
+shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
+- Sentence-aligned Snap translation (Arabic sentence ↔ English sentence) so tapping a
+  sentence shows only its translation, like ChatGPT parallel reading.
+- A Snap "book" mode: keep snapped pages of one book (e.g. the Macron book) in order,
+  so pages can be reread and their picked words traced back to the page.
+- Measure whether picks retain as well as frequency words (Box-1 pass rate by source).
+
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
 Short real clips, drilled through Listen, Shadow, Blind and the original on TikTok, until followed at full speed without text. Word-by-word highlighting, short phrases, a Words step and 0.5× speed added after first use (too fast, hard to match speech to text). Open: a gentler on-ramp if the slowest clips stay too hard (Michel Thomas Egyptian, slowly read core-phrase sentences); move more of the remaining captioned clips in; a separate spaced deck for Egyptian chunks; feeding clip words that also exist in MSA into Alif; other dialects (Levantine, Gulf); blurred rather than covered picture in Blind (needs `expo-blur` and a native build).

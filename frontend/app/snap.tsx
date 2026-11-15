@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,10 +12,39 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
 import { colors, fontFamily, fonts } from "../lib/theme";
-import { snapDiscover, addDiscoveredWord } from "../lib/api";
+import { snapDiscover, addDiscoveredWord, lookupSnapWord } from "../lib/api";
 import type { DiscoverWord, SnapResult } from "../lib/types";
 
 type AddState = "idle" | "adding" | "added" | "known" | "error";
+
+type Token = { text: string; key: string; sentence: string; tappable: boolean };
+type Lookup = { status: "loading" } | { status: "done"; word: DiscoverWord | null } | { status: "error" };
+
+const ARABIC_LETTER = /[\u0621-\u064A]/;
+// Words the learner already studies show their state instead of an Add button.
+const STUDIED_STATES = new Set(["acquiring", "learning", "known", "lapsed", "suspended"]);
+
+// Paragraphs of whitespace-split tokens; each token remembers its sentence so a
+// tapped word is glossed in context.
+function tokenizePage(text: string): Token[][] {
+  return text.split(/\n+/).filter((p) => p.trim()).map((para, pi) => {
+    const sentences = para.match(/[^.!؟?:؛]+[.!؟?:؛]*/g) ?? [para];
+    const out: Token[] = [];
+    sentences.forEach((sentence, si) => {
+      const context = sentence.trim();
+      sentence.split(/(\s+)/).forEach((part, ti) => {
+        if (!part) return;
+        out.push({
+          text: part,
+          key: `${pi}-${si}-${ti}`,
+          sentence: context,
+          tappable: ARABIC_LETTER.test(part),
+        });
+      });
+    });
+    return out;
+  });
+}
 
 // Snap-to-read: photograph an authentic Arabic page → faithful English translation
 // + the top unknown words as add-to-Alif chips. One synchronous backend round trip
@@ -25,15 +54,44 @@ export default function SnapScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SnapResult | null>(null);
-  const [showArabic, setShowArabic] = useState(false);
   // lemma_ar_bare -> add state
   const [adds, setAdds] = useState<Record<string, AddState>>({});
+  const [selected, setSelected] = useState<Token | null>(null);
+  // token text -> lookup result, so re-tapping a word is instant
+  const [lookups, setLookups] = useState<Record<string, Lookup>>({});
+  const paragraphs = useMemo(
+    () => (result ? tokenizePage(result.arabic_text) : []),
+    [result]
+  );
+
+  function selectToken(t: Token) {
+    if (selected?.key === t.key) {
+      setSelected(null);
+      return;
+    }
+    setSelected(t);
+    const cached = lookups[t.text];
+    if (cached && cached.status !== "error") return;
+    fetchLookup(t);
+  }
+
+  async function fetchLookup(t: Token) {
+    setLookups((p) => ({ ...p, [t.text]: { status: "loading" } }));
+    try {
+      const word = await lookupSnapWord(t.text, t.sentence);
+      setLookups((p) => ({ ...p, [t.text]: { status: "done", word } }));
+    } catch {
+      setLookups((p) => ({ ...p, [t.text]: { status: "error" } }));
+    }
+  }
 
   async function runSnap(imageUri: string) {
     setBusy(true);
     setError(null);
     setResult(null);
     setAdds({});
+    setSelected(null);
+    setLookups({});
     try {
       const r = await snapDiscover(imageUri);
       setResult(r);
@@ -93,16 +151,21 @@ export default function SnapScreen() {
     setResult(null);
     setError(null);
     setAdds({});
+    setSelected(null);
+    setLookups({});
   }
 
   const addedCount = Object.values(adds).filter(
     (s) => s === "added" || s === "known"
   ).length;
 
+  const selectedLookup = selected ? lookups[selected.text] : undefined;
+
   return (
+    <View style={styles.screen}>
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, selected && styles.contentWithPanel]}
       keyboardShouldPersistTaps="handled"
     >
       {!result && !busy && (
@@ -142,27 +205,28 @@ export default function SnapScreen() {
             </Text>
           </View>
 
-          {/* Collapsible original Arabic */}
-          <Pressable
-            style={styles.arabicToggle}
-            onPress={() => setShowArabic((s) => !s)}
-          >
-            <Ionicons
-              name={showArabic ? "chevron-down" : "chevron-forward"}
-              size={16}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.arabicToggleText}>
-              {showArabic ? "Hide" : "Show"} Arabic text
-            </Text>
-          </Pressable>
-          {showArabic && (
-            <View style={styles.arabicCard}>
-              <Text style={styles.arabicText} selectable>
-                {result.arabic_text}
+          {/* Original Arabic: every word is tappable */}
+          <Text style={[styles.sectionLabel, styles.arabicLabel]}>Arabic</Text>
+          <View style={styles.arabicCard}>
+            {paragraphs.map((tokens, pi) => (
+              <Text key={pi} style={[styles.arabicText, pi > 0 && styles.arabicParagraph]}>
+                {tokens.map((t) =>
+                  t.tappable ? (
+                    <Text
+                      key={t.key}
+                      onPress={() => selectToken(t)}
+                      style={selected?.key === t.key ? styles.tokenSelected : undefined}
+                      accessibilityRole="button"
+                    >
+                      {t.text}
+                    </Text>
+                  ) : (
+                    t.text
+                  )
+                )}
               </Text>
-            </View>
-          )}
+            ))}
+          </View>
 
           {/* Top words */}
           <View style={styles.wordsHeader}>
@@ -200,6 +264,77 @@ export default function SnapScreen() {
         </View>
       )}
     </ScrollView>
+    {selected && (
+      <WordPanel
+        surface={selected.text}
+        lookup={selectedLookup}
+        addState={(w) => adds[w.lemma_ar_bare] || "idle"}
+        onAdd={addWord}
+        onRetry={() => fetchLookup(selected)}
+        onClose={() => setSelected(null)}
+      />
+    )}
+    </View>
+  );
+}
+
+function WordPanel({
+  surface,
+  lookup,
+  addState,
+  onAdd,
+  onRetry,
+  onClose,
+}: {
+  surface: string;
+  lookup: Lookup | undefined;
+  addState: (w: DiscoverWord) => AddState;
+  onAdd: (w: DiscoverWord) => void;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const word = lookup?.status === "done" ? lookup.word : null;
+  const studied = word?.knowledge_state && STUDIED_STATES.has(word.knowledge_state);
+  return (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelSurface}>{surface}</Text>
+        <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close">
+          <Ionicons name="close" size={22} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+      {(!lookup || lookup.status === "loading") && (
+        <ActivityIndicator color={colors.accent} style={styles.panelSpinner} />
+      )}
+      {lookup?.status === "error" && (
+        <Pressable onPress={onRetry} style={styles.panelRow}>
+          <Ionicons name="refresh" size={18} color={colors.missed} />
+          <Text style={styles.panelMuted}>Lookup failed. Tap to retry.</Text>
+        </Pressable>
+      )}
+      {lookup?.status === "done" && !word && (
+        <Text style={styles.panelMuted}>Function word or name</Text>
+      )}
+      {word && (
+        <View style={styles.panelRow}>
+          <View style={styles.chipMain}>
+            <Text style={styles.chipArabic}>{word.lemma_ar}</Text>
+            <Text style={styles.chipGloss}>{word.gloss_en || "—"}</Text>
+            <View style={styles.chipBadges}>
+              {word.pos && <Badge text={word.pos} color={colors.textSecondary} />}
+              {word.register && word.register !== "neutral" && (
+                <Badge text={word.register} color={colors.confused} />
+              )}
+              {word.dialect && word.dialect !== "msa" && (
+                <Badge text={word.dialect} color={colors.listening} />
+              )}
+              {studied && <Badge text={word.knowledge_state!} color={colors.gotIt} />}
+            </View>
+          </View>
+          {!studied && <AddButton state={addState(word)} onAdd={() => onAdd(word)} />}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -330,19 +465,42 @@ const styles = StyleSheet.create({
   },
   translationText: { color: colors.text, fontSize: 17, lineHeight: 26 },
 
-  arabicToggle: {
+  contentWithPanel: { paddingBottom: 220 },
+  arabicLabel: { marginTop: 24 },
+  arabicParagraph: { marginTop: 12 },
+  tokenSelected: { backgroundColor: colors.accent + "33", color: colors.text },
+  panel: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  panelHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 14,
-    marginBottom: 4,
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  arabicToggleText: { color: colors.textSecondary, fontSize: fonts.small },
+  panelSurface: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    fontSize: fonts.arabicList,
+  },
+  panelSpinner: { marginVertical: 16 },
+  panelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  panelMuted: { color: colors.textSecondary, fontSize: fonts.body, marginVertical: 8 },
   arabicCard: {
     backgroundColor: colors.surfaceLight,
     borderRadius: 12,
     padding: 16,
-    marginTop: 6,
   },
   arabicText: {
     color: colors.arabic,

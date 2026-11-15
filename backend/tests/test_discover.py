@@ -635,3 +635,36 @@ def test_add_reroutes_to_sense_compatible_sibling(client, db_session):
     assert body["lemma_id"] == king.lemma_id
     assert db_session.query(Lemma).filter(
         Lemma.lemma_ar_bare == "ملك").count() == 2
+
+
+def test_lookup_returns_learning_word_with_state(client, seeded, monkeypatch):
+    _no_llm_gloss(monkeypatch, {})
+    r = client.post("/api/discover/lookup", json={"word": "المكتبة", "context": "ذهبت إلى المكتبة"})
+    assert r.status_code == 200
+    w = r.json()["word"]
+    assert w["lemma_ar_bare"] == "مكتبة"
+    assert w["knowledge_state"] == "acquiring"
+    assert w["gloss_en"] == "library"
+
+
+def test_lookup_function_word_is_null(client, db_session, monkeypatch):
+    _no_llm_gloss(monkeypatch, {})
+    r = client.post("/api/discover/lookup", json={"word": "في"})
+    assert r.status_code == 200
+    assert r.json()["word"] is None
+
+
+def test_snap_add_bypasses_recovery_budget(client, db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.acquisition_service._recovery_mode_intro_budget", lambda *a: 0
+    )
+    monkeypatch.setattr(discover, "_gate_and_generate", lambda ids: None)
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "منفى", "lemma_ar": "مَنْفَى", "gloss_en": "exile",
+        "pos": "noun", "source": "snap"})
+    assert r.status_code == 200
+    assert r.json()["state"] == "acquiring"
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "رصيف", "lemma_ar": "رَصِيف", "gloss_en": "pavement",
+        "pos": "noun"})
+    assert r.json()["state"] == "encountered"

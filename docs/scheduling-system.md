@@ -181,18 +181,19 @@ learn, and each enters acquisition immediately.
 ### 3.3 OCR / Textbook Scan
 
 **Path**: `POST /api/ocr/scan-pages` → Gemini Vision extraction
-**Initial state**: `encountered` (no FSRS card). Legacy `preserve_known` /
-`start_acquiring` params are accepted for old clients but ignored for learning
-state.
+**Initial state**: `acquiring`, Box 1, due immediately (learner pick, since
+2026-11-15; see "Learner picks v1"). Legacy `preserve_known` / `start_acquiring`
+params are accepted for old clients but ignored for learning state.
 **Source**: `"textbook_scan"`
 **Code**: `ocr_service.py`
 **Intro-card rule**: OCR `total_encounters` is treated as import occurrence count, not learner familiarity, so repeated textbook-scan words can still get first-time intro cards when they enter acquisition.
 
-Textbook scan is vocabulary/source intake, not proof of knowledge. Scanned words
-are parked as encountered candidates, keep the high-priority `textbook_scan`
-source, and only become acquiring via `start_acquisition()`. That means they
-count against the same daily/recovery intro budgets as other new words, while
-still ranking very high in `select_next_words()` (`textbook_scan` tier +220).
+Textbook scan is a learner pick, not proof of knowledge. Every scanned word that
+has no review history (`new`/`encountered`, not a proper name, onomatopoeia or
+function word) enters acquisition through `start_acquisition(source="textbook_scan")`,
+which skips the daily/recovery budget for learner picks. Words with review history
+(known/learning/lapsed/suspended) keep their state and card; a scan only increments
+`total_encounters`.
 Variant words detected post-import are redirected to their canonical lemma;
 variant-scoped ULKs are reset to encountered.
 
@@ -1921,8 +1922,8 @@ total_score = frequency × 0.4
             + category_penalty   (proper_name: −0.8, onomatopoeia: −1.0)
 
 Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers within):
+  Learner pick (snap, textbook_scan) — +320.0 (2026-11-15; above reading targets 300–310)
   Frequency core top 500     — +240.0
-  OCR textbook_scan          — +220.0 (learning provenance, not fake frequency)
   Frequency core top 1000    — +210.0
   Active book words          — 200.0 − page × 2.0 (deterministic page order)
   Primary imported story     — +195.0 (explicit curriculum target; see below)
@@ -2768,6 +2769,39 @@ exclusion: unchanged. The only new interaction is the attention plan order above
 **Guardrails carried over.** Old-word ≥7-day clean rate <80% or ≥14-day <78% is a warning;
 strict main FSRS due ≥1,000 after the first week is a stop. The maintenance stop rule
 "more than two true-new acquisitions in one UTC day" is retired for the sprint.
+
+## Learner picks v1 — 2026-11-15
+
+Words the learner explicitly brings in are learned now, even under recovery.
+`attention_policy.LEARNER_PICK_SOURCES = {"snap", "textbook_scan"}`: a Snap word the
+learner taps Add on (`/api/discover/add` with `source="snap"`), and every word of a
+scanned textbook page.
+
+- `start_acquisition(..., learner_pick=True)` skips the daily and recovery budgets
+  (like `leech_reintro`) and import staging. Only the pick actions pass the flag
+  (`_record_textbook_encounter`; `/api/discover/add` via `introduce_word` when
+  `source="snap"`). Other promotion paths that pass a stored `textbook_scan`/`snap`
+  source (session build) keep the budget. A pick still counts as true-new intake, so it
+  consumes the budget other sources would get that day.
+- `admit_learner_pick()` lets a pick override automatic `reading_support` staging only
+  while the word is `new`/`encountered`/`acquiring`. It never resumes identity-QA
+  `parked` rows and never changes a word with review history.
+- `textbook_scan` is no longer in `STAGED_SOURCES`.
+- `automatic_attention.attention_plan`: a pick in `new`/`encountered`/`acquiring` is
+  `maintain` with reason `automatic_attention_v2:learner_pick`, evaluated right after
+  reading targets. After acquisition the ordinary cost/frequency rules apply.
+- `word_selector.select_next_words`: `_TIER_LEARNER_PICK` 320, above the reading-target
+  maximum. It ranks encountered picks that predate v1 (old scans, cap-deferred Snap
+  adds) first in the ordinary earned budget. They are not bulk-promoted.
+
+**Gate audit (Rule 8).** Comprehensibility gate and unknown-scaffold cap: picks are
+acquiring Box-1 words, which already count as unknown scaffold, so a large scan makes
+fewer sentences comprehensible until they mature (accepted). Box-1 recovery trigger
+(≥5) and leech-reintro admission (occupancy ≥4): reached sooner while picks are in
+Box 1 (accepted cost of the "no limit" choice). Focus cohort, variant resolution
+(scan resolves canonical first; post-gate variants still reset to encountered),
+intro-card filter (`gates_completed_at` still required, so an ungated pick waits for
+its gates), listening readiness, function-word and proper-name exclusion: unchanged.
 
 ## Automatic reading attention v2 — 2026-09-19
 

@@ -7,7 +7,35 @@ from app.services.canonical_resolution import resolve_canonical_lemma_id
 
 POLICY_VERSION = "reading_attention_v1"
 DISPOSITIONS = {"maintain", "reading_support", "parked"}
-STAGED_SOURCES = {"book", "bookifier", "dragoman", "book_ocr", "story_import", "textbook_scan"}
+STAGED_SOURCES = {"book", "bookifier", "dragoman", "book_ocr", "story_import"}
+# Words the learner explicitly brought in (a textbook page they scanned, a Snap
+# word they tapped Add on). They enter acquisition at once, outside the daily
+# and recovery intake budgets, and outrank every inferred selection tier.
+LEARNER_PICK_SOURCES = frozenset({"snap", "textbook_scan"})
+LEARNER_PICK_REASON = "learner_pick"
+_PICK_ENTRY_STATES = {None, "new", "encountered", "acquiring"}
+
+
+def admit_learner_pick(knowledge: UserLemmaKnowledge | None, learner_pick: bool) -> bool:
+    """Return True when ``knowledge`` may be scheduled.
+
+    An explicit pick (the scan or Add action itself, not a stored source) overrides automatic ``reading_support`` staging for a word
+    that has not yet entered review. It never resumes an identity-QA ``parked``
+    row and never touches a word that already has review history, so the
+    costly-word demotion of established vocabulary still stands.
+    """
+    if is_maintained(knowledge):
+        return True
+    if (
+        not learner_pick
+        or knowledge.attention_disposition != "reading_support"
+        or knowledge.knowledge_state not in _PICK_ENTRY_STATES
+    ):
+        return False
+    knowledge.attention_disposition = "maintain"
+    knowledge.attention_reason = LEARNER_PICK_REASON
+    knowledge.attention_updated_at = datetime.now(timezone.utc)
+    return True
 
 
 def is_maintained(knowledge: UserLemmaKnowledge | None) -> bool:

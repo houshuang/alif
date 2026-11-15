@@ -57,6 +57,7 @@ from app.services.sentence_validator import (
     lookup_lemma_id,
     requires_exact_running_text_alias,
 )
+from app.services.attention_policy import LEARNER_PICK_SOURCES
 from app.services.word_selector import introduce_word
 
 logger = logging.getLogger(__name__)
@@ -278,17 +279,26 @@ def discover_words_in_text(
     count: int = 8,
     selection: str = "common_first",
     include_oov: bool = False,
+    include_learning: bool = False,
+    context: str | None = None,
 ) -> list[dict]:
     """Core word-discovery: the highest-value lemmas in `text` not yet being learned,
     glossed. Shared by the /words endpoint and the photo /snap endpoint so both go
-    through one tokenize → classify → rank → gloss path."""
+    through one tokenize → classify → rank → gloss path.
+
+    ``include_learning`` keeps words the learner already studies (the Snap
+    tap-a-word lookup wants every word); each result carries ``knowledge_state``.
+    ``context`` is the running text used for example clauses and sense-aware
+    glossing when ``text`` is a single tapped word."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
-    already_learning_ids = {
-        lemma_id
-        for (lemma_id,) in db.query(UserLemmaKnowledge.lemma_id)
-        .filter(UserLemmaKnowledge.knowledge_state.in_(_ALREADY_LEARNING_STATES))
-        .all()
-    }
+    state_by_id = dict(
+        db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state).all()
+    )
+    already_learning_ids = (
+        set()
+        if include_learning
+        else {lid for lid, st in state_by_id.items() if st in _ALREADY_LEARNING_STATES}
+    )
     lemma_cache: dict[int, Lemma | None] = {}
 
     def get_lemma(lemma_id: int) -> Lemma | None:
@@ -380,7 +390,7 @@ def discover_words_in_text(
         )
     ordered = ordered[: max(1, min(count, _MAX_WORDS))]
 
-    find_example = _example_finder(text or "")
+    find_example = _example_finder(context or text or "")
     examples = {b: find_example(set(v["surfaces"])) for b, v in ordered}
 
     # Corpus lemmas already have reviewed lexical metadata, so use it directly.
@@ -433,6 +443,11 @@ def discover_words_in_text(
         )
         if corrected_id in already_learning_ids:
             continue
+        state_id = corrected_id
+        if state_id is not None:
+            state_lemma = get_lemma(state_id)
+            if state_lemma is not None and state_lemma.canonical_lemma_id:
+                state_id = state_lemma.canonical_lemma_id
         surfaces = sorted(v["surfaces"], key=lambda s: -v["surfaces"][s])
         words.append(
             {
@@ -451,9 +466,30 @@ def discover_words_in_text(
                 "count_in_text": v["count"],
                 "example_ar": examples.get(b),
                 "lemma_source": v["source"],
+                "lemma_id": state_id,
+                "knowledge_state": state_by_id.get(state_id) if state_id else None,
             }
         )
     return words
+
+
+class LookupIn(BaseModel):
+    word: str
+    context: str | None = None
+
+
+@router.post("/lookup")
+def lookup_word(req: LookupIn, db: Session = Depends(get_db)):
+    """Snap tap-a-word: gloss one surface from a snapped page, known or not.
+
+    Read-only, like /snap. Returns ``{"word": null}`` for function words and
+    tokens that resolve to nothing. Adding still goes through /add."""
+    words = discover_words_in_text(
+        db, req.word, count=1, include_oov=True, include_learning=True,
+        context=req.context,
+    )
+    log_interaction(event="discover_lookup", found=bool(words))
+    return {"word": words[0] if words else None}
 
 
 class SnapOut(BaseModel):
@@ -649,6 +685,7 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
     res = introduce_word(
         db, lemma.lemma_id, source=source,
         due_immediately=True, enforce_daily_cap=True,
+        learner_pick=source in LEARNER_PICK_SOURCES,
     )
     return {
         "lemma_id": lemma.lemma_id,

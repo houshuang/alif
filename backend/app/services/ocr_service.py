@@ -61,14 +61,18 @@ _VERBOSE_PATTERNS = [
 
 
 def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge:
-    """Record textbook provenance without treating the scan as proof of knowledge.
+    """Record a scanned textbook word as a learner pick.
 
-    Textbook scans are vocabulary/source intake. They should create encountered
-    rows for unknown words, not known FSRS cards or card-only intro exceptions.
-    Promotion to acquiring happens later through start_acquisition(), where the
-    normal daily/recovery new-word budget applies.
+    A scanned page is the learner's explicit choice of vocabulary, so a word
+    that has not entered review yet starts acquisition immediately, outside the
+    daily and recovery intake budgets (``learner_pick=True``). Words with review history (known, learning,
+    lapsed, suspended) keep their state: a scan is not proof of knowledge and
+    must not restart an FSRS card. Proper names, onomatopoeia and function words
+    stay inert.
     """
+    from app.services.acquisition_service import start_acquisition
     from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.sentence_validator import is_function_word_lemma
 
     lemma_id = resolve_canonical_lemma_id(db, lemma_id)
     ulk = (
@@ -86,32 +90,39 @@ def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge
             times_correct=0,
             total_encounters=1,
             source="textbook_scan",
-            attention_disposition="reading_support",
-            attention_reason="Imported vocabulary; opt in to maintenance",
         )
         db.add(ulk)
         db.flush()
+    else:
+        _OVERRIDABLE_SOURCES = {
+            None,
+            "study",
+            "encountered",
+            "auto_intro",
+            "collateral",
+            "leech_reintro",
+            "wiktionary",
+        }
+        if ulk.knowledge_state == "encountered" or ulk.source in _OVERRIDABLE_SOURCES:
+            ulk.source = "textbook_scan"
+
+        # An explicit suspension should continue to win over passive import.
+        if ulk.knowledge_state == "suspended":
+            return ulk
+
+        ulk.total_encounters = (ulk.total_encounters or 0) + 1
+        db.flush()
+
+    if ulk.knowledge_state not in ("new", "encountered"):
         return ulk
-
-    _OVERRIDABLE_SOURCES = {
-        None,
-        "study",
-        "encountered",
-        "auto_intro",
-        "collateral",
-        "leech_reintro",
-        "wiktionary",
-    }
-    if ulk.knowledge_state == "encountered" or ulk.source in _OVERRIDABLE_SOURCES:
-        ulk.source = "textbook_scan"
-
-    # An explicit suspension should continue to win over passive import.
-    if ulk.knowledge_state == "suspended":
+    lemma = db.get(Lemma, lemma_id)
+    if lemma is None or lemma.word_category in ("proper_name", "onomatopoeia") or (
+        is_function_word_lemma(lemma.lemma_ar_bare, lemma.function_word_override)
+    ):
         return ulk
-
-    ulk.total_encounters = (ulk.total_encounters or 0) + 1
-    db.flush()
-    return ulk
+    return start_acquisition(
+        db, lemma_id, source="textbook_scan", due_immediately=True, learner_pick=True,
+    )
 
 
 from app.services.morphology import is_valid_root as _is_valid_root, backfill_root_meanings
@@ -920,6 +931,7 @@ def process_textbook_page(
                         vulk.acquisition_next_due = None
                         vulk.acquisition_started_at = None
                         vulk.entered_acquiring_at = None
+                        vulk.introduced_at = None
                     if vlem.canonical_lemma_id:
                         canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
                         textbook_lemma_ids.add(canonical_ulk.lemma_id)
@@ -1346,6 +1358,7 @@ def process_batch(
                     vulk.acquisition_next_due = None
                     vulk.acquisition_started_at = None
                     vulk.entered_acquiring_at = None
+                    vulk.introduced_at = None
                 if vlem.canonical_lemma_id:
                     canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
                     textbook_lemma_ids.add(canonical_ulk.lemma_id)

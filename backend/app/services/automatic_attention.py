@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, load_only
 from app.models import (FrequencyCoreEntry, Lemma, ReadingPilotEvent, ReadingTarget, ReviewLog,
                         Sentence, SentenceReviewLog, SentenceWord, Story, StoryWord,
                         UserLemmaKnowledge)
+from app.services.attention_policy import LEARNER_PICK_REASON, LEARNER_PICK_SOURCES
 from app.services.canonical_resolution import resolve_canonical_via_map
 from app.services.sentence_validator import is_function_word_lemma
 from app.services.sentence_eligibility import MAPPING_VERIFICATION_MIN_AT
@@ -127,7 +128,8 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         Lemma.word_category, Lemma.function_word_override, Lemma.gates_completed_at))}
     knowledge = {k.lemma_id: k for k in db.query(UserLemmaKnowledge).options(load_only(
         UserLemmaKnowledge.id, UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state,
-        UserLemmaKnowledge.attention_disposition, UserLemmaKnowledge.attention_reason))}
+        UserLemmaKnowledge.attention_disposition, UserLemmaKnowledge.attention_reason,
+        UserLemmaKnowledge.source))}
     ranks = modern_frequency_ranks(db)
     contexts = reading_contexts(db, lemmas, now)
     # Hindawi is selected inventory, not independent coverage. Use it only as
@@ -165,6 +167,14 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
             # Explicit commitment to a real text (reading_targets) outranks every
             # inferred signal: the word stays maintained while the target is open.
             disposition, reason = "maintain", "reading_target"
+        elif (
+            k is not None
+            and k.source in LEARNER_PICK_SOURCES
+            and k.knowledge_state in {"new", "encountered", "acquiring"}
+        ):
+            # A scanned or Snap-picked word stays maintained until it leaves
+            # acquisition; afterwards ordinary cost/frequency rules apply.
+            disposition, reason = "maintain", LEARNER_PICK_REASON
         elif repeated:
             disposition, reason = "maintain", "reading_recurrence"
         elif broad:

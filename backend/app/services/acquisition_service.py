@@ -564,6 +564,7 @@ def start_acquisition(
     enforce_daily_cap: bool = True,
     episode_kind: str = ACQUISITION_EPISODE_NEW,
     restart_known: bool = False,
+    learner_pick: bool = False,
 ) -> UserLemmaKnowledge:
     """Start the acquisition process for a word.
 
@@ -576,7 +577,11 @@ def start_acquisition(
     promoted. Callers must check `ulk.knowledge_state == "acquiring"` if
     they need to behave differently when promotion was deferred.
     ``episode_kind='leech_reintro'`` bypasses the cap because it restarts an
-    old word rather than adding vocabulary. ``source='leech_reintro'`` remains
+    old word rather than adding vocabulary. ``learner_pick=True`` (passed only by
+    the scan and Snap-Add actions, with a source in ``LEARNER_PICK_SOURCES``) also
+    bypasses it and skips import staging, by explicit learner decision
+    (2026-11-15); it still counts as net-new intake. Later promotions of the
+    same word through other paths keep the ordinary budget. ``source='leech_reintro'`` remains
     accepted as a compatibility shim for legacy callers, but is not written as
     provenance for a new row.
     """
@@ -607,11 +612,14 @@ def start_acquisition(
         .first()
     )
 
-    if ulk and not is_maintained(ulk):
+    from app.services.attention_policy import LEARNER_PICK_SOURCES, admit_learner_pick
+    if learner_pick and source not in LEARNER_PICK_SOURCES:
+        raise ValueError(f"learner_pick requires a learner-pick source, got {source!r}")
+    if ulk and not admit_learner_pick(ulk, learner_pick):
         return ulk
     if ulk is None:
         from app.services.attention_policy import STAGED_SOURCES, stage_import
-        if source in STAGED_SOURCES:
+        if source in STAGED_SOURCES and not learner_pick:
             ulk = UserLemmaKnowledge(lemma_id=lemma_id, knowledge_state="encountered", source=source)
             stage_import(db, ulk, source)
             db.add(ulk)
@@ -629,7 +637,11 @@ def start_acquisition(
         return ulk
 
     cap_hit = False
-    if enforce_daily_cap and episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO:
+    if (
+        enforce_daily_cap
+        and episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO
+        and not learner_pick
+    ):
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         intro_count = _daily_intro_count(db, today_start)
         effective_daily_cap = _recovery_mode_intro_budget(db, now, today_start)
@@ -672,7 +684,7 @@ def start_acquisition(
         # Update source: collateral never overrides (weakest mechanism);
         # book/story always win; otherwise keep the more specific existing source.
         _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
-        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "duolingo", "frequency_core"}
+        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "snap", "duolingo", "frequency_core"}
         if (
             episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO
             and source != "collateral"
