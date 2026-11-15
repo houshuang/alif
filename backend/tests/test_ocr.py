@@ -118,6 +118,51 @@ class TestOCRService:
         mock_text.assert_called_once()
 
     @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_accepts_bare_list_and_alias_keys(self, mock_vision):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.return_value = [
+            {"p": 0, "arabic": "هذا كتاب.", "english": "This is a book.",
+             "alignment": [{"arabic": "كتاب", "english": "book"}]},
+        ]
+        result = extract_text_and_translation(b"img")
+        assert result["arabic_text"] == "هذا كتاب."
+        assert result["sentences"][0]["links"] == [{"ar": "كتاب", "en": "book"}]
+        mock_vision.assert_called_once()
+
+    @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_unwraps_list_wrapped_object(self, mock_vision):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.return_value = [{"sentences": [
+            {"p": 0, "ar": "هذا كتاب.", "en": "This is a book.",
+             "links": [{"ar": "كتاب", "en": "book"}]},
+            {"p": 1, "ar": "وهذا قلم.", "en": "And this is a pen.", "links": []},
+        ]}]
+        result = extract_text_and_translation(b"img")
+        assert result["arabic_text"] == "هذا كتاب.\nوهذا قلم."
+        assert len(result["sentences"]) == 2
+        mock_vision.assert_called_once()
+
+    @patch("app.services.ocr_service._save_snap_failure")
+    @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_unreadable_aligned_reply_falls_back_to_flat_prompt(
+        self, mock_vision, mock_save
+    ):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.side_effect = [
+            {"result": {"weird": True}},
+            {"arabic_text": "هذا كتاب", "translation_en": "This is a book."},
+        ]
+        result = extract_text_and_translation(b"img")
+        assert result == {"arabic_text": "هذا كتاب", "translation_en": "This is a book.",
+                          "sentences": []}
+        assert mock_vision.call_count == 2
+        assert '"sentences"' not in mock_vision.call_args_list[1].kwargs["prompt"]
+        mock_save.assert_called_once()
+
+    @patch("app.services.ocr_service._call_gemini_vision")
     def test_snap_ocr_keeps_only_literal_alignment_links(self, mock_vision):
         from app.services.ocr_service import extract_text_and_translation
 

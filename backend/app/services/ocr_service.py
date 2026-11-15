@@ -299,6 +299,64 @@ def _align_key(token: str) -> str:
     return _ALIGN_STRIP.sub("", token).lower()
 
 
+_SENTENCE_LIST_KEYS = ("sentences", "pairs", "items", "data", "page")
+_AR_KEYS = ("ar", "arabic", "arabic_text", "text")
+_EN_KEYS = ("en", "english", "translation", "translation_en")
+_LINK_KEYS = ("links", "alignment", "alignments", "words")
+
+
+def _first(item: dict, keys: tuple[str, ...]):
+    for key in keys:
+        value = item.get(key)
+        if value:
+            return value
+    return None
+
+
+def _sentence_items(result: object) -> list:
+    """The sentence list from any shape Gemini returns: a dict holding the list
+    under one of a few common keys, a bare list of sentences, or a list of such
+    dicts. Gemini wrapped the object in a list for 5 of 8 real book pages
+    (``[{"sentences": [...]}]``, 2026-11-15)."""
+    if isinstance(result, dict):
+        for key in _SENTENCE_LIST_KEYS:
+            if isinstance(result.get(key), list):
+                return result[key]
+        return []
+    if not isinstance(result, list):
+        return []
+    items: list = []
+    for element in result:
+        nested = _sentence_items(element) if isinstance(element, dict) else []
+        items.extend(nested if nested else [element])
+    return items
+
+
+def _flat_text(result: object) -> tuple[str, str]:
+    if isinstance(result, list) and len(result) == 1:
+        result = result[0]
+    if not isinstance(result, dict):
+        return "", ""
+    arabic = _first(result, ("arabic_text", "arabic", "text"))
+    english = _first(result, ("translation_en", "translation", "english"))
+    return (arabic if isinstance(arabic, str) else ""), (english if isinstance(english, str) else "")
+
+
+def _save_snap_failure(image_bytes: bytes, result: object) -> None:
+    """Keep the photo and the unreadable reply on the server for diagnosis."""
+    try:
+        folder = settings.log_dir / "snap_failures"
+        folder.mkdir(parents=True, exist_ok=True)
+        stem = f"{datetime.now():%Y%m%d_%H%M%S_%f}"
+        (folder / f"{stem}.jpg").write_bytes(image_bytes)
+        (folder / f"{stem}.json").write_text(
+            json.dumps(result, ensure_ascii=False, default=str)[:200_000]
+        )
+        logger.warning("snap: unreadable aligned reply saved as %s", stem)
+    except Exception as e:
+        logger.warning("snap: could not save failure sample: %s", e)
+
+
 def _clean_alignment(raw: object) -> list[dict]:
     """Keep well-formed sentence pairs, and only links that literally occur.
 
@@ -311,8 +369,8 @@ def _clean_alignment(raw: object) -> list[dict]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        ar = str(item.get("ar") or "").strip()
-        en = str(item.get("en") or "").strip()
+        ar = str(_first(item, _AR_KEYS) or "").strip()
+        en = str(_first(item, _EN_KEYS) or "").strip()
         if not ar:
             continue
         try:
@@ -322,11 +380,14 @@ def _clean_alignment(raw: object) -> list[dict]:
         ar_keys = {_align_key(t) for t in ar.split()}
         en_keys = [_align_key(t) for t in en.split()]
         links = []
-        for link in item.get("links") or []:
+        raw_links = _first(item, _LINK_KEYS)
+        for link in raw_links if isinstance(raw_links, list) else []:
             if not isinstance(link, dict):
                 continue
-            link_ar = [_align_key(t) for t in str(link.get("ar") or "").split()]
-            link_en = [_align_key(t) for t in str(link.get("en") or "").split()]
+            link_ar_text = str(_first(link, _AR_KEYS) or "")
+            link_en_text = str(_first(link, _EN_KEYS) or "")
+            link_ar = [_align_key(t) for t in link_ar_text.split()]
+            link_en = [_align_key(t) for t in link_en_text.split()]
             link_ar = [k for k in link_ar if k]
             link_en = [k for k in link_en if k]
             if not link_ar or not link_en or not set(link_ar) <= ar_keys:
@@ -334,7 +395,7 @@ def _clean_alignment(raw: object) -> list[dict]:
             n = len(link_en)
             if not any(en_keys[i:i + n] == link_en for i in range(len(en_keys) - n + 1)):
                 continue
-            links.append({"ar": str(link["ar"]).strip(), "en": str(link["en"]).strip()})
+            links.append({"ar": link_ar_text.strip(), "en": link_en_text.strip()})
         sentences.append({"p": paragraph, "ar": ar, "en": en, "links": links})
     return sentences
 
@@ -376,7 +437,7 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
             "that sentence's Arabic (one word, or a few adjacent words for an idiom); "
             "`en` must be copied exactly from that sentence's English. Cover every "
             "content word; skip pure function words.\n"
-            "Respond with JSON: "
+            "Respond with ONE JSON object (not an array) of exactly this shape: "
             '{"sentences": [{"p": 0, "ar": "...", "en": "...", '
             '"links": [{"ar": "...", "en": "..."}]}]}'
         )
@@ -390,9 +451,15 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
     # retry once: transient provider/JSON failures are common enough that a single
     # attempt made the feature feel random, but the total still stays within the
     # client's request window.
-    def has_text(r: object) -> bool:
-        return isinstance(r, dict) and bool(
-            _clean_alignment(r.get("sentences")) or (r.get("arabic_text") or "").strip()
+    flat_prompt = (
+            "This image is a page of Arabic text that a reader is studying.\n"
+            "1. Extract ALL the Arabic text exactly as written: preserve any diacritics "
+            "that are present, preserve paragraph breaks as newlines, do NOT add "
+            "diacritics that aren't there, and exclude page numbers / non-Arabic "
+            "marginalia.\n"
+            "2. Provide a faithful, fluent English translation of that text — accurate "
+            "to the meaning and natural in English (not a word-for-word gloss).\n"
+            'Respond with JSON: {"arabic_text": "the Arabic", "translation_en": "the English"}'
         )
 
     first_error: Exception | None = None
@@ -405,25 +472,23 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
         first_error = e
         result = {}
 
-    if not has_text(result):
-        if first_error:
-            logger.warning("snap vision attempt failed; retrying once: %s", first_error)
-        else:
-            logger.warning("snap vision returned no Arabic; retrying once")
-        result = _call_gemini_vision(
-            image_bytes, prompt=prompt, system_prompt=system_prompt,
-            timeout_seconds=90,
-        )
-
-    if not isinstance(result, dict):
-        return {"arabic_text": "", "translation_en": "", "sentences": []}
-    sentences = _clean_alignment(result.get("sentences"))
+    sentences = _clean_alignment(_sentence_items(result))
+    arabic_text, translation = _flat_text(result)
     if sentences:
         arabic_text = _join_paragraphs(sentences, "ar")
         translation = _join_paragraphs(sentences, "en")
-    else:
-        arabic_text = result.get("arabic_text") or ""
-        translation = result.get("translation_en") or ""
+    elif not arabic_text.strip():
+        # The aligned shape failed. Retry once with the plain OCR+translation
+        # prompt, so the reader still gets the page without word links.
+        if first_error:
+            logger.warning("snap vision attempt failed; retrying flat: %s", first_error)
+        else:
+            _save_snap_failure(image_bytes, result)
+        result = _call_gemini_vision(
+            image_bytes, prompt=flat_prompt, system_prompt=system_prompt,
+            timeout_seconds=90,
+        )
+        arabic_text, translation = _flat_text(result)
 
     # A valid OCR result with a missing translation is salvageable without asking
     # the user to photograph the page again.
