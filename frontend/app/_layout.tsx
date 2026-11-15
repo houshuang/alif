@@ -36,6 +36,7 @@ import { LAST_TAB_KEY, isRememberedTab, resumeTab } from "../lib/last-tab";
 import { colors } from "../lib/theme";
 import { statusBarStyleForPath } from "../lib/status-bar-style";
 import { detectNewlyAppliedUpdate, versionLabel } from "../lib/app-version";
+import { reportUpdateErrors } from "../lib/update-diagnostics";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
@@ -134,6 +135,7 @@ function LayoutInner({ online }: { online: boolean }) {
   const [updateToast, setUpdateToast] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    void reportUpdateErrors();
     detectNewlyAppliedUpdate().then(info => {
       if (!info || cancelled) return;
       setUpdateToast(versionLabel(info));
@@ -244,7 +246,6 @@ function LayoutInner({ online }: { online: boolean }) {
             tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} />,
           }}
         />
-        <Tabs.Screen name="preread" options={{ href: null, title: "Pre-read" }} />
         <Tabs.Screen
           name="listening"
           options={{ href: null, title: "Listening", headerShown: false }}
