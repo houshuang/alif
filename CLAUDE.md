@@ -307,6 +307,14 @@ scripts/publish-ios-update.sh "<what changed>"
 #     publishing, and verifies the published manifest afterward. Never invoke
 #     `eas update` directly: a missing ALIF_API_URL produces a broken fail-closed
 #     bundle.
+#     It also bundles with a cleared Metro cache, refuses a symlinked
+#     frontend/node_modules (in a worktree use `cp -cR` from the main checkout),
+#     and checks the bundle's route table before upload: a symlinked node_modules
+#     plus a stale cache once shipped a bundle with no routes ("No routes found",
+#     launch crash + rollback, 2026-11-15). On a launch the app sends new
+#     expo-updates error entries to the server as card_type "update_error"
+#     (`lib/update-diagnostics.ts`); grep interactions logs for it when an OTA
+#     doesn't stick.
 #     The phone picks the update up in the background on next launch and applies
 #     it the launch after (fallbackToCacheTimeout=0 default). NATIVE changes
 #     (new native module, permissions, icon, app.json ios/android keys) do NOT
