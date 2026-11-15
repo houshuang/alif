@@ -556,6 +556,24 @@ class SnapPage(Base):
     words_json = Column(JSON, nullable=True)
 
 
+class PrereadSet(Base):
+    """A batch of upcoming book pages prepared before reading: the page photos
+    are read into SnapPages, then the automatic word plan is applied (see
+    services/preread_service.py). ``pages_json`` lists
+    {page, image, snap_id, error}; ``result_json`` holds the plan and outcome."""
+    __tablename__ = "preread_sets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # uploading -> reading -> analyzing -> applying -> done | failed
+    status = Column(String(20), nullable=False, default="uploading")
+    pages_json = Column(JSON, nullable=True)
+    result_json = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 

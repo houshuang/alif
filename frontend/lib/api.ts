@@ -18,6 +18,8 @@ import {
   WordLookupResult,
   DiscoverWord,
   SnapHistoryItem,
+  PrereadSummary,
+  PrereadDetail,
   SnapResult,
   DiscoverAddResult,
   AskAIResponse,
@@ -1219,6 +1221,50 @@ export async function addDiscoveredWord(
     }),
     timeoutMs: 20000,
   });
+}
+
+// --- Pre-read ---
+
+export async function createPreread(): Promise<PrereadSummary> {
+  return fetchApi<PrereadSummary>("/api/preread", { method: "POST", timeoutMs: 20000 });
+}
+
+/** Upload one page photo to a pre-read batch (stored until it is read). */
+export async function uploadPrereadPage(prereadId: number, imageUri: string): Promise<PrereadSummary> {
+  const formData = new FormData();
+  const filename = imageUri.split("/").pop() || "page.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+  formData.append("file", { uri: imageUri, name: filename, type } as any);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
+  try {
+    const res = await fetch(`${BASE_URL}/api/preread/${prereadId}/pages`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function startPreread(prereadId: number): Promise<PrereadSummary> {
+  return fetchApi<PrereadSummary>(`/api/preread/${prereadId}/start`, { method: "POST", timeoutMs: 20000 });
+}
+
+export async function getPreread(prereadId: number): Promise<PrereadDetail> {
+  return fetchApi<PrereadDetail>(`/api/preread/${prereadId}`, { timeoutMs: 20000 });
+}
+
+export async function listPrereads(): Promise<PrereadSummary[]> {
+  const r = await fetchApi<{ prereads: PrereadSummary[] }>("/api/preread?limit=20", { timeoutMs: 20000 });
+  return r.prereads;
 }
 
 // --- Sentence info ---

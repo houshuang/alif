@@ -114,6 +114,39 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-15: Pre-read v1 — prepare upcoming book pages automatically
+
+**Why.** The learner reads a real book (an Arabic book about Macron) and wants the next
+10–20 pages to be easier when they get there. Snap is page-by-page and manual; the
+textbook scanner adds every word. Learner's instructions: automatic ("I don't want to
+choose"), weigh general frequency, include names, and be very aggressive ("I'm going to
+read those pages in the next two days anyway").
+
+**Change.** `/api/preread` + `app/preread.tsx` + `services/preread_service.py`; full
+rules in `docs/scheduling-system.md` "Pre-read v1". Selected words enter acquisition as
+learner picks (`source="preread"`, outside the recovery budget); shaky FSRS words in the
+pages get their `due` set to now once; names are a primer list only.
+
+**Calibration** on *Men in the Sun* (prod DB backup of 2026-11-15 12:00, local Claude
+CLI), 10 pages of 250 words:
+- ch.5 pp.1–10: 741 lemma candidates; 366 solid known, 8 acquiring, 198 new. Before
+  frequency ranks were loaded, every rank was missing and the 600-candidate cap cut new
+  words (known words fill the cap first) — cap raised to 4000.
+- The importance rater gave 0 to the visible wrong-sense matches among "shaky" known
+  words (أحد read as "Sunday", فعل as "verb", طرف as "to be strange"); importance 0 now
+  drops a word.
+- Threshold 3.5 gave 29–35 words per 10 pages; lowered to 3.0 so pages fill up to the
+  6/page quota (aggressive, best first). With threshold 3.0, single-occurrence rare
+  words rated "helpful" (e.g. مبضع "scalpel") fill the tail.
+- ch.6 pp.1–10 full job on a DB copy (OCR stubbed with the text): 78 s; 29 words
+  entered acquiring/`preread`/maintain (14 created, 15 existing); 2 shaky words were
+  already due, so nothing moved.
+
+**To watch.** Box-1 load after a batch (expected to trip the Box-1 recovery trigger for
+a few days); whether pre-read words are green when the pages are actually read (red/
+yellow on those pages vs. ordinary Snap pages); whether 6/page is too many to absorb in
+two days.
+
 ## 2026-11-15: Snap sentence alignment; Gemini thinking capped; learner picks deployed
 
 **Deployed.** Backend `0cb862d` (learner picks #298, memory hooks honour

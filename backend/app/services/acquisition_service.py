@@ -684,7 +684,7 @@ def start_acquisition(
         # Update source: collateral never overrides (weakest mechanism);
         # book/story always win; otherwise keep the more specific existing source.
         _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
-        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "snap", "duolingo", "frequency_core"}
+        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "snap", "preread", "duolingo", "frequency_core"}
         if (
             episode_kind != ACQUISITION_EPISODE_LEECH_REINTRO
             and source != "collateral"

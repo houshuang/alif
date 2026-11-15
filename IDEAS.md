@@ -2816,7 +2816,8 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - Re-OCR individual pages: if a page had poor OCR quality, allow re-scanning just that page
 - Book series tracking: if multiple books from same series imported, group them and track series progress
 - Readability level estimation: use book metadata + vocabulary analysis to estimate CEFR/SAMER level
-- Pre-reading vocabulary prep: before starting a book, show a "prep session" of the most critical unknown words
+- Pre-reading vocabulary prep: before starting a book, show a "prep session" of the most critical unknown words — [DONE 2026-11-15 as Pre-read v1: photograph upcoming pages; words chosen automatically by importance × count × frequency enter learning at once; shaky known words brought forward; names primer]
+- Pre-read follow-ups: let proper names from a pre-read batch be practised (name lemmas are inert today, so they are only listed); close a batch when its pages are read (snap them while reading) and measure red/yellow rates on those pages against pages read without pre-reading
 - Book sentence audio: generate TTS for book sentences to enable listening practice with authentic book content
 - Archive.org integration: browse/download Arabic children's books directly from Archive.org (Karim Series, Simplified Reading Series, etc.)
 - [DONE] Stop skipping sentences with unmapped words: sentences with unmapped tokens are now kept (was: dropped entirely). Added StoryWord surface→lemma fallback lookup after CAMeL resolution. Remaining unmapped tokens get `lemma_id=None` in SentenceWord — sentence still usable for reviewing mapped words.

@@ -9,9 +9,10 @@ POLICY_VERSION = "reading_attention_v1"
 DISPOSITIONS = {"maintain", "reading_support", "parked"}
 STAGED_SOURCES = {"book", "bookifier", "dragoman", "book_ocr", "story_import"}
 # Words the learner explicitly brought in (a textbook page they scanned, a Snap
-# word they tapped Add on). They enter acquisition at once, outside the daily
-# and recovery intake budgets, and outrank every inferred selection tier.
-LEARNER_PICK_SOURCES = frozenset({"snap", "textbook_scan"})
+# word they tapped Add on, a pre-read batch of upcoming pages). They enter
+# acquisition at once, outside the daily and recovery intake budgets, and
+# outrank every inferred selection tier.
+LEARNER_PICK_SOURCES = frozenset({"snap", "textbook_scan", "preread"})
 LEARNER_PICK_REASON = "learner_pick"
 _PICK_ENTRY_STATES = {None, "new", "encountered", "acquiring"}
 

@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors, fontFamily, fonts } from "../lib/theme";
 import {
@@ -86,6 +87,9 @@ function tokenizePage(text: string): Token[][] {
 // (OCR/translation plus lexical lookup), so the reader gets help in the moment
 // rather than batch-importing a book after the fact.
 export default function SnapScreen() {
+  const router = useRouter();
+  // `?snap=<id>` opens a saved page directly (pre-read links to its pages).
+  const { snap: snapParam } = useLocalSearchParams<{ snap?: string }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SnapResult | null>(null);
@@ -116,6 +120,11 @@ export default function SnapScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (Number(snapParam)) {
+        // A linked page wins over the cached one.
+        refreshHistory();
+        return;
+      }
       let cached: SnapResult | null = null;
       try {
         const raw = await AsyncStorage.getItem(OPEN_PAGE_KEY);
@@ -141,6 +150,13 @@ export default function SnapScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const id = Number(snapParam);
+    if (!id) return;
+    openFromHistory({ snap_id: id } as SnapHistoryItem);
+    router.setParams({ snap: undefined });
+  }, [snapParam]);
 
   async function openFromHistory(item: SnapHistoryItem) {
     setBusy(true);
@@ -350,6 +366,10 @@ export default function SnapScreen() {
           <Pressable style={styles.secondaryBtn} onPress={pickPhoto}>
             <Ionicons name="images-outline" size={20} color={colors.accent} />
             <Text style={styles.secondaryBtnText}>Choose from library</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryBtn} onPress={() => router.push("/preread")}>
+            <Ionicons name="albums-outline" size={20} color={colors.accent} />
+            <Text style={styles.secondaryBtnText}>Pre-read pages</Text>
           </Pressable>
           {error && <Text style={styles.error}>{error}</Text>}
           {error && lastUri && (

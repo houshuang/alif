@@ -1523,3 +1523,42 @@ export type ClipEvent =
   | { event: "stage"; stage: number }
   | { event: "blind_rating"; rating: "bits" | "most" | "all" }
   | { event: "pass" };
+
+// --- Pre-read (upcoming book pages) ---
+
+export type PrereadStatus = "uploading" | "reading" | "analyzing" | "applying" | "done" | "failed";
+
+export interface PrereadSummary {
+  preread_id: number;
+  created_at: string | null;
+  status: PrereadStatus;
+  page_count: number;
+  pages_read: number;
+  learn_count: number | null;
+  shaky_count: number | null;
+  error: string | null;
+}
+
+export interface PrereadWord {
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  gloss_en: string | null;
+  transliteration?: string | null;
+  count_in_text?: number;
+  first_page?: number | null;
+  importance?: number | null;
+  retrievability?: number | null;
+  added?: boolean;
+  pulled_forward?: boolean;
+  error?: string;
+}
+
+export interface PrereadDetail extends PrereadSummary {
+  pages: { page: number; snap_id: number | null; error: string | null }[];
+  result: {
+    learn: PrereadWord[];
+    shaky: PrereadWord[];
+    names: PrereadWord[];
+    stats: Record<string, number>;
+  } | null;
+}
