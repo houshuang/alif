@@ -241,3 +241,25 @@ def test_prepare_hooks_strips_citations_from_all_fields():
     assert storage["fun_fact"] == "Its plural is odd."
     assert storage["mnemonic"] == "a MAT of TUNA"
     assert storage["cognates"][0]["note"] == "see for details"
+
+
+def test_claude_provider_skips_codex_for_hooks(monkeypatch):
+    from app.services import memory_hooks
+
+    monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "claude")
+
+    def no_codex(**kwargs):
+        raise AssertionError("Codex must not be called when ALIF_AUDIT_PROVIDER=claude")
+
+    seen = {}
+
+    def fake_completion(**kwargs):
+        seen.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr("app.services.codex_cli.generate_via_codex_cli", no_codex)
+    monkeypatch.setattr("app.services.llm.generate_completion", fake_completion)
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+    assert memory_hooks._call_hooks_llm("p", "s", schema, "memory_hooks") == {"ok": True}
+    assert seen["model_override"] == "claude_sonnet"
+    assert seen["json_schema"] is schema

@@ -177,22 +177,26 @@ JUDGE_SCHEMA = {
 
 
 def _call_hooks_llm(prompt: str, system_prompt: str, schema: dict, task_type: str) -> dict | None:
-    """Codex Sol first, Claude CLI chain fallback."""
-    from app.services.codex_cli import generate_via_codex_cli, CodexCLIError
+    """Codex Sol first, Claude CLI chain fallback.
 
-    try:
-        return generate_via_codex_cli(
-            prompt=prompt, system_prompt=system_prompt, json_mode=True,
-            json_schema=schema, timeout=180, model=HOOK_MODEL,
-        )
-    except CodexCLIError as e:
-        logger.info(f"codex hook call failed ({task_type}), falling back to Claude: {e}")
+    ``ALIF_AUDIT_PROVIDER=claude`` skips Codex, like the other audit calls, so a
+    Codex outage does not cost a failed subprocess per hook."""
+    from app.services.llm import _audit_provider, generate_completion, AllProvidersFailed
 
-    from app.services.llm import generate_completion, AllProvidersFailed
+    if _audit_provider() == "codex":
+        from app.services.codex_cli import generate_via_codex_cli, CodexCLIError
+
+        try:
+            return generate_via_codex_cli(
+                prompt=prompt, system_prompt=system_prompt, json_mode=True,
+                json_schema=schema, timeout=180, model=HOOK_MODEL,
+            )
+        except CodexCLIError as e:
+            logger.info(f"codex hook call failed ({task_type}), falling back to Claude: {e}")
 
     try:
         return generate_completion(
-            prompt=prompt, system_prompt=system_prompt, json_mode=True,
+            prompt=prompt, system_prompt=system_prompt, json_schema=schema,
             temperature=0.8, model_override="claude_sonnet", task_type=task_type,
         )
     except AllProvidersFailed as e:
