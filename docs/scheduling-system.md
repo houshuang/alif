@@ -2770,12 +2770,44 @@ exclusion: unchanged. The only new interaction is the attention plan order above
 strict main FSRS due ≥1,000 after the first week is a stop. The maintenance stop rule
 "more than two true-new acquisitions in one UTC day" is retired for the sprint.
 
+## Pre-read v1 — 2026-11-15
+
+The learner photographs the next 10–20 pages of a book they are about to read
+(`app/preread.tsx`, `/api/preread`). Everything after the photos is automatic; there is
+no picking step.
+
+- **Learn.** Unknown words on the pages (`new`/`encountered`/no row, glossed, not names)
+  are scored `1.5·importance + 1.5·log2(1+count_here) + frequency_bonus(rank)`
+  (`preread_service.learn_score`). `importance` 0–3 comes from one Sonnet call that reads
+  all the pages with the candidate list ("how much does a reader lose without this
+  word"); 0 also catches wrong-sense matches (same spelling, different word) and drops
+  the word. The top `6 × pages` (min 15, max 90) with score ≥ 3.0 enter acquisition at
+  once as learner picks (`source="preread"`, in `LEARNER_PICK_SOURCES`): Box 1, due now,
+  outside the daily/recovery budget, the same path as a Snap Add.
+- **Refresh.** Words in FSRS that occur in the pages and are likely forgotten
+  (`known` with retrievability < 0.90, or `learning`/`lapsed`), still maintained, rated
+  importance ≥ 1: up to `4 × pages` (max 60) get their FSRS `due` set to now, once
+  (`pull_forward`). No card is created or restarted; the next review is simply early,
+  and FSRS credits it as an early review. Words already due are left alone.
+- **Names.** Proper names on the pages are listed, glossed and transliterated, as a
+  primer on the result screen. Name lemmas stay inert (no cards).
+- Each page is also saved as a `SnapPage`, so its full translation opens in Snap.
+- After the plan is applied, new lemmas run `run_quality_gates()`, then every pre-read
+  word with fewer than `MIN_SENTENCES_PER_WORD` reviewable sentences gets
+  `batch_generate_material` in batches of 10.
+
+**Gate audit (Rule 8).** Same as Learner picks v1 below: a batch puts up to ~60 words in
+Box 1 at once, which trips the Box-1 recovery trigger and closes leech reintroduction
+until they move on, and lowers sentence comprehensibility while they are unknown
+scaffold. Accepted by the learner ("very aggressive; I am reading these pages in the
+next two days"). Pulled-forward FSRS words add to the main-lane due count for that day.
+
 ## Learner picks v1 — 2026-11-15
 
 Words the learner explicitly brings in are learned now, even under recovery.
-`attention_policy.LEARNER_PICK_SOURCES = {"snap", "textbook_scan"}`: a Snap word the
-learner taps Add on (`/api/discover/add` with `source="snap"`), and every word of a
-scanned textbook page.
+`attention_policy.LEARNER_PICK_SOURCES = {"snap", "textbook_scan", "preread"}`: a Snap word the
+learner taps Add on (`/api/discover/add` with `source="snap"`), every word of a
+scanned textbook page, and the words a pre-read batch selects (see "Pre-read v1").
 
 - `start_acquisition(..., learner_pick=True)` skips the daily and recovery budgets
   (like `leech_reintro`) and import staging. Only the pick actions pass the flag

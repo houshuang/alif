@@ -244,6 +244,7 @@ function LayoutInner({ online }: { online: boolean }) {
             tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} />,
           }}
         />
+        <Tabs.Screen name="preread" options={{ href: null, title: "Pre-read" }} />
         <Tabs.Screen
           name="listening"
           options={{ href: null, title: "Listening", headerShown: false }}
