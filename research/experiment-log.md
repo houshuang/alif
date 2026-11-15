@@ -114,6 +114,21 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-15: Pre-read v1.1 — pre-read words get session priority
+
+**Finding.** Live run on the server (6 real page scans of *Men in the Sun* from
+archive.org, real Gemini OCR, against a copy of the prod DB): 81 s; 36 words to learn,
+24 shaky, 7 names. All 24 shaky words were already overdue (main-lane FSRS due ≈845, in
+recovery), so `pull_forward` moved none and they would wait behind the backlog. Also:
+خيزران resolved to "bamboo" (14×) but is the name Abu al-Khayzuran, and was rated 2;
+لف appeared twice under two keys.
+
+**Change.** For 4 days after a batch, its entered and shaky words are scheduled even when
+in the slow frequency lane, and sentences covering them get ×3 (`PREREAD_BOOST`) in
+`build_session`. The importance prompt now rates words used as (part of) a name 0;
+candidates resolving to one lemma are merged. Test: a pre-read word due 1 h now beats
+twelve words due 48 h in a 6-card session (it did not before).
+
 ## 2026-11-15: Pre-read v1 — prepare upcoming book pages automatically
 
 **Why.** The learner reads a real book (an Arabic book about Macron) and wants the next

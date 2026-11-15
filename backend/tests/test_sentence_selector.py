@@ -3225,3 +3225,31 @@ class TestBookSentenceAcquiringGate:
         )
 
         assert items == []
+
+
+
+
+def test_preread_words_win_against_older_debt(db_session):
+    """A word from a recent pre-read batch outranks more-overdue words."""
+    from app.models import PrereadSet
+
+    for lid in range(1, 13):
+        _seed_word(db_session, lid, f"w{lid}", f"word {lid}", due_hours=-48, frequency_rank=lid)
+        _seed_sentence(db_session, 100 + lid, f"w{lid}", f"word {lid}", lid, [(f"w{lid}", lid)])
+    _seed_word(db_session, 50, "pr", "preread word", due_hours=-1, frequency_rank=50)
+    _seed_sentence(db_session, 150, "pr", "preread word", 50, [("pr", 50)])
+    db_session.commit()
+
+    def sentence_ids(limit):
+        s = build_session(db_session, limit=limit, log_events=False, allow_intro_mutations=False)
+        return [item["sentence_id"] for item in s["items"]]
+
+    assert 150 not in sentence_ids(6)
+
+    db_session.add(PrereadSet(
+        status="done",
+        finished_at=datetime.now(timezone.utc),
+        result_json={"learn": [], "shaky": [{"lemma_id": 50}], "names": [], "stats": {}},
+    ))
+    db_session.commit()
+    assert 150 in sentence_ids(6)

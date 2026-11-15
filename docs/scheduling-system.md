@@ -2789,6 +2789,13 @@ no picking step.
   importance ≥ 1: up to `4 × pages` (max 60) get their FSRS `due` set to now, once
   (`pull_forward`). No card is created or restarted; the next review is simply early,
   and FSRS credits it as an early review. Words already due are left alone.
+- **Session priority (v1.1, same day).** Under recovery most shaky words are already
+  overdue, so moving `due` alone changed nothing (live run: 24/24 already due). For
+  `PRIORITY_DAYS` (4) after a batch finishes, `preread_service.active_priority_ids()`
+  (entered learn words + shaky words) feeds `build_session`: due words in that set are
+  scheduled even if their frequency lane is slow, and every candidate sentence covering
+  one gets `PREREAD_BOOST` ×3 at all three scoring sites (initial greedy cover and both
+  re-scoring loops). The oldest-due opening block (`OLDEST_DUE_FIRST_BLOCK`) is unchanged.
 - **Names.** Proper names on the pages are listed, glossed and transliterated, as a
   primer on the result screen. Name lemmas stay inert (no cards).
 - Each page is also saved as a `SnapPage`, so its full translation opens in Snap.
@@ -2801,6 +2808,8 @@ Box 1 at once, which trips the Box-1 recovery trigger and closes leech reintrodu
 until they move on, and lowers sentence comprehensibility while they are unknown
 scaffold. Accepted by the learner ("very aggressive; I am reading these pages in the
 next two days"). Pulled-forward FSRS words add to the main-lane due count for that day.
+The ×3 boost and the slow-lane override apply only to due words and only for four days;
+they change ordering within a session, not session size or any due date.
 
 ## Learner picks v1 — 2026-11-15
 

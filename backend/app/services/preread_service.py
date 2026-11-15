@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 PREREAD_SOURCE = "preread"
 SHAKY_RETRIEVABILITY = 0.90
+# Days after a batch during which its words are scheduled first.
+PRIORITY_DAYS = 4
 # Known words count against discovery's cap too, so it must cover a whole batch.
 MAX_CANDIDATES = 4000
 LEARN_PER_PAGE = 6
@@ -108,6 +110,55 @@ def _first_page(surfaces: list[str], page_tokens: list[set[str]]) -> int | None:
     return None
 
 
+def _dedupe(words: list[dict]) -> list[dict]:
+    """Two surface keys can resolve to one stored lemma; keep one entry and add
+    up the counts."""
+    out: list[dict] = []
+    by_id: dict[int, dict] = {}
+    for w in words:
+        lid = w.get("lemma_id")
+        if lid is None:
+            out.append(w)
+            continue
+        prev = by_id.get(lid)
+        if prev is None:
+            by_id[lid] = w
+            out.append(w)
+            continue
+        prev["count_in_text"] = (prev.get("count_in_text") or 0) + (w.get("count_in_text") or 0)
+        prev["surface_forms"] = list(prev.get("surface_forms") or []) + [
+            f for f in (w.get("surface_forms") or []) if f not in (prev.get("surface_forms") or [])
+        ]
+    return out
+
+
+def active_priority_ids(db: Session, now: datetime | None = None) -> set[int]:
+    """Lemma ids from pre-read batches finished in the last
+    ``PRIORITY_DAYS``: the words entered and the shaky words refreshed. The
+    session builder schedules and boosts these while the pages are being read."""
+    from app.models import PrereadSet
+
+    now = now or datetime.now(timezone.utc)
+    since = (now - timedelta(days=PRIORITY_DAYS)).replace(tzinfo=None)
+    rows = (
+        db.query(PrereadSet.result_json)
+        .filter(PrereadSet.status == "done", PrereadSet.finished_at >= since)
+        .all()
+    )
+    ids: set[int] = set()
+    for (result,) in rows:
+        result = parse_json_column(result)
+        if not isinstance(result, dict):
+            continue
+        for w in result.get("learn") or []:
+            if isinstance(w, dict) and w.get("added") and w.get("lemma_id"):
+                ids.add(int(w["lemma_id"]))
+        for w in result.get("shaky") or []:
+            if isinstance(w, dict) and w.get("lemma_id"):
+                ids.add(int(w["lemma_id"]))
+    return ids
+
+
 def _merge_names(names: list[dict]) -> list[dict]:
     """One entry per name: the same name can arrive under two keys (with and
     without the article, or as a stored lemma and an OOV guess)."""
@@ -147,7 +198,8 @@ def rate_importance(text: str, items: list[dict]) -> dict[int, int]:
         "1 = helpful detail\n"
         "0 = decorative, or easy to guess from context\n"
         "If the English gloss does not fit how the word is used in these pages "
-        "(a different word with the same spelling), rate 0.\n"
+        "(a different word with the same spelling), rate 0. If the word is used "
+        "here as (part of) a person's or place's name, rate 0.\n"
         "Rate every listed index exactly once.\n\n"
         f"PAGES:\n{text[:_TEXT_CHAR_LIMIT]}\n\nWORDS:\n" + "\n".join(lines)
     )
@@ -195,6 +247,7 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
     )
     now = datetime.now(timezone.utc)
 
+    words = _dedupe(words)
     new, shaky, names = [], [], []
     stats = {"pages": len(pages), "candidates": len(words), "acquiring": 0,
              "solid": 0, "parked": 0, "no_gloss": 0}
