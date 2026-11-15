@@ -92,6 +92,7 @@ _FB_ENCLITICS = (("هما", 2), ("كما", 2), ("هم", 2), ("هن", 2), ("كم"
 # Rank assigned to words absent from the MSA frequency list (treated as maximally
 # rare for distinctive ranking — they carry the most lift).
 _OOV_RANK = 100_000
+_GLOSS_CHUNK = 60
 # These states mean a word is already in the learner's active curriculum.  A lemma
 # merely existing in the corpus database does not mean the learner knows it: corpus
 # import creates many Lemma rows without UserLemmaKnowledge rows.
@@ -208,9 +209,20 @@ def _example_finder(text: str):
 def _gloss(items: list[dict]) -> dict[int, dict]:
     """Context-aware LLM gloss. Each item: {index, lemma_ar, bare, pos?, example?}.
     Returns {index: {gloss_en, pos, transliteration, is_proper_noun, register,
-    dialect, lemma_ar?}}. Empty on failure — callers degrade gracefully."""
+    dialect, lemma_ar?}}. Empty on failure — callers degrade gracefully.
+    Long lists (multi-page pre-reading) are glossed in parallel chunks so one
+    call never has to carry hundreds of words."""
     if not items:
         return {}
+    if len(items) > _GLOSS_CHUNK:
+        from concurrent.futures import ThreadPoolExecutor
+
+        chunks = [items[i:i + _GLOSS_CHUNK] for i in range(0, len(items), _GLOSS_CHUNK)]
+        merged: dict[int, dict] = {}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for part in pool.map(_gloss, chunks):
+                merged.update(part)
+        return merged
     lines = []
     for it in items:
         head = f'{it["index"]}. {it["lemma_ar"]} (bare {it["bare"]}'
@@ -287,6 +299,7 @@ def discover_words_in_text(
     include_oov: bool = False,
     include_learning: bool = False,
     context: str | None = None,
+    max_words: int = _MAX_WORDS,
 ) -> list[dict]:
     """Core word-discovery: the highest-value lemmas in `text` not yet being learned,
     glossed. Shared by the /words endpoint and the photo /snap endpoint so both go
@@ -295,7 +308,8 @@ def discover_words_in_text(
     ``include_learning`` keeps words the learner already studies (the Snap
     tap-a-word lookup wants every word); each result carries ``knowledge_state``.
     ``context`` is the running text used for example clauses and sense-aware
-    glossing when ``text`` is a single tapped word."""
+    glossing when ``text`` is a single tapped word. ``max_words`` lifts the
+    per-call cap for multi-page pre-reading."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
     state_by_id = dict(
         db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state).all()
@@ -394,7 +408,7 @@ def discover_words_in_text(
             cand.items(),
             key=lambda kv: (0, ranks[kv[0]]) if kv[0] in ranks else (1, -kv[1]["count"]),
         )
-    ordered = ordered[: max(1, min(count, _MAX_WORDS))]
+    ordered = ordered[: max(1, min(count, max_words))]
 
     find_example = _example_finder(context or text or "")
     examples = {b: find_example(set(v["surfaces"])) for b, v in ordered}
