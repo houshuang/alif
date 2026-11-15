@@ -681,3 +681,26 @@ def test_every_add_is_logged_with_its_source(client, seeded, monkeypatch):
     assert events and events[-1]["event"] == "discover_word_added"
     assert events[-1]["source"] == "snap"
     assert events[-1]["created"] is False
+
+
+def test_gloss_accepts_bare_list_from_cli(monkeypatch):
+    monkeypatch.setattr(discover, "generate_completion", lambda **kw: [
+        {"index": 0, "gloss_en": "exile", "pos": "noun"}, "junk",
+    ])
+    out = discover._gloss([{"index": 0, "lemma_ar": "مَنْفَى", "bare": "منفى"}])
+    assert out == {0: {"index": 0, "gloss_en": "exile", "pos": "noun"}}
+
+
+def test_snap_returns_page_when_word_discovery_fails(client, db_session, monkeypatch):
+    monkeypatch.setattr(discover, "extract_text_and_translation", lambda b: {
+        "arabic_text": "هذا كتاب", "translation_en": "This is a book.", "sentences": []})
+
+    def boom(*a, **kw):
+        raise AttributeError("'list' object has no attribute 'get'")
+
+    monkeypatch.setattr(discover, "discover_words_in_text", boom)
+    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["translation_en"] == "This is a book."
+    assert body["words"] == []
