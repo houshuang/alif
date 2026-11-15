@@ -1440,7 +1440,15 @@ export interface SnapSentence {
   links: { ar: string; en: string }[];
 }
 
+export interface SnapHistoryItem {
+  snap_id: number;
+  created_at: string | null;
+  preview_en: string;
+  preview_ar: string;
+}
+
 export interface SnapResult {
+  snap_id?: number | null;
   arabic_text: string;
   translation_en: string;
   /** Sentence pairs with Arabic↔English phrase links; may be empty. */

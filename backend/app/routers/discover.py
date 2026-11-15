@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, SnapPage, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.lemma_quality import (
     _load_rank_map,
@@ -499,6 +499,7 @@ def lookup_word(req: LookupIn, db: Session = Depends(get_db)):
 
 
 class SnapOut(BaseModel):
+    snap_id: int | None = None
     arabic_text: str
     translation_en: str
     # Sentence pairs with Arabic↔English phrase links; empty when unavailable.
@@ -556,13 +557,71 @@ async def discover_snap(
         words = []
     # Names are not vocabulary to learn; /add refuses them anyway.
     words = [w for w in words if not w.get("is_proper_noun")]
+    sentences = ocr.get("sentences") or []
+    # Keep the page so it survives a reload; a failed save must not cost the
+    # reader the page they just paid for.
+    snap_id = None
+    try:
+        page = SnapPage(
+            arabic_text=arabic_text, translation_en=translation,
+            sentences_json=sentences, words_json=words,
+        )
+        db.add(page)
+        db.commit()
+        snap_id = page.id
+    except Exception:
+        logger.exception("snap page could not be saved")
+        db.rollback()
     log_interaction(
-        event="discover_snap", word_count=len(words), text_len=len(arabic_text)
+        event="discover_snap", word_count=len(words), text_len=len(arabic_text),
+        snap_id=snap_id,
     )
     return {
+        "snap_id": snap_id,
         "arabic_text": arabic_text,
         "translation_en": translation,
-        "sentences": ocr.get("sentences") or [],
+        "sentences": sentences,
+        "words": words,
+        "count": len(words),
+    }
+
+
+@router.get("/snaps")
+def list_snaps(limit: int = Query(default=30, ge=1, le=200), db: Session = Depends(get_db)):
+    """Recently snapped pages, newest first."""
+    pages = db.query(SnapPage).order_by(SnapPage.id.desc()).limit(limit).all()
+    return {"snaps": [
+        {
+            "snap_id": p.id,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "preview_en": (p.translation_en or "")[:140],
+            "preview_ar": (p.arabic_text or "")[:80],
+        }
+        for p in pages
+    ]}
+
+
+@router.get("/snaps/{snap_id}", response_model=SnapOut)
+def get_snap(snap_id: int, db: Session = Depends(get_db)):
+    """A saved page, with each suggested word's current learning state."""
+    page = db.get(SnapPage, snap_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Snap page not found")
+    words = [dict(w) for w in (page.words_json or []) if isinstance(w, dict)]
+    ids = {w["lemma_id"] for w in words if w.get("lemma_id")}
+    if ids:
+        states = dict(
+            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state)
+            .filter(UserLemmaKnowledge.lemma_id.in_(ids)).all()
+        )
+        for w in words:
+            if w.get("lemma_id"):
+                w["knowledge_state"] = states.get(w["lemma_id"])
+    return {
+        "snap_id": page.id,
+        "arabic_text": page.arabic_text,
+        "translation_en": page.translation_en or "",
+        "sentences": page.sentences_json or [],
         "words": words,
         "count": len(words),
     }

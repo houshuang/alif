@@ -17,6 +17,7 @@ import {
   StoryLookupResult,
   WordLookupResult,
   DiscoverWord,
+  SnapHistoryItem,
   SnapResult,
   DiscoverAddResult,
   AskAIResponse,
@@ -1180,6 +1181,15 @@ export async function snapDiscover(
 
 /** Add one discovered word to Alif (new vocabulary starts as reading support). Idempotent:
  *  re-adding an existing word just re-introduces it (already_known=true). */
+export async function getSnapHistory(): Promise<SnapHistoryItem[]> {
+  const r = await fetchApi<{ snaps: SnapHistoryItem[] }>("/api/discover/snaps?limit=50");
+  return r.snaps;
+}
+
+export async function getSnapPage(snapId: number): Promise<SnapResult> {
+  return fetchApi<SnapResult>(`/api/discover/snaps/${snapId}`);
+}
+
 export async function lookupSnapWord(
   word: string,
   context: string
