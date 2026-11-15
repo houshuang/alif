@@ -114,6 +114,29 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-15: Snap sentence alignment; Gemini thinking capped; learner picks deployed
+
+**Deployed.** Backend `0cb862d` (learner picks #298, memory hooks honour
+`ALIF_AUDIT_PROVIDER`, `discover_word_added` logging) and iOS update
+`01a1dea3-1be5-7416-93c9-88292733cbaf`. Prod LLM routing switched to Claude the same day
+(Codex token revoked, no credit): `ALIF_AUDIT_PROVIDER=claude`,
+`POLYGLOT_LLM_PROVIDER=claude`, both cron lines prefixed. Three Snap adds made on the
+old build had been cap-deferred to `encountered`; they were promoted by hand (3821, 3442,
+3534) and now have reviewable sentences. Two other adds of already-existing words left
+no trace (the old event fired only on create) and could not be identified.
+
+**Gemini thinking.** Two textbook pages took ~3 min and $0.19 each: 63k output tokens
+for a 32–40 word list. A/B on one real page: default 40 words / 10,193 tokens / 117 s
+total; `reasoning_effort="low"` 38 words / 398 tokens / 33 s; `minimal` 39 / 417 / 26 s
+(the remaining time is morphology + translation). `_call_gemini_vision` now defaults to
+`low`; `None` restores the model default. Output tokens are logged per call.
+
+**Snap alignment.** The Snap Gemini call now returns sentence pairs with phrase links
+(`{p, ar, en, links: [{ar, en}]}`); links that do not literally occur are dropped. Live
+test on a textbook page: 14 sentences, 70 links over 162 words, 14.6 s, 4,056 output
+tokens (old snap: 18.9 s). The app shows Arabic sentences with English underneath; an
+English tap highlights its Arabic source and opens that word's definition.
+
 ## 2026-11-15: Learner picks v1 — Snap adds and textbook scans enter learning at once
 
 **Why.** The learner reads an Arabic book on Macron and wants Snap (photograph a page →

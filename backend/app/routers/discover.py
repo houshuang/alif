@@ -495,6 +495,8 @@ def lookup_word(req: LookupIn, db: Session = Depends(get_db)):
 class SnapOut(BaseModel):
     arabic_text: str
     translation_en: str
+    # Sentence pairs with Arabic↔English phrase links; empty when unavailable.
+    sentences: list[dict] = []
     words: list[dict]
     count: int
 
@@ -545,6 +547,7 @@ async def discover_snap(
     return {
         "arabic_text": arabic_text,
         "translation_en": translation,
+        "sentences": ocr.get("sentences") or [],
         "words": words,
         "count": len(words),
     }
