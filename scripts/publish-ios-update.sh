@@ -116,11 +116,46 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# A symlinked node_modules (e.g. a worktree pointing at the main checkout) plus
+# a warm Metro cache produced bundles where Expo Router found no routes: the app
+# crashed on launch with "No routes found" and expo-updates rolled back
+# (2026-11-15). Bundle from a real node_modules with a cleared cache, check the
+# bundle's route table, and only then hand the finished bundle to EAS.
+if [[ -L "${frontend_dir}/node_modules" ]]; then
+  echo "Refusing to publish: frontend/node_modules is a symlink; use a real copy (cp -cR)." >&2
+  exit 1
+fi
+
+bundle_dir="${frontend_dir}/dist"
+rm -rf -- "${bundle_dir}"
+(
+  cd "${frontend_dir}"
+  ALIF_API_URL="${api_url}" CI=1 npx expo export \
+    --clear \
+    --platform ios \
+    --dump-assetmap \
+    --output-dir dist
+) >&2
+
+route_count=0
+for route in _layout index snap more; do
+  if grep -a -q -F "./${route}.tsx" "${bundle_dir}"/_expo/static/js/ios/*.hbc; then
+    route_count=$((route_count + 1))
+  fi
+done
+if [[ "${route_count}" -ne 4 ]]; then
+  echo "Refusing to publish: the iOS bundle is missing its Expo Router routes." >&2
+  exit 1
+fi
+echo "Bundle route check passed."
+
 (
   cd "${frontend_dir}"
   ALIF_API_URL="${api_url}" CI=1 eas update \
     --channel preview \
     --platform ios \
+    --skip-bundler \
+    --input-dir dist \
     --message "${message}" \
     --json
 ) > "${publish_json_file}"
