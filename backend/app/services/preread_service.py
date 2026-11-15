@@ -40,6 +40,12 @@ LEARN_MIN = 15
 LEARN_MAX = 90
 SHAKY_PER_PAGE = 4
 SHAKY_MAX = 60
+# Names the learner meets in the pages are practised like vocabulary: they slow
+# reading as much as unknown words do (learner decision 2026-11-15).
+NAMES_MAX = 30
+# A practised name leaves the inert ``proper_name`` category so every gate that
+# skips names (selection, credit, scaffold counts) treats it as a normal word.
+PRACTICED_NAME_CATEGORY = "practiced_name"
 # A word must clear this score to be learned, however many slots remain.
 MIN_LEARN_SCORE = 3.0
 _TEXT_CHAR_LIMIT = 24000
@@ -134,7 +140,7 @@ def _dedupe(words: list[dict]) -> list[dict]:
 
 def active_priority_ids(db: Session, now: datetime | None = None) -> set[int]:
     """Lemma ids from pre-read batches finished in the last
-    ``PRIORITY_DAYS``: the words entered and the shaky words refreshed. The
+    ``PRIORITY_DAYS``: the words and names entered and the shaky words refreshed. The
     session builder schedules and boosts these while the pages are being read."""
     from app.models import PrereadSet
 
@@ -150,7 +156,7 @@ def active_priority_ids(db: Session, now: datetime | None = None) -> set[int]:
         result = parse_json_column(result)
         if not isinstance(result, dict):
             continue
-        for w in result.get("learn") or []:
+        for w in (result.get("learn") or []) + (result.get("names") or []):
             if isinstance(w, dict) and w.get("added") and w.get("lemma_id"):
                 ids.add(int(w["lemma_id"]))
         for w in result.get("shaky") or []:
@@ -340,3 +346,74 @@ def pull_forward(db: Session, lemma_ids: list[int]) -> list[int]:
         ulk.fsrs_card_json = card
         moved.append(ulk.lemma_id)
     return moved
+
+
+def practice_names(db: Session, names: list[dict]) -> dict:
+    """Enter the pages' names as learner picks, like the learn words.
+
+    A stored ``proper_name`` lemma is moved to ``practiced_name``; a name with
+    no lemma yet is created in that category. A name whose spelling resolves to
+    an ordinary word is left alone: re-labelling that lemma would turn a
+    real word into a name. Commits per name. Returns the ids that still need
+    quality gates (``gate_ids``) and every practised id (``ids``)."""
+    from app.routers.discover import _normalize
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.lemma_quality import assign_frequency_rank
+    from app.services.sentence_validator import build_comprehensive_lemma_lookup, lookup_lemma_citation
+    from app.services.word_selector import introduce_word
+
+    gate_ids: list[int] = []
+    ids: list[int] = []
+    for w in names[:NAMES_MAX]:
+        try:
+            bare = _normalize(w.get("lemma_ar_bare") or "")
+            if not bare:
+                continue
+            lemma_id = w.get("lemma_id")
+            if not lemma_id:
+                lookup = build_comprehensive_lemma_lookup(db)
+                lemma_id = lookup_lemma_citation(bare, lookup, original_bare=w.get("lemma_ar") or bare)
+            lemma = None
+            if lemma_id:
+                lemma = db.get(Lemma, resolve_canonical_lemma_id(db, int(lemma_id)))
+            if lemma is not None:
+                if lemma.word_category not in ("proper_name", PRACTICED_NAME_CATEGORY):
+                    w["added"] = False
+                    w["skipped"] = "ordinary word"
+                    continue
+                lemma.word_category = PRACTICED_NAME_CATEGORY
+                if lemma.gates_completed_at is None:
+                    gate_ids.append(lemma.lemma_id)
+            else:
+                gloss = (w.get("gloss_en") or "").strip()
+                if not gloss:
+                    w["added"] = False
+                    w["skipped"] = "no gloss"
+                    continue
+                lemma = Lemma(
+                    lemma_ar=w.get("lemma_ar") or bare,
+                    lemma_ar_bare=bare,
+                    gloss_en=gloss,
+                    pos="noun_prop",
+                    word_category=PRACTICED_NAME_CATEGORY,
+                    transliteration_ala_lc=w.get("transliteration"),
+                    source=PREREAD_SOURCE,
+                )
+                db.add(lemma)
+                db.flush()
+                assign_frequency_rank(lemma)
+                gate_ids.append(lemma.lemma_id)
+            res = introduce_word(
+                db, lemma.lemma_id, source=PREREAD_SOURCE,
+                due_immediately=True, enforce_daily_cap=True, learner_pick=True,
+            )
+            db.commit()
+            w["lemma_id"] = lemma.lemma_id
+            w["added"] = res.get("state") == "acquiring"
+            ids.append(lemma.lemma_id)
+        except Exception as e:
+            db.rollback()
+            w["added"] = False
+            w["error"] = str(e)[:200]
+            logger.warning("preread name failed for %s: %s", w.get("lemma_ar_bare"), e)
+    return {"gate_ids": gate_ids, "ids": ids}

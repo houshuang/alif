@@ -242,13 +242,14 @@ def test_active_priority_ids_cover_recent_batches_only(db_session):
     db_session.add_all([
         PrereadSet(status="done", finished_at=now - timedelta(days=1), result_json={
             "learn": [{"lemma_id": 1, "added": True}, {"lemma_id": 2, "added": False}],
-            "shaky": [{"lemma_id": 3}], "names": [{"lemma_id": 4}]}),
+            "shaky": [{"lemma_id": 3}],
+            "names": [{"lemma_id": 4}, {"lemma_id": 7, "added": True}]}),
         PrereadSet(status="done", finished_at=now - timedelta(days=ps.PRIORITY_DAYS + 1),
                    result_json={"learn": [{"lemma_id": 5, "added": True}], "shaky": []}),
         PrereadSet(status="failed", finished_at=now, result_json={"learn": [{"lemma_id": 6, "added": True}]}),
     ])
     db_session.commit()
-    assert ps.active_priority_ids(db_session, now) == {1, 3}
+    assert ps.active_priority_ids(db_session, now) == {1, 3, 7}
 
 
 def test_same_lemma_under_two_keys_is_one_candidate(db_session, monkeypatch):
@@ -262,3 +263,39 @@ def test_same_lemma_under_two_keys_is_one_candidate(db_session, monkeypatch):
     plan = ps.analyze_pages(db_session, ["لف يلف يلف"])
     assert len(plan["learn"]) == 1
     assert plan["learn"][0]["count_in_text"] == 3
+
+
+def test_practice_names_enters_names_as_learner_picks(db_session):
+    stored = Lemma(lemma_ar="مروان", lemma_ar_bare="مروان", gloss_en="Marwan", pos="noun_prop",
+                   word_category="proper_name")
+    word = Lemma(lemma_ar="أمل", lemma_ar_bare="امل", gloss_en="hope", pos="noun")
+    db_session.add_all([stored, word])
+    db_session.commit()
+    names = [
+        _word("مروان", lemma_id=stored.lemma_id, gloss="Marwan", proper=True),
+        _word("ماكرون", gloss="Macron", proper=True),
+        _word("امل", gloss="Amal", proper=True),
+        _word("زيد", gloss="", proper=True),
+    ]
+
+    out = ps.practice_names(db_session, names)
+
+    db_session.expire_all()
+    assert db_session.get(Lemma, stored.lemma_id).word_category == ps.PRACTICED_NAME_CATEGORY
+    created = db_session.query(Lemma).filter_by(lemma_ar_bare="ماكرون").one()
+    assert created.word_category == ps.PRACTICED_NAME_CATEGORY
+    assert created.source == ps.PREREAD_SOURCE
+    for lid in (stored.lemma_id, created.lemma_id):
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lid).one()
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.source == ps.PREREAD_SOURCE
+    assert set(out["ids"]) == {stored.lemma_id, created.lemma_id}
+    assert created.lemma_id in out["gate_ids"]
+    # A name spelled like an ordinary word leaves that word alone.
+    assert db_session.get(Lemma, word.lemma_id).word_category is None
+    assert names[2]["skipped"] == "ordinary word" and not names[2]["added"]
+    # No gloss, no lemma.
+    assert names[3]["skipped"] == "no gloss"
+    assert db_session.query(Lemma).filter_by(lemma_ar_bare="زيد").count() == 0
+    assert [n["added"] for n in names] == [True, True, False, False]
+

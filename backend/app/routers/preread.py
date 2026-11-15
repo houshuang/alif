@@ -23,7 +23,7 @@ from app.config import settings
 from app.database import SessionLocal, get_db
 from app.models import PrereadSet, SnapPage
 from app.services.interaction_logger import log_interaction
-from app.services.preread_service import PREREAD_SOURCE, analyze_pages, pull_forward
+from app.services.preread_service import PREREAD_SOURCE, analyze_pages, practice_names, pull_forward
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +174,9 @@ def _apply_plan(plan: dict) -> dict:
                 w["added"] = False
                 w["error"] = str(e)[:200]
                 logger.warning("preread add failed for %s: %s", w.get("lemma_ar_bare"), e)
+        named = practice_names(db, plan["names"])
+        new_ids += named["gate_ids"]
+        existing_ids += [i for i in named["ids"] if i not in named["gate_ids"]]
         shaky_ids = [w["lemma_id"] for w in plan["shaky"] if w.get("lemma_id")]
         moved = set(pull_forward(db, shaky_ids)) if shaky_ids else set()
         db.commit()
@@ -268,6 +271,7 @@ def run_preread(set_id: int) -> None:
                 "added": sum(1 for w in plan["learn"] if w.get("added")),
                 "created": len(applied["new_ids"]),
                 "pulled_forward": applied["moved"],
+                "names_added": sum(1 for w in plan["names"] if w.get("added")),
             },
         }
         _set_status(set_id, "done", result_json=result, finished_at=_now())
