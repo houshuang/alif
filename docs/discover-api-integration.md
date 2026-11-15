@@ -164,7 +164,7 @@ strictly required, but send what you have):
 | `transliteration` | optional | — |
 | `register` | optional | `neutral`/`literary`/`colloquial`/`vulgar`/`clinical` — persisted on the word so dialectal/vulgar vocabulary stays distinguishable in Alif. |
 | `dialect` | optional | `msa`/`gulf`/`egyptian`/`levantine`/`mixed` — persisted on the word. |
-| `source` | optional | Provenance tag identifying the **calling consumer** (e.g. `bookifier`). Persisted on both the lemma row and its scheduling record, and stamped on the `dragoman_word_added` interaction log, so words from different consumers stay distinguishable in later analysis. Defaults to `dragoman` (the in-app discover screen) when omitted. |
+| `source` | optional | Provenance tag identifying the **calling consumer** (e.g. `bookifier`). Persisted on both the lemma row and its scheduling record, and stamped on the `discover_word_added` interaction log (one per Add, new or existing word; named `dragoman_word_added` and logged only on create before 2026-11-15), so words from different consumers stay distinguishable in later analysis. Defaults to `dragoman` (the in-app discover screen) when omitted. |
 
 **Response `200`**
 

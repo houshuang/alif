@@ -699,6 +699,21 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
     }
 
 
+def _log_add(out: dict) -> None:
+    """One event per Add, whether the lemma was created or already existed, so
+    every consumer's adds (snap, bookifier, discover screen) can be traced.
+    Named ``dragoman_word_added`` before 2026-11-15 and logged only on create."""
+    log_interaction(
+        event="discover_word_added",
+        lemma_id=out["lemma_id"],
+        lemma_ar=out["lemma_ar"],
+        source=out["source"],
+        created=out["created"],
+        state=out["state"],
+        already_known=out["already_known"],
+    )
+
+
 @router.post("/add")
 def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create/stage one word; quality-gate in the background."""
@@ -709,11 +724,9 @@ def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     db.commit()
+    _log_add(out)
     if out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
-        log_interaction(
-            event="dragoman_word_added", lemma_id=out["lemma_id"], source=out["source"]
-        )
     return out
 
 
@@ -736,11 +749,9 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
             out = _create_and_introduce(db, w, lemma_lookup)
             db.commit()
             results.append(out)
+            _log_add(out)
             if out["created"]:
                 new_ids.append(out["lemma_id"])
-                log_interaction(
-                    event="dragoman_word_added", lemma_id=out["lemma_id"], source=out["source"]
-                )
         except Exception as e:
             db.rollback()
             logger.warning("discover add failed for %s: %s", w.lemma_ar_bare, e)

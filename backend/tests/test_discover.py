@@ -668,3 +668,16 @@ def test_snap_add_bypasses_recovery_budget(client, db_session, monkeypatch):
         "lemma_ar_bare": "رصيف", "lemma_ar": "رَصِيف", "gloss_en": "pavement",
         "pos": "noun"})
     assert r.json()["state"] == "encountered"
+
+
+def test_every_add_is_logged_with_its_source(client, seeded, monkeypatch):
+    events = []
+    monkeypatch.setattr(discover, "log_interaction", lambda **kw: events.append(kw))
+    monkeypatch.setattr(discover, "_gate_and_generate", lambda ids: None)
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "مكتبة", "lemma_ar": "مَكْتَبَة", "gloss_en": "library",
+        "pos": "noun", "source": "snap"})
+    assert r.status_code == 200
+    assert events and events[-1]["event"] == "discover_word_added"
+    assert events[-1]["source"] == "snap"
+    assert events[-1]["created"] is False
