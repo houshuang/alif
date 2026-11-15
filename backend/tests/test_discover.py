@@ -749,3 +749,30 @@ def test_snap_does_not_offer_proper_names(client, db_session, monkeypatch):
     ])
     r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
     assert [w["lemma_ar_bare"] for w in r.json()["words"]] == ["زار"]
+
+
+def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatch):
+    lem = Lemma(lemma_ar="مُرَشَّح", lemma_ar_bare="مرشح", gloss_en="candidate", pos="noun")
+    db_session.add(lem)
+    db_session.commit()
+    monkeypatch.setattr(discover, "extract_text_and_translation", lambda b: {
+        "arabic_text": "فاز المرشح", "translation_en": "The candidate won.",
+        "sentences": [{"p": 0, "ar": "فاز المرشح", "en": "The candidate won.", "links": []}]})
+    monkeypatch.setattr(discover, "discover_words_in_text", lambda *a, **k: [
+        {"lemma_ar_bare": "مرشح", "lemma_id": lem.lemma_id, "knowledge_state": None,
+         "is_proper_noun": False}])
+    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
+    snap_id = r.json()["snap_id"]
+    assert snap_id
+
+    listed = client.get("/api/discover/snaps").json()["snaps"]
+    assert listed[0]["snap_id"] == snap_id
+    assert listed[0]["preview_en"] == "The candidate won."
+
+    # The word was added after the snap: reopening shows its current state.
+    db_session.add(UserLemmaKnowledge(lemma_id=lem.lemma_id, knowledge_state="acquiring"))
+    db_session.commit()
+    page = client.get(f"/api/discover/snaps/{snap_id}").json()
+    assert page["sentences"][0]["en"] == "The candidate won."
+    assert page["words"][0]["knowledge_state"] == "acquiring"
+    assert client.get("/api/discover/snaps/999999").status_code == 404

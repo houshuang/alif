@@ -543,6 +543,19 @@ class PageUpload(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
+class SnapPage(Base):
+    """A page read with Snap: OCR text, translation, sentence alignment and the
+    word suggestions, kept so the reader can reopen it (no photo is stored)."""
+    __tablename__ = "snap_pages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    arabic_text = Column(Text, nullable=False)
+    translation_en = Column(Text, nullable=False, default="")
+    sentences_json = Column(JSON, nullable=True)
+    words_json = Column(JSON, nullable=True)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 

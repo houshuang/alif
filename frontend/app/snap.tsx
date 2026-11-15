@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { colors, fontFamily, fonts } from "../lib/theme";
-import { snapDiscover, addDiscoveredWord, lookupSnapWord } from "../lib/api";
-import type { DiscoverWord, SnapResult } from "../lib/types";
+import {
+  snapDiscover,
+  addDiscoveredWord,
+  lookupSnapWord,
+  getSnapHistory,
+  getSnapPage,
+} from "../lib/api";
+import type { DiscoverWord, SnapHistoryItem, SnapResult } from "../lib/types";
 import {
   alignSentences,
   firstArabicToken,
@@ -25,6 +32,24 @@ import {
 } from "../lib/snap-alignment";
 
 type AddState = "idle" | "adding" | "added" | "known" | "error";
+
+// The open page, cached so a reload shows it at once (and offline).
+const OPEN_PAGE_KEY = "alif.snap.openPage.v1";
+
+async function rememberOpenPage(page: SnapResult | null) {
+  try {
+    if (page) await AsyncStorage.setItem(OPEN_PAGE_KEY, JSON.stringify(page));
+    else await AsyncStorage.removeItem(OPEN_PAGE_KEY);
+  } catch {
+    // A cache miss only means the reader starts on the history list.
+  }
+}
+
+function formatWhen(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z");
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 type Token = { text: string; key: string; sentence: string; tappable: boolean };
 type Focus = { sentence: number; link: number | null; en?: number };
@@ -66,6 +91,68 @@ export default function SnapScreen() {
   const [result, setResult] = useState<SnapResult | null>(null);
   // The last photo, so a failed page can be retried without retaking it.
   const [lastUri, setLastUri] = useState<string | null>(null);
+  const [history, setHistory] = useState<SnapHistoryItem[]>([]);
+
+  async function refreshHistory() {
+    try {
+      setHistory(await getSnapHistory());
+    } catch {
+      // Offline: keep whatever list we already have.
+    }
+  }
+
+  function showPage(page: SnapResult) {
+    setAdds({});
+    setSelected(null);
+    setLookups({});
+    setFocus(null);
+    setExpanded(new Set());
+    setResult(page);
+    rememberOpenPage(page);
+  }
+
+  // Restore the page that was open before a reload, then refresh it from the
+  // server so word states are current.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let cached: SnapResult | null = null;
+      try {
+        const raw = await AsyncStorage.getItem(OPEN_PAGE_KEY);
+        cached = raw ? (JSON.parse(raw) as SnapResult) : null;
+      } catch {
+        cached = null;
+      }
+      if (cached && !cancelled) setResult(cached);
+      if (cached?.snap_id) {
+        try {
+          const fresh = await getSnapPage(cached.snap_id);
+          if (!cancelled) {
+            setResult(fresh);
+            rememberOpenPage(fresh);
+          }
+        } catch {
+          // Keep the cached copy.
+        }
+      }
+      refreshHistory();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function openFromHistory(item: SnapHistoryItem) {
+    setBusy(true);
+    setError(null);
+    try {
+      showPage(await getSnapPage(item.snap_id));
+    } catch {
+      setError("Couldn't open that page. Check your connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
   // lemma_ar_bare -> add state
   const [adds, setAdds] = useState<Record<string, AddState>>({});
   const [selected, setSelected] = useState<Token | null>(null);
@@ -168,7 +255,8 @@ export default function SnapScreen() {
     setExpanded(new Set());
     try {
       const r = await snapDiscover(imageUri);
-      setResult(r);
+      showPage(r);
+      refreshHistory();
     } catch (e: any) {
       const msg = String(e?.message || e);
       setError(
@@ -224,6 +312,8 @@ export default function SnapScreen() {
   }
 
   function reset() {
+    rememberOpenPage(null);
+    refreshHistory();
     setResult(null);
     setError(null);
     setAdds({});
@@ -267,6 +357,24 @@ export default function SnapScreen() {
               <Ionicons name="refresh" size={20} color={colors.accent} />
               <Text style={styles.secondaryBtnText}>Try again</Text>
             </Pressable>
+          )}
+          {history.length > 0 && (
+            <View style={styles.history}>
+              <Text style={styles.sectionLabel}>Recent pages</Text>
+              {history.map((item) => (
+                <Pressable
+                  key={item.snap_id}
+                  style={styles.historyRow}
+                  onPress={() => openFromHistory(item)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.historyWhen}>{formatWhen(item.created_at)}</Text>
+                  <Text style={styles.historyPreview} numberOfLines={2}>
+                    {item.preview_en || item.preview_ar}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           )}
         </View>
       )}
@@ -423,7 +531,7 @@ export default function SnapScreen() {
             <WordChip
               key={w.lemma_ar_bare}
               word={w}
-              state={adds[w.lemma_ar_bare] || "idle"}
+              state={adds[w.lemma_ar_bare] || stateFromKnowledge(w.knowledge_state)}
               onAdd={() => addWord(w)}
             />
           ))}
@@ -513,6 +621,12 @@ function WordPanel({
       )}
     </View>
   );
+}
+
+function stateFromKnowledge(state: string | null | undefined): AddState {
+  if (state === "acquiring") return "added";
+  if (state && STUDIED_STATES.has(state)) return "known";
+  return "idle";
 }
 
 function Badge({ text, color }: { text: string; color: string }) {
@@ -649,6 +763,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   pair: { marginBottom: 14 },
+  history: { alignSelf: "stretch", marginTop: 32 },
+  historyRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  historyWhen: { color: colors.textSecondary, fontSize: fonts.caption },
+  historyPreview: { color: colors.text, fontSize: fonts.body, marginTop: 2, lineHeight: 21 },
   paraToggle: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", marginBottom: 4 },
   paraToggleText: { color: colors.textSecondary, fontFamily: fontFamily.arabic, fontSize: fonts.small },
   paraEnglish: { color: colors.text, fontSize: fonts.body, lineHeight: 24 },
