@@ -102,6 +102,7 @@ TEXT_VETO_RATIO = 0.86  # max normalized Arabic char similarity in same session
 TEXT_TOKEN_VETO_THRESHOLD = 0.8  # max normalized Arabic token Jaccard in same session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 LAPSED_BOOST = 3.0  # score multiplier for sentences targeting lapsed words (re-expose soon)
+PREREAD_BOOST = 3.0  # score multiplier for sentences covering words from a recent pre-read batch
 OVERDUE_ESCALATION_DAYS = 0.5  # start escalating as soon as a card is past due
 OVERDUE_ESCALATION_MAX = 6.0  # max multiplier for severely overdue words
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
@@ -1780,6 +1781,14 @@ def build_session(
     due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids, due_frequency_ranks = _filter_due_ids_for_frequency_lanes(
         db, due_lemma_ids, knowledge_by_id, overdue_days_map, limit
     )
+    # Words from a pre-read batch of pages the learner is about to read are
+    # scheduled even when their frequency rank puts them in the slow lane.
+    from app.services.preread_service import active_priority_ids
+    preread_ids = active_priority_ids(db, now)
+    preread_slow = slow_due_ids & preread_ids
+    if preread_slow:
+        due_lemma_ids |= preread_slow
+        slow_scheduled_ids |= preread_slow
 
     # Identify struggling words: seen 3+ times, never correct. Skip words whose
     # reintro card was acknowledged within the cooldown — the /reintro-result
@@ -2382,6 +2391,7 @@ def build_session(
         # compete with multi-word FSRS sentences in the greedy selection.
         nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
         lapsed_boost = LAPSED_BOOST if (due_covered & lapsed_lemma_ids) else 1.0
+        preread_boost = PREREAD_BOOST if (due_covered & preread_ids) else 1.0
         overdue_boost = _overdue_escalation(due_covered, overdue_days_map)
         frequency_boost = frequency_priority_multiplier(due_covered, due_frequency_ranks)
         history_risk_boost = _history_risk_multiplier(
@@ -2399,6 +2409,7 @@ def build_session(
             * rescue_penalty
             * nr_boost
             * lapsed_boost
+            * preread_boost
             * overdue_boost
             * frequency_boost
             * history_risk_boost
@@ -2742,6 +2753,7 @@ def build_session(
             rescue_penalty = 0.3 if cand.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
+            preread_boost = PREREAD_BOOST if (overlap & preread_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
             frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
             history_risk_boost = _history_risk_multiplier(
@@ -2760,6 +2772,7 @@ def build_session(
                 * rescue_penalty
                 * nr_boost
                 * lapsed_boost
+                * preread_boost
                 * overdue_boost
                 * frequency_boost
                 * history_risk_boost
@@ -2882,6 +2895,7 @@ def build_session(
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
+            preread_boost = PREREAD_BOOST if (overlap & preread_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
             frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
             history_risk_boost = _history_risk_multiplier(
@@ -2900,6 +2914,7 @@ def build_session(
                 * rescue_penalty
                 * nr_boost
                 * lapsed_boost
+                * preread_boost
                 * overdue_boost
                 * frequency_boost
                 * history_risk_boost

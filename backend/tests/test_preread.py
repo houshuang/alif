@@ -235,3 +235,30 @@ def test_run_preread_fails_cleanly_when_no_page_is_readable(db_session, monkeypa
     row = db_session.get(PrereadSet, row.id)
     assert row.status == "failed"
     assert row.pages_json[0]["error"] == "No Arabic text found"
+
+
+def test_active_priority_ids_cover_recent_batches_only(db_session):
+    now = datetime.now(timezone.utc)
+    db_session.add_all([
+        PrereadSet(status="done", finished_at=now - timedelta(days=1), result_json={
+            "learn": [{"lemma_id": 1, "added": True}, {"lemma_id": 2, "added": False}],
+            "shaky": [{"lemma_id": 3}], "names": [{"lemma_id": 4}]}),
+        PrereadSet(status="done", finished_at=now - timedelta(days=ps.PRIORITY_DAYS + 1),
+                   result_json={"learn": [{"lemma_id": 5, "added": True}], "shaky": []}),
+        PrereadSet(status="failed", finished_at=now, result_json={"learn": [{"lemma_id": 6, "added": True}]}),
+    ])
+    db_session.commit()
+    assert ps.active_priority_ids(db_session, now) == {1, 3}
+
+
+def test_same_lemma_under_two_keys_is_one_candidate(db_session, monkeypatch):
+    lem = Lemma(lemma_ar="لَفَّ", lemma_ar_bare="لف", gloss_en="to wrap", pos="verb")
+    db_session.add(lem)
+    db_session.commit()
+    words = [_word("لف", lemma_id=lem.lemma_id, count=1, surface="لف"),
+             _word("يلف", lemma_id=lem.lemma_id, count=2, surface="يلف")]
+    monkeypatch.setattr("app.routers.discover.discover_words_in_text", lambda *a, **k: [dict(w) for w in words])
+    monkeypatch.setattr(ps, "rate_importance", lambda text, items: {it["index"]: 2 for it in items})
+    plan = ps.analyze_pages(db_session, ["لف يلف يلف"])
+    assert len(plan["learn"]) == 1
+    assert plan["learn"][0]["count_in_text"] == 3
