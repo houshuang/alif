@@ -64,6 +64,8 @@ export default function SnapScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SnapResult | null>(null);
+  // The last photo, so a failed page can be retried without retaking it.
+  const [lastUri, setLastUri] = useState<string | null>(null);
   // lemma_ar_bare -> add state
   const [adds, setAdds] = useState<Record<string, AddState>>({});
   const [selected, setSelected] = useState<Token | null>(null);
@@ -142,6 +144,7 @@ export default function SnapScreen() {
   }
 
   async function runSnap(imageUri: string) {
+    setLastUri(imageUri);
     setBusy(true);
     setError(null);
     setResult(null);
@@ -157,7 +160,9 @@ export default function SnapScreen() {
       setError(
         msg.includes("422")
           ? "No Arabic text found in that photo — try again with the page filling the frame."
-          : "Couldn't read that page. Check your connection and try again."
+          : msg.includes("API error")
+            ? "The server couldn't process that page."
+            : "Couldn't reach the server. Check your connection."
       );
     } finally {
       setBusy(false);
@@ -243,6 +248,12 @@ export default function SnapScreen() {
             <Text style={styles.secondaryBtnText}>Choose from library</Text>
           </Pressable>
           {error && <Text style={styles.error}>{error}</Text>}
+          {error && lastUri && (
+            <Pressable style={styles.secondaryBtn} onPress={() => runSnap(lastUri)}>
+              <Ionicons name="refresh" size={20} color={colors.accent} />
+              <Text style={styles.secondaryBtnText}>Try again</Text>
+            </Pressable>
+          )}
         </View>
       )}
 

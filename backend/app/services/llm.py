@@ -259,6 +259,21 @@ def _generate_via_codex_cli_with_logging(
     return result
 
 
+def _fit_schema(result: Any, json_schema: dict | None) -> Any:
+    """Wrap a bare list in the object the schema asks for.
+
+    Models sometimes return just the array when the schema is an object with a
+    single array property (``{"glosses": [...]}`` → ``[...]``). Seen from the
+    Claude API fallback on 2026-11-15, where it crashed the Snap word gloss."""
+    if not isinstance(result, list) or not isinstance(json_schema, dict):
+        return result
+    props = json_schema.get("properties") or {}
+    arrays = [k for k, v in props.items() if isinstance(v, dict) and v.get("type") == "array"]
+    if json_schema.get("type") == "object" and len(arrays) == 1:
+        return {arrays[0]: result}
+    return result
+
+
 def _generate_via_claude_cli(
     prompt: str,
     system_prompt: str,
@@ -319,6 +334,8 @@ def _generate_via_claude_cli(
     # With json_schema, limbic returns a pre-parsed dict from structured_output
     if isinstance(content, dict):
         return content
+    if isinstance(content, list):
+        return _fit_schema(content, json_schema)
 
     # json_mode without schema: limbic returned text. Parse it.
     text = (content if isinstance(content, str) else str(content)).strip()
@@ -388,9 +405,13 @@ def generate_completion(
 
     # Claude CLI models — shell out to `claude -p` (free via Max plan)
     # Falls back to API chain if CLI unavailable
+    # ALIF_CLAUDE_HAIKU_CLI_MODEL lets prod send the "claude_haiku" alias to
+    # another CLI model. On 2026-11-15 the CLI took 52-68 s per structured gloss
+    # call on haiku but ~5 s on sonnet, so with Codex off every audit call
+    # timed out at 60 s.
     CLAUDE_CLI_MODELS = {
         "claude_sonnet": "sonnet",
-        "claude_haiku": "haiku",
+        "claude_haiku": os.environ.get("ALIF_CLAUDE_HAIKU_CLI_MODEL", "haiku").strip() or "haiku",
     }
 
     # When no model_override specified, try Claude CLI (haiku) first — it's free
@@ -450,6 +471,17 @@ def generate_completion(
 
     errors: list[str] = []
 
+    # API models do not get CLI constrained decoding. Tell them the shape, and
+    # satisfy OpenAI's rule that json_object requests mention "json".
+    if json_mode or json_schema:
+        instruction = "Respond with JSON only."
+        if json_schema:
+            instruction += " The JSON must match this schema: " + json.dumps(json_schema)
+        if messages and messages[0]["role"] == "system":
+            messages[0] = {"role": "system", "content": messages[0]["content"] + "\n\n" + instruction}
+        else:
+            messages.insert(0, {"role": "system", "content": instruction})
+
     for model_config in models_to_try:
         api_key = _get_api_key(model_config)
         if not api_key:
@@ -464,7 +496,7 @@ def generate_completion(
                 "timeout": timeout,
                 "api_key": api_key,
             }
-            if json_mode:
+            if json_mode or json_schema:
                 kwargs["response_format"] = {"type": "json_object"}
 
             response = litellm.completion(**kwargs)
@@ -486,7 +518,7 @@ def generate_completion(
                 if text.startswith("```"):
                     match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
                     text = match.group(1).strip() if match else text.strip()
-                return json.loads(text)
+                return _fit_schema(json.loads(text), json_schema)
             return {"content": content}
 
         except Exception as e:

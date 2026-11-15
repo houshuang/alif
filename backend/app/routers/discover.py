@@ -249,7 +249,13 @@ def _gloss(items: list[dict]) -> dict[int, dict]:
     except Exception as e:
         logger.warning("discover gloss failed: %s", e)
         return {}
-    return {g["index"]: g for g in res.get("glosses", []) if "index" in g}
+    # Claude CLI sometimes returns the bare glosses array instead of the
+    # {"glosses": [...]} object the schema asks for.
+    glosses = res.get("glosses", []) if isinstance(res, dict) else res
+    if not isinstance(glosses, list):
+        logger.warning("discover gloss returned %s, not a gloss list", type(res).__name__)
+        return {}
+    return {g["index"]: g for g in glosses if isinstance(g, dict) and "index" in g}
 
 
 class DiscoverIn(BaseModel):
@@ -538,9 +544,16 @@ async def discover_snap(
     if not arabic_text:
         raise HTTPException(status_code=422, detail="No Arabic text found in image")
 
-    words = discover_words_in_text(
-        db, arabic_text, count=count, selection=selection, include_oov=include_oov
-    )
+    # The page and its translation are the main result; a failure in the word
+    # suggestions must not discard them.
+    try:
+        words = discover_words_in_text(
+            db, arabic_text, count=count, selection=selection, include_oov=include_oov
+        )
+    except Exception:
+        logger.exception("snap word discovery failed; returning the page without words")
+        db.rollback()
+        words = []
     log_interaction(
         event="discover_snap", word_count=len(words), text_len=len(arabic_text)
     )
