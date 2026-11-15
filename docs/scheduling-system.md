@@ -2796,8 +2796,15 @@ no picking step.
   scheduled even if their frequency lane is slow, and every candidate sentence covering
   one gets `PREREAD_BOOST` ×3 at all three scoring sites (initial greedy cover and both
   re-scoring loops). The oldest-due opening block (`OLDEST_DUE_FIRST_BLOCK`) is unchanged.
-- **Names.** Proper names on the pages are listed, glossed and transliterated, as a
-  primer on the result screen. Name lemmas stay inert (no cards).
+- **Names (practised since 2026-11-15, learner decision).** Proper names on the pages
+  are listed, glossed and transliterated, and up to `NAMES_MAX` (30) are practised
+  (`preread_service.practice_names`): a stored `proper_name` lemma is moved to
+  `word_category="practiced_name"`, a name with no lemma is created in that category,
+  and each enters acquisition as a learner pick like a learn word (gates, sentences,
+  four-day priority). A name whose spelling resolves to an ordinary word is skipped, so
+  a real word is never relabelled. `practiced_name` is not in the inert set: every
+  name filter keys on `word_category == "proper_name"`, so selection, credit and scaffold
+  counts treat a practised name as a normal word. All other names stay inert.
 - Each page is also saved as a `SnapPage`, so its full translation opens in Snap.
 - After the plan is applied, new lemmas run `run_quality_gates()`, then every pre-read
   word with fewer than `MIN_SENTENCES_PER_WORD` reviewable sentences gets

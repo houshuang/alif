@@ -114,6 +114,22 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-15: Pre-read names are practised (`practiced_name`)
+
+**Change.** Names a Pre-read batch finds were listed but inert. The learner asked for
+them to be practised: unknown names slow reading as much as unknown words. Up to 30
+names per batch now enter acquisition as learner picks (`preread_service.practice_names`)
+with sentence generation and the four-day session priority. A stored `proper_name`
+lemma is moved to the new category `practiced_name`; a missing one is created in it.
+Nothing else changes for other names: every inert filter (about 170 sites) compares
+`word_category == "proper_name"`, so the new category passes them all without editing
+them. Names whose spelling resolves to an ordinary word (أمل "hope" / Amal) are skipped
+rather than relabelling the word.
+
+**Watch.** Generated sentences around a name target (mapping must resolve the name to
+its lemma; the validator's proper-name inference is bypassed for target tokens) and
+intro cards that show only a transliterated gloss.
+
 ## 2026-11-15: Pre-read v1.1 — pre-read words get session priority
 
 **Finding.** Live run on the server (6 real page scans of *Men in the Sun* from
