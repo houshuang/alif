@@ -263,7 +263,7 @@ class TestProcessTextbookPage:
     @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_textbook_scan_keeps_existing_encountered_as_new_word(
+    def test_textbook_scan_promotes_existing_encountered_to_acquisition(
         self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
     ):
         from app.services.ocr_service import process_textbook_page
@@ -297,13 +297,12 @@ class TestProcessTextbookPage:
         process_textbook_page(db_session, upload, b"fake_image", preserve_known=True)
 
         db_session.refresh(ulk)
-        assert ulk.knowledge_state == "encountered"
+        assert ulk.knowledge_state == "acquiring"
         assert ulk.fsrs_card_json is None
-        assert ulk.acquisition_box is None
-        assert ulk.experiment_group is None
+        assert ulk.acquisition_box == 1
         assert ulk.total_encounters == 3
         assert upload.extracted_words_json[0]["status"] == "existing"
-        assert upload.extracted_words_json[0]["knowledge_state"] == "encountered"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
     @patch("app.services.ocr_service._schedule_material_generation")
@@ -406,7 +405,7 @@ class TestProcessTextbookPage:
     @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_save_only_keeps_new_textbook_words_encountered(
+    def test_new_textbook_word_starts_acquisition(
         self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
     ):
         from app.services.ocr_service import process_textbook_page
@@ -426,9 +425,10 @@ class TestProcessTextbookPage:
         ulk = db_session.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.lemma_id == new_lemma.lemma_id
         ).first()
-        assert ulk.knowledge_state == "encountered"
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.attention_disposition == "maintain"
         assert ulk.fsrs_card_json is None
-        assert upload.extracted_words_json[0]["knowledge_state"] == "encountered"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
         assert mock_schedule.call_args.args[1] == [new_lemma.lemma_id]
 
     @pytest.mark.slow
@@ -596,7 +596,7 @@ class TestProcessTextbookPage:
         ).first()
         assert ulk is not None
         assert ulk.source == "textbook_scan"
-        assert ulk.knowledge_state == "encountered"
+        assert ulk.knowledge_state == "acquiring"
         assert ulk.fsrs_card_json is None
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
@@ -771,7 +771,7 @@ class TestProcessBatch:
     @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_batch_textbook_scan_keeps_existing_encountered_as_new_word(
+    def test_batch_textbook_scan_promotes_existing_encountered_to_acquisition(
         self, mock_extract, mock_classify, mock_backfill, mock_schedule, db_session
     ):
         from app.services.ocr_service import process_batch
@@ -806,15 +806,14 @@ class TestProcessBatch:
 
         db_session.refresh(ulk)
         db_session.refresh(upload)
-        assert ulk.knowledge_state == "encountered"
+        assert ulk.knowledge_state == "acquiring"
         assert ulk.fsrs_card_json is None
-        assert ulk.acquisition_box is None
-        assert ulk.experiment_group is None
+        assert ulk.acquisition_box == 1
         assert ulk.total_encounters == 2
         assert upload.status == "completed"
         assert upload.existing_words == 1
         assert upload.extracted_words_json[0]["status"] == "existing"
-        assert upload.extracted_words_json[0]["knowledge_state"] == "encountered"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
 

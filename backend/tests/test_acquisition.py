@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timedelta, timezone
 
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
@@ -1325,11 +1326,26 @@ def test_recovery_mode_blocks_new_intro_until_sentence_practice(db_session):
     _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
 
     lemma = _create_lemma(db_session, arabic="مؤجل", english="deferred")
-    ulk = start_acquisition(db_session, lemma.lemma_id, source="textbook_scan")
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="study")
 
     assert ulk.knowledge_state == "encountered"
     assert ulk.acquisition_started_at is None
     assert ulk.acquisition_box is None
+
+
+@pytest.mark.parametrize("source", ["snap", "textbook_scan"])
+def test_learner_pick_bypasses_recovery_budget(db_session, source):
+    """Snap adds and textbook scans enter acquisition even with a zero budget,
+    and still count as net-new intake for the other sources."""
+    _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
+    picked_lemma = _create_lemma(db_session, arabic="مختار", english="chosen")
+    picked = start_acquisition(db_session, picked_lemma.lemma_id, source=source, learner_pick=True)
+    assert picked.knowledge_state == "acquiring"
+    assert picked.acquisition_box == 1
+
+    other_lemma = _create_lemma(db_session, arabic="غيره", english="other")
+    other = start_acquisition(db_session, other_lemma.lemma_id, source="study")
+    assert other.knowledge_state == "encountered"
 
 
 def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
@@ -1379,3 +1395,13 @@ def test_recovery_mid_accuracy_capped_at_mid_budget(db_session):
         source="study",
     )
     assert blocked.knowledge_state == "encountered"
+
+
+def test_stored_pick_source_alone_keeps_the_budget(db_session):
+    """Only the scan/Add action bypasses the budget. A later promotion of an old
+    textbook word (e.g. from session build) passes the stored source without the
+    flag and stays budgeted."""
+    _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
+    lemma = _create_lemma(db_session, arabic="قديم", english="old")
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="textbook_scan")
+    assert ulk.knowledge_state == "encountered"

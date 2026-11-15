@@ -144,3 +144,17 @@ def test_target_row_never_creates_cards_or_knowledge_by_itself(db_session):
     k = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     # The refresh may stage an encountered row for a targeted word, but never a card.
     assert k is None or (k.knowledge_state == "encountered" and k.fsrs_card_json is None)
+
+
+def test_learner_pick_outranks_an_open_reading_target(db_session):
+    db = db_session
+    targeted = _lemma(db, "رمل", "sand", freq=200)
+    _target(db, targeted.lemma_id, count=20)
+    picked = _lemma(db, "منفى", "exile", freq=None)
+    db.add(UserLemmaKnowledge(lemma_id=picked.lemma_id, knowledge_state="encountered",
+                              source="snap"))
+    db.commit()
+
+    result = select_next_words(db, count=5)
+    assert [r["lemma_id"] for r in result][:2] == [picked.lemma_id, targeted.lemma_id]
+    assert result[0]["score_breakdown"]["priority_tier"] == "learner_pick"

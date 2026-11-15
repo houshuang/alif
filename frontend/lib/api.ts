@@ -1180,6 +1180,18 @@ export async function snapDiscover(
 
 /** Add one discovered word to Alif (new vocabulary starts as reading support). Idempotent:
  *  re-adding an existing word just re-introduces it (already_known=true). */
+export async function lookupSnapWord(
+  word: string,
+  context: string
+): Promise<DiscoverWord | null> {
+  const r = await fetchApi<{ word: DiscoverWord | null }>("/api/discover/lookup", {
+    method: "POST",
+    body: JSON.stringify({ word, context }),
+    timeoutMs: 60000,
+  });
+  return r.word;
+}
+
 export async function addDiscoveredWord(
   word: DiscoverWord
 ): Promise<DiscoverAddResult> {

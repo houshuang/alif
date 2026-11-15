@@ -114,6 +114,51 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-15: Learner picks v1 — Snap adds and textbook scans enter learning at once
+
+**Why.** The learner reads an Arabic book on Macron and wants Snap (photograph a page →
+full translation) as the reading companion instead of a separate chatbot. Words they
+choose there, and every word on a textbook page they scan, should be learned now. Under
+recovery (production 2026-11-15: strict main FSRS due 845 > 750, budget 0/4/8 by
+reading cards) both sources were stuck. Snap Add went through `introduce_word(...,
+enforce_daily_cap=True)`, so a deliberate Add was cap-deferred to `encountered`.
+Textbook scans were staged `reading_support` (PR #278 added `textbook_scan` to
+`STAGED_SOURCES`) and scored at `_TIER_TEXTBOOK_SCAN = 0`. The learner was asked three
+scope questions and chose: no limit under recovery (over a separate capped lane or
+priority-only); ahead of the novel-sprint reading targets; all scanned words (over
+tapped words only).
+
+**Change.** `attention_policy.LEARNER_PICK_SOURCES = {"snap", "textbook_scan"}`.
+(1) `start_acquisition(..., learner_pick=True)` skips the daily/recovery budget,
+like `leech_reintro`. Only the scan and Snap-Add actions pass the flag: a later
+promotion of the same word by session build passes the stored source without it and
+stays budgeted. A pick still counts as true-new intake, so it consumes the budget
+other sources would use that day. (2) `admit_learner_pick` lets a pick override
+automatic `reading_support` staging only while the word is `new`/`encountered`/
+`acquiring`. It never resumes identity-QA `parked` rows and never touches a word with
+review history (known/learning/lapsed/suspended keep their state and any
+`costly_lower_priority` demotion). (3) `textbook_scan` left `STAGED_SOURCES`;
+`_record_textbook_encounter` now starts acquisition (Box 1, due immediately) for every
+scanned non-function, non-name word without review history. (4) `automatic_attention`
+keeps an entering pick `maintain` (`automatic_attention_v2:learner_pick`), so the next
+refresh cannot re-stage it; after acquisition the ordinary rules apply. (5)
+`word_selector._TIER_LEARNER_PICK = 320`, above the reading-target maximum (310). It
+applies to `encountered` picks that predate this change (production: 159 encountered
+`textbook_scan` rows, 110 of them staged). Those are not bulk-promoted. They flow
+first through the ordinary earned budget, ahead of *Men in the Sun* targets.
+(6) Snap gains `POST /api/discover/lookup` and a tappable Arabic text with a word
+panel (gloss, state, Add).
+
+**Expected effect and risks.** Box 1 grows by every pick, so the Box-1 recovery
+trigger (≥5 actionable) and the leech-reintro admission (occupancy ≥4) will close
+more often while picks are being learned. That is the accepted cost of the "no limit"
+choice. The old textbook backlog will take the earned budget slots for about 20
+budget-days before novel targets resume. **Verify:** after a scan, its words show
+`acquiring`/Box 1 with `source=textbook_scan`. A Snap Add under budget 0 returns
+`state=acquiring`. `select_next_words` top tier is `learner_pick` while backlog
+remains. Watch `recovery_status().box1_actionable` and primary accuracy for a week.
+Rollback: remove a source from `LEARNER_PICK_SOURCES`.
+
 ## 2026-11-08: Egyptian clips rebuilt around phrases after first real use
 
 **Observed.** First use: too fast, and hard to match speech to transcript; the Shadow step was confusing. Measured 2.6–3.7 words per second, with a median line of 10 words and a maximum of 22. **Changed.** Word-level timing highlight, 2–6 word phrases, 0.5× and 0.6× speeds, a Words step before listening, seven slower clips, slowest-first ordering, and Shadow replaced by a repeat button on each phrase. **Watch.** Whether the slowest clips (about 2.1 words per second) are followable with this support. If not, add a graded on-ramp rather than more TikToks.

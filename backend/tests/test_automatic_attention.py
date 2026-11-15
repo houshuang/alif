@@ -152,3 +152,20 @@ def test_book_receipts_count_only_completed_authentic_distinct_sentence_ranges(d
     assert db.query(UserLemmaKnowledge).count()==0
     story.source='book_ocr';db.commit();refresh_attention(db,now=NOW)
     assert db.query(UserLemmaKnowledge).one().attention_reason==READING_REASON
+
+
+def test_entering_textbook_pick_is_maintained_until_it_leaves_acquisition(db_session):
+    db=db_session;l=word(db,with_card=False)
+    db.add(UserLemmaKnowledge(lemma_id=1,knowledge_state='encountered',source='textbook_scan',
+                              attention_disposition='reading_support'))
+    db.commit();refresh_attention(db,now=NOW)
+    k=db.query(UserLemmaKnowledge).one()
+    assert k.attention_disposition=='maintain'
+    assert k.attention_reason.endswith(':learner_pick')
+    assert select_next_words(db)[0]['lemma_id']==1
+
+
+def test_reviewed_textbook_word_keeps_ordinary_cost_policy(db_session):
+    db=db_session;l=word(db);l.knowledge.source='textbook_scan';failures(db);db.commit()
+    refresh_attention(db,now=NOW)
+    assert l.knowledge.attention_disposition=='reading_support'

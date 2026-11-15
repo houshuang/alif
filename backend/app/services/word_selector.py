@@ -20,7 +20,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_
 
-from app.services.attention_policy import excluded_lemma_ids, is_maintained
+from app.services.attention_policy import LEARNER_PICK_SOURCES, admit_learner_pick, excluded_lemma_ids, is_maintained
 from app.models import (
     ReadingTarget,
     FrequencyCoreEntry,
@@ -55,7 +55,11 @@ _TIER_READING_TARGET = 300.0      # Explicit reading_targets row (novel sprint):
 _TIER_READING_TARGET_COUNT_STEP = 0.5  # Within the tier, more occurrences in the text go first
 _TIER_READING_TARGET_COUNT_MAX = 20
 _TIER_READING_TARGET_CHAPTER_STEP = 0.1  # ...and, at equal count, earlier chapters first
-_TIER_TEXTBOOK_SCAN = 0.0     # Provenance does not establish current curriculum priority
+_TIER_TEXTBOOK_SCAN = 0.0     # Superseded by _TIER_LEARNER_PICK for textbook_scan
+# Learner picks (Snap adds, scanned textbook pages) outrank even open reading
+# targets: an explicit learner decision of 2026-11-15. Above the reading-target
+# tier's maximum (300 + 20 * 0.5).
+_TIER_LEARNER_PICK = 320.0
 _TIER_STORY = 10.0            # Active generated/maintenance stories (auto-created)
 # An explicitly selected imported story is active reading curriculum, like a
 # book_ocr import. Merely being reader-visible (status="active") is not enough:
@@ -721,6 +725,10 @@ def select_next_words(
             )
             priority_tier = "reading_target"
 
+        if priority_source in LEARNER_PICK_SOURCES:
+            priority_bonus = _TIER_LEARNER_PICK
+            priority_tier = "learner_pick"
+
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
         if domain and priority_source in _TOPIC_BONUS_SOURCES and lemma.thematic_domain == domain:
@@ -897,7 +905,7 @@ def select_next_words(
 
 def introduce_word(
     db: Session, lemma_id: int, source: str = "study", due_immediately: bool = False,
-    enforce_daily_cap: bool = True,
+    enforce_daily_cap: bool = True, learner_pick: bool = False,
 ) -> dict:
     """Mark a word as introduced, starting acquisition (Leitner 3-box).
 
@@ -925,7 +933,7 @@ def introduce_word(
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
-    if existing and not is_maintained(existing):
+    if existing and not admit_learner_pick(existing, learner_pick):
         return {"lemma_id": lemma_id, "state": existing.knowledge_state,
                 "attention_disposition": existing.attention_disposition,
                 "cap_deferred": True, "already_known": False, "introduced_at": None}
@@ -942,7 +950,7 @@ def introduce_word(
             # Transition encountered → acquiring
             ulk = start_acquisition(
                 db, lemma_id, source=source, due_immediately=due_immediately,
-                enforce_daily_cap=enforce_daily_cap,
+                enforce_daily_cap=enforce_daily_cap, learner_pick=learner_pick,
             )
             if ulk.knowledge_state != "acquiring":
                 db.commit()
@@ -981,7 +989,7 @@ def introduce_word(
     # New word — start acquisition
     ulk = start_acquisition(
         db, lemma_id, source=source, due_immediately=due_immediately,
-        enforce_daily_cap=enforce_daily_cap,
+        enforce_daily_cap=enforce_daily_cap, learner_pick=learner_pick,
     )
     if ulk.knowledge_state != "acquiring":
         db.commit()
