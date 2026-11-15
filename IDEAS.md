@@ -1,12 +1,12 @@
 # Alif — Master Ideas File
 
-## 🟡 [IMPLEMENTED 2026-11-15 — not yet deployed] Learner picks + Snap as a reading companion
+## 🟢 [DEPLOYED 2026-11-15] Learner picks + Snap as a reading companion
 
 Snap adds and every textbook-scan word enter acquisition at once, even under recovery,
 and rank above reading targets (`docs/scheduling-system.md` "Learner picks v1"). Snap
 shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
-- Sentence-aligned Snap translation (Arabic sentence ↔ English sentence) so tapping a
-  sentence shows only its translation, like ChatGPT parallel reading.
+- ~~Sentence-aligned Snap translation~~ — done 2026-11-15: sentence pairs plus
+  English→Arabic phrase links from the same Gemini call.
 - A Snap "book" mode: keep snapped pages of one book (e.g. the Macron book) in order,
   so pages can be reread and their picked words traced back to the page.
 - Measure whether picks retain as well as frequency words (Box-1 pass rate by source).

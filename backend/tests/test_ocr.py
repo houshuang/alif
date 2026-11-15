@@ -112,9 +112,40 @@ class TestOCRService:
         assert result == {
             "arabic_text": "هذا كتاب",
             "translation_en": "This is a book.",
+            "sentences": [],
         }
         mock_vision.assert_called_once()
         mock_text.assert_called_once()
+
+    @patch("app.services.ocr_service._call_gemini_vision")
+    def test_snap_ocr_keeps_only_literal_alignment_links(self, mock_vision):
+        from app.services.ocr_service import extract_text_and_translation
+
+        mock_vision.return_value = {"sentences": [
+            {"p": 0, "ar": "ذهب الرئيسُ إلى باريس.", "en": "The president went to Paris.",
+             "links": [
+                 {"ar": "الرئيسُ", "en": "The president"},
+                 {"ar": "ذهب", "en": "went"},
+                 {"ar": "باريس", "en": "Paris"},
+                 {"ar": "فرنسا", "en": "France"},       # not in the Arabic
+                 {"ar": "إلى", "en": "towards"},        # not in the English
+             ]},
+            {"p": 0, "ar": "وصل مساءً.", "en": "He arrived in the evening.",
+             "links": [{"ar": "مساءً", "en": "in the evening"}]},
+            {"p": 1, "ar": "ثم نام.", "en": "Then he slept.", "links": "bad"},
+            {"p": 1, "en": "orphan English"},
+        ]}
+
+        result = extract_text_and_translation(b"fake_image_data")
+
+        assert result["arabic_text"] == "ذهب الرئيسُ إلى باريس. وصل مساءً.\nثم نام."
+        assert result["translation_en"].startswith("The president went to Paris. He arrived")
+        assert len(result["sentences"]) == 3
+        first = result["sentences"][0]
+        assert [l["en"] for l in first["links"]] == ["The president", "went", "Paris"]
+        assert result["sentences"][1]["links"] == [{"ar": "مساءً", "en": "in the evening"}]
+        assert result["sentences"][2]["links"] == []
+        mock_vision.assert_called_once()
 
     @patch("app.services.ocr_service._step3_translate")
     @patch("app.services.ocr_service._step2_morphology")

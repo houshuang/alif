@@ -1433,9 +1433,18 @@ export interface DiscoverWord {
   knowledge_state?: string | null;
 }
 
+export interface SnapSentence {
+  p: number;
+  ar: string;
+  en: string;
+  links: { ar: string; en: string }[];
+}
+
 export interface SnapResult {
   arabic_text: string;
   translation_en: string;
+  /** Sentence pairs with Arabic↔English phrase links; may be empty. */
+  sentences?: SnapSentence[];
   words: DiscoverWord[];
   count: number;
 }

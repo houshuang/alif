@@ -164,11 +164,17 @@ def _call_gemini_vision(
     system_prompt: str = "",
     model_override: str | None = None,
     timeout_seconds: int = 300,
+    reasoning_effort: str | None = "low",
 ) -> dict:
     """Call Gemini Vision API with an image and prompt.
 
     Uses litellm for the API call with base64-encoded image.
     Returns parsed JSON response.
+
+    ``reasoning_effort`` caps Gemini 3 thinking (litellm maps it to
+    ``thinkingLevel``). Unbounded, a textbook page spent 10k-63k output tokens
+    (2-3 min, up to $0.19) for the same word list that ``low`` returns in ~400
+    tokens (A/B on a real page, 2026-11-15). ``None`` restores the model default.
     """
     import litellm
     import time
@@ -197,6 +203,7 @@ def _call_gemini_vision(
 
     start = time.time()
     try:
+        extra = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
         response = litellm.completion(
             model=model,
             messages=messages,
@@ -204,6 +211,7 @@ def _call_gemini_vision(
             timeout=timeout_seconds,
             api_key=api_key,
             response_format={"type": "json_object"},
+            **extra,
         )
         elapsed = time.time() - start
         content = response.choices[0].message.content.strip()
@@ -217,6 +225,7 @@ def _call_gemini_vision(
         log_dir = settings.log_dir
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"llm_calls_{datetime.now():%Y-%m-%d}.jsonl"
+        usage = getattr(response, "usage", None)
         entry = {
             "ts": datetime.now().isoformat(),
             "event": "llm_call",
@@ -224,6 +233,8 @@ def _call_gemini_vision(
             "task": "ocr",
             "success": True,
             "response_time_s": round(elapsed, 2),
+            "reasoning_effort": reasoning_effort,
+            "completion_tokens": getattr(usage, "completion_tokens", None),
         }
         with open(log_file, "a") as f:
             f.write(json.dumps(entry) + "\n")
@@ -280,29 +291,98 @@ def extract_text_from_image(image_bytes: bytes) -> str:
     return result.get("arabic_text", "")
 
 
+_ALIGN_STRIP = re.compile(r"[^\w]|[\u064B-\u0652\u0670\u0640_]", re.UNICODE)
+
+
+def _align_key(token: str) -> str:
+    """Comparison key for a token: no punctuation, harakat or tatweel; lowercase."""
+    return _ALIGN_STRIP.sub("", token).lower()
+
+
+def _clean_alignment(raw: object) -> list[dict]:
+    """Keep well-formed sentence pairs, and only links that literally occur.
+
+    Each link's Arabic tokens must all appear in its sentence's Arabic and its
+    English words must appear, in order, in the sentence's English. Anything
+    else is dropped rather than shown as a wrong highlight."""
+    if not isinstance(raw, list):
+        return []
+    sentences = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        ar = str(item.get("ar") or "").strip()
+        en = str(item.get("en") or "").strip()
+        if not ar:
+            continue
+        try:
+            paragraph = max(0, int(item.get("p") or 0))
+        except (TypeError, ValueError):
+            paragraph = 0
+        ar_keys = {_align_key(t) for t in ar.split()}
+        en_keys = [_align_key(t) for t in en.split()]
+        links = []
+        for link in item.get("links") or []:
+            if not isinstance(link, dict):
+                continue
+            link_ar = [_align_key(t) for t in str(link.get("ar") or "").split()]
+            link_en = [_align_key(t) for t in str(link.get("en") or "").split()]
+            link_ar = [k for k in link_ar if k]
+            link_en = [k for k in link_en if k]
+            if not link_ar or not link_en or not set(link_ar) <= ar_keys:
+                continue
+            n = len(link_en)
+            if not any(en_keys[i:i + n] == link_en for i in range(len(en_keys) - n + 1)):
+                continue
+            links.append({"ar": str(link["ar"]).strip(), "en": str(link["en"]).strip()})
+        sentences.append({"p": paragraph, "ar": ar, "en": en, "links": links})
+    return sentences
+
+
+def _join_paragraphs(sentences: list[dict], key: str) -> str:
+    paragraphs: list[list[str]] = []
+    last = None
+    for s in sentences:
+        if s["p"] != last:
+            paragraphs.append([])
+            last = s["p"]
+        if s[key]:
+            paragraphs[-1].append(s[key])
+    return "\n".join(" ".join(p) for p in paragraphs if p)
+
+
 def extract_text_and_translation(image_bytes: bytes) -> dict:
     """OCR an Arabic page AND translate it to English in a single Gemini Vision call.
 
-    Synchronous (~3-5s) — powers the interactive snap-to-read feature, where the
-    reader photographs a page and immediately wants both the Arabic text and a
-    faithful English rendering. One call (vs. OCR-then-separate-translate) keeps
-    latency low enough for in-the-moment reading help.
+    Powers interactive snap-to-read. The same call returns the page as
+    sentence pairs with short Arabic↔English phrase links, so the reader can
+    tap an English word to find its Arabic source (and vice versa).
 
-    Returns {"arabic_text": str, "translation_en": str}.
+    Returns {"arabic_text": str, "translation_en": str, "sentences": [...]}.
+    ``sentences`` is ``[{p, ar, en, links: [{ar, en}]}]`` and may be empty when
+    the model returned only the flat shape; callers must handle both.
     """
     prompt = (
             "This image is a page of Arabic text that a reader is studying.\n"
             "1. Extract ALL the Arabic text exactly as written: preserve any diacritics "
-            "that are present, preserve paragraph breaks as newlines, do NOT add "
-            "diacritics that aren't there, and exclude page numbers / non-Arabic "
-            "marginalia.\n"
-            "2. Provide a faithful, fluent English translation of that text — accurate "
-            "to the meaning and natural in English (not a word-for-word gloss).\n"
-            'Respond with JSON: {"arabic_text": "the Arabic", "translation_en": "the English"}'
+            "that are present, do NOT add diacritics that aren't there, and exclude "
+            "page numbers / non-Arabic marginalia.\n"
+            "2. Split it into sentences in reading order. Give each sentence a "
+            "paragraph number `p` (0, 1, 2, ... — same number for sentences in the "
+            "same paragraph) and a faithful, fluent English translation `en` "
+            "(accurate to the meaning, natural English, not a word-for-word gloss).\n"
+            "3. For each sentence, list `links`: pairs of the Arabic word(s) and the "
+            "English word(s) that translate them. `ar` must be copied exactly from "
+            "that sentence's Arabic (one word, or a few adjacent words for an idiom); "
+            "`en` must be copied exactly from that sentence's English. Cover every "
+            "content word; skip pure function words.\n"
+            "Respond with JSON: "
+            '{"sentences": [{"p": 0, "ar": "...", "en": "...", '
+            '"links": [{"ar": "...", "en": "..."}]}]}'
         )
     system_prompt = (
             "You are an expert Arabic reader and translator. Extract the Arabic text "
-            "accurately and translate it faithfully. Respond with JSON only."
+            "accurately, translate it faithfully and align it. Respond with JSON only."
         )
 
     # Interactive snaps used to inherit the general OCR call's five-minute timeout
@@ -310,6 +390,11 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
     # retry once: transient provider/JSON failures are common enough that a single
     # attempt made the feature feel random, but the total still stays within the
     # client's request window.
+    def has_text(r: object) -> bool:
+        return isinstance(r, dict) and bool(
+            _clean_alignment(r.get("sentences")) or (r.get("arabic_text") or "").strip()
+        )
+
     first_error: Exception | None = None
     try:
         result = _call_gemini_vision(
@@ -320,7 +405,7 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
         first_error = e
         result = {}
 
-    if not isinstance(result, dict) or not (result.get("arabic_text") or "").strip():
+    if not has_text(result):
         if first_error:
             logger.warning("snap vision attempt failed; retrying once: %s", first_error)
         else:
@@ -331,9 +416,14 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
         )
 
     if not isinstance(result, dict):
-        return {"arabic_text": "", "translation_en": ""}
-    arabic_text = result.get("arabic_text") or ""
-    translation = result.get("translation_en") or ""
+        return {"arabic_text": "", "translation_en": "", "sentences": []}
+    sentences = _clean_alignment(result.get("sentences"))
+    if sentences:
+        arabic_text = _join_paragraphs(sentences, "ar")
+        translation = _join_paragraphs(sentences, "en")
+    else:
+        arabic_text = result.get("arabic_text") or ""
+        translation = result.get("translation_en") or ""
 
     # A valid OCR result with a missing translation is salvageable without asking
     # the user to photograph the page again.
@@ -350,7 +440,7 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
         except Exception as e:
             logger.warning("snap translation fallback failed: %s", e)
 
-    return {"arabic_text": arabic_text, "translation_en": translation}
+    return {"arabic_text": arabic_text, "translation_en": translation, "sentences": sentences}
 
 
 def _step1_extract_words(image_bytes: bytes) -> list[str]:

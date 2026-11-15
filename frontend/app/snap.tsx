@@ -14,10 +14,20 @@ import * as ImagePicker from "expo-image-picker";
 import { colors, fontFamily, fonts } from "../lib/theme";
 import { snapDiscover, addDiscoveredWord, lookupSnapWord } from "../lib/api";
 import type { DiscoverWord, SnapResult } from "../lib/types";
+import {
+  alignSentences,
+  firstArabicToken,
+  linkForArabic,
+  linkForEnglish,
+  paragraphsOf,
+  type AlignedSentence,
+  type SnapToken,
+} from "../lib/snap-alignment";
 
 type AddState = "idle" | "adding" | "added" | "known" | "error";
 
 type Token = { text: string; key: string; sentence: string; tappable: boolean };
+type Focus = { sentence: number; link: number | null; en?: number };
 type Lookup = { status: "loading" } | { status: "done"; word: DiscoverWord | null } | { status: "error" };
 
 const ARABIC_LETTER = /[\u0621-\u064A]/;
@@ -63,16 +73,62 @@ export default function SnapScreen() {
     () => (result ? tokenizePage(result.arabic_text) : []),
     [result]
   );
+  // Sentence pairs with phrase links; when present they replace the separate
+  // translation and Arabic blocks.
+  const aligned = useMemo(
+    () => (result?.sentences?.length ? paragraphsOf(alignSentences(result.sentences)) : []),
+    [result]
+  );
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [showEnglish, setShowEnglish] = useState(true);
 
   function selectToken(t: Token) {
     if (selected?.key === t.key) {
       setSelected(null);
       return;
     }
+    openToken(t);
+  }
+
+  function openToken(t: Token) {
     setSelected(t);
     const cached = lookups[t.text];
     if (cached && cached.status !== "error") return;
     fetchLookup(t);
+  }
+
+  const asToken = (s: AlignedSentence, t: SnapToken): Token => ({
+    text: t.text, key: t.key, sentence: s.ar, tappable: true,
+  });
+
+  function tapArabic(s: AlignedSentence, t: SnapToken) {
+    if (selected?.key === t.key) {
+      setSelected(null);
+      setFocus(null);
+      return;
+    }
+    setFocus({ sentence: s.index, link: linkForArabic(s, t) });
+    openToken(asToken(s, t));
+  }
+
+  function tapEnglish(s: AlignedSentence, i: number) {
+    const link = linkForEnglish(s, i);
+    setFocus({ sentence: s.index, link, en: i });
+    const source = link === null ? null : firstArabicToken(s, link);
+    if (source) openToken(asToken(s, source));
+    else setSelected(null);
+  }
+
+  function arHighlighted(s: AlignedSentence, t: SnapToken): boolean {
+    if (selected?.key === t.key) return true;
+    if (!focus || focus.sentence !== s.index || focus.link === null) return false;
+    return s.links[focus.link]?.ar.has(t.match) ?? false;
+  }
+
+  function enHighlighted(s: AlignedSentence, i: number): boolean {
+    if (!focus || focus.sentence !== s.index) return false;
+    if (focus.en === i) return true;
+    return focus.link !== null && (s.links[focus.link]?.en.has(i) ?? false);
   }
 
   async function fetchLookup(t: Token) {
@@ -92,6 +148,7 @@ export default function SnapScreen() {
     setAdds({});
     setSelected(null);
     setLookups({});
+    setFocus(null);
     try {
       const r = await snapDiscover(imageUri);
       setResult(r);
@@ -153,6 +210,7 @@ export default function SnapScreen() {
     setAdds({});
     setSelected(null);
     setLookups({});
+    setFocus(null);
   }
 
   const addedCount = Object.values(adds).filter(
@@ -195,8 +253,63 @@ export default function SnapScreen() {
         </View>
       )}
 
+      {result && aligned.length > 0 && (
+        <View>
+          <View style={styles.wordsHeaderFirst}>
+            <Text style={styles.sectionLabel}>Page</Text>
+            <Pressable onPress={() => setShowEnglish((v) => !v)} hitSlop={8}>
+              <Text style={styles.addAllText}>{showEnglish ? "Hide English" : "Show English"}</Text>
+            </Pressable>
+          </View>
+          <View style={styles.arabicCard}>
+            {aligned.map((paragraph, pi) => (
+              <View key={pi} style={pi > 0 ? styles.arabicParagraph : undefined}>
+                {paragraph.map((s) => (
+                  <View key={s.index} style={styles.pair}>
+                    <Text style={styles.arabicText}>
+                      {s.arTokens.map((t) =>
+                        t.isWord ? (
+                          <Text
+                            key={t.key}
+                            onPress={() => tapArabic(s, t)}
+                            style={arHighlighted(s, t) ? styles.tokenSelected : undefined}
+                            accessibilityRole="button"
+                          >
+                            {t.text}
+                          </Text>
+                        ) : (
+                          t.text
+                        )
+                      )}
+                    </Text>
+                    {showEnglish && (
+                      <Text style={styles.pairEnglish}>
+                        {s.enTokens.map((t, i) =>
+                          t.isWord ? (
+                            <Text
+                              key={t.key}
+                              onPress={() => tapEnglish(s, i)}
+                              style={enHighlighted(s, i) ? styles.tokenSelected : undefined}
+                            >
+                              {t.text}
+                            </Text>
+                          ) : (
+                            t.text
+                          )
+                        )}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
       {result && (
         <View>
+          {aligned.length === 0 && (<>
           {/* English translation */}
           <Text style={styles.sectionLabel}>Translation</Text>
           <View style={styles.translationCard}>
@@ -227,6 +340,7 @@ export default function SnapScreen() {
               </Text>
             ))}
           </View>
+          </>)}
 
           {/* Top words */}
           <View style={styles.wordsHeader}>
@@ -271,7 +385,10 @@ export default function SnapScreen() {
         addState={(w) => adds[w.lemma_ar_bare] || "idle"}
         onAdd={addWord}
         onRetry={() => fetchLookup(selected)}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null);
+          setFocus(null);
+        }}
       />
     )}
     </View>
@@ -466,6 +583,13 @@ const styles = StyleSheet.create({
   translationText: { color: colors.text, fontSize: 17, lineHeight: 26 },
 
   contentWithPanel: { paddingBottom: 220 },
+  wordsHeaderFirst: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pair: { marginBottom: 14 },
+  pairEnglish: { color: colors.textSecondary, fontSize: fonts.body, lineHeight: 22, marginTop: 4 },
   arabicLabel: { marginTop: 24 },
   arabicParagraph: { marginTop: 12 },
   tokenSelected: { backgroundColor: colors.accent + "33", color: colors.text },
