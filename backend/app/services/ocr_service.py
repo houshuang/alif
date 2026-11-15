@@ -65,8 +65,7 @@ def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge
 
     A scanned page is the learner's explicit choice of vocabulary, so a word
     that has not entered review yet starts acquisition immediately, outside the
-    daily and recovery intake budgets (``start_acquisition`` bypasses them for
-    ``LEARNER_PICK_SOURCES``). Words with review history (known, learning,
+    daily and recovery intake budgets (``learner_pick=True``). Words with review history (known, learning,
     lapsed, suspended) keep their state: a scan is not proof of knowledge and
     must not restart an FSRS card. Proper names, onomatopoeia and function words
     stay inert.
@@ -932,6 +931,7 @@ def process_textbook_page(
                         vulk.acquisition_next_due = None
                         vulk.acquisition_started_at = None
                         vulk.entered_acquiring_at = None
+                        vulk.introduced_at = None
                     if vlem.canonical_lemma_id:
                         canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
                         textbook_lemma_ids.add(canonical_ulk.lemma_id)
@@ -1358,6 +1358,7 @@ def process_batch(
                     vulk.acquisition_next_due = None
                     vulk.acquisition_started_at = None
                     vulk.entered_acquiring_at = None
+                    vulk.introduced_at = None
                 if vlem.canonical_lemma_id:
                     canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
                     textbook_lemma_ids.add(canonical_ulk.lemma_id)
