@@ -704,3 +704,48 @@ def test_snap_returns_page_when_word_discovery_fails(client, db_session, monkeyp
     body = r.json()
     assert body["translation_en"] == "This is a book."
     assert body["words"] == []
+
+
+def test_adding_existing_word_schedules_material(client, db_session, monkeypatch):
+    lem = Lemma(lemma_ar="مُرَشَّح", lemma_ar_bare="مرشح", gloss_en="candidate", pos="noun",
+                source="frequency_core", gates_completed_at=datetime.now(timezone.utc))
+    db_session.add(lem)
+    db_session.commit()
+    scheduled = []
+    from starlette.background import BackgroundTasks
+
+    def record(self, func, *args, **kwargs):
+        if func is discover._ensure_material:
+            scheduled.extend(args[0])
+
+    monkeypatch.setattr(BackgroundTasks, "add_task", record)
+    r = client.post("/api/discover/add", json={
+        "lemma_ar_bare": "مرشح", "lemma_ar": "مُرَشَّح", "gloss_en": "candidate",
+        "pos": "noun", "source": "snap"})
+    assert r.json()["state"] == "acquiring"
+    assert r.json()["created"] is False
+    assert scheduled == [lem.lemma_id]
+
+
+def test_ensure_material_only_tops_up_missing(db_session, monkeypatch):
+    lem = Lemma(lemma_ar="وَفِيّ", lemma_ar_bare="وفي", gloss_en="loyal", pos="adj")
+    db_session.add(lem)
+    db_session.commit()
+    calls = []
+    monkeypatch.setattr(discover, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(discover, "generate_material_for_word",
+                        lambda lid, needed: calls.append((lid, needed)))
+    discover._ensure_material([lem.lemma_id])
+    assert calls == [(lem.lemma_id, discover.MIN_SENTENCES_PER_WORD)]
+
+
+def test_snap_does_not_offer_proper_names(client, db_session, monkeypatch):
+    monkeypatch.setattr(discover, "extract_text_and_translation", lambda b: {
+        "arabic_text": "زار ماكرون باريس", "translation_en": "Macron visited Paris.", "sentences": []})
+    monkeypatch.setattr(discover, "discover_words_in_text", lambda *a, **k: [
+        {"lemma_ar_bare": "ماكرون", "is_proper_noun": True},
+        {"lemma_ar_bare": "زار", "is_proper_noun": False},
+    ])
+    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
+    assert [w["lemma_ar_bare"] for w in r.json()["words"]] == ["زار"]

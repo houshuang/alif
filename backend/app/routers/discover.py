@@ -554,6 +554,8 @@ async def discover_snap(
         logger.exception("snap word discovery failed; returning the page without words")
         db.rollback()
         words = []
+    # Names are not vocabulary to learn; /add refuses them anyway.
+    words = [w for w in words if not w.get("is_proper_noun")]
     log_interaction(
         event="discover_snap", word_count=len(words), text_len=len(arabic_text)
     )
@@ -598,6 +600,46 @@ def _gate_and_generate(lemma_ids: list[int]) -> None:
     for lid in lemma_ids:
         try:
             generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+        except Exception as e:
+            logger.warning("discover material gen failed for %s: %s", lid, e)
+
+
+def _ensure_material(lemma_ids: list[int]) -> None:
+    """Background: give each newly acquiring existing word enough review
+    sentences. A word that already existed skips quality gating, but it may
+    have no reviewable sentence, and an acquiring word without one is never
+    practised. Own session; the read is closed before any LLM call."""
+    from sqlalchemy import exists, or_
+
+    from app.models import Sentence, SentenceWord
+    from app.services.sentence_eligibility import reviewable_sentence_clauses
+
+    db = SessionLocal()
+    try:
+        missing = []
+        for lid in lemma_ids:
+            have = (
+                db.query(Sentence.id)
+                .filter(
+                    reviewable_sentence_clauses(),
+                    or_(
+                        Sentence.target_lemma_id == lid,
+                        exists().where(
+                            SentenceWord.sentence_id == Sentence.id,
+                            SentenceWord.lemma_id == lid,
+                        ),
+                    ),
+                )
+                .limit(MIN_SENTENCES_PER_WORD)
+                .count()
+            )
+            if have < MIN_SENTENCES_PER_WORD:
+                missing.append((lid, MIN_SENTENCES_PER_WORD - have))
+    finally:
+        db.close()
+    for lid, needed in missing:
+        try:
+            generate_material_for_word(lid, needed=needed)
         except Exception as e:
             logger.warning("discover material gen failed for %s: %s", lid, e)
 
@@ -743,6 +785,8 @@ def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends
     _log_add(out)
     if out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
+    elif out["state"] == "acquiring" and not out["already_known"]:
+        background_tasks.add_task(_ensure_material, [out["lemma_id"]])
     return out
 
 
@@ -754,7 +798,7 @@ class WordsIn(BaseModel):
 def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create/stage several words at once. Each word is committed independently
     so one failure can't roll back the rest of the batch."""
-    results, new_ids = [], []
+    results, new_ids, existing_ids = [], [], []
     for w in req.words:
         try:
             # Each prior item commits independently and may have changed an
@@ -768,10 +812,14 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
             _log_add(out)
             if out["created"]:
                 new_ids.append(out["lemma_id"])
+            elif out["state"] == "acquiring" and not out["already_known"]:
+                existing_ids.append(out["lemma_id"])
         except Exception as e:
             db.rollback()
             logger.warning("discover add failed for %s: %s", w.lemma_ar_bare, e)
             results.append({"lemma_ar_bare": w.lemma_ar_bare, "error": str(e)})
     if new_ids:
         background_tasks.add_task(_gate_and_generate, new_ids)
+    if existing_ids:
+        background_tasks.add_task(_ensure_material, existing_ids)
     return {"added": results, "count": len(results)}

@@ -82,7 +82,17 @@ export default function SnapScreen() {
     [result]
   );
   const [focus, setFocus] = useState<Focus | null>(null);
-  const [showEnglish, setShowEnglish] = useState(true);
+  // Paragraph indexes whose Arabic is shown; collapsed by default.
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  function toggleParagraph(pi: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(pi)) next.delete(pi);
+      else next.add(pi);
+      return next;
+    });
+  }
 
   function selectToken(t: Token) {
     if (selected?.key === t.key) {
@@ -113,12 +123,15 @@ export default function SnapScreen() {
     openToken(asToken(s, t));
   }
 
-  function tapEnglish(s: AlignedSentence, i: number) {
+  function tapEnglish(s: AlignedSentence, i: number, paragraph: number) {
     const link = linkForEnglish(s, i);
     setFocus({ sentence: s.index, link, en: i });
     const source = link === null ? null : firstArabicToken(s, link);
-    if (source) openToken(asToken(s, source));
-    else setSelected(null);
+    if (source) {
+      // Show the Arabic the word comes from.
+      setExpanded((prev) => new Set(prev).add(paragraph));
+      openToken(asToken(s, source));
+    } else setSelected(null);
   }
 
   function arHighlighted(s: AlignedSentence, t: SnapToken): boolean {
@@ -152,6 +165,7 @@ export default function SnapScreen() {
     setSelected(null);
     setLookups({});
     setFocus(null);
+    setExpanded(new Set());
     try {
       const r = await snapDiscover(imageUri);
       setResult(r);
@@ -268,52 +282,84 @@ export default function SnapScreen() {
         <View>
           <View style={styles.wordsHeaderFirst}>
             <Text style={styles.sectionLabel}>Page</Text>
-            <Pressable onPress={() => setShowEnglish((v) => !v)} hitSlop={8}>
-              <Text style={styles.addAllText}>{showEnglish ? "Hide English" : "Show English"}</Text>
+            <Pressable
+              onPress={() =>
+                setExpanded(expanded.size === aligned.length ? new Set() : new Set(aligned.map((_, i) => i)))
+              }
+              hitSlop={8}
+            >
+              <Text style={styles.addAllText}>
+                {expanded.size === aligned.length ? "Hide all Arabic" : "Show all Arabic"}
+              </Text>
             </Pressable>
           </View>
           <View style={styles.arabicCard}>
-            {aligned.map((paragraph, pi) => (
-              <View key={pi} style={pi > 0 ? styles.arabicParagraph : undefined}>
-                {paragraph.map((s) => (
-                  <View key={s.index} style={styles.pair}>
-                    <Text style={styles.arabicText}>
-                      {s.arTokens.map((t) =>
-                        t.isWord ? (
-                          <Text
-                            key={t.key}
-                            onPress={() => tapArabic(s, t)}
-                            style={arHighlighted(s, t) ? styles.tokenSelected : undefined}
-                            accessibilityRole="button"
-                          >
-                            {t.text}
-                          </Text>
-                        ) : (
-                          t.text
-                        )
-                      )}
-                    </Text>
-                    {showEnglish && (
-                      <Text style={styles.pairEnglish}>
-                        {s.enTokens.map((t, i) =>
-                          t.isWord ? (
-                            <Text
-                              key={t.key}
-                              onPress={() => tapEnglish(s, i)}
-                              style={enHighlighted(s, i) ? styles.tokenSelected : undefined}
-                            >
-                              {t.text}
-                            </Text>
-                          ) : (
-                            t.text
-                          )
-                        )}
+            {aligned.map((paragraph, pi) => {
+              const open = expanded.has(pi);
+              const english = (s: AlignedSentence, style: object) => (
+                <Text key={`en-${s.index}`} style={style}>
+                  {s.enTokens.map((t, i) =>
+                    t.isWord ? (
+                      <Text
+                        key={t.key}
+                        onPress={() => tapEnglish(s, i, pi)}
+                        style={enHighlighted(s, i) ? styles.tokenSelected : undefined}
+                      >
+                        {t.text}
                       </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ))}
+                    ) : (
+                      t.text
+                    )
+                  )}
+                  {" "}
+                </Text>
+              );
+              return (
+                <View key={pi} style={pi > 0 ? styles.arabicParagraph : undefined}>
+                  <Pressable
+                    onPress={() => toggleParagraph(pi)}
+                    hitSlop={8}
+                    style={styles.paraToggle}
+                    accessibilityRole="button"
+                    accessibilityLabel={open ? "Hide Arabic" : "Show Arabic"}
+                  >
+                    <Ionicons
+                      name={open ? "chevron-down" : "chevron-forward"}
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.paraToggleText}>عربي</Text>
+                  </Pressable>
+                  {open ? (
+                    paragraph.map((s) => (
+                      <View key={s.index} style={styles.pair}>
+                        <Text style={styles.arabicText}>
+                          {s.arTokens.map((t) =>
+                            t.isWord ? (
+                              <Text
+                                key={t.key}
+                                onPress={() => tapArabic(s, t)}
+                                style={arHighlighted(s, t) ? styles.tokenSelected : undefined}
+                                accessibilityRole="button"
+                              >
+                                {t.text}
+                              </Text>
+                            ) : (
+                              t.text
+                            )
+                          )}
+                        </Text>
+                        {english(s, styles.pairEnglish)}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.paraEnglish}>
+                      {paragraph.map((s) => english(s, {}))}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
         </View>
       )}
@@ -423,6 +469,8 @@ function WordPanel({
 }) {
   const word = lookup?.status === "done" ? lookup.word : null;
   const studied = word?.knowledge_state && STUDIED_STATES.has(word.knowledge_state);
+  // Names are not vocabulary; the backend refuses to add them.
+  const isName = !!word && (word.is_proper_noun || (word.pos || "").toLowerCase().startsWith("proper"));
   return (
     <View style={styles.panel}>
       <View style={styles.panelHeader}>
@@ -457,9 +505,10 @@ function WordPanel({
                 <Badge text={word.dialect} color={colors.listening} />
               )}
               {studied && <Badge text={word.knowledge_state!} color={colors.gotIt} />}
+              {isName && <Badge text="name" color={colors.stateEncountered} />}
             </View>
           </View>
-          {!studied && <AddButton state={addState(word)} onAdd={() => onAdd(word)} />}
+          {!studied && !isName && <AddButton state={addState(word)} onAdd={() => onAdd(word)} />}
         </View>
       )}
     </View>
@@ -600,6 +649,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   pair: { marginBottom: 14 },
+  paraToggle: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", marginBottom: 4 },
+  paraToggleText: { color: colors.textSecondary, fontFamily: fontFamily.arabic, fontSize: fonts.small },
+  paraEnglish: { color: colors.text, fontSize: fonts.body, lineHeight: 24 },
   pairEnglish: { color: colors.textSecondary, fontSize: fonts.body, lineHeight: 22, marginTop: 4 },
   arabicLabel: { marginTop: 24 },
   arabicParagraph: { marginTop: 12 },
