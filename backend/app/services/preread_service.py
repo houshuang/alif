@@ -10,6 +10,12 @@ OCR'd pages into an automatic plan, with no picking step:
 * ``shaky``  — words already in FSRS that occur in the pages and are likely
   forgotten (retrievability < ``SHAKY_RETRIEVABILITY``, relearning, or still in
   FSRS learning steps). Their next review is brought forward to now, once.
+* Sense check — words matched to an existing lemma are checked against how
+  the pages use them. A stored gloss that lacks the page's sense is widened
+  (``regloss``); a page word that is a different lexeme with the same spelling
+  (``عَمَدَ`` "to set about" vs ``عَمَّدَ`` "to baptize") is re-routed through the
+  discover sense gate as that lexeme, and a shaky "match" of that kind becomes
+  a word to learn instead of a refresh.
 * ``names``  — proper names in the pages, glossed and transliterated, shown as
   a primer. Name lemmas are inert by design (no cards), so they are not scheduled.
 
@@ -232,6 +238,148 @@ def rate_importance(text: str, items: list[dict]) -> dict[int, int]:
     return out
 
 
+_SENSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "mismatches": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "verdict": {"type": "string", "enum": ["broader", "different"]},
+                    "lemma_ar": {"type": "string"},
+                    "gloss_en": {"type": "string"},
+                    "pos": {"type": "string"},
+                },
+                "required": ["index", "verdict", "gloss_en"],
+            },
+        }
+    },
+    "required": ["mismatches"],
+}
+# A widened gloss stays a dictionary gloss, not a definition.
+_MAX_GLOSS_CHARS = 90
+
+
+def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
+    """One LLM pass: does each stored gloss cover how the pages use the word?
+
+    ``items``: [{index, lemma_ar, gloss_en, pos}]. Returns {index: {verdict,
+    gloss_en, lemma_ar?, pos?}} for mismatches only; empty on failure, and the
+    plan then keeps the stored glosses."""
+    if not items:
+        return {}
+    from app.services.llm import generate_completion
+
+    lines = [
+        f'{it["index"]}. {it["lemma_ar"]} ({it.get("pos") or "?"}) — {it.get("gloss_en") or ""}'
+        for it in items
+    ]
+    prompt = (
+        "An adult learner of Arabic is about to read the pages below. Each listed "
+        "word was matched to an entry in their vocabulary, shown with its stored "
+        "English gloss. Check every entry against how the word is actually used in "
+        "these pages, and report only the entries whose gloss does not cover that use:\n"
+        '- "broader": the same word (same vocalized citation form and part of '
+        "speech), but the stored gloss lacks the meaning used here (قَرْن stored as "
+        '"horn" where the pages mean "century"). Give gloss_en: a short dictionary '
+        "gloss that puts the meaning used here first and keeps the stored meanings, "
+        'e.g. "century; horn". It must stay generally usable, not tied to this book.\n'
+        '- "different": the pages use a different word that merely shares the '
+        "spelling: another verb form, another vocalization, another part of speech "
+        "or an unrelated homograph (pages have عَمَدَ إلى \"to set about\" but the entry "
+        'is عَمَّدَ "to baptize"; pages have the plural أعراق of عِرْق "race" but the '
+        'entry is the verb عَرَقَ). Give lemma_ar: the fully vocalized citation form '
+        "of the word used here (singular noun, past-tense 3ms verb, no ال), pos, "
+        "and gloss_en: a short general dictionary gloss that includes the meaning "
+        "used here.\n"
+        "Do not report entries that fit, near-synonym wording differences, or "
+        "words used as part of a name. Keep glosses under 80 characters.\n\n"
+        f"PAGES:\n{text[:_TEXT_CHAR_LIMIT]}\n\nENTRIES:\n" + "\n".join(lines)
+    )
+    try:
+        res = generate_completion(
+            prompt=prompt,
+            system_prompt="You are an experienced Arabic lexicographer and reading teacher.",
+            json_schema=_SENSE_SCHEMA,
+            temperature=0.0,
+            model_override="claude_sonnet",
+            task_type="preread_sense_check",
+        )
+    except Exception as e:
+        logger.warning("preread sense check failed: %s", e)
+        return {}
+    rows = res.get("mismatches", []) if isinstance(res, dict) else []
+    valid = {it["index"] for it in items}
+    out: dict[int, dict] = {}
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict) or r.get("index") not in valid:
+            continue
+        gloss = (r.get("gloss_en") or "").strip()
+        verdict = r.get("verdict")
+        if not gloss or len(gloss) > _MAX_GLOSS_CHARS or verdict not in ("broader", "different"):
+            continue
+        if verdict == "different" and not (r.get("lemma_ar") or "").strip():
+            continue
+        out[r["index"]] = {
+            "verdict": verdict,
+            "gloss_en": gloss,
+            "lemma_ar": (r.get("lemma_ar") or "").strip() or None,
+            "pos": (r.get("pos") or "").strip() or None,
+        }
+    return out
+
+
+def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list[dict], list[dict], int]:
+    """Annotate matched words with the sense check. A widened gloss is stored
+    on the word as ``regloss`` (written by the router); a different lexeme
+    replaces the word's identity so the router's add re-routes it, and leaves
+    the shaky list for the learn list. Returns (learn, shaky, n_checked)."""
+    checked = [w for w in learn + shaky if w.get("lemma_id")]
+    verdicts = check_senses(
+        text,
+        [{"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos")}
+         for i, w in enumerate(checked)],
+    )
+    for i, w in enumerate(checked):
+        v = verdicts.get(i)
+        if not v:
+            continue
+        if v["verdict"] == "broader":
+            w["regloss"] = {"from": w.get("gloss_en"), "to": v["gloss_en"]}
+            w["gloss_en"] = v["gloss_en"]
+        else:
+            w["sense_from"] = {"lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
+                               "gloss_en": w.get("gloss_en")}
+            w.update(lemma_id=None, lemma_ar=v["lemma_ar"], gloss_en=v["gloss_en"],
+                     knowledge_state=None)
+            if v["pos"]:
+                w["pos"] = v["pos"]
+    moved = [w for w in shaky if w.get("sense_from")]
+    return learn + moved, [w for w in shaky if not w.get("sense_from")], len(checked)
+
+
+def regloss(db: Session, words: list[dict]) -> list[int]:
+    """Write the widened glosses from the sense check. Compare-and-set on the
+    old gloss so a concurrent edit wins. Memory hooks built on the old sense
+    are cleared so they can be regenerated. Caller commits."""
+    changed = []
+    for w in words:
+        rg = w.get("regloss")
+        if not rg or not w.get("lemma_id"):
+            continue
+        lemma = db.get(Lemma, w["lemma_id"])
+        if lemma is None or (lemma.gloss_en or "") != (rg["from"] or ""):
+            continue
+        lemma.gloss_en = rg["to"]
+        if lemma.memory_hooks_json:
+            lemma.memory_hooks_json = None
+            changed.append(lemma.lemma_id)
+        w["reglossed"] = True
+    return changed
+
+
 def analyze_pages(db: Session, pages: list[str]) -> dict:
     """Build the automatic plan for these pages. Read-only."""
     from app.routers.discover import _ARABIC_TOKEN, discover_words_in_text
@@ -311,6 +459,8 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
     shaky.sort(key=lambda w: (-w["score"], w.get("retrievability") or 0))
     shaky = shaky[: shaky_quota(len(pages))]
 
+    learn, shaky, n_checked = _apply_senses(text, learn, shaky)
+
     names = _merge_names(names)
     for group in (learn, shaky):
         group.sort(key=lambda w: (w.get("first_page") or 999, -w["score"]))
@@ -318,6 +468,9 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
     stats.update(
         new_candidates=len(new), learn=len(learn), shaky=len(shaky), names=len(names),
         importance_rated=len(importance),
+        sense_checked=n_checked,
+        reglossed=sum(1 for w in learn + shaky if w.get("regloss")),
+        sense_rerouted=sum(1 for w in learn if w.get("sense_from")),
     )
     return {"learn": learn, "shaky": shaky, "names": names, "stats": stats}
 
