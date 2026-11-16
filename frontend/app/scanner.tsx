@@ -9,12 +9,12 @@ import {
   Image,
   ScrollView,
   Platform,
-  Animated,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
+import MultiPageCamera from "../components/MultiPageCamera";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   scanTextbookPages,
@@ -40,12 +40,7 @@ export default function ScannerScreen() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraCaptures, setCameraCaptures] = useState<string[]>([]);
-  const [capturing, setCapturing] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
-  const thumbStripRef = useRef<ScrollView>(null);
-  const flashOpacity = useRef(new Animated.Value(0)).current;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(
@@ -98,44 +93,11 @@ export default function ScannerScreen() {
       const res = await requestCameraPermission();
       if (!res.granted) return;
     }
-    setCameraCaptures([]);
     setCameraOpen(true);
   }
 
-  async function capturePhoto() {
-    if (capturing || !cameraRef.current) return;
-    setCapturing(true);
-    Animated.sequence([
-      Animated.timing(flashOpacity, { toValue: 0.85, duration: 60, useNativeDriver: true }),
-      Animated.timing(flashOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start();
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-        skipProcessing: true,
-      });
-      if (photo?.uri) {
-        setCameraCaptures((prev) => [...prev, photo.uri]);
-        requestAnimationFrame(() => {
-          thumbStripRef.current?.scrollToEnd({ animated: true });
-        });
-      }
-    } catch (e) {
-      console.error("Capture failed:", e);
-    } finally {
-      setCapturing(false);
-    }
-  }
-
-  function removeCameraCapture(index: number) {
-    setCameraCaptures((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function finishCameraSession(save: boolean) {
-    if (save && cameraCaptures.length > 0) {
-      setSelectedImages((prev) => [...prev, ...cameraCaptures]);
-    }
-    setCameraCaptures([]);
+  function finishCameraSession(uris: string[]) {
+    if (uris.length > 0) setSelectedImages((prev) => [...prev, ...uris]);
     setCameraOpen(false);
   }
 
@@ -595,70 +557,10 @@ export default function ScannerScreen() {
 
   if (cameraOpen) {
     return (
-      <View style={styles.cameraContainer}>
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.cameraFlash, { opacity: flashOpacity }]}
-        />
-        <View style={styles.cameraTopBar}>
-          <Pressable
-            style={styles.cameraTopBtn}
-            onPress={() => finishCameraSession(false)}
-          >
-            <Ionicons name="close" size={26} color="#fff" />
-          </Pressable>
-          <Pressable
-            style={[
-              styles.cameraDoneBtn,
-              cameraCaptures.length === 0 && styles.cameraDoneBtnDim,
-            ]}
-            onPress={() => finishCameraSession(true)}
-            disabled={cameraCaptures.length === 0}
-          >
-            <Text style={styles.cameraDoneText}>
-              Done{cameraCaptures.length > 0 ? ` (${cameraCaptures.length})` : ""}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.cameraBottomBar}>
-          {cameraCaptures.length > 0 && (
-            <ScrollView
-              ref={thumbStripRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.cameraStrip}
-              contentContainerStyle={styles.cameraStripContent}
-            >
-              {cameraCaptures.map((uri, idx) => (
-                <View key={`${uri}-${idx}`} style={styles.cameraThumbItem}>
-                  <Image source={{ uri }} style={styles.cameraThumb} />
-                  <Pressable
-                    style={styles.cameraThumbRemove}
-                    onPress={() => removeCameraCapture(idx)}
-                  >
-                    <Ionicons name="close-circle" size={20} color="#fff" />
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-          <View style={styles.cameraShutterRow}>
-            <Pressable
-              style={[styles.cameraShutter, capturing && styles.cameraShutterDim]}
-              onPress={capturePhoto}
-              disabled={capturing}
-            >
-              <View style={styles.cameraShutterInner} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
+      <MultiPageCamera
+        onDone={finishCameraSession}
+        onCancel={() => setCameraOpen(false)}
+      />
     );
   }
 
@@ -1003,107 +905,5 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     textAlign: "center",
     lineHeight: 20,
-  },
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  cameraFlash: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#fff",
-  },
-  cameraTopBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  cameraTopBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cameraDoneBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: colors.gotIt,
-  },
-  cameraDoneBtnDim: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  cameraDoneText: {
-    color: "#fff",
-    fontSize: fonts.body,
-    fontWeight: "700",
-  },
-  cameraBottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 30,
-    paddingTop: 12,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  cameraStrip: {
-    maxHeight: 80,
-    marginBottom: 12,
-  },
-  cameraStripContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  cameraThumbItem: {
-    position: "relative",
-    marginRight: 8,
-  },
-  cameraThumb: {
-    width: 60,
-    height: 70,
-    borderRadius: 8,
-    backgroundColor: "#333",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-  },
-  cameraThumbRemove: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    backgroundColor: "#000",
-    borderRadius: 10,
-  },
-  cameraShutterRow: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cameraShutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#fff",
-  },
-  cameraShutterDim: {
-    opacity: 0.5,
-  },
-  cameraShutterInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#fff",
   },
 });
