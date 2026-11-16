@@ -114,6 +114,34 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-16: Pre-read checks each matched word's sense against the pages
+
+**Observation.** The first real batch (8 pages, Atatürk chapter) refreshed known words
+under the wrong stored sense — قَرْن "horn" (pages: century), عُضْو "organ" (member),
+جَبْهَة "forehead" (front), أَثَر "monuments" (effect) — and entered two wrong lexemes:
+عَمَدَ إلى "to set about" became عَمَّدَ "to baptize", and أعراق (pl. of عِرْق "race")
+refreshed the verb عَرَقَ "to strip flesh". The importance prompt's "rate 0 if the gloss
+doesn't fit" did not catch these. Fixed by hand for batch 1 (13 reglosses, 2 new lemmas,
+backup `alif_pre_preread_regloss_20261116_070530.db`).
+
+**Change.** `preread_service.check_senses`: one Sonnet pass over matched learn/shaky words
+returns `broader` (widen the gloss, page sense first, still general — learner asked for
+glosses that fit the book "but also be generally usable") or `different` (page lexeme's
+vocalized citation form, POS, gloss). Broader glosses are written compare-and-set and
+their memory hooks regenerated; different words go through the discover sense gate
+(`_create_and_introduce`) and a shaky one becomes a learn word. No scheduling constant
+changed.
+
+**Dry run on batch 1** (80 matched words, original glosses): 27 flagged. All six hand-found
+errors caught (قرن, عضو, جبهة, أثر→تَأَثَّرَ, عمد→عَمَدَ, عرق→عِرْق) plus نَضَجَ for ناضج; the rest
+were mostly harmless widenings (فئة "category, class, group"). Showing the page spellings
+was what caught أعراق→عِرْق. No-op verdicts are dropped in code: identical glosses, the same
+vocalized citation form called "different", and widened glosses that share no word with
+the stored one or contain Arabic/"=".
+
+**Watch.** `stats.reglossed` / `stats.sense_rerouted` per batch, and `preread_regloss`
+events for over-eager widening (a gloss that grows a rare sense first).
+
 ## 2026-11-15: Pre-read names are practised (`practiced_name`)
 
 **Change.** Names a Pre-read batch finds were listed but inert. The learner asked for

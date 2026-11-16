@@ -4,11 +4,20 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+
 from app.models import Lemma, PrereadSet, SnapPage, UserLemmaKnowledge
 from app.routers import preread as pr
 from app.services import preread_service as ps
 from app.services.attention_policy import LEARNER_PICK_SOURCES
 from app.services.fsrs_service import create_new_card
+
+
+_real_check_senses = ps.check_senses
+
+
+@pytest.fixture(autouse=True)
+def _senses_fit(monkeypatch):
+    monkeypatch.setattr(ps, "check_senses", lambda text, items: {})
 
 
 def _word(bare, *, lemma_id=None, count=1, rank=None, gloss="x", proper=False, surface=None):
@@ -182,7 +191,7 @@ def test_run_preread_reads_pages_and_enters_words_outside_budget(client, db_sess
     # Recovery mode: the ordinary budget is zero.
     monkeypatch.setattr(acquisition_service, "_recovery_mode_intro_budget", lambda *a: 0)
     material = []
-    monkeypatch.setattr(pr, "_prepare_material", lambda new, ex: material.append((new, ex)))
+    monkeypatch.setattr(pr, "_prepare_material", lambda new, ex, hooks=None: material.append((new, ex)))
     seen_texts = []
 
     def fake_analyze(db, texts):
@@ -299,3 +308,99 @@ def test_practice_names_enters_names_as_learner_picks(db_session):
     assert db_session.query(Lemma).filter_by(lemma_ar_bare="زيد").count() == 0
     assert [n["added"] for n in names] == [True, True, False, False]
 
+
+
+def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypatch):
+    """A stored gloss lacking the page's sense is widened; a page word that is a
+    different lexeme with the same spelling leaves the refresh list and is
+    re-routed to that lexeme when the plan is applied."""
+    from app.services import acquisition_service
+
+    now = datetime.now(timezone.utc)
+    qarn = Lemma(lemma_ar="قَرْن", lemma_ar_bare="قرن", gloss_en="horn", pos="noun",
+                 memory_hooks_json={"mnemonic": "a rhino horn"})
+    baptize = Lemma(lemma_ar="عَمَّدَ", lemma_ar_bare="عمد", gloss_en="to baptize", pos="verb")
+    db_session.add_all([qarn, baptize])
+    db_session.flush()
+    db_session.add_all([
+        UserLemmaKnowledge(lemma_id=qarn.lemma_id, knowledge_state="known",
+                           fsrs_card_json=_known_card(now - timedelta(days=20), 2.0)),
+        UserLemmaKnowledge(lemma_id=baptize.lemma_id, knowledge_state="known",
+                           fsrs_card_json=_known_card(now - timedelta(days=20), 2.0)),
+    ])
+    db_session.commit()
+    qarn_id, baptize_id = qarn.lemma_id, baptize.lemma_id
+
+    words = [_word("قرن", lemma_id=qarn_id, count=3, rank=900, gloss="horn"),
+             _word("عمد", lemma_id=baptize_id, count=2, rank=3000, gloss="to baptize")]
+    words[1]["pos"] = "verb"
+    monkeypatch.setattr("app.routers.discover.discover_words_in_text", lambda *a, **k: [dict(w) for w in words])
+    monkeypatch.setattr(ps, "rate_importance", lambda text, items: {it["index"]: 2 for it in items})
+
+    def fake_senses(text, items):
+        by = {it["lemma_ar"]: it["index"] for it in items}
+        return {
+            by["قرن"]: {"verdict": "broader", "gloss_en": "century; horn", "lemma_ar": None, "pos": None},
+            by["عمد"]: {"verdict": "different", "gloss_en": "to set about, proceed deliberately",
+                       "lemma_ar": "عَمَدَ", "pos": "verb"},
+        }
+    monkeypatch.setattr(ps, "check_senses", fake_senses)
+
+    plan = ps.analyze_pages(db_session, ["القرن التاسع عشر عمد إلى"])
+    assert [w["lemma_ar_bare"] for w in plan["shaky"]] == ["قرن"]
+    assert plan["shaky"][0]["regloss"] == {"from": "horn", "to": "century; horn"}
+    assert [w["lemma_ar"] for w in plan["learn"]] == ["عَمَدَ"]
+    assert plan["learn"][0]["lemma_ar_bare"] == "عمد"
+    assert plan["learn"][0]["sense_from"]["lemma_id"] == baptize_id
+    assert (plan["stats"]["reglossed"], plan["stats"]["sense_rerouted"]) == (1, 1)
+
+    monkeypatch.setattr(acquisition_service, "_recovery_mode_intro_budget", lambda *a: 0)
+    applied = pr._apply_plan(plan)
+
+    db_session.expire_all()
+    q = db_session.get(Lemma, qarn_id)
+    assert q.gloss_en == "century; horn" and q.memory_hooks_json is None
+    assert applied["hook_ids"] == [qarn_id]
+    new = plan["learn"][0]
+    assert new["added"] and new["lemma_id"] not in (None, baptize_id)
+    assert db_session.get(Lemma, new["lemma_id"]).gloss_en == "to set about, proceed deliberately"
+    assert db_session.get(Lemma, baptize_id).gloss_en == "to baptize"
+
+
+def test_regloss_yields_to_a_concurrent_edit(db_session):
+    lem = Lemma(lemma_ar="عُضْو", lemma_ar_bare="عضو", gloss_en="member (edited)", pos="noun")
+    db_session.add(lem)
+    db_session.commit()
+    w = {"lemma_id": lem.lemma_id, "regloss": {"from": "organ", "to": "member; organ"}}
+    assert ps.regloss(db_session, [w]) == []
+    assert db_session.get(Lemma, lem.lemma_id).gloss_en == "member (edited)"
+    assert not w.get("reglossed")
+
+
+def test_check_senses_drops_no_op_verdicts(monkeypatch):
+    items = [
+        {"index": 0, "lemma_ar": "عُثْمانِيّ", "gloss_en": "Ottoman", "pos": "adj", "forms": ["العثمانية"]},
+        {"index": 1, "lemma_ar": "تَزَامَنَ", "gloss_en": "to coincide", "pos": "verb", "forms": ["تزامن"]},
+        {"index": 2, "lemma_ar": "قَرْنٌ", "gloss_en": "horn", "pos": "noun", "forms": ["القرن"]},
+        {"index": 3, "lemma_ar": "عَمَّدَ", "gloss_en": "to baptize", "pos": "verb", "forms": ["عمد"]},
+        {"index": 4, "lemma_ar": "ذَاتِيّ", "gloss_en": "personal", "pos": "adj", "forms": ["الذاتية"]},
+        {"index": 5, "lemma_ar": "قَرْن", "gloss_en": "horn", "pos": "noun", "forms": ["القرن"]},
+    ]
+    reply = {"mismatches": [
+        {"index": 0, "verdict": "broader", "gloss_en": "ottoman"},
+        {"index": 1, "verdict": "different", "lemma_ar": "تَزَامَنَ", "gloss_en": "to coincide", "pos": "verb"},
+        {"index": 2, "verdict": "different", "lemma_ar": "قَرْن", "gloss_en": "century", "pos": "noun"},
+        {"index": 3, "verdict": "different", "lemma_ar": "عَمَدَ", "gloss_en": "to set about", "pos": "verb"},
+        {"index": 9, "verdict": "broader", "gloss_en": "stray index"},
+        {"index": 4, "verdict": "broader", "gloss_en": "biography-related: ذاتي = self"},
+        {"index": 5, "verdict": "broader", "gloss_en": "century"},
+    ]}
+    prompts = []
+
+    def fake(**kw):
+        prompts.append(kw["prompt"])
+        return reply
+    monkeypatch.setattr("app.services.llm.generate_completion", fake)
+    out = _real_check_senses("نص", items)
+    assert list(out) == [3] and out[3]["lemma_ar"] == "عَمَدَ"
+    assert "[in the pages: العثمانية]" in prompts[0]

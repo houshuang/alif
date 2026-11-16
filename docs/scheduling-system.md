@@ -2805,6 +2805,19 @@ no picking step.
   a real word is never relabelled. `practiced_name` is not in the inert set: every
   name filter keys on `word_category == "proper_name"`, so selection, credit and scaffold
   counts treat a practised name as a normal word. All other names stay inert.
+- **Sense check (2026-11-16).** After selection, every learn or shaky word matched to an
+  existing lemma goes through one Sonnet pass (`preread_service.check_senses`) that
+  compares the stored gloss with how the pages use the word. `broader` (same word, gloss
+  lacks this sense, e.g. قَرْن "horn" where the pages mean "century") widens the gloss to
+  a general one with the page's sense first ("century; horn"); the router writes it
+  compare-and-set on the old gloss (`preread_service.regloss`), clears memory hooks built
+  on the old sense and regenerates them in the material phase. `different` (a homograph
+  or another verb form, e.g. عَمَدَ "to set about" matched to عَمَّدَ "to baptize")
+  replaces the word's identity with the page's lexeme so `_create_and_introduce`'s sense
+  gate re-routes to a sibling or creates it; a shaky word of that kind moves to the
+  learn list and is not pulled forward. A failed check keeps the stored glosses. Events:
+  `preread_regloss`, `preread_sense_reroute`. Prompted by batch 1, where four refreshed
+  words carried a different stored sense and two words were the wrong lexeme.
 - Each page is also saved as a `SnapPage`, so its full translation opens in Snap.
 - After the plan is applied, new lemmas run `run_quality_gates()`, then every pre-read
   word with fewer than `MIN_SENTENCES_PER_WORD` reviewable sentences gets

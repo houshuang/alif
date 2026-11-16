@@ -23,7 +23,7 @@ from app.config import settings
 from app.database import SessionLocal, get_db
 from app.models import PrereadSet, SnapPage
 from app.services.interaction_logger import log_interaction
-from app.services.preread_service import PREREAD_SOURCE, analyze_pages, practice_names, pull_forward
+from app.services.preread_service import PREREAD_SOURCE, analyze_pages, practice_names, pull_forward, regloss
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +141,21 @@ def _apply_plan(plan: dict) -> dict:
     )
 
     db = SessionLocal()
-    new_ids, existing_ids = [], []
+    new_ids, existing_ids, hook_ids = [], [], []
     try:
+        try:
+            hook_ids = regloss(db, plan["learn"] + plan["shaky"])
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            hook_ids = []
+            for w in plan["learn"] + plan["shaky"]:
+                w.pop("reglossed", None)
+            logger.warning("preread regloss failed: %s", e)
+        for w in plan["learn"] + plan["shaky"]:
+            if w.get("reglossed"):
+                log_interaction(event="preread_regloss", lemma_id=w["lemma_id"],
+                                gloss_from=w["regloss"]["from"], gloss_to=w["regloss"]["to"])
         for w in plan["learn"]:
             try:
                 lookup = build_comprehensive_lemma_lookup(db)
@@ -165,6 +178,10 @@ def _apply_plan(plan: dict) -> dict:
                 w["lemma_id"] = out["lemma_id"]
                 w["knowledge_state"] = out["state"]
                 w["added"] = out["state"] == "acquiring"
+                if w.get("sense_from"):
+                    log_interaction(event="preread_sense_reroute", lemma_id=out["lemma_id"],
+                                    from_lemma_id=w["sense_from"]["lemma_id"],
+                                    created=out["created"], state=out["state"])
                 if out["created"]:
                     new_ids.append(out["lemma_id"])
                 elif w["added"]:
@@ -184,12 +201,14 @@ def _apply_plan(plan: dict) -> dict:
             w["pulled_forward"] = w.get("lemma_id") in moved
     finally:
         db.close()
-    return {"new_ids": new_ids, "existing_ids": existing_ids, "moved": len(moved)}
+    return {"new_ids": new_ids, "existing_ids": existing_ids, "moved": len(moved),
+            "hook_ids": hook_ids}
 
 
-def _prepare_material(new_ids: list[int], existing_ids: list[int]) -> None:
-    """Quality-gate new lemmas, then generate review sentences in batches for
-    every word that has fewer than the minimum."""
+def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: list[int] | None = None) -> None:
+    """Quality-gate new lemmas, generate review sentences in batches for every
+    word that has fewer than the minimum, then regenerate memory hooks cleared
+    by a regloss."""
     from sqlalchemy import exists, or_
 
     from app.models import Sentence, SentenceWord
@@ -239,6 +258,14 @@ def _prepare_material(new_ids: list[int], existing_ids: list[int]) -> None:
         except Exception as e:
             logger.warning("preread material batch failed for %s: %s", chunk, e)
 
+    from app.services.memory_hooks import generate_memory_hooks
+
+    for lid in hook_ids or []:
+        try:
+            generate_memory_hooks(lid)
+        except Exception as e:
+            logger.warning("preread hook regeneration failed for %s: %s", lid, e)
+
 
 def run_preread(set_id: int) -> None:
     """The background job. Each phase uses its own short DB sessions; no
@@ -272,6 +299,7 @@ def run_preread(set_id: int) -> None:
                 "created": len(applied["new_ids"]),
                 "pulled_forward": applied["moved"],
                 "names_added": sum(1 for w in plan["names"] if w.get("added")),
+                "reglossed": sum(1 for w in plan["learn"] + plan["shaky"] if w.get("reglossed")),
             },
         }
         _set_status(set_id, "done", result_json=result, finished_at=_now())
@@ -282,7 +310,7 @@ def run_preread(set_id: int) -> None:
             names=len(plan["names"]),
         )
         shutil.rmtree(_image_dir(set_id), ignore_errors=True)
-        _prepare_material(applied["new_ids"], applied["existing_ids"])
+        _prepare_material(applied["new_ids"], applied["existing_ids"], applied["hook_ids"])
     except Exception as e:
         logger.exception("preread %s failed", set_id)
         _set_status(set_id, "failed", error=str(e)[:500])
