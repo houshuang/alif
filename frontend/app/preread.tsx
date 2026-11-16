@@ -11,9 +11,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useCameraPermissions } from "expo-camera";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
+import MultiPageCamera from "../components/MultiPageCamera";
 import { colors, fontFamily, fonts } from "../lib/theme";
 import {
   createPreread,
@@ -60,6 +62,8 @@ export default function PrereadScreen() {
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<PrereadSummary[]>([]);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function refreshRecent() {
@@ -122,14 +126,19 @@ export default function PrereadScreen() {
   }, []);
 
   async function takePhoto() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted" && Platform.OS !== "web") {
-      setError("Camera permission is needed.");
+    if (Platform.OS === "web") {
+      const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      if (!res.canceled && res.assets.length > 0) setPhotos((p) => [...p, res.assets[0].uri]);
       return;
     }
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    if (res.canceled || res.assets.length === 0) return;
-    setPhotos((p) => [...p, res.assets[0].uri]);
+    if (!cameraPermission?.granted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        setError("Camera permission is needed.");
+        return;
+      }
+    }
+    setCameraOpen(true);
   }
 
   async function pickPhotos() {
@@ -211,6 +220,18 @@ export default function PrereadScreen() {
 
   const result = detail?.result;
 
+  if (cameraOpen) {
+    return (
+      <MultiPageCamera
+        onDone={(uris) => {
+          setPhotos((p) => [...p, ...uris]);
+          setCameraOpen(false);
+        }}
+        onCancel={() => setCameraOpen(false)}
+      />
+    );
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {phase === "collect" && (
@@ -219,7 +240,7 @@ export default function PrereadScreen() {
           <View style={styles.row}>
             <Pressable style={styles.secondaryBtn} onPress={takePhoto}>
               <Ionicons name="camera" size={20} color={colors.accent} />
-              <Text style={styles.secondaryBtnText}>Take photo</Text>
+              <Text style={styles.secondaryBtnText}>Camera</Text>
             </Pressable>
             <Pressable style={styles.secondaryBtn} onPress={pickPhotos}>
               <Ionicons name="images-outline" size={20} color={colors.accent} />
