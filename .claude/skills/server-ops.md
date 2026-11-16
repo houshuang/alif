@@ -55,7 +55,7 @@ Do NOT rely on `run_in_background` with SSH for long tasks — the SSH tunnel di
 ### 8. Backup DB before manual data changes
 Before running any script that modifies production data (updates, deletes, backfills):
 ```bash
-ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db"
+ssh alif "sqlite3 /opt/alif/backend/data/alif.db \".timeout 30000\" \".backup /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db\""
 ```
 Then log the action afterward: `ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/log_activity.py manual_action 'description of what was changed'"`
 
@@ -93,7 +93,7 @@ stability = card.get("stability", 0) or 0
 | Restart frontend | `ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"` |
 | Service status | `ssh alif "systemctl status alif-backend"` |
 | DB path | `/opt/alif/backend/data/alif.db` |
-| DB backup | `ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_manual.db"` |
+| DB backup | `ssh alif "sqlite3 /opt/alif/backend/data/alif.db \".timeout 30000\" \".backup /opt/alif-backups/alif_manual.db\""` |
 
 ## Common Import Paths
 ```python

@@ -279,7 +279,7 @@ Profiles: `beginner` (55%), `strong` (85%), `casual` (70%), `intensive` (75%), `
    ```
    Confirm the printed HEAD is the commit you just merged before restarting anything.
 3. **Verify the effect, not the status line.** `systemctl is-active` reports "active" even when stale code/schema is running. Confirm the real change landed (new column exists via `sqlite3 ... pragma_table_info`, endpoint returns expected data, etc.).
-4. **Back up the DB before any data-touching step** (migrations that rewrite rows, backfills): `ssh alif "cp <db> /opt/<app>-backups/<name>_$(date +%Y%m%d_%H%M%S).db"`.
+4. **Back up the DB before any data-touching step** (migrations that rewrite rows, backfills): `ssh alif "sqlite3 <db> \".timeout 30000\" \".backup /opt/<app>-backups/<name>_$(date +%Y%m%d_%H%M%S).db\""`. Never `cp` a live WAL database: committed changes still in `-wal` are missed (2026-11-16: a `cp` backup lacked the last minutes of a Pre-read batch).
 
 ```bash
 # Deploy alif backend (venv + systemd, no Docker)
@@ -357,7 +357,7 @@ See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:
 6. **Push before deploy** — `git push` BEFORE running deploy commands. The deploy does `git pull` on the server — if you haven't pushed, the server pulls stale code. This has failed 5+ times.
 7. **`limbic` install on server** — `pyproject.toml` specifies `limbic @ git+https://...` which tries GitHub clone. On server, install from local: `.venv/bin/pip install -e /opt/limbic` first, then `pip install -e . --no-deps` for alif, then remaining deps separately. CPU-only PyTorch: `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 8. **Long-running remote scripts: use nohup** — SSH drops after ~60s idle, causing exit code 255 with no output. Use `nohup ... > /tmp/script.log 2>&1 &` then check the log file later. See `server-ops.md` for pattern.
-9. **Backup DB before manual data changes** — `ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db"` then log the action via `scripts/log_activity.py`.
+9. **Backup DB before manual data changes** — `ssh alif "sqlite3 /opt/alif/backend/data/alif.db \".timeout 30000\" \".backup /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db\""` (online backup; `cp` misses WAL contents) then log the action via `scripts/log_activity.py`.
 
 ## Periodic Maintenance Checks
 

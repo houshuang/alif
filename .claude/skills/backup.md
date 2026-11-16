@@ -4,7 +4,7 @@ Backup the production database from Hetzner to local machine.
 
 ## Steps
 1. Run: `./scripts/backup.sh`
-2. Or manually: `scp alif:/opt/alif/backend/data/alif.db ~/alif-backups/`
+2. Or manually: `ssh alif "sqlite3 /opt/alif/backend/data/alif.db \".timeout 30000\" \".backup /opt/alif-backups/alif_manual.db\""` then `scp alif:/opt/alif-backups/alif_manual.db ~/alif-backups/` (never copy the live DB file directly: changes still in its `-wal` file are missed)
 3. Server-side backups are at `/opt/alif-backups/` on the server
 
 ## Retention Policy (Grandfather-Father-Son)
