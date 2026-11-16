@@ -143,8 +143,15 @@ def _apply_plan(plan: dict) -> dict:
     db = SessionLocal()
     new_ids, existing_ids, hook_ids = [], [], []
     try:
-        hook_ids = regloss(db, plan["learn"] + plan["shaky"])
-        db.commit()
+        try:
+            hook_ids = regloss(db, plan["learn"] + plan["shaky"])
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            hook_ids = []
+            for w in plan["learn"] + plan["shaky"]:
+                w.pop("reglossed", None)
+            logger.warning("preread regloss failed: %s", e)
         for w in plan["learn"] + plan["shaky"]:
             if w.get("reglossed"):
                 log_interaction(event="preread_regloss", lemma_id=w["lemma_id"],
@@ -199,17 +206,9 @@ def _apply_plan(plan: dict) -> dict:
 
 
 def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: list[int] | None = None) -> None:
-    """Quality-gate new lemmas, regenerate memory hooks cleared by a regloss,
-    then generate review sentences in batches for every word that has fewer
-    than the minimum."""
-    from app.services.memory_hooks import generate_memory_hooks
-
-    for lid in hook_ids or []:
-        try:
-            generate_memory_hooks(lid)
-        except Exception as e:
-            logger.warning("preread hook regeneration failed for %s: %s", lid, e)
-
+    """Quality-gate new lemmas, generate review sentences in batches for every
+    word that has fewer than the minimum, then regenerate memory hooks cleared
+    by a regloss."""
     from sqlalchemy import exists, or_
 
     from app.models import Sentence, SentenceWord
@@ -258,6 +257,14 @@ def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: lis
             logger.info("preread material batch %s: %s", chunk, res)
         except Exception as e:
             logger.warning("preread material batch failed for %s: %s", chunk, e)
+
+    from app.services.memory_hooks import generate_memory_hooks
+
+    for lid in hook_ids or []:
+        try:
+            generate_memory_hooks(lid)
+        except Exception as e:
+            logger.warning("preread hook regeneration failed for %s: %s", lid, e)
 
 
 def run_preread(set_id: int) -> None:
