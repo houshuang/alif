@@ -350,6 +350,7 @@ def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypa
     assert [w["lemma_ar_bare"] for w in plan["shaky"]] == ["قرن"]
     assert plan["shaky"][0]["regloss"] == {"from": "horn", "to": "century; horn"}
     assert [w["lemma_ar"] for w in plan["learn"]] == ["عَمَدَ"]
+    assert plan["learn"][0]["lemma_ar_bare"] == "عمد"
     assert plan["learn"][0]["sense_from"]["lemma_id"] == baptize_id
     assert (plan["stats"]["reglossed"], plan["stats"]["sense_rerouted"]) == (1, 1)
 

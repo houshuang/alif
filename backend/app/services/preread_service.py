@@ -376,6 +376,8 @@ def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list
     on the word as ``regloss`` (written by the router); a different lexeme
     replaces the word's identity so the router's add re-routes it, and leaves
     the shaky list for the learn list. Returns (learn, shaky, n_checked)."""
+    from app.routers.discover import _normalize
+
     checked = [w for w in learn + shaky if w.get("lemma_id")]
     verdicts = check_senses(
         text,
@@ -394,7 +396,7 @@ def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list
             w["sense_from"] = {"lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
                                "gloss_en": w.get("gloss_en")}
             w.update(lemma_id=None, lemma_ar=v["lemma_ar"], gloss_en=v["gloss_en"],
-                     knowledge_state=None)
+                     lemma_ar_bare=_normalize(v["lemma_ar"]), knowledge_state=None)
             if v["pos"]:
                 w["pos"] = v["pos"]
     moved = [w for w in shaky if w.get("sense_from")]
