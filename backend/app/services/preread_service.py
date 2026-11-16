@@ -262,10 +262,41 @@ _SENSE_SCHEMA = {
 _MAX_GLOSS_CHARS = 90
 
 
+def _vocalized_key(ar: str) -> str:
+    """Citation form for identity comparison: keep letters and short vowels,
+    drop tanwin, final case vowels and tatweel, so قَرْنٌ == قَرْن."""
+    import unicodedata
+
+    s = unicodedata.normalize("NFC", ar.strip()).replace("\u0640", "")
+    s = "".join(ch for ch in s if ch not in "\u064b\u064c\u064d")
+    while s and s[-1] in "\u064e\u064f\u0650\u0652":
+        s = s[:-1]
+    return s
+
+
+def _gloss_words(g: str) -> set[str]:
+    import re
+
+    return {w for w in re.findall(r"[a-z]+", g.casefold()) if len(w) > 2 and w not in {"the", "and", "for"}}
+
+
+def _is_widening(old: str, new: str) -> bool:
+    """A widened gloss is plain English that keeps some of the stored meaning
+    and actually changes something."""
+    import re
+
+    if new.strip().casefold() == old.strip().casefold():
+        return False
+    if "=" in new or re.search(r"[\u0600-\u06ff]", new):
+        return False
+    old_words = _gloss_words(old)
+    return not old_words or bool(old_words & _gloss_words(new))
+
+
 def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
     """One LLM pass: does each stored gloss cover how the pages use the word?
 
-    ``items``: [{index, lemma_ar, gloss_en, pos}]. Returns {index: {verdict,
+    ``items``: [{index, lemma_ar, gloss_en, pos, forms}]. Returns {index: {verdict,
     gloss_en, lemma_ar?, pos?}} for mismatches only; empty on failure, and the
     plan then keeps the stored glosses."""
     if not items:
@@ -274,13 +305,15 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
 
     lines = [
         f'{it["index"]}. {it["lemma_ar"]} ({it.get("pos") or "?"}) — {it.get("gloss_en") or ""}'
+        + (f' [in the pages: {", ".join(it["forms"][:5])}]' if it.get("forms") else "")
         for it in items
     ]
     prompt = (
         "An adult learner of Arabic is about to read the pages below. Each listed "
         "word was matched to an entry in their vocabulary, shown with its stored "
-        "English gloss. Check every entry against how the word is actually used in "
-        "these pages, and report only the entries whose gloss does not cover that use:\n"
+        "English gloss and the spellings found in the pages. Check every entry "
+        "against how those spellings are actually used, and report only the entries "
+        "where a reader relying on the stored gloss would misunderstand the passage:\n"
         '- "broader": the same word (same vocalized citation form and part of '
         "speech), but the stored gloss lacks the meaning used here (قَرْن stored as "
         '"horn" where the pages mean "century"). Give gloss_en: a short dictionary '
@@ -294,8 +327,9 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
         "of the word used here (singular noun, past-tense 3ms verb, no ال), pos, "
         "and gloss_en: a short general dictionary gloss that includes the meaning "
         "used here.\n"
-        "Do not report entries that fit, near-synonym wording differences, or "
-        "words used as part of a name. Keep glosses under 80 characters.\n\n"
+        "Do not report entries that fit, rewordings or reorderings of a gloss that "
+        "already covers the use, or words used as part of a name. Keep glosses "
+        "under 80 characters.\n\n"
         f"PAGES:\n{text[:_TEXT_CHAR_LIMIT]}\n\nENTRIES:\n" + "\n".join(lines)
     )
     try:
@@ -311,17 +345,23 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
         logger.warning("preread sense check failed: %s", e)
         return {}
     rows = res.get("mismatches", []) if isinstance(res, dict) else []
-    valid = {it["index"] for it in items}
+    by_index = {it["index"]: it for it in items}
     out: dict[int, dict] = {}
     for r in rows if isinstance(rows, list) else []:
-        if not isinstance(r, dict) or r.get("index") not in valid:
+        if not isinstance(r, dict) or r.get("index") not in by_index:
             continue
+        item = by_index[r["index"]]
         gloss = (r.get("gloss_en") or "").strip()
         verdict = r.get("verdict")
         if not gloss or len(gloss) > _MAX_GLOSS_CHARS or verdict not in ("broader", "different"):
             continue
-        if verdict == "different" and not (r.get("lemma_ar") or "").strip():
+        if verdict == "broader" and not _is_widening(item.get("gloss_en") or "", gloss):
             continue
+        if verdict == "different":
+            new_ar = (r.get("lemma_ar") or "").strip()
+            # The same vocalized citation form is the same lexeme, not a homograph.
+            if not new_ar or _vocalized_key(new_ar) == _vocalized_key(item.get("lemma_ar") or ""):
+                continue
         out[r["index"]] = {
             "verdict": verdict,
             "gloss_en": gloss,
@@ -339,7 +379,8 @@ def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list
     checked = [w for w in learn + shaky if w.get("lemma_id")]
     verdicts = check_senses(
         text,
-        [{"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos")}
+        [{"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
+          "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
          for i, w in enumerate(checked)],
     )
     for i, w in enumerate(checked):

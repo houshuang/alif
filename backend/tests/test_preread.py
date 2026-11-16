@@ -5,15 +5,19 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _senses_fit(monkeypatch):
-    monkeypatch.setattr(ps, "check_senses", lambda text, items: {})
-
 from app.models import Lemma, PrereadSet, SnapPage, UserLemmaKnowledge
 from app.routers import preread as pr
 from app.services import preread_service as ps
 from app.services.attention_policy import LEARNER_PICK_SOURCES
 from app.services.fsrs_service import create_new_card
+
+
+_real_check_senses = ps.check_senses
+
+
+@pytest.fixture(autouse=True)
+def _senses_fit(monkeypatch):
+    monkeypatch.setattr(ps, "check_senses", lambda text, items: {})
 
 
 def _word(bare, *, lemma_id=None, count=1, rank=None, gloss="x", proper=False, surface=None):
@@ -370,3 +374,32 @@ def test_regloss_yields_to_a_concurrent_edit(db_session):
     assert ps.regloss(db_session, [w]) == []
     assert db_session.get(Lemma, lem.lemma_id).gloss_en == "member (edited)"
     assert not w.get("reglossed")
+
+
+def test_check_senses_drops_no_op_verdicts(monkeypatch):
+    items = [
+        {"index": 0, "lemma_ar": "عُثْمانِيّ", "gloss_en": "Ottoman", "pos": "adj", "forms": ["العثمانية"]},
+        {"index": 1, "lemma_ar": "تَزَامَنَ", "gloss_en": "to coincide", "pos": "verb", "forms": ["تزامن"]},
+        {"index": 2, "lemma_ar": "قَرْنٌ", "gloss_en": "horn", "pos": "noun", "forms": ["القرن"]},
+        {"index": 3, "lemma_ar": "عَمَّدَ", "gloss_en": "to baptize", "pos": "verb", "forms": ["عمد"]},
+        {"index": 4, "lemma_ar": "ذَاتِيّ", "gloss_en": "personal", "pos": "adj", "forms": ["الذاتية"]},
+        {"index": 5, "lemma_ar": "قَرْن", "gloss_en": "horn", "pos": "noun", "forms": ["القرن"]},
+    ]
+    reply = {"mismatches": [
+        {"index": 0, "verdict": "broader", "gloss_en": "ottoman"},
+        {"index": 1, "verdict": "different", "lemma_ar": "تَزَامَنَ", "gloss_en": "to coincide", "pos": "verb"},
+        {"index": 2, "verdict": "different", "lemma_ar": "قَرْن", "gloss_en": "century", "pos": "noun"},
+        {"index": 3, "verdict": "different", "lemma_ar": "عَمَدَ", "gloss_en": "to set about", "pos": "verb"},
+        {"index": 9, "verdict": "broader", "gloss_en": "stray index"},
+        {"index": 4, "verdict": "broader", "gloss_en": "biography-related: ذاتي = self"},
+        {"index": 5, "verdict": "broader", "gloss_en": "century"},
+    ]}
+    prompts = []
+
+    def fake(**kw):
+        prompts.append(kw["prompt"])
+        return reply
+    monkeypatch.setattr("app.services.llm.generate_completion", fake)
+    out = _real_check_senses("نص", items)
+    assert list(out) == [3] and out[3]["lemma_ar"] == "عَمَدَ"
+    assert "[in the pages: العثمانية]" in prompts[0]

@@ -132,6 +132,13 @@ their memory hooks regenerated; different words go through the discover sense ga
 (`_create_and_introduce`) and a shaky one becomes a learn word. No scheduling constant
 changed.
 
+**Dry run on batch 1** (80 matched words, original glosses): 27 flagged. All six hand-found
+errors caught (قرن, عضو, جبهة, أثر→تَأَثَّرَ, عمد→عَمَدَ, عرق→عِرْق) plus نَضَجَ for ناضج; the rest
+were mostly harmless widenings (فئة "category, class, group"). Showing the page spellings
+was what caught أعراق→عِرْق. No-op verdicts are dropped in code: identical glosses, the same
+vocalized citation form called "different", and widened glosses that share no word with
+the stored one or contain Arabic/"=".
+
 **Watch.** `stats.reglossed` / `stats.sense_rerouted` per batch, and `preread_regloss`
 events for over-eager widening (a gloss that grows a rare sense first).
 
