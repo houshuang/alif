@@ -29,8 +29,9 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   (c) is partly done 2026-11-18: the رَأَى conjugations and 15 other junk `forms_json`
   sets removed, 27 missing words added as vocabulary only, 15 plural rows linked to their
   singular; the wrong-sense rows are still open (proposals in the vocab-repair report).
-  (d) `_import_unknown_words` still links unknown story words by CAMeL's first analysis
-  with no check. (e) Form I / Form II verbs that share a bare key (حَمَلَ/حَمَّلَ,
+  (d) ~~`_import_unknown_words` still links unknown story words by CAMeL's first analysis
+  with no check~~ — done 2026-11-18: the guessed links are checked in one batched
+  `check_senses` call with the story context (`_check_story_guesses`). (e) Form I / Form II verbs that share a bare key (حَمَلَ/حَمَّلَ,
   صَنَعَ/صَنَّعَ, خَرَجَ/خَرَّجَ) and same-bare noun/verb pairs (قَدَر/قَدَّرَ, نَقْل/نَقَلَ):
   the first-registered row wins even when the other exists; 19 of the 50 still resolve
   wrongly after deploy, most of them this way.
