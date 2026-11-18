@@ -162,7 +162,7 @@ def analyze(db, text: str, top: int) -> dict:
         ):
             counts["function"] += 1
             continue
-        lemma_id = lookup_lemma_id(tok, lemma_lookup)
+        lemma_id = lookup_lemma_id(tok, lemma_lookup, strict_fallback=True)
         if lemma_id is None:
             if exact_alias_required:
                 # A declared exact alias with no unique gated destination is

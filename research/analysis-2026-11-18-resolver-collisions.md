@@ -1,7 +1,7 @@
 # Running-text resolver: why 50 of 196 book tokens matched the wrong word
 
 Investigation date: 2026-11-18. Code read from `origin/main` at `022b0414`.
-Reproduction ran against a production snapshot taken 2026-11-18 08:21 UTC (4,583 lemmas; copy deleted afterwards). Status: Rank 1 (resolver side) and Rank 2 shipped the same day, see §7; Ranks 3–5 are open.
+Reproduction ran against a production snapshot taken 2026-11-18 08:21 UTC (4,583 lemmas; copy deleted afterwards). Status: Rank 1 (resolver side) and Rank 2 shipped the same day (§7); Rank 3 shipped as an opt-in for unchecked callers (§8); Ranks 4–5 are open.
 
 Regression fixture: `backend/tests/fixtures/resolver_collisions_2026_11_18.json` (all 188 scored rows; the 50 wrong ones carry mechanism class, deciding layer, the word the text uses, and the result after the repairs in §7). Tests: `backend/tests/test_resolver_collisions.py`. The tracer and fix-variant simulator were session scratch and are not kept; §7 describes how the replay is run.
 
@@ -240,3 +240,35 @@ Of the 60 pairs that moved away from the stored mapping, 24 land on an unrelated
 **How to rerun the replay.** Take a read-only copy of the production database. With the old and the new `backend/app` in turn, build `build_comprehensive_lemma_lookup`, resolve every distinct `SentenceWord.surface_form` from sentences with a current `mappings_verified_at` through `lookup_lemma_id`, and compare both results with the stored canonical lemma. Stored mappings are not ground truth (§1.4): judge the changed pairs, not the totals.
 
 **Still open.** Rank 1 consumers outside the resolver (Snap chips, `/words`, pre-read failure fallback) are separate work. `_import_unknown_words` still links an unknown story word to an existing lemma from CAMeL's first analysis without a check. Ranks 3, 4 and 5 are untouched: 45 of the 50 rows still resolve to the wrong lemma, 39 of them because the vocabulary lacks the word.
+
+---
+
+## 8. Outcome: Rank 3 as an opt-in strict fallback (2026-11-18)
+
+Rank 3 shipped for the callers nothing checks afterwards, behind `strict_fallback=True`. Sentence generation, `map_tokens_to_lemmas`, corpus/book import and mapping verification do not pass the flag: on the snapshot the default path resolves all 33,136 replay surfaces exactly as before (0 differences), so none of the 124 verified pairs is lost there.
+
+**What strict mode does.** A surface ending in ـًا / ـاً is first tried without the alif (exact layers, then the clitic layer on the full word, then on the shortened word). The CAMeL last resort accepts an analysis only when its headword is a lemma's own bare form with the same hamza spelling (F5 and F5b).
+
+**Callers.** `discover_words_in_text` (`/words`, `/snap`, `/lookup`, pre-read), the textbook scan, `_create_story_words`, `bookify_arabic.py`, `reading_readiness.py`.
+
+**Measured, strict against default, same snapshot.**
+
+| | Default (after §7) | Strict |
+|---|---|---|
+| Of the 50 wrong book rows: right lemma | 5 | 5 |
+| … "no match" | 0 | 9 (أمضت, تتعرف, سيتقدم, تقارير, خاطفة, باندفاعة, أُسقطا, تأسف, الفتى) |
+| … labelled guess | 20 | 8 |
+| … confident wrong match | 25 | 28 |
+| Of the 138 right book rows: unchanged match | 123 | 128 |
+| … labelled guess | 15 | 9 |
+| … "no match" | 0 | 1 (جارناك → جَار; the token is the place name Jarnac) |
+| Replay pairs that lose their match | — | 125 agreeing, 10 disagreeing |
+| Replay pairs that move to another lemma | — | 42 away from the stored lemma, 68 to it |
+
+The three rows that moved from "labelled guess" to "confident wrong match" are اعتدالاً, انتشاراً and وإيماناً: with the alif removed they hit the verb's `forms_json.masdar` key directly (the masdar-registered-under-the-verb class, M6b).
+
+**Two decisions.**
+- The accusative-alif layer is not applied to generation. In the replay it would move 58 pairs to the stored lemma and 24 away, but most of the 24 shift review credit from a singular to a plural row kept as a separate lemma (أَيَّامًا → أَيّام, دُرُوسًا → دُرُوس). Merge those duplicates first.
+- The hamza rule (F5b) is in. It costs 4 replay pairs from two lexemes (انْصَبَّ, حَمْقَاء), against the 2 estimated in §5, and removes تأسف and الفتى. وزارة and ويبدو remain: another analysis lands on a real headword, and بَدَأَ is stored with the bare form `بدا`.
+
+**Still wrong in strict mode:** 36 of the 50 (28 confident, 8 labelled guesses). The remaining fixes are vocabulary work (Rank 5).

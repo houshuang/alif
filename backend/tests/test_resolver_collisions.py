@@ -392,3 +392,147 @@ class TestUnverifiedWriters:
             trust_morphological_guesses=True,
         )
         assert [w.lemma_id for w in words] == [visit.lemma_id, house.lemma_id]
+
+
+def _camel_analyses(monkeypatch, analyses):
+    """Make CAMeL's analyser return ``analyses[word]`` (a list of lex strings)."""
+
+    def fake(word):
+        return [{"lex": lex} for lex in analyses.get(word, [])]
+
+    monkeypatch.setattr("app.services.morphology.analyze_word_camel", fake)
+
+
+# Seven fixture rows whose CAMeL headword is a word the vocabulary lacks and
+# which coincides with a conjugation, imperative, masdar, participle or
+# elative key of another lemma (mechanism M3a).
+_HEADWORD_ON_DERIVED_KEY = [
+    # surface, CAMeL headword, lemma that owned the coinciding key
+    ("تتعرف", "تَعَرَّف", _lemma(389, "عَرَفَ", "عرف", "verb", {"present": "يَعْرِفُ"})),
+    ("سيتقدم", "تَقَدَّم", _lemma(561, "قَدَمَ", "قدم", "verb", {"present": "يَقْدُمُ"})),
+    ("أمضت", "أَمْضَى", _lemma(2444, "ماضِي", "ماضي", "adj", {"elative": "أَمْضَى"})),
+    ("تقارير", "تَقْرِير", _lemma(2090, "قَرّ", "قر", "verb", {"masdar": "تَقْرِير"})),
+    ("خاطفة", "خاطِف", _lemma(3577, "خَطَف", "خطف", "verb", {"active_participle": "خَاطِف"})),
+    ("باندفاعة", "ٱِنْدِفاع", _lemma(3454, "اِنْدَفَعَ", "اندفع", "verb", {"masdar": "اِنْدِفَاع"})),
+    ("أُسقطا", "أَسْقَط", _lemma(3522, "سَقَطَ", "سقط", "verb", {"imperative": "اُسْقُطْ"})),
+]
+
+
+class TestStrictFallback:
+    """Rank 3: for callers whose result nothing checks afterwards."""
+
+    @pytest.mark.parametrize("surface, headword, owner", _HEADWORD_ON_DERIVED_KEY)
+    def test_headword_of_a_missing_word_is_not_a_match(
+        self, monkeypatch, surface, headword, owner
+    ):
+        lookup = build_lemma_lookup([owner])
+        bare = sv.strip_diacritics(surface)
+        _camel_analyses(monkeypatch, {bare: [headword]})
+        provenance = LemmaMatchProvenance()
+        assert (
+            lookup_lemma_id(surface, lookup, provenance, strict_fallback=True)
+            is None
+        )
+        assert provenance.layer is None
+
+    @pytest.mark.parametrize("surface, headword, owner", _HEADWORD_ON_DERIVED_KEY)
+    def test_default_path_keeps_the_wider_match(
+        self, monkeypatch, surface, headword, owner
+    ):
+        # Generation and mapping verification rely on this and check it with
+        # an LLM; the default must not change.
+        lookup = build_lemma_lookup([owner])
+        bare = sv.strip_diacritics(surface)
+        _camel_analyses(monkeypatch, {bare: [headword]})
+        provenance = LemmaMatchProvenance()
+        assert lookup_lemma_id(surface, lookup, provenance) == owner.lemma_id
+        assert provenance.is_guess
+        mapping = map_tokens_to_lemmas([surface], lookup, 0, "")[0]
+        assert mapping.lemma_id == owner.lemma_id and mapping.via_camel
+
+    def test_headword_must_keep_its_hamza(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [_lemma(1774, "أَلْف", "الف"), _lemma(439, "آسِف", "اسف", "expr")]
+        )
+        _camel_analyses(
+            monkeypatch, {"الفتى": ["آلِف"], "تأسف": ["تَأَسُّف", "أَسِف"]}
+        )
+        assert lookup_lemma_id("الفتى", lookup) == 1774
+        assert lookup_lemma_id("تأسف", lookup) == 439
+        assert lookup_lemma_id("الفتى", lookup, strict_fallback=True) is None
+        assert lookup_lemma_id("تأسف", lookup, strict_fallback=True) is None
+
+    def test_a_real_headword_still_matches_as_a_guess(self, monkeypatch):
+        lookup = build_lemma_lookup([_lemma(7, "مُدِير", "مدير")])
+        _camel_analyses(monkeypatch, {"مدراء": ["مُدِير"]})
+        provenance = LemmaMatchProvenance()
+        assert (
+            lookup_lemma_id("مدراء", lookup, provenance, strict_fallback=True) == 7
+        )
+        assert provenance.is_guess
+
+    def test_accusative_alif_resolves_without_camel(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(1, "وَزِير", "وزير"),
+                _lemma(2, "شَيْء", "شيء"),
+                _lemma(20, "لَيْل", "ليل"),
+                _lemma(21, "يَلّا", "يلا", "expr"),
+            ]
+        )
+        _camel_analyses(monkeypatch, {})
+        _camel_says(monkeypatch, {})
+        for surface, lemma_id in (
+            ("وزيراً", 1),
+            ("وَزِيرًا", 1),
+            ("شيئاً", 2),
+            ("لَيْلًا", 20),
+            ("ووزيراً", 1),
+        ):
+            provenance = LemmaMatchProvenance()
+            assert (
+                lookup_lemma_id(surface, lookup, provenance, strict_fallback=True)
+                == lemma_id
+            ), surface
+            assert not provenance.is_guess
+        # Without the mark there is no evidence the alif is a case ending.
+        assert lookup_lemma_id("وزيرا", lookup, strict_fallback=True) is None
+        # The default path has no such layer.
+        assert lookup_lemma_id("وزيراً", lookup) is None
+
+    def test_a_lemma_that_ends_in_the_alif_wins(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(30, "طَبْع", "طبع"),
+                _lemma(31, "طَبْعاً", "طبعا", "adv"),
+                _lemma(32, "عَصًا", "عصا"),
+            ]
+        )
+        _camel_analyses(monkeypatch, {})
+        _camel_says(monkeypatch, {})
+        assert lookup_lemma_id("طبعاً", lookup, strict_fallback=True) == 31
+        assert lookup_lemma_id("وطبعاً", lookup, strict_fallback=True) == 31
+        assert lookup_lemma_id("عَصًا", lookup, strict_fallback=True) == 32
+
+    def test_unverified_callers_ask_for_it(self, db_session, monkeypatch):
+        from app.routers import discover
+
+        seen = []
+        real = discover.lookup_lemma_id
+
+        def spy(*args, **kwargs):
+            seen.append(kwargs.get("strict_fallback"))
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(discover, "lookup_lemma_id", spy)
+        discover.discover_words_in_text(db_session, "وزيراً", count=8)
+        assert seen and all(seen)
+
+        lookup = build_lemma_lookup([_lemma(1, "وَزِير", "وزير")])
+        _camel_analyses(monkeypatch, {})
+        # textbook scan: the scanned surface carries the accusative mark
+        assert (
+            ocr_service._lookup_vocabulary_match(None, "وزيرا", lookup, "وَزِيرًا")
+            == 1
+        )
+        assert ocr_service._lookup_vocabulary_match(None, "وزيرا", lookup) is None

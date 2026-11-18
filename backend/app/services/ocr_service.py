@@ -35,6 +35,7 @@ from app.services.sentence_validator import (
     strip_tatweel,
     _is_function_word,
     LemmaMatchProvenance,
+    has_tanwin_alif,
     lookup_lemma,
     requires_exact_running_text_alias,
     resolve_exact_running_text_alias,
@@ -752,6 +753,7 @@ def _lookup_vocabulary_match(
     base_lemma_bare: str | None,
     bare: str,
     lemma_lookup: dict[str, int],
+    surface: str | None = None,
 ) -> int | None:
     """Existing lemma for a scanned word, refusing morphological guesses.
 
@@ -770,7 +772,11 @@ def _lookup_vocabulary_match(
             continue
         provenance = LemmaMatchProvenance()
         lemma_id = lookup_lemma(
-            candidate, lemma_lookup, out_provenance=provenance
+            candidate,
+            lemma_lookup,
+            out_provenance=provenance,
+            strict_fallback=True,
+            tanwin_alif=candidate == bare and has_tanwin_alif(surface or ""),
         )
         if lemma_id and not provenance.is_guess:
             return lemma_id
@@ -947,7 +953,7 @@ def process_textbook_page(
             lemma_id = alias.lemma_id if alias.applicable else None
             if not alias.applicable:
                 lemma_id = _lookup_vocabulary_match(
-                    base_lemma_bare, bare, lemma_lookup
+                    base_lemma_bare, bare, lemma_lookup, arabic
                 )
 
             if lemma_id:
@@ -1379,7 +1385,7 @@ def process_batch(
         lemma_id = alias.lemma_id if alias.applicable else None
         if not alias.applicable:
             lemma_id = _lookup_vocabulary_match(
-                base_lemma_bare, bare, lemma_lookup
+                base_lemma_bare, bare, lemma_lookup, arabic
             )
 
         if lemma_id:
