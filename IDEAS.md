@@ -2884,6 +2884,11 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 - [DONE] Stop skipping sentences with unmapped words: sentences with unmapped tokens are now kept (was: dropped entirely). Added StoryWord surface→lemma fallback lookup after CAMeL resolution. Remaining unmapped tokens get `lemma_id=None` in SentenceWord — sentence still usable for reviewing mapped words.
 
 ### Sentence Diversity & Corpus Quality (2026-02-11)
+- **Due-word menu generation (2026-11-18, tested read-only, not built)**: offer ~150 due words as a priority menu and let the model pick natural sets of 3–4 per sentence, instead of forcing four arbitrary words together. 4.0–5.1 due words per sentence against 2.3, and a higher quality-gate pass rate. See `research/analysis-2026-11-18-sentence-diversity.md`.
+- **Remove the المعلم/الولد/الفتاة subject hint** from the three generation prompts in `llm.py`; it names the most over-used subjects (2026-11-18).
+- **Basic-vocabulary top-up (2026-11-18)**: roughly 40 everyday words (yellow, plumber, farmer, narrow, hammer, cow, bee) have no lemma because intake came from frequency lists and books. Stage a checklist of colours, trades, people, dimension adjectives, household objects and animals for ordinary intake.
+- **Need-based scaffold freshness (2026-11-18)**: `_scaffold_freshness` uses lifetime `times_seen`; a measure based on whether the word needs a review (retrievability, due) would rank sentences by learning value instead of vocabulary age.
+- **Slot-rotation "pattern language" (learner idea, 2026-11-18)**: fixed sentence frames with rotating lists of people/things/qualities. Not recommended as literal templates (agreement, collocation, recognisable frames); the due-word menu achieves the rotation by need.
 - [DONE] Scaffold freshness penalty: penalize sentences whose scaffold words are over-reviewed
 - [DONE] Post-generation diversity rejection: deterministic rejection of sentences with overexposed scaffold words
 - [DONE] Sentence retirement: soft-delete old low-diversity sentences via is_active flag
