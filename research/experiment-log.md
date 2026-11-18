@@ -114,6 +114,31 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Sentence slots — only a third do scheduled work; a due-word menu prompt doubles it (analysis, no change)
+
+**Question.** The learner sees teacher/student/doctor/old/new constantly and rarer words seldom,
+and asked whether sentence generation should rotate slot lists (a "pattern language").
+
+**Findings.** Lifetime counts are very uneven (student 663, new 524, old 425, teacher 309;
+median established word 19). Recent exposure is flatter, but subject nouns still dominate, and
+all three generation prompts name المعلم، الولد، الفتاة as preferred subjects. The larger loss:
+of 7.0 content words per card in the last 30 days, 2.4 were due or acquiring and 48% were
+exposure-only, while 979 words are due. Only 171 of 1,533 active single sentences contain three
+or more currently due words. Roughly 40 of 187 everyday checklist words (yellow, plumber,
+farmer, narrow, hammer, cow) have no lemma.
+
+**Experiment (read-only, 24 sentences per arm, production model and gates).** The live
+multi-target prompt (four arbitrary due words, 500 random known words) gave 2.3 due words per
+passed sentence and 71% through the quality gate. A prompt that offers 150 due words as a menu
+and asks for at least three per sentence gave 4.0 and 92%; at least four gave 5.1 and 88%. The
+live prompt's failures were forced combinations.
+
+**Decision.** Nothing activated. Recommended next: a menu-based generation pass for due words
+through the existing multi-target validation and write path, removal of the subject hint, and a
+staged basic-vocabulary list. Mapping verification was not part of the experiment and must be
+measured before activation. Full note: `research/analysis-2026-11-18-sentence-diversity.md`;
+scripts and every generated sentence: `research/sentence-diversity-2026-11-18/`.
+
 ## 2026-11-18: Target check accepts the target verb's own conjugations; pre-read and the add check offer homograph siblings
 
 **Why.** `validate_sentence` demanded the target's bare form (± ال, clitics, final ا ↔ ى),

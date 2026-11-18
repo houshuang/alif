@@ -15,6 +15,8 @@ transcription/scoring pipeline). Decision: experiment-log `2026-10-04 "Novel spr
 
 ## Vocabulary and attention investigation — September 19, 2026
 
+[Which words fill a review sentence](analysis-2026-11-18-sentence-diversity.md): lifetime and recent exposure per word, the share of sentence slots that do scheduled work (a third), basic words missing from the vocabulary, and a read-only generation experiment in which a menu of due words raised due words per sentence from 2.3 to 4–5. Recommendation only; nothing activated.
+
 [Engagement and tuning check](analysis-2026-11-18-engagement-and-tuning.md): activity from February to November, FSRS calibration (well calibrated; reviews are late), the 911-word overdue backlog, new-word throughput per card, and the finding that automatic introduction had stopped because the phone builds only prefetched sessions. Led to the 2026-11-18 experiment-log entry.
 
 [Vocabulary selection should buy reading progress](analysis-2026-09-19-vocabulary-attention.md): fresh production audit, rare scaffold exposure, textbook-tier dominance, reproduced Quran/core identity errors, source-based slow-lane omissions, deployment drift, and a proposal for bounded maintenance around modern-fiction reading. Includes reproducible scripts and a per-word audit; no production changes.
