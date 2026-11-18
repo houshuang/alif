@@ -225,8 +225,27 @@ registration order chose (unvocalized دار: دَارَ or دَار; خصمه: 
 `LemmaMatchProvenance.homograph_tie` and `TokenMapping.homograph_tie` say so, and the
 verifier prompt labels the token "homograph". This is not `is_guess`: the word is in
 the vocabulary, and the callers that refuse a guess send it down a new-word path,
-which would create a duplicate. A caller with context should choose among
-`alternatives`.
+which would create a duplicate. `LemmaMatchProvenance.tied_lemma_ids` lists the
+siblings the token did not rule out (a subset of `alternatives`).
+
+The unchecked writers hand a tie to their sense check with those siblings offered
+(2026-11-18, second pass): the textbook scan (`ocr_service._check_scan_guesses`),
+story import (`story_service._import_unknown_words` → `_check_story_guesses`, one item
+per tied surface) and Snap (`discover._sense_check_chips`; `POST /lookup/sense`
+recomputes the tie from the surface). `preread_service.check_senses` and
+`lookup_sense.check_lookup_sense` take an optional `candidates` list and may answer
+`sibling` with a `candidate_id`, validated against the offered ids; a `different`
+answer whose citation form is an offered sibling is read as that sibling. The chosen
+sibling is an existing lemma, so nothing is created. Any other answer, and a failed
+check, keeps the resolver's first-registered lemma, as before.
+
+A frequency prior (the most frequent of the tied lemmas) was measured as a tie-breaker
+and not shipped: on the 2026-11-18 fixture it picked the word in the text for 3 of the
+10 tie rows (lowest id: 4), and on verified sentence mappings of a 2026-11-18 production
+snapshot it agreed with the stored lemma on 546 of 699 tied tokens (lowest id: 554).
+Siblings usually share a bare form and therefore a frequency rank, so the prior rarely
+has anything to say; where it does, it moves about as many tokens away from the stored
+lemma (63) as towards it (55).
 
 Pass the surface: `lookup_lemma_id()` and `map_tokens_to_lemmas()` hand the token with
 its marks to `lookup_lemma(surface_form=...)`. A caller that only has a bare form gets

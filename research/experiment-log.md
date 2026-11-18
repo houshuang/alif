@@ -114,6 +114,38 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Homograph ties go to the sense check; add sentence anchors generation
+
+**Why.** The resolver now flags `homograph_tie` when same-spelling lemmas survive the
+token's own evidence, but the unchecked writers (textbook scan, story import, Snap) still
+accepted the first-registered row. Ties are not guesses: those callers answer a guess with
+a new-word path, which would duplicate a word the vocabulary already has.
+
+**Change.** `LemmaMatchProvenance.tied_lemma_ids` lists the undecided siblings.
+`preread_service.check_senses` and `lookup_sense.check_lookup_sense` take an optional
+`candidates` list and may answer `sibling` with an offered `candidate_id`; a `different`
+answer naming an offered sibling's citation form counts as that sibling. Scan, story
+import (one item per tied surface) and Snap (chips, `/lookup/sense`) relink to the chosen
+existing lemma; any other answer or a failed check keeps the resolver's lemma. No new
+lemma is created on this path.
+
+**Frequency prior, measured and dropped.** On the collisions fixture the most frequent
+tied lemma was right for 3 of 10 tie rows (lowest id 4); on verified sentence mappings of
+a 2026-11-18 production snapshot it agreed with the stored lemma on 546 of 699 tied tokens
+(lowest id 554), moving 55 tokens to and 63 away from the stored lemma. Siblings usually
+share their bare form's rank. Details: `research/analysis-2026-11-18-resolver-collisions.md` §10.
+
+**Add sentence as generation hint.** `add_context.add_sentences_for` returns the latest
+sentence each word was added from (Snap / pre-read), skipping rows the add check judged
+`different` or `name`. `generate_material_for_word` and the legacy batch path put it into
+the generation prompt ahead of the stored example ("use it in the same meaning; do not
+copy"). It never becomes a review sentence, so every generated sentence still goes
+through validation and verification. Pipeline log: `had_add_sentence`.
+
+**Watch.** `discover_lookup_sense` events with `sibling=true`; sentences generated for
+added words should match the page's sense more often (add-check `different` rate on
+their later reviews).
+
 ## 2026-11-18: Resolver chooses among same-spelling lemmas by the token's own evidence
 
 **Why.** After the vocabulary repairs of the same day, 24 of the 50 wrong book rows

@@ -38,16 +38,20 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   token's hamza spelling, written tashkeel and clitics choose among the rows
   (`_choose_collision_candidate`), and an undecided match carries `homograph_tie`
   (4 more of the 50 right, 7 labelled a tie, 5 left confident and wrong). Open from (e):
-  let the sense check choose among the alternatives of a tie in the textbook scan, story
-  import and Snap; try a frequency prior for ties; re-verify the stored mappings the
+  ~~let the sense check choose among the alternatives of a tie in the textbook scan, story
+  import and Snap~~ — done 2026-11-18 (`sibling` verdict over the offered `candidates`);
+  ~~try a frequency prior for ties~~ — measured 2026-11-18, no better than lowest id
+  (546 vs 554 of 699 tied verified tokens), not shipped; offer tie siblings to pre-read's
+  `_apply_senses` and the add-context check too; re-verify the stored mappings the
   replay showed to be wrong; the vocabulary proposals in the analysis §9 (conjugated
   forms kept as lemmas, #194, #2073, the #3270/#4593 duplicate, wrong `pos`).
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
   ~~textbook-scan matches~~ — done 2026-11-18 for CAMeL-guess matches (`_check_scan_guesses`).
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
   ~~Surface `different` verdicts in the app (offer to swap the enrolled word)~~ — done
-  2026-11-18 (Snap start screen, "Check added words"). Next: use
-  the stored sentence as the first example when generating the word's review material.
+  2026-11-18 (Snap start screen, "Check added words"). ~~Use
+  the stored sentence as the first example when generating the word's review material~~ —
+  done 2026-11-18 (`add_context.add_sentences_for`, a prompt hint in both generation paths).
 
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
