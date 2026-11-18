@@ -576,6 +576,11 @@ class WordAddContext(Base):
     check_verdict = Column(String(20), nullable=True)
     check_json = Column(JSON, nullable=True)
     checked_at = Column(DateTime, nullable=True)
+    # True when this add started acquisition for the word (it was not studied before)
+    introduced_by_add = Column(Boolean, nullable=True)
+    # For a ``different`` verdict: swapped / kept, set when the learner decides
+    resolution = Column(String(20), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
 
 
 class PrereadSet(Base):

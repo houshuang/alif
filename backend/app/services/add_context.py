@@ -29,6 +29,7 @@ def record_add_context(
     surface: str | None = None,
     snap_id: int | None = None,
     preread_set_id: int | None = None,
+    introduced: bool | None = None,
 ) -> WordAddContext | None:
     """Stage a context row for an added word. Caller commits. No row without a
     sentence."""
@@ -44,6 +45,7 @@ def record_add_context(
         snap_id=snap_id,
         preread_set_id=preread_set_id,
         gloss_at_add=lemma.gloss_en if lemma is not None else None,
+        introduced_by_add=introduced,
     )
     db.add(row)
     return row

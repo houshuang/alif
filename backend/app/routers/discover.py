@@ -26,13 +26,15 @@ collisions like كناس→نَاس — 2026-07-15 lesson, spec-2026-07-15-looku
 import logging
 import math
 import re
+from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.models import Lemma, SnapPage, UserLemmaKnowledge
+from app.models import Lemma, SnapPage, UserLemmaKnowledge, WordAddContext
 from app.services.interaction_logger import log_interaction
 from app.services.lemma_quality import (
     _load_rank_map,
@@ -984,6 +986,7 @@ def _create_and_introduce(
     context = record_add_context(
         db, lemma.lemma_id, source, w.context_ar, surface=w.surface,
         snap_id=w.snap_id, preread_set_id=preread_set_id,
+        introduced=bool(res.get("introduced_at")),
     )
     if context is not None:
         db.flush()
@@ -1073,3 +1076,131 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
     if existing_ids:
         background_tasks.add_task(_ensure_material, existing_ids)
     return {"added": results, "count": len(results)}
+
+
+def _add_check_out(db: Session, row: WordAddContext) -> dict | None:
+    """One added word whose saved sentence uses a different word: the entry that
+    was enrolled and the word the sentence actually uses (existing or proposed)."""
+    v = row.check_json or {}
+    added_id = v.get("checked_lemma_id") or row.lemma_id
+    added = db.get(Lemma, added_id)
+    if added is None or not v.get("lemma_ar"):
+        return None
+    if added.canonical_lemma_id:
+        added = db.get(Lemma, added.canonical_lemma_id) or added
+    state = (
+        db.query(UserLemmaKnowledge.knowledge_state)
+        .filter(UserLemmaKnowledge.lemma_id == added.lemma_id).scalar()
+    )
+    surface = row.surface or added.lemma_ar
+    return {
+        "id": row.id,
+        "source": row.source,
+        "surface": surface,
+        "sentence_ar": row.sentence_ar,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "added": _word_out(added, surface, state, "added"),
+        "proposed": _resolve_different_word(db, surface, added.lemma_id, v),
+    }
+
+
+@router.get("/add-checks")
+def list_add_checks(db: Session = Depends(get_db)):
+    """Added words whose saved sentence uses a different word than the entry
+    that was enrolled, still waiting for the learner to swap or keep."""
+    rows = (
+        db.query(WordAddContext)
+        .filter(WordAddContext.check_verdict == "different",
+                WordAddContext.resolution.is_(None))
+        .order_by(WordAddContext.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    items = [item for item in (_add_check_out(db, r) for r in rows) if item]
+    return {"items": items, "count": len(items)}
+
+
+class AddCheckResolveIn(BaseModel):
+    action: Literal["swap", "keep"]
+
+
+@router.post("/add-checks/{context_id}")
+def resolve_add_check(
+    context_id: int, req: AddCheckResolveIn, background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """``swap`` enrolls the word the sentence uses and, when this add was what
+    started the wrongly matched word and it is still in acquisition, returns
+    that word to the encountered pool. ``keep`` changes nothing but the record."""
+    row = db.get(WordAddContext, context_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Add context not found")
+    if row.check_verdict != "different" or row.resolution is not None:
+        raise HTTPException(status_code=409, detail="Nothing to resolve")
+    item = _add_check_out(db, row)
+    if item is None:
+        raise HTTPException(status_code=409, detail="Entry no longer available")
+    now = datetime.now(timezone.utc)
+    out: dict = {"id": context_id, "action": req.action}
+    if req.action == "keep":
+        row.resolution, row.resolved_at = "kept", now
+        db.commit()
+        log_interaction(event="add_check_resolved", context_id=context_id,
+                        action="keep", lemma_id=item["added"]["lemma_id"])
+        return out
+
+    proposed = item["proposed"]
+    word = WordIn(
+        lemma_ar_bare=proposed["lemma_ar_bare"] or _normalize(proposed["lemma_ar"]),
+        lemma_ar=proposed["lemma_ar"], gloss_en=proposed["gloss_en"], pos=proposed["pos"],
+        source=row.source, surface=row.surface, context_ar=row.sentence_ar, snap_id=row.snap_id,
+    )
+    try:
+        if proposed.get("lemma_id"):
+            lid = proposed["lemma_id"]
+            res = introduce_word(
+                db, lid, source=row.source, due_immediately=True, enforce_daily_cap=True,
+                learner_pick=row.source in LEARNER_PICK_SOURCES,
+            )
+            ctx = record_add_context(
+                db, lid, row.source, row.sentence_ar, surface=row.surface,
+                snap_id=row.snap_id, introduced=bool(res.get("introduced_at")),
+            )
+            db.flush()
+            added = {"lemma_id": lid, "created": False, "state": res.get("state"),
+                     "already_known": res.get("already_known", False),
+                     "context_id": ctx.id if ctx is not None else None}
+        else:
+            added = _create_and_introduce(db, word, build_comprehensive_lemma_lookup(db))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    wrong_id = item["added"]["lemma_id"]
+    released = False
+    enrolled = added["state"] in ("acquiring", "learning", "known") or added["already_known"]
+    if row.introduced_by_add and enrolled and wrong_id != added["lemma_id"]:
+        ulk = db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id == wrong_id).first()
+        if ulk is not None and ulk.knowledge_state == "acquiring":
+            ulk.knowledge_state = "encountered"
+            ulk.acquisition_box = None
+            ulk.acquisition_next_due = None
+            ulk.fsrs_card_json = None
+            released = True
+    row = db.get(WordAddContext, context_id)
+    row.resolution, row.resolved_at = "swapped", now
+    row.check_json = {**(row.check_json or {}), "swapped_to": added["lemma_id"],
+                      "released_lemma_id": wrong_id if released else None}
+    db.commit()
+    log_interaction(event="add_check_resolved", context_id=context_id, action="swap",
+                    lemma_id=wrong_id, swapped_to=added["lemma_id"],
+                    created=added["created"], released=released)
+    if added.get("context_id"):
+        background_tasks.add_task(verify_add_contexts, [added["context_id"]])
+    if added["created"]:
+        background_tasks.add_task(_gate_and_generate, [added["lemma_id"]])
+    elif added["state"] == "acquiring" and not added["already_known"]:
+        background_tasks.add_task(_ensure_material, [added["lemma_id"]])
+    out.update({"lemma_id": added["lemma_id"], "created": added["created"],
+                "state": added["state"], "released_lemma_id": wrong_id if released else None})
+    return out
