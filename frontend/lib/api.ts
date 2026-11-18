@@ -18,6 +18,8 @@ import {
   WordLookupResult,
   DiscoverWord,
   LookupSense,
+  AddCheck,
+  AddCheckResolved,
   SnapHistoryItem,
   PrereadSummary,
   PrereadDetail,
@@ -1216,6 +1218,21 @@ export async function checkLookupSense(
     method: "POST",
     body: JSON.stringify({ lemma_id: lemmaId, surface, context }),
     timeoutMs: 60000,
+  });
+}
+
+export async function getAddChecks(): Promise<AddCheck[]> {
+  const res = await fetchApi<{ items: AddCheck[] }>("/api/discover/add-checks");
+  return res.items ?? [];
+}
+
+export async function resolveAddCheck(
+  id: number,
+  action: "swap" | "keep"
+): Promise<AddCheckResolved> {
+  return fetchApi<AddCheckResolved>(`/api/discover/add-checks/${id}`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
   });
 }
 

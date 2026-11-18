@@ -114,6 +114,23 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Snap start screen offers to swap a word added under the wrong entry
+
+**Why.** Since #311 every Snap and pre-read add keeps its sentence, and a background check
+records `different` when the sentence uses another word than the enrolled entry (أمضت
+added as مَاضٍ "past"). Nothing showed that verdict, so the wrong word stayed enrolled.
+
+**What.** `GET /api/discover/add-checks` lists unresolved `different` rows with the
+enrolled entry and the word the sentence uses (existing lemma or a proposal).
+`POST /api/discover/add-checks/{id}` with `swap` enrolls that word (creating it when
+missing, with the same sentence stored) and returns the wrong word to `encountered` only
+when this add started it and it is still acquiring; a word studied before is left alone.
+`keep` only records the choice. New columns `introduced_by_add`, `resolution`,
+`resolved_at` (migration `c3e5a7b9d1f4`). The app shows "Check added words" on the Snap
+start screen with Switch / Keep. No rows existed on prod yet (adds with sentences started
+today). Tests: `tests/test_add_checks.py`.
+
+
 ## 2026-11-18: Textbook scan checks its guessed matches instead of refusing them
 
 **Why.** Since #312 a scanned word that only CAMeL's last-resort guess matched was

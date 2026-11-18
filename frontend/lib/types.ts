@@ -1445,6 +1445,28 @@ export interface LookupSense {
   word?: DiscoverWord;
 }
 
+// An added word whose saved sentence uses a different word than the entry that
+// was enrolled (GET /api/discover/add-checks).
+export interface AddCheck {
+  id: number;
+  source: string;
+  surface: string;
+  sentence_ar: string;
+  created_at: string | null;
+  added: DiscoverWord;
+  // lemma_id null = not in the vocabulary yet; Switch creates it.
+  proposed: DiscoverWord;
+}
+
+export interface AddCheckResolved {
+  id: number;
+  action: "swap" | "keep";
+  lemma_id?: number;
+  created?: boolean;
+  state?: string | null;
+  released_lemma_id?: number | null;
+}
+
 export interface SnapSentence {
   p: number;
   ar: string;
