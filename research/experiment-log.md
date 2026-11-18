@@ -114,6 +114,46 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Due-word menu generation, card ceiling 4 → 6, subject hint removed, everyday words staged
+
+**Why.** The analysis entry below found that a third of the words on a card were due, that
+the live multi-target prompt forces arbitrary words together, and that a prompt offering due
+words as a menu gave 4–5 due words per sentence at a higher quality-gate pass rate. The
+learner chose the denser setting.
+
+**Changes.**
+1. `generate_due_menu_material()` runs as warm-cache phase 3f. It keeps 60 unshown sentences
+   with at least four FSRS-due words in stock, generating up to 24 candidates per warm run
+   from a menu of 150 due words (main lane first) and 200 safe supporting words. Stored
+   through the multi-target quality, verification and write path. Session building is
+   unchanged.
+2. `MAX_DUE_WORDS_PER_SENTENCE_CARD` 4 → 6. The ceiling of four was part of
+   `low_energy_maintenance_v1` (2026-09-03) and would have hidden most of the new sentences
+   (16 of 21 passed sentences in the experiment carried five or more due words). This is a
+   learner decision of 2026-11-18, not a finding that four was wrong for the low-energy period.
+3. The subject hint "generic definite nouns (المعلم، الولد، الفتاة)" is replaced in all four
+   generation prompts by an instruction to vary subjects from the vocabulary list.
+4. `scripts/stage_everyday_words.py` stages curated everyday words as `reading_targets`
+   (program `everyday_core`). 52 of the 63 missing words are not in the 5,000-entry frequency
+   core at all and the other 11 rank between 3,036 and 4,716, past the intake limit of 3,000:
+   the fused frequency sources under-sample household vocabulary.
+
+**Dry runs on production data before merge (no writes).** Two full passes through every gate:
+12 returned → 11 quality → 6 kept, 28 due words (4.7 per sentence); after adding a prompt line
+against changing a listed word's part of speech, 24 returned → 21 quality → 15 kept, 74 due
+words (4.9 per sentence). Losses at mapping verification were verbs whose lemma is not in the
+vocabulary.
+
+**Expected.** Due or acquiring words per reading card rise from about 2.4 toward 4. More cards
+will contain a missed word (0.84^4 ≈ 0.5 fully green against 0.84^2.4 ≈ 0.66).
+
+**Check after two weeks.** Due/acquiring words per card and the overdue count
+(`research/sentence-diversity-2026-11-18/div3.py`), the red/yellow word rate on cards with
+five or six due words against cards with two or three, `due_menu_summary` yields in
+`generation_pipeline_*.jsonl`, and how many `everyday_core` targets were introduced
+(`stage_everyday_words.py --status`). Roll back the density by setting the ceiling to 4;
+stop generation by setting `DUE_MENU_MAX_CALLS` to 0.
+
 ## 2026-11-18: Sentence slots — only a third do scheduled work; a due-word menu prompt doubles it (analysis, no change)
 
 **Question.** The learner sees teacher/student/doctor/old/new constantly and rarer words seldom,

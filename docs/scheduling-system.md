@@ -2080,7 +2080,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | FSRS `desired_retention` | 0.90 maintenance / 0.95 rollback | `standard_scheduler()` in `fsrs_service.py` selects it from the maintenance switch for ordinary reviews and graduation initialization. 0.95 scheduled a mature card at ~40% of its stability; at 0.90 it waits the full stability. Changed 2026-09-17 after six weeks of due reviews showed FSRS calibrated up to 14 days late but recall of 65% (predicted 79%) beyond, with 22% of due reviews that late. Supersedes the 2026-07-26 hold, whose "recall trails prediction" premise now holds only in that backlog bucket |
 | Assisted-lapse `desired_retention` | 0.90 | Rating-2-only target with no relearning steps; standard scheduler parameters remain unchanged |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
-| `MAX_DUE_WORDS_PER_SENTENCE_CARD` | 4 | Active low-energy ceiling across all actionable due canonicals present, including off-cohort/off-lane collateral |
+| `MAX_DUE_WORDS_PER_SENTENCE_CARD` | 6 | Active low-energy ceiling across all actionable due canonicals present, including off-cohort/off-lane collateral Raised from 4 on 2026-11-18 (learner chose denser cards) |
 | `TRIVIAL_COLLATERAL_RETRIEVABILITY` | 0.97 | Minimum current R for a clean, known, not-due reading collateral to become exposure-only |
 | `CONFUSION_CONTEXT_WINDOW_DAYS` / `MAX_CONFUSION_CONTEXT_CARDS_PER_SESSION` | 14 / 1 | Window and workload-neutral reservation cap for named-confusion context rescue |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
@@ -2804,6 +2804,23 @@ no picking step.
   `generate_paired_material()` generates sentences that each practise two of the batch's
   acquiring words (multi-target path, at most 20 pairs, names excluded), so one card can
   review two new words.
+- **Due-word menu sentences (2026-11-18).** `generate_due_menu_material()` (warm cache
+  phase 3f) keeps a stock of `DUE_MENU_STOCK_TARGET` (60) unshown `llm` sentences that each
+  carry at least `DUE_MENU_MIN_PRIORITY` (4) FSRS-due words. When the stock is short it makes
+  up to `DUE_MENU_MAX_CALLS` (2) calls per warm run; each call offers `DUE_MENU_SIZE` (150)
+  due words not yet in the stock (main lane first, then slow lane) plus
+  `DUE_MENU_SUPPORT_SIZE` (200) not-due known words, and asks for
+  `DUE_MENU_SENTENCES_PER_CALL` (12) sentences of 9–13 words with 4 to
+  `MAX_DUE_WORDS_PER_SENTENCE_CARD` priority words each. A sentence is stored only if every
+  word is known, it passes the quality gate and mapping verification, and it carries at
+  least `DUE_MENU_DENSE_MIN` (3) due words and no more due words than the card cap. The
+  primary target is the due word with the fewest reviewable sentences; only that word is
+  required to survive verification. Nothing in session building changed: `due_coverage ^ 1.5`
+  already prefers these sentences. Acquiring words are never on the menu.
+- **Everyday vocabulary targets (2026-11-18).** `scripts/stage_everyday_words.py` stages a
+  curated checklist of concrete words (colours, trades, people, physical adjectives,
+  household objects, animals) as `reading_targets` with program `everyday_core`. They enter
+  through ordinary capped intake at the reading-target tier, after learner picks.
 - **Names (practised since 2026-11-15, learner decision).** Proper names on the pages
   are listed, glossed and transliterated, and up to `NAMES_MAX` (30) are practised
   (`preread_service.practice_names`): a stored `proper_name` lemma is moved to

@@ -647,7 +647,7 @@ Vocabulary constraint:
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
 - Vary starters: verbal (verb-first), nominal (definite noun/adjective), prepositional (فِي، مِنَ), time expressions
-- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Vary who or what the sentence is about: take subjects from the vocabulary list (relatives, trades, roles, animals, objects) or use pronouns; do not default to a teacher, a student, a boy or a girl
 - Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 
 Respond with JSON only: {{"arabic": "...", "english": "...", "transliteration": "..."}}"""
@@ -677,7 +677,7 @@ Vocabulary constraint:
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
 - Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
-- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Vary who or what the sentence is about: take subjects from the vocabulary list (relatives, trades, roles, animals, objects) or use pronouns; do not default to a teacher, a student, a boy or a girl
 - Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 - Never start more than one sentence in a batch with the same word.
 
@@ -1096,7 +1096,7 @@ Vocabulary constraint:
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
 - Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
-- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Vary who or what the sentence is about: take subjects from the vocabulary list (relatives, trades, roles, animals, objects) or use pronouns; do not default to a teacher, a student, a boy or a girl
 - Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 - Never start more than one sentence in a batch with the same word.
 
@@ -1237,6 +1237,115 @@ You should return exactly {total_sentences} sentences ({count_per_word} per targ
     return sentences
 
 
+DUE_MENU_SYSTEM_PROMPT = f"""\
+You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
+Each sentence is built mainly from the PRIORITY words the learner is due to review. \
+Write sentences a native speaker would find natural — not textbook constructions.
+
+{ARABIC_STYLE_RULES}
+
+{DIFFICULTY_STYLE_GUIDE}
+
+Vocabulary constraint:
+- Use ONLY words from the two provided lists and common function words
+- Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
+ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
+لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
+- Do NOT invent or use Arabic content words not in the lists
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
+- Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
+- Transliteration: ALA-LC standard with macrons for long vowels
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions
+- Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
+- Take the people, things, actions and qualities of each sentence from the PRIORITY list wherever one fits
+- Never start more than one sentence in a batch with the same word.
+
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
+
+_DUE_MENU_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sentences": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "arabic": {"type": "string"},
+                    "english": {"type": "string"},
+                    "transliteration": {"type": "string"},
+                },
+                "required": ["arabic", "english", "transliteration"],
+            },
+        }
+    },
+    "required": ["sentences"],
+}
+
+
+def generate_sentences_due_menu(
+    priority_words: list[dict[str, str]],
+    supporting_words: list[dict[str, str]],
+    count: int = 12,
+    min_priority: int = 4,
+    max_priority: int = 6,
+    word_range: str = "9-13",
+    model_override: str = "claude_sonnet",
+    timeout: int = 300,
+) -> list[SentenceResult]:
+    """Generate sentences from a large menu of due words.
+
+    Unlike ``generate_sentences_multi_target``, the model is not handed a fixed
+    small group to combine. It receives many due words and picks sets that
+    belong together, so each sentence carries several reviews without forced
+    combinations (2026-11-18 experiment: 5.1 due words per sentence against
+    2.3, and a higher quality-gate pass rate).
+    """
+    prompt = f"""Create {count} different natural MSA sentences for a beginner-to-intermediate Arabic learner.
+
+PRIORITY WORDS (the learner needs to see these; each sentence MUST contain {min_priority} to {max_priority} of them):
+{format_known_words_by_pos(priority_words)}
+
+SUPPORTING VOCABULARY (use only when no priority word fits):
+{format_known_words_by_pos(supporting_words)}
+
+IMPORTANT:
+- Do NOT use any Arabic content words that are not in the two lists above (function words are fine).
+- Choose combinations of priority words that belong together naturally; never force unrelated words into one sentence.
+- Use each priority word in at most one sentence, so the {count} sentences cover as many different priority words as possible.
+- Use every listed word as the part of speech and meaning given: never turn a listed noun into its verb, or a listed verb into its noun or participle, unless that form is listed too.
+- Subjects, objects, adjectives and verbs should all come from the priority list when a fitting one exists.
+- Prefer short everyday contexts over poetic or encyclopedic sentences.
+Each sentence should be {word_range} words, each with a different structure.
+Include full diacritics on all Arabic text."""
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=DUE_MENU_SYSTEM_PROMPT,
+        json_schema=_DUE_MENU_SCHEMA,
+        temperature=0.5,
+        timeout=timeout,
+        model_override=model_override,
+        task_type="sentence_gen_due_menu",
+    )
+    raw_list = result.get("sentences", []) if isinstance(result, dict) else []
+    sentences: list[SentenceResult] = []
+    for item in raw_list if isinstance(raw_list, list) else []:
+        if not isinstance(item, dict):
+            continue
+        arabic = (item.get("arabic") or "").strip()
+        english = (item.get("english") or "").strip()
+        if arabic and english:
+            sentences.append(SentenceResult(
+                arabic=arabic,
+                english=english,
+                transliteration=(item.get("transliteration") or "").strip(),
+            ))
+    return sentences
+
+
 MULTI_TARGET_SYSTEM_PROMPT = f"""\
 You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
 Each sentence must include AT LEAST 2 of the specified target words. \
@@ -1261,7 +1370,7 @@ Vocabulary constraint:
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
 - Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
-- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Vary who or what the sentence is about: take subjects from the vocabulary list (relatives, trades, roles, animals, objects) or use pronouns; do not default to a teacher, a student, a boy or a girl
 - Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 - Never start more than one sentence in a batch with the same word.
 

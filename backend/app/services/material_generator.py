@@ -1574,6 +1574,249 @@ def generate_paired_material(lemma_ids: list[int], max_pairs: int = PAIRED_MATER
     return stats
 
 
+DUE_MENU_STOCK_TARGET = 60       # unshown sentences carrying >= DUE_MENU_MIN_PRIORITY due words
+DUE_MENU_DENSE_MIN = 3           # fewest due words a stored sentence may carry
+DUE_MENU_MIN_POOL = 40           # below this many uncovered due words a menu is too thin
+DUE_MENU_SIZE = 150
+DUE_MENU_SUPPORT_SIZE = 200
+DUE_MENU_SENTENCES_PER_CALL = 12
+DUE_MENU_MAX_CALLS = 2
+DUE_MENU_MIN_PRIORITY = 4
+
+
+def generate_due_menu_material(
+    max_calls: int = DUE_MENU_MAX_CALLS,
+    model_override: str = "claude_sonnet",
+    dry_run: bool = False,
+) -> dict:
+    """Stock sentences that each review several due words at once.
+
+    Ordinary generation serves words that lack a sentence, a few at a time,
+    and fills the rest of each sentence with well-known words; about a third
+    of the words on a card were due (2026-11-18 analysis). This pass offers
+    the model a large menu of FSRS-due words and lets it choose sets that fit
+    together. It keeps a stock of unshown dense sentences and stops when the
+    stock is full, so its cost follows review activity.
+
+    Stored through the multi-target verification and write path. The primary
+    target is the due word with the fewest reviewable sentences.
+    """
+    import random
+
+    from app.services.frequency_lanes import due_lane_snapshot
+    from app.services.learning_policy import MAX_DUE_WORDS_PER_SENTENCE_CARD
+    from app.services.llm import generate_sentences_due_menu, review_sentences_quality
+    from app.services.sentence_eligibility import reviewable_coverage_counts
+    from app.services.sentence_generator import (
+        MultiTargetGeneratedSentence,
+        _log_quality_review,
+    )
+    from app.services.sentence_validator import (
+        build_comprehensive_lemma_lookup,
+        build_lemma_lookup,
+        is_function_word_lemma,
+        strip_diacritics,
+        validate_sentence_multi_target,
+    )
+    from app.config import settings as _settings
+
+    stats = {
+        "stock": 0, "pool": 0, "calls": 0, "returned": 0, "valid": 0,
+        "quality_passed": 0, "generated": 0, "due_words_covered": 0,
+    }
+
+    db = SessionLocal()
+    try:
+        snapshot = due_lane_snapshot(db)
+        due_ids = set(snapshot.fsrs_due_ids)
+        all_due_ids = set(snapshot.due_ids)
+        if len(due_ids) < DUE_MENU_MIN_POOL:
+            return stats
+
+        # Aliased so the outer SentenceWord does not correlate with the one
+        # inside reviewable_sentence_clauses()'s NOT EXISTS subquery.
+        sw = aliased(SentenceWord)
+        unshown = (
+            db.query(sw.sentence_id, sw.lemma_id)
+            .join(Sentence, Sentence.id == sw.sentence_id)
+            .filter(
+                reviewable_sentence_clauses(),
+                Sentence.source == "llm",
+                func.coalesce(Sentence.times_shown, 0) == 0,
+                sw.lemma_id.in_(due_ids),
+            )
+            .all()
+        )
+        due_by_sentence: dict[int, set[int]] = {}
+        for sentence_id, lemma_id in unshown:
+            due_by_sentence.setdefault(sentence_id, set()).add(lemma_id)
+        stocked: set[int] = set()
+        for lemma_ids in due_by_sentence.values():
+            if len(lemma_ids) >= DUE_MENU_MIN_PRIORITY:
+                stats["stock"] += 1
+                stocked |= lemma_ids
+        missing = DUE_MENU_STOCK_TARGET - stats["stock"]
+        if missing <= 0:
+            return stats
+
+        active_lemmas = (
+            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+            .join(UserLemmaKnowledge)
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "learning", "known", "lapsed"]
+            ))
+            .all()
+        )
+
+        def as_word(lemma) -> dict:
+            return {"arabic": lemma.lemma_ar, "english": lemma.gloss_en or "",
+                    "lemma_id": lemma.lemma_id, "pos": lemma.pos or ""}
+
+        def usable(lemma) -> bool:
+            return bool(
+                lemma.gloss_en
+                and lemma.gates_completed_at is not None
+                and lemma.canonical_lemma_id is None
+                and lemma.word_category not in ("proper_name", "onomatopoeia", "practiced_name")
+                and not is_function_word_lemma(lemma.lemma_ar_bare, lemma.function_word_override)
+            )
+
+        main_pool, slow_pool, support_pool = [], [], []
+        bare_by_id: dict[int, str] = {}
+        for lemma, state in active_lemmas:
+            if not usable(lemma):
+                continue
+            if lemma.lemma_id in due_ids:
+                if lemma.lemma_id in stocked:
+                    continue
+                bare_by_id[lemma.lemma_id] = lemma.lemma_ar_bare or strip_diacritics(lemma.lemma_ar)
+                (main_pool if lemma.lemma_id in snapshot.main_due_ids else slow_pool).append(as_word(lemma))
+            elif state == "known" and lemma.lemma_id not in all_due_ids:
+                support_pool.append(as_word(lemma))
+        random.shuffle(main_pool)
+        random.shuffle(slow_pool)
+        pool = main_pool + slow_pool
+        stats["pool"] = len(pool)
+        if len(pool) < DUE_MENU_MIN_POOL:
+            return stats
+
+        lemma_lookup = build_lemma_lookup([lemma for lemma, _ in active_lemmas])
+        mapping_lookup = build_comprehensive_lemma_lookup(db)
+        coverage = reviewable_coverage_counts(db, lemma_ids=due_ids)
+    finally:
+        db.close()
+
+    known_bare = set(lemma_lookup.keys())
+    calls = min(max_calls, -(-missing // DUE_MENU_SENTENCES_PER_CALL), -(-len(pool) // DUE_MENU_SIZE))
+    accepted: list[tuple[MultiTargetGeneratedSentence, dict[str, int]]] = []
+
+    for call in range(calls):
+        menu = pool[call * DUE_MENU_SIZE:(call + 1) * DUE_MENU_SIZE]
+        if len(menu) < DUE_MENU_MIN_POOL:
+            break
+        support = random.sample(support_pool, min(DUE_MENU_SUPPORT_SIZE, len(support_pool)))
+        stats["calls"] += 1
+        try:
+            results = generate_sentences_due_menu(
+                priority_words=menu,
+                supporting_words=support,
+                count=DUE_MENU_SENTENCES_PER_CALL,
+                min_priority=DUE_MENU_MIN_PRIORITY,
+                max_priority=MAX_DUE_WORDS_PER_SENTENCE_CARD,
+                model_override=model_override,
+            )
+        except Exception:
+            logger.warning("Due menu: generation call %d failed", call + 1, exc_info=True)
+            continue
+        stats["returned"] += len(results)
+        menu_bares = {bare_by_id[w["lemma_id"]]: w["lemma_id"] for w in menu}
+
+        valid: list[tuple[MultiTargetGeneratedSentence, dict[str, int]]] = []
+        for res in results:
+            validation = validate_sentence_multi_target(
+                arabic_text=res.arabic,
+                target_bares=menu_bares,
+                known_bare_forms=known_bare,
+                min_targets=DUE_MENU_DENSE_MIN,
+                known_lemma_lookup=lemma_lookup,
+            )
+            if not validation.valid:
+                continue
+            found = {bare: menu_bares[bare] for bare, hit in validation.targets_found.items() if hit}
+            primary = min(found.values(), key=lambda lid: (coverage.get(lid, 0), lid))
+            valid.append((
+                MultiTargetGeneratedSentence(
+                    arabic=res.arabic,
+                    english=res.english,
+                    transliteration=res.transliteration,
+                    # Only the primary is required to survive mapping
+                    # verification; losing one of several due words to a
+                    # correction still leaves a useful sentence.
+                    target_lemma_ids=[primary],
+                    primary_target_lemma_id=primary,
+                    target_bares_found=validation.targets_found,
+                    attempts=1,
+                ),
+                found,
+            ))
+        stats["valid"] += len(valid)
+        if not valid:
+            continue
+
+        to_review = [{"arabic": m.arabic, "english": m.english} for m, _ in valid]
+        try:
+            reviews = review_sentences_quality(to_review)
+        except Exception:
+            logger.warning("Due menu: quality review failed", exc_info=True)
+            continue
+        _log_quality_review(_settings.log_dir, "due_menu", to_review, reviews)
+        for (mres, found), review in zip(valid, reviews):
+            if review.natural and review.translation_correct:
+                mres.quality_reviewed_at = datetime.now(timezone.utc)
+                mres.quality_natural = True
+                mres.quality_translation_correct = True
+                mres.quality_reason = review.reason[:500]
+                accepted.append((mres, found))
+    stats["quality_passed"] = len(accepted)
+
+    covered: set[int] = set()
+    if accepted:
+        db = SessionLocal()
+        try:
+            validated = validate_multi_target_sentences_batch(db, accepted, mapping_lookup)
+        except Exception:
+            logger.exception("Due menu: mapping validation failed")
+            validated = []
+        finally:
+            db.close()
+
+        db = SessionLocal()
+        try:
+            for mres, mappings in validated:
+                on_card = {m.lemma_id for m in mappings if m.lemma_id in all_due_ids}
+                fsrs_due_on_card = on_card & due_ids
+                if (
+                    len(fsrs_due_on_card) < DUE_MENU_DENSE_MIN
+                    or len(on_card) > MAX_DUE_WORDS_PER_SENTENCE_CARD
+                ):
+                    continue
+                if not dry_run:
+                    write_multi_target_sentence(db, mres, mappings)
+                stats["generated"] += 1
+                covered |= fsrs_due_on_card
+            db.commit()
+        except Exception:
+            logger.exception("Due menu: write failed")
+            db.rollback()
+            stats["generated"] = 0
+            covered = set()
+        finally:
+            db.close()
+    stats["due_words_covered"] = len(covered)
+    _log_pipeline(_settings.log_dir, {"event": "due_menu_summary", "dry_run": dry_run, **stats})
+    return stats
+
+
 def validate_multi_target_sentence(
     db,
     result,
@@ -2635,6 +2878,13 @@ def _warm_sentence_cache_impl(
     except Exception:
         logger.warning("Warm cache: maintenance passage generation skipped", exc_info=True)
     logger.info("Warm cache %s: phase 3e maintenance passage check done", run_label)
+
+    # ── Phase 3f: Keep a stock of sentences that review several due words ──
+    try:
+        stats["due_menu"] = generate_due_menu_material(model_override=llm_model)
+        logger.info("Warm cache %s: phase 3f due menu %s", run_label, stats["due_menu"])
+    except Exception:
+        logger.warning("Warm cache: due-menu generation skipped", exc_info=True)
 
     # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
     # IMPORTANT: Don't hold DB session during LLM calls — they can hang for minutes
