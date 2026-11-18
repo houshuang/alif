@@ -22,6 +22,7 @@ from app.schemas import (
     SentenceReviewSubmitIn,
     SentenceReviewSubmitOut,
     SessionEndOut,
+    TodayProgressOut,
     SessionSummaryOut,
     VerseReviewIn,
     WordJourneyItem,
@@ -1287,6 +1288,13 @@ def get_session_summary(session_id: str, db: Session = Depends(get_db)):
         avg_response_ms=avg_response_ms,
         **activity,
     )
+
+
+@router.get("/today", response_model=TodayProgressOut)
+def get_today_progress(db: Session = Depends(get_db)):
+    """Cumulative figures for the current UTC day (the between-batch card)."""
+    from app.services.today_progress import today_progress
+    return today_progress(db)
 
 
 @router.get("/session-end/{session_id}", response_model=SessionEndOut)

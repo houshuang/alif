@@ -28,6 +28,7 @@ import {
   submitVerseReview,
   getAnalytics,
   getSessionEnd,
+  getTodayProgress,
   lookupReviewWord,
   prefetchSessions,
   warmSentences,
@@ -51,6 +52,7 @@ import {
   VerseCard,
   Analytics,
   SessionEndData,
+  TodayProgress,
   WordLookupResult,
   ConfusionAnalysis,
   ConfusionCaptureIn,
@@ -474,6 +476,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const lastCheckpointAtRef = useRef(0);
   const checkpointBoundaryRef = useRef(0);
   const [sessionStopped, setSessionStopped] = useState(false);
+  const [todayCard, setTodayCard] = useState<TodayProgress | "loading" | null>(null);
   const continuingRef = useRef(false);
   const checkpointFetchingRef = useRef(false);
   // A due quick check is being fetched: show nothing instead of the next card,
@@ -805,6 +808,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const done = results && results.total >= totalCards && totalCards > 0;
     if (!done || inWrapUp || sessionStopped || loading || submittingReview || continuingRef.current) return;
     continuingRef.current = true;
+    if (mode === "reading" && totalCards >= TODAY_CARD_MIN_BATCH) {
+      // Shown at once so it never replaces a card the learner has started;
+      // the figures fill in after the last answers have synced.
+      setTodayCard("loading");
+      logCardShown({ card_type: "progress", session_id: sentenceSession?.session_id ?? "" });
+      void flushQueue().catch(() => {})
+        .then(() => getTodayProgress())
+        .then((data) => setTodayCard((cur) => (cur === "loading" ? data : cur)))
+        .catch(() => setTodayCard((cur) => (cur === "loading" ? null : cur)));
+    }
     void (async () => {
       if (sentenceSession) await dropCachedSession(mode, sentenceSession.session_id).catch(() => {});
       await loadSession();
@@ -1810,6 +1823,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   async function handleWrapUp() {
     checkpointBoundaryRef.current += 1;
     setSessionStopped(true);
+    setTodayCard(null);
     if (seenLemmaIds.size === 0) {
       setResults({ total: totalCards, gotIt: 0, missed: 0, noIdea: 0 });
       return;
@@ -2144,6 +2158,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           )}
         </View>
       </View>
+    );
+  }
+
+  if (todayCard && !sessionStopped) {
+    return (
+      <TodayProgressCard
+        data={todayCard === "loading" ? null : todayCard}
+        onContinue={() => { showTime.current = Date.now(); setTodayCard(null); }}
+      />
     );
   }
 
@@ -4035,6 +4058,45 @@ function SessionGoalRow({
   );
 }
 
+const TODAY_CARD_MIN_BATCH = 5;
+
+function TodayProgressCard({
+  data,
+  onContinue,
+}: {
+  data: TodayProgress | null;
+  onContinue: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const pct = data && data.words_reviewed > 0
+    ? `${Math.round((data.words_correct / data.words_reviewed) * 100)}%`
+    : "–";
+  const tiles: [string, string][] = [
+    [data ? String(data.cards) : "–", "cards"],
+    [pct, "words correct"],
+    [data ? String(data.new_words) : "–", "new words"],
+    [data ? String(data.moved_up) : "–", "moved up"],
+    [data ? String(data.graduated) : "–", "graduated"],
+    [data ? data.known.toLocaleString() : "–", "known"],
+  ];
+  return (
+    <View style={[styles.dayCard, { paddingTop: Math.max(insets.top, 12) + 24 }]}>
+      <Text style={styles.summaryTitle}>Today</Text>
+      <View style={styles.dayGrid}>
+        {tiles.map(([value, label]) => (
+          <View key={label} style={styles.dayTile}>
+            <Text style={styles.dayValue}>{value}</Text>
+            <Text style={styles.dayLabel}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      <Pressable style={styles.nextSessionHeroButton} onPress={onContinue} testID="today-continue">
+        <Text style={styles.nextSessionHeroTitle}>Continue</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function SessionComplete({
   results,
   mode,
@@ -5079,6 +5141,38 @@ const styles = StyleSheet.create({
   },
   emptyProgressDetail: {
     fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  dayCard: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  dayGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 380,
+    marginTop: 16,
+    marginBottom: 28,
+  },
+  dayTile: {
+    width: "33.3%",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  dayValue: {
+    fontSize: 30,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  dayLabel: {
+    fontSize: 13,
     color: colors.textSecondary,
     marginTop: 2,
   },

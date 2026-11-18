@@ -46,6 +46,7 @@ import {
   PatternDetail,
   SessionSummary,
   SessionEndData,
+  TodayProgress,
   PretestWord,
   ClipCatalogue,
   ClipEvent,
@@ -1017,6 +1018,10 @@ export async function getSessionSummary(sessionId: string): Promise<SessionSumma
   return fetchApi<SessionSummary>(`/api/review/session-summary/${sessionId}`);
 }
 
+export async function getTodayProgress(): Promise<TodayProgress> {
+  return fetchApi<TodayProgress>("/api/review/today", { timeoutMs: 5_000 });
+}
+
 export async function getSessionEnd(sessionId: string): Promise<SessionEndData> {
   return fetchApi<SessionEndData>(`/api/review/session-end/${sessionId}`);
 }
@@ -1040,7 +1045,7 @@ export async function acknowledgeReintro(
 }
 
 export interface CardShownPayload {
-  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint";
+  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint" | "progress";
   session_id?: string | null;
   lemma_id?: number | null;
   sentence_id?: number | null;

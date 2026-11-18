@@ -1377,6 +1377,16 @@ export interface PartialRoot {
   total: number;
 }
 
+export interface TodayProgress {
+  cards: number;
+  words_reviewed: number;
+  words_correct: number;
+  new_words: number;
+  moved_up: number;
+  graduated: number;
+  known: number;
+}
+
 export interface SessionEndData {
   word_journeys: WordJourneyItem[];
   sentence_count: number;
