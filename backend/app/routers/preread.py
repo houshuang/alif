@@ -23,6 +23,7 @@ from app.config import settings
 from app.database import SessionLocal, get_db
 from app.models import PrereadSet, SnapPage
 from app.services.interaction_logger import log_interaction
+from app.services.add_context import verify_add_contexts
 from app.services.preread_service import PREREAD_SOURCE, analyze_pages, practice_names, pull_forward, regloss
 
 logger = logging.getLogger(__name__)
@@ -131,8 +132,24 @@ def _read_pages(set_id: int) -> list[dict]:
     return [done.get(p["page"], p) for p in pages]
 
 
-def _apply_plan(plan: dict) -> dict:
-    """Enter the learn words as learner picks and bring shaky words forward."""
+def _mark_checked(db, context_id: int, w: dict) -> None:
+    """Pre-read already checked this word against its pages (check_senses);
+    record that verdict on the add context instead of checking it again."""
+    from app.models import WordAddContext
+
+    row = db.get(WordAddContext, context_id)
+    if row is None:
+        return
+    row.check_verdict = "broader" if w.get("regloss") else "fits"
+    row.check_json = {"via": "preread_sense_check", "regloss": w.get("regloss"),
+                      "sense_from": w.get("sense_from")}
+    row.checked_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+def _apply_plan(plan: dict, set_id: int | None = None, snap_ids: list[int] | None = None) -> dict:
+    """Enter the learn words as learner picks and bring shaky words forward.
+    Each entered word keeps the sentence it was found in (word_add_contexts)."""
     from app.routers.discover import (
         WordIn,
         _create_and_introduce,
@@ -141,7 +158,8 @@ def _apply_plan(plan: dict) -> dict:
     )
 
     db = SessionLocal()
-    new_ids, existing_ids, hook_ids = [], [], []
+    new_ids, existing_ids, hook_ids, context_ids = [], [], [], []
+    snap_ids = snap_ids or []
     try:
         try:
             hook_ids = regloss(db, plan["learn"] + plan["shaky"])
@@ -170,14 +188,25 @@ def _apply_plan(plan: dict) -> dict:
                         register=w.get("register"),
                         dialect=w.get("dialect"),
                         source=PREREAD_SOURCE,
+                        surface=w.get("surface"),
+                        context_ar=w.get("example_ar"),
+                        snap_id=(
+                            snap_ids[w["first_page"] - 1]
+                            if w.get("first_page") and w["first_page"] <= len(snap_ids) else None
+                        ),
                     ),
                     lookup,
+                    preread_set_id=set_id,
                 )
                 db.commit()
                 _log_add(out)
                 w["lemma_id"] = out["lemma_id"]
                 w["knowledge_state"] = out["state"]
                 w["added"] = out["state"] == "acquiring"
+                if out.get("context_id"):
+                    context_ids.append(out["context_id"])
+                    if w.get("sense_checked"):
+                        _mark_checked(db, out["context_id"], w)
                 if w.get("sense_from"):
                     log_interaction(event="preread_sense_reroute", lemma_id=out["lemma_id"],
                                     from_lemma_id=w["sense_from"]["lemma_id"],
@@ -202,7 +231,7 @@ def _apply_plan(plan: dict) -> dict:
     finally:
         db.close()
     return {"new_ids": new_ids, "existing_ids": existing_ids, "moved": len(moved),
-            "hook_ids": hook_ids}
+            "hook_ids": hook_ids, "context_ids": context_ids}
 
 
 def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: list[int] | None = None) -> None:
@@ -288,7 +317,7 @@ def run_preread(set_id: int) -> None:
             db.close()
 
         _set_status(set_id, "applying")
-        applied = _apply_plan(plan)
+        applied = _apply_plan(plan, set_id, snap_ids)
         result = {
             "learn": plan["learn"],
             "shaky": plan["shaky"],
@@ -310,6 +339,10 @@ def run_preread(set_id: int) -> None:
             names=len(plan["names"]),
         )
         shutil.rmtree(_image_dir(set_id), ignore_errors=True)
+        # Words the sense check did not cover (new words) are checked against
+        # their sentence now; already-checked rows are skipped.
+        if applied["context_ids"]:
+            verify_add_contexts(applied["context_ids"])
         _prepare_material(applied["new_ids"], applied["existing_ids"], applied["hook_ids"])
     except Exception as e:
         logger.exception("preread %s failed", set_id)

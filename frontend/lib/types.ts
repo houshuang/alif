@@ -1431,6 +1431,8 @@ export interface DiscoverWord {
   lemma_source: string;
   lemma_id?: number | null;
   knowledge_state?: string | null;
+  // Set when the page check replaced a wrongly matched entry with this word.
+  sense_from?: { lemma_id: number; lemma_ar: string; gloss_en: string | null } | null;
 }
 
 export interface LookupSense {

@@ -293,12 +293,12 @@ def _is_widening(old: str, new: str) -> bool:
     return not old_words or bool(old_words & _gloss_words(new))
 
 
-def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
+def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
     """One LLM pass: does each stored gloss cover how the pages use the word?
 
     ``items``: [{index, lemma_ar, gloss_en, pos, forms}]. Returns {index: {verdict,
-    gloss_en, lemma_ar?, pos?}} for mismatches only; empty on failure, and the
-    plan then keeps the stored glosses."""
+    gloss_en, lemma_ar?, pos?}} for mismatches only, or None when the call failed
+    (callers must then treat the matches as unchecked)."""
     if not items:
         return {}
     from app.services.llm import generate_completion
@@ -343,7 +343,7 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
         )
     except Exception as e:
         logger.warning("preread sense check failed: %s", e)
-        return {}
+        return None
     rows = res.get("mismatches", []) if isinstance(res, dict) else []
     by_index = {it["index"]: it for it in items}
     out: dict[int, dict] = {}
@@ -371,11 +371,15 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict]:
     return out
 
 
-def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list[dict], list[dict], int]:
+def _apply_senses(
+    text: str, learn: list[dict], shaky: list[dict]
+) -> tuple[list[dict], list[dict], int, int]:
     """Annotate matched words with the sense check. A widened gloss is stored
     on the word as ``regloss`` (written by the router); a different lexeme
     replaces the word's identity so the router's add re-routes it, and leaves
-    the shaky list for the learn list. Returns (learn, shaky, n_checked)."""
+    the shaky list for the learn list. When the check fails, matched words are
+    held back instead of entered unchecked. Returns (learn, shaky, n_checked,
+    n_held_back)."""
     from app.routers.discover import _normalize
 
     checked = [w for w in learn + shaky if w.get("lemma_id")]
@@ -385,7 +389,15 @@ def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list
           "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
          for i, w in enumerate(checked)],
     )
+    if verdicts is None:
+        # An unchecked match can be a same-skeleton neighbour (أمضت → ماضٍ):
+        # do not enter or pull forward any of them on a failed check.
+        unchecked = {id(w) for w in checked}
+        logger.warning("preread: sense check failed; holding back %d matched words", len(unchecked))
+        return ([w for w in learn if id(w) not in unchecked],
+                [w for w in shaky if id(w) not in unchecked], 0, len(unchecked))
     for i, w in enumerate(checked):
+        w["sense_checked"] = True
         v = verdicts.get(i)
         if not v:
             continue
@@ -400,7 +412,7 @@ def _apply_senses(text: str, learn: list[dict], shaky: list[dict]) -> tuple[list
             if v["pos"]:
                 w["pos"] = v["pos"]
     moved = [w for w in shaky if w.get("sense_from")]
-    return learn + moved, [w for w in shaky if not w.get("sense_from")], len(checked)
+    return learn + moved, [w for w in shaky if not w.get("sense_from")], len(checked), 0
 
 
 def regloss(db: Session, words: list[dict]) -> list[int]:
@@ -502,7 +514,7 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
     shaky.sort(key=lambda w: (-w["score"], w.get("retrievability") or 0))
     shaky = shaky[: shaky_quota(len(pages))]
 
-    learn, shaky, n_checked = _apply_senses(text, learn, shaky)
+    learn, shaky, n_checked, held_back = _apply_senses(text, learn, shaky)
 
     names = _merge_names(names)
     for group in (learn, shaky):
@@ -512,6 +524,7 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
         new_candidates=len(new), learn=len(learn), shaky=len(shaky), names=len(names),
         importance_rated=len(importance),
         sense_checked=n_checked,
+        sense_check_held_back=held_back,
         reglossed=sum(1 for w in learn + shaky if w.get("regloss")),
         sense_rerouted=sum(1 for w in learn if w.get("sense_from")),
     )

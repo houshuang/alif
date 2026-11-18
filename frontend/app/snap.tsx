@@ -339,12 +339,16 @@ export default function SnapScreen() {
     runSnap(res.assets[0].uri);
   }
 
-  async function addWord(w: DiscoverWord) {
+  async function addWord(w: DiscoverWord, sentence?: string) {
     const key = w.lemma_ar_bare;
     if (adds[key] === "adding" || adds[key] === "added" || adds[key] === "known") return;
     setAdds((p) => ({ ...p, [key]: "adding" }));
     try {
-      const r = await addDiscoveredWord(w);
+      const r = await addDiscoveredWord(w, {
+        surface: sentence ? selected?.text : w.surface,
+        sentence: sentence ?? w.example_ar,
+        snapId: result?.snap_id,
+      });
       setAdds((p) => ({ ...p, [key]: r.already_known ? "known" : "added" }));
     } catch {
       setAdds((p) => ({ ...p, [key]: "error" }));
@@ -602,7 +606,7 @@ export default function SnapScreen() {
         surface={selected.text}
         lookup={selectedLookup}
         addState={(w) => adds[w.lemma_ar_bare] || "idle"}
-        onAdd={addWord}
+        onAdd={(w) => addWord(w, selected.sentence)}
         onRetry={() => fetchLookup(selected)}
         onClose={() => {
           setSelected(null);
@@ -757,6 +761,11 @@ function WordChip({
       <View style={styles.chipMain}>
         <Text style={styles.chipArabic}>{word.lemma_ar}</Text>
         <Text style={styles.chipGloss}>{word.gloss_en || "—"}</Text>
+        {word.sense_from && (
+          <Text style={styles.panelNote}>
+            Not {word.sense_from.lemma_ar} “{word.sense_from.gloss_en || "—"}”
+          </Text>
+        )}
         <View style={styles.chipBadges}>
           {word.pos && <Badge text={word.pos} color={colors.textSecondary} />}
           {reg && <Badge text={reg} color={colors.confused} />}

@@ -556,6 +556,28 @@ class SnapPage(Base):
     words_json = Column(JSON, nullable=True)
 
 
+class WordAddContext(Base):
+    """Where a word was added from: the printed surface and its sentence, kept so
+    the entry can be checked against real use later (services/add_context.py).
+    One row per add. ``lemma_id`` is deliberately not a foreign key, so lemma
+    merge and deletion scripts need no change; readers resolve the canonical."""
+    __tablename__ = "word_add_contexts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    lemma_id = Column(Integer, nullable=False, index=True)
+    source = Column(String(20), nullable=False)  # snap / preread / ...
+    surface = Column(Text, nullable=True)
+    sentence_ar = Column(Text, nullable=False)
+    snap_id = Column(Integer, nullable=True)
+    preread_set_id = Column(Integer, nullable=True)
+    gloss_at_add = Column(Text, nullable=True)
+    # fits / broader / different / name, or NULL until checked
+    check_verdict = Column(String(20), nullable=True)
+    check_json = Column(JSON, nullable=True)
+    checked_at = Column(DateTime, nullable=True)
+
+
 class PrereadSet(Base):
     """A batch of upcoming book pages prepared before reading: the page photos
     are read into SnapPages, then the automatic word plan is applied (see

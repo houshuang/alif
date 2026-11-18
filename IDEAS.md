@@ -16,7 +16,11 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   فحين → لَفَحَ, رأيت → ياتُرَى, وزارة → زَارَ, ابنها → أَب, ويبدو → بَدَأَ): one-letter
   prefix stripping (ف/و/ل) and stem guesses beat a whole-word identity that exists or
   should exist. `discover_lookup_sense` verdicts of `different` are a ready test set.
-- Run the same lookup sense check on Snap's suggested-word chips and textbook-scan matches.
+- ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
+  textbook-scan matches still unchecked.
+- ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
+  Next: surface `different` verdicts in the app (offer to swap the enrolled word), and use
+  the stored sentence as the first example when generating the word's review material.
 
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
