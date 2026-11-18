@@ -17,7 +17,7 @@ fact-checked cultural notes 10/10 (Haiku 3/10), and ran 1.7× faster. See
 decision. Set ``ALIF_AUDIT_PROVIDER=claude`` to opt out (escape hatch).
 
 API fallback (when CLI unavailable, e.g. network issues):
-  GPT-5.2 → Claude Haiku API
+  GPT-6.1 Sol → Claude Haiku 5.5 API
 
 Gemini is used ONLY for vision/OCR tasks (separate code path in ocr_service.py).
 
@@ -82,23 +82,26 @@ class BatchWordSentenceResult(BaseModel):
 
 # API fallback models — used only when Claude CLI is unavailable.
 # Gemini removed from text chain (2026-04-01): now OCR-only via ocr_service.py.
+# These names are pinned and do not follow new releases the way the CLI aliases
+# do. Before changing one, call it through litellm on the server: the current
+# generation rejects a caller-set temperature (see the kwargs in generate_completion).
 MODELS = [
     {
         "name": "openai",
-        "model": "gpt-5.2",
+        "model": "gpt-6.1-sol",
         "key_env": "OPENAI_KEY",
         "key_setting": "openai_key",
     },
     {
         "name": "anthropic",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "key_env": "ANTHROPIC_API_KEY",
         "key_setting": "anthropic_api_key",
         "key_settings": ["anthropic_api_key", "anthropic_key"],
     },
     {
         "name": "opus",
-        "model": "claude-opus-4-6",
+        "model": "claude-opus-5-5",
         "key_env": "ANTHROPIC_API_KEY",
         "key_setting": "anthropic_api_key",
         "key_settings": ["anthropic_api_key", "anthropic_key"],
@@ -489,10 +492,11 @@ def generate_completion(
 
         start = time.time()
         try:
+            # No temperature: gpt-6.x and the Claude 5 models accept only their
+            # default and reject the request otherwise (verified 2026-11-18).
             kwargs: dict[str, Any] = {
                 "model": model_config["model"],
                 "messages": messages,
-                "temperature": temperature,
                 "timeout": timeout,
                 "api_key": api_key,
             }

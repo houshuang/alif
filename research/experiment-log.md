@@ -114,6 +114,33 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Model check — fallback pins updated; GPT-6.1 Sol writes more usable dense sentences than Sonnet or Opus (not switched)
+
+**Why.** The learner asked which models run and whether newer ones should be tested.
+Report: `research/analysis-2026-11-18-model-check.md`; scripts and raw output in
+`research/model-check-2026-11-18/`.
+
+**Changed.** `llm.py` API fallback pins: `gpt-5.2` → `gpt-6.1-sol`, `claude-haiku-4-5` →
+`claude-haiku-5-5`, `claude-opus-4-6` → `claude-opus-5-5`. The API chain no longer sends
+`temperature`: the new models reject it (verified on the server; a plain rename would
+have broken every fallback call). `book_import_service.py` hard-page retry:
+`gemini-2.5-flash-preview` (withdrawn, so the retry always failed) → `gemini-4-hydrogen`.
+
+**Measured, not changed.**
+- Sentence writing on the production dense-sentence path, dry run, two runs of 48
+  sentences per writer with different menus and judges: GPT-6.1 Sol stored 55 of 96
+  (235 due words), Sonnet 5.5 39 of 96 (187), Opus 5.5 40 of 97 (188). GPT led under
+  both the GPT judge and the Sonnet judge. Generation still runs on Sonnet; switching
+  the dense-sentence call to GPT with Sonnet fallback is a learner decision.
+- Quality judge strictness: GPT-6.1 Sol passed 127 of 136 valid sentences, Sonnet 5.5
+  76 of 136 (different menus).
+- Page scans, 36 saved pages: Gemini 3 Flash preview stays. Gemini 4 Hydrogen was as
+  accurate or slightly better (6 word differences in 1,775, one checked error each) at
+  twice the wait and three times the cost; Gemini 3.6 Flash made the most errors.
+
+**Rollback.** Revert the three names in `MODELS` and restore `"temperature": temperature`
+in the API kwargs.
+
 ## 2026-11-18: Due-word menu generation, card ceiling 4 → 6, subject hint removed, everyday words staged
 
 **Why.** The analysis entry below found that a third of the words on a card were due, that
