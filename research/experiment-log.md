@@ -114,6 +114,32 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Snap checks each tapped word's entry against its sentence
+
+**Observation.** In Snap, a tapped word that resolves to a vocabulary entry was shown
+with the stored gloss and no context check (only out-of-vocabulary words were glossed
+against the sentence). The learner reported أمضت shown as ماضٍ "past" (it is أَمْضَى
+"to spend (time)") with no way to add the real word, and other glosses that were
+plainly wrong. Re-running the resolver over every content word of the 17 Nov pages
+(snap pages 10–12, 196 vocabulary matches) found wrong lexemes, not only narrow
+glosses: الفتى → أَلْف "one thousand", فحين → لَفَحَ "to scorch", رأيت → ياتُرَى "I
+wonder", وزارة → زَارَ "visited", ابنها → أَب "father", ويبدو → بَدَأَ "to start", plus
+names matched to vocabulary (جارناك → جار, جيليه → جيل). Which words were tapped was
+not recoverable: `discover_lookup` logged only `found`.
+
+**Change.** `POST /api/discover/lookup/sense` (new `services/lookup_sense.py`, one
+Sonnet call per tap, run after the instant `/lookup` result): `fits`, `broader`
+(widens the gloss in place via pre-read's compare-and-set `regloss`), `different`
+(returns the word actually used — an existing sense-compatible lemma, or a proposal
+the Add button creates through `/add`'s sense gate), `name`. The panel dims the
+unchecked entry and hides Add until the verdict arrives. `discover_lookup` now logs
+the surface, sentence and matched lemma; `discover_lookup_sense` logs every verdict.
+A 14-case trial on the 17 Nov pages gave the expected verdict in all 14.
+
+**Not changed.** The running-text resolver collisions themselves (`lookup_lemma_id`)
+are untouched; review sentences go through LLM mapping verification and are not
+affected. The sense check corrects the Snap display only.
+
 ## 2026-11-16: Pre-read checks each matched word's sense against the pages
 
 **Observation.** The first real batch (8 pages, Atatürk chapter) refreshed known words

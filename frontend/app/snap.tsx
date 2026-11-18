@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,10 +18,11 @@ import {
   snapDiscover,
   addDiscoveredWord,
   lookupSnapWord,
+  checkLookupSense,
   getSnapHistory,
   getSnapPage,
 } from "../lib/api";
-import type { DiscoverWord, SnapHistoryItem, SnapResult } from "../lib/types";
+import type { DiscoverWord, LookupSense, SnapHistoryItem, SnapResult } from "../lib/types";
 import {
   alignSentences,
   firstArabicToken,
@@ -54,7 +55,15 @@ function formatWhen(iso: string | null): string {
 
 type Token = { text: string; key: string; sentence: string; tappable: boolean };
 type Focus = { sentence: number; link: number | null; en?: number };
-type Lookup = { status: "loading" } | { status: "done"; word: DiscoverWord | null } | { status: "error" };
+// A word matched to a vocabulary entry is then checked against its sentence.
+type SenseState = { status: "checking" } | { status: "done"; sense: LookupSense } | { status: "error" };
+type Lookup =
+  | { status: "loading" }
+  | { status: "done"; word: DiscoverWord | null; sense?: SenseState }
+  | { status: "error" };
+
+// The sense check depends on the sentence, so a lookup is cached per token and sentence.
+const lookupKey = (t: { text: string; sentence: string }) => `${t.text}\u0000${t.sentence}`;
 
 const ARABIC_LETTER = /[\u0621-\u064A]/;
 // Words the learner already studies show their state instead of an Add button.
@@ -96,6 +105,8 @@ export default function SnapScreen() {
   // The last photo, so a failed page can be retried without retaking it.
   const [lastUri, setLastUri] = useState<string | null>(null);
   const [history, setHistory] = useState<SnapHistoryItem[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollToTop = () => scrollRef.current?.scrollTo({ y: 0, animated: false });
 
   async function refreshHistory() {
     try {
@@ -113,6 +124,7 @@ export default function SnapScreen() {
     setExpanded(new Set());
     setResult(page);
     rememberOpenPage(page);
+    scrollToTop();
   }
 
   // Restore the page that was open before a reload, then refresh it from the
@@ -172,7 +184,7 @@ export default function SnapScreen() {
   // lemma_ar_bare -> add state
   const [adds, setAdds] = useState<Record<string, AddState>>({});
   const [selected, setSelected] = useState<Token | null>(null);
-  // token text -> lookup result, so re-tapping a word is instant
+  // lookupKey(token) -> lookup result, so re-tapping a word is instant
   const [lookups, setLookups] = useState<Record<string, Lookup>>({});
   const paragraphs = useMemo(
     () => (result ? tokenizePage(result.arabic_text) : []),
@@ -207,7 +219,7 @@ export default function SnapScreen() {
 
   function openToken(t: Token) {
     setSelected(t);
-    const cached = lookups[t.text];
+    const cached = lookups[lookupKey(t)];
     if (cached && cached.status !== "error") return;
     fetchLookup(t);
   }
@@ -250,13 +262,33 @@ export default function SnapScreen() {
   }
 
   async function fetchLookup(t: Token) {
-    setLookups((p) => ({ ...p, [t.text]: { status: "loading" } }));
+    const key = lookupKey(t);
+    setLookups((p) => ({ ...p, [key]: { status: "loading" } }));
+    let word: DiscoverWord | null;
     try {
-      const word = await lookupSnapWord(t.text, t.sentence);
-      setLookups((p) => ({ ...p, [t.text]: { status: "done", word } }));
+      word = await lookupSnapWord(t.text, t.sentence);
     } catch {
-      setLookups((p) => ({ ...p, [t.text]: { status: "error" } }));
+      setLookups((p) => ({ ...p, [key]: { status: "error" } }));
+      return;
     }
+    // Entries from the vocabulary were matched without context; new words were
+    // already glossed against the sentence.
+    const lemmaId = word?.lemma_source === "database" && t.sentence ? word.lemma_id : null;
+    setLookups((p) => ({
+      ...p,
+      [key]: { status: "done", word, sense: lemmaId ? { status: "checking" } : undefined },
+    }));
+    if (!lemmaId) return;
+    let sense: SenseState;
+    try {
+      sense = { status: "done", sense: await checkLookupSense(lemmaId, t.text, t.sentence) };
+    } catch {
+      sense = { status: "error" };
+    }
+    setLookups((p) => {
+      const cur = p[key];
+      return cur?.status === "done" ? { ...p, [key]: { ...cur, sense } } : p;
+    });
   }
 
   async function runSnap(imageUri: string) {
@@ -328,6 +360,7 @@ export default function SnapScreen() {
   }
 
   function reset() {
+    scrollToTop();
     rememberOpenPage(null);
     refreshHistory();
     setResult(null);
@@ -342,11 +375,12 @@ export default function SnapScreen() {
     (s) => s === "added" || s === "known"
   ).length;
 
-  const selectedLookup = selected ? lookups[selected.text] : undefined;
+  const selectedLookup = selected ? lookups[lookupKey(selected)] : undefined;
 
   return (
     <View style={styles.screen}>
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, selected && styles.contentWithPanel]}
       keyboardShouldPersistTaps="handled"
@@ -595,10 +629,15 @@ function WordPanel({
   onRetry: () => void;
   onClose: () => void;
 }) {
-  const word = lookup?.status === "done" ? lookup.word : null;
-  const studied = word?.knowledge_state && STUDIED_STATES.has(word.knowledge_state);
-  // Names are not vocabulary; the backend refuses to add them.
-  const isName = !!word && (word.is_proper_noun || (word.pos || "").toLowerCase().startsWith("proper"));
+  const matched = lookup?.status === "done" ? lookup.word : null;
+  const sense = lookup?.status === "done" ? lookup.sense : undefined;
+  const verdict = sense?.status === "done" ? sense.sense : null;
+  // A different word: show the one the sentence uses, and the wrong match below it.
+  const replaced = verdict?.verdict === "different" && verdict.word ? matched : null;
+  let word = replaced ? verdict!.word! : matched;
+  if (word && verdict?.verdict === "broader" && verdict.gloss_en) {
+    word = { ...word, gloss_en: verdict.gloss_en };
+  }
   return (
     <View style={styles.panel}>
       <View style={styles.panelHeader}>
@@ -620,25 +659,67 @@ function WordPanel({
         <Text style={styles.panelMuted}>Function word or name</Text>
       )}
       {word && (
+        <WordRow
+          word={word}
+          name={verdict?.verdict === "name"}
+          unchecked={sense?.status === "checking"}
+          addState={addState(word)}
+          onAdd={() => onAdd(word!)}
+        />
+      )}
+      {sense?.status === "checking" && (
         <View style={styles.panelRow}>
-          <View style={styles.chipMain}>
-            <Text style={styles.chipArabic}>{word.lemma_ar}</Text>
-            <Text style={styles.chipGloss}>{word.gloss_en || "—"}</Text>
-            <View style={styles.chipBadges}>
-              {word.pos && <Badge text={word.pos} color={colors.textSecondary} />}
-              {word.register && word.register !== "neutral" && (
-                <Badge text={word.register} color={colors.confused} />
-              )}
-              {word.dialect && word.dialect !== "msa" && (
-                <Badge text={word.dialect} color={colors.listening} />
-              )}
-              {studied && <Badge text={word.knowledge_state!} color={colors.gotIt} />}
-              {isName && <Badge text="name" color={colors.stateEncountered} />}
-            </View>
-          </View>
-          {!studied && !isName && <AddButton state={addState(word)} onAdd={() => onAdd(word)} />}
+          <ActivityIndicator size="small" color={colors.textSecondary} />
+          <Text style={styles.panelNote}>Checking the meaning here…</Text>
         </View>
       )}
+      {verdict?.verdict === "broader" && verdict.written && (
+        <Text style={styles.panelNote}>Gloss widened (was: {verdict.gloss_from || "—"})</Text>
+      )}
+      {replaced && (
+        <Text style={styles.panelNote}>
+          Not {replaced.lemma_ar} “{replaced.gloss_en || "—"}”
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function WordRow({
+  word,
+  name,
+  unchecked,
+  addState,
+  onAdd,
+}: {
+  word: DiscoverWord;
+  name: boolean;
+  unchecked: boolean;
+  addState: AddState;
+  onAdd: () => void;
+}) {
+  const studied = word.knowledge_state && STUDIED_STATES.has(word.knowledge_state);
+  // Names are not vocabulary; the backend refuses to add them.
+  const isName =
+    name || word.is_proper_noun || (word.pos || "").toLowerCase().startsWith("proper");
+  return (
+    <View style={[styles.panelRow, unchecked && styles.unchecked]}>
+      <View style={styles.chipMain}>
+        <Text style={styles.chipArabic}>{word.lemma_ar}</Text>
+        <Text style={styles.chipGloss}>{word.gloss_en || "—"}</Text>
+        <View style={styles.chipBadges}>
+          {word.pos && <Badge text={word.pos} color={colors.textSecondary} />}
+          {word.register && word.register !== "neutral" && (
+            <Badge text={word.register} color={colors.confused} />
+          )}
+          {word.dialect && word.dialect !== "msa" && (
+            <Badge text={word.dialect} color={colors.listening} />
+          )}
+          {studied && <Badge text={word.knowledge_state!} color={colors.gotIt} />}
+          {isName && <Badge text="name" color={colors.stateEncountered} />}
+        </View>
+      </View>
+      {!studied && !isName && !unchecked && <AddButton state={addState} onAdd={onAdd} />}
     </View>
   );
 }
@@ -829,6 +910,8 @@ const styles = StyleSheet.create({
   panelSpinner: { marginVertical: 16 },
   panelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   panelMuted: { color: colors.textSecondary, fontSize: fonts.body, marginVertical: 8 },
+  panelNote: { color: colors.textSecondary, fontSize: fonts.small, marginTop: 6 },
+  unchecked: { opacity: 0.55 },
   arabicCard: {
     backgroundColor: colors.surfaceLight,
     borderRadius: 12,

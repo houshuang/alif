@@ -776,3 +776,83 @@ def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatc
     assert page["sentences"][0]["en"] == "The candidate won."
     assert page["words"][0]["knowledge_state"] == "acquiring"
     assert client.get("/api/discover/snaps/999999").status_code == 404
+
+
+def _stub_sense(monkeypatch, res):
+    from app.services import lookup_sense
+    from app.services.lookup_sense import validate_verdict
+
+    monkeypatch.setattr(
+        lookup_sense, "check_lookup_sense",
+        lambda sentence, surface, entry: validate_verdict(res, entry),
+    )
+
+
+def _lemma(db, ar, bare, gloss, pos, state=None):
+    lem = Lemma(lemma_ar=ar, lemma_ar_bare=bare, gloss_en=gloss, pos=pos, source="frequency_core")
+    db.add(lem)
+    db.flush()
+    if state:
+        db.add(UserLemmaKnowledge(lemma_id=lem.lemma_id, knowledge_state=state))
+    db.commit()
+    return lem
+
+
+def test_lookup_sense_broader_widens_gloss(client, db_session, monkeypatch):
+    lem = _lemma(db_session, "حِصَّة", "حصة", "class period", "noun", "known")
+    _stub_sense(monkeypatch, {"verdict": "broader", "gloss_en": "share, portion; class period"})
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": lem.lemma_id, "surface": "الحصة", "context": "كانت لها الحصة الأكبر في ابنها"})
+    body = r.json()
+    assert body["verdict"] == "broader" and body["written"] is True
+    db_session.refresh(lem)
+    assert lem.gloss_en == "share, portion; class period"
+
+
+def test_lookup_sense_broader_rejects_unrelated_rewrite(client, db_session, monkeypatch):
+    lem = _lemma(db_session, "حِصَّة", "حصة", "class period", "noun")
+    _stub_sense(monkeypatch, {"verdict": "broader", "gloss_en": "share"})
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": lem.lemma_id, "surface": "الحصة", "context": "x"})
+    assert r.json()["verdict"] is None
+    db_session.refresh(lem)
+    assert lem.gloss_en == "class period"
+
+
+def test_lookup_sense_different_proposes_new_word(client, db_session, monkeypatch):
+    lem = _lemma(db_session, "مَاضٍ", "ماض", "past", "adj", "known")
+    _stub_sense(monkeypatch, {"verdict": "different", "lemma_ar": "أَمْضَى",
+                              "gloss_en": "to spend (time)", "pos": "verb"})
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": lem.lemma_id, "surface": "أمضت", "context": "فقد أمضت ليالي"})
+    body = r.json()
+    assert body["verdict"] == "different"
+    assert body["word"]["lemma_id"] is None
+    assert body["word"]["lemma_ar"] == "أَمْضَى"
+    assert body["word"]["gloss_en"] == "to spend (time)"
+    db_session.refresh(lem)
+    assert lem.gloss_en == "past"  # the matched entry is left alone
+
+
+def test_lookup_sense_different_finds_existing_word(client, db_session, monkeypatch):
+    wrong = _lemma(db_session, "أَب", "اب", "father", "noun", "known")
+    son = _lemma(db_session, "اِبْن", "ابن", "son", "noun", "known")
+    _stub_sense(monkeypatch, {"verdict": "different", "lemma_ar": "اِبْن",
+                              "gloss_en": "son", "pos": "noun"})
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": wrong.lemma_id, "surface": "ابنها", "context": "في ابنها"})
+    word = r.json()["word"]
+    assert word["lemma_id"] == son.lemma_id
+    assert word["knowledge_state"] == "known"
+
+
+def test_lookup_sense_fits_and_failure(client, db_session, monkeypatch):
+    lem = _lemma(db_session, "وَقْت", "وقت", "time", "noun")
+    _stub_sense(monkeypatch, {"verdict": "fits"})
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": lem.lemma_id, "surface": "الوقت", "context": "الوقت"})
+    assert r.json() == {"verdict": "fits"}
+    _stub_sense(monkeypatch, None)
+    r = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": lem.lemma_id, "surface": "الوقت", "context": "الوقت"})
+    assert r.json() == {"verdict": None}
