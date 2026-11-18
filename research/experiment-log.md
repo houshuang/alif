@@ -114,6 +114,27 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Story import checks the words CAMeL guessed onto existing lemmas
+
+**Why.** `_import_unknown_words` linked every unknown story/book word whose CAMeL first
+analysis (or its clitic-stripped lex) hit an existing lemma, with no later check:
+`_verify_new_story_mappings` only covers newly created lemmas. On real book text this
+path is wrong ~57% of the time (`research/analysis-2026-11-18-resolver-collisions.md`;
+أمضت → ماضي "past", وزارة → زَارَ).
+
+**Change (`story_service._check_story_guesses`).** Same pattern as the textbook scan
+(#315). The guessed links go through one batched `preread_service.check_senses` call,
+with each word's ±4-token story context as the passage, after committing the caller's
+pending state and before any write. No mismatch → link; `broader` → link and widen the
+gloss (compare-and-set `regloss`, applied in the write phase; the StoryWord takes the
+widened gloss); `different` → the existing new-lemma path with the checked vocalized
+citation form and POS, no CAMeL root (enrichment assigns it), and dedup only by exact
+match on that form, never to the refused lemma; check failure → the word stays unlinked.
+Exact aliases and surface-aware hits upstream are unchanged. Callers: `import_story`,
+`generate_story`, `complete_book_page` (reader admission), `book_import_service` (OCR and
+processed-book imports), `scripts/backfill_story_words.py`; none relies on the old link.
+`book_import_service._resolve_unmapped_via_camel` (book sentences) is left as is: its
+links pass through `verify_and_correct_mappings_llm` before a sentence is reviewable.
 ## 2026-11-18: Snap start screen offers to swap a word added under the wrong entry
 
 **Why.** Since #311 every Snap and pre-read add keeps its sentence, and a background check

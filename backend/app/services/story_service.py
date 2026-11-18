@@ -356,6 +356,86 @@ def _create_story_words(
     return total, known, func
 
 
+def _check_story_guesses(
+    db: Session,
+    story: Story,
+    guessed_links: list[tuple[dict, int]],
+    resolved_updates: list[tuple[StoryWord, int, bool | None, bool]],
+    resolved_lemma_ids: set[int],
+    guess_reglosses: list[dict],
+) -> list[dict]:
+    """Decide the unknown story words that only a CAMeL guess linked.
+
+    One batched ``preread_service.check_senses`` call, with the story text
+    around each word as context. A fitting guess is queued in
+    ``resolved_updates``; a broader one too, with its widened gloss queued in
+    ``guess_reglosses`` (written compare-and-set in the write phase). Returns
+    the analyses of words the check found different, rewritten to the checked
+    citation form, for the new-word path. A failed check returns nothing and
+    queues nothing, so every guessed word stays unlinked. Commits first, so no
+    write lock is held across the call.
+    """
+    from app.services.preread_service import check_senses
+
+    lemmas = {
+        lem.lemma_id: lem
+        for lem in db.query(Lemma)
+        .filter(Lemma.lemma_id.in_({lid for _, lid in guessed_links}))
+        .all()
+    }
+    items = []
+    contexts = []
+    for index, (analysis, lid) in enumerate(guessed_links):
+        lem = lemmas.get(lid)
+        if lem is None:
+            continue
+        items.append({"index": index, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
+                      "pos": lem.pos, "forms": [analysis["surface"]]})
+        contexts.append(analysis["context"])
+    if not items:
+        return []
+    story_id = story.id
+    db.commit()  # write the caller's pending state before the LLM call
+    verdicts = check_senses(
+        "Passages from an Arabic story, each around one of the listed words:\n"
+        + "\n".join(contexts),
+        items,
+    )
+    if verdicts is None:
+        logger.warning(
+            "Story %d: guess check failed; leaving %d guessed words unlinked",
+            story_id, len(items),
+        )
+        return []
+    different: list[dict] = []
+    for item in items:
+        analysis, lid = guessed_links[item["index"]]
+        verdict = verdicts.get(item["index"])
+        if verdict is None or verdict["verdict"] == "broader":
+            resolved_updates.append((analysis["story_word"], lid, None, False))
+            resolved_lemma_ids.add(lid)
+            if verdict is not None:
+                guess_reglosses.append({
+                    "lemma_id": lid,
+                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"]},
+                })
+            continue
+        lex = verdict["lemma_ar"]
+        lex_bare = strip_diacritics(lex)
+        different.append({
+            **analysis,
+            "lex": lex,
+            "lex_bare": lex_bare,
+            "lex_norm": normalize_alef(lex_bare),
+            # CAMeL's root belongs to the refused analysis; enrichment
+            # assigns the right one in the quality gates.
+            "root": None,
+            "pos": verdict.get("pos") or analysis["pos"],
+            "refused_lemma_id": lid,
+        })
+    return different
+
+
 def _import_unknown_words(
     db: Session,
     story: Story,
@@ -375,6 +455,14 @@ def _import_unknown_words(
     Phase 1-2: Read DB + CAMeL analysis + all LLM calls (no DB writes)
     Phase 3: Batch DB writes (roots, lemmas, story word updates)
     Phase 4: Post-write LLM calls (variant detection, mapping verification)
+
+    A link that only CAMeL's analysis found (no exact or surface-aware match)
+    is a guess and is wrong more often than right on real book text
+    (أمضت → ماضي, وزارة → زَارَ). Every such guess is checked in one batched
+    ``preread_service.check_senses`` call against the story sentence around
+    the word: fits links; broader links and widens the stored gloss
+    (compare-and-set); different takes the new-word path with the checked
+    citation form; a failed check leaves the word unlinked.
 
     Returns list of newly created lemma_ids.
     """
@@ -443,10 +531,19 @@ def _import_unknown_words(
         }
         return glosses, known_ids
 
+    guess_reglosses: list[dict] = []
+
     def apply_deferred_resolutions(
         resolved_gloss_map: dict[int, str],
         resolved_known_ids: set[int],
     ) -> None:
+        if guess_reglosses:
+            from app.services.preread_service import regloss
+
+            regloss(db, guess_reglosses)
+            for word in guess_reglosses:
+                if word.get("reglossed"):
+                    resolved_gloss_map[word["lemma_id"]] = word["regloss"]["to"]
         for sw, lid, function_override, refresh_exact_metadata in resolved_updates:
             sw.lemma_id = lid
             sw.gloss_en = resolved_gloss_map.get(lid)
@@ -484,6 +581,7 @@ def _import_unknown_words(
     }
     # Deferred StoryWord updates for words resolved to existing lemmas.
     # Collected here, applied in Phase 3 to avoid dirtying the session early.
+    guessed_links: list[tuple[dict, int]] = []
 
     for sw in unknown_words:
         # Normalize Quranic orthography before CAMeL analysis:
@@ -499,11 +597,6 @@ def _import_unknown_words(
         # If CAMeL returned a cliticized form, try stripping prefixes
         if existing_id is None:
             existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
-        if existing_id:
-            # CAMeL resolved it to a known lemma — defer update to Phase 3
-            resolved_updates.append((sw, existing_id, None, False))
-            resolved_lemma_ids.add(existing_id)
-            continue
         token_index = story_word_index.get(sw.position, 0)
         context_start = max(0, token_index - 4)
         context_end = min(len(ordered_story_words), token_index + 5)
@@ -511,7 +604,7 @@ def _import_unknown_words(
             item.surface_form
             for item in ordered_story_words[context_start:context_end]
         )
-        word_analyses.append({
+        analysis = {
             "story_word": sw,
             "surface": sw.surface_form,
             "lex": features.get("lex", surface_normalized),
@@ -520,7 +613,18 @@ def _import_unknown_words(
             "root": features.get("root"),
             "pos": features.get("pos", "UNK"),
             "context": context,
-        })
+        }
+        if existing_id:
+            # Only CAMeL's analysis linked it: check before trusting it.
+            guessed_links.append((analysis, existing_id))
+            continue
+        word_analyses.append(analysis)
+
+    if guessed_links:
+        word_analyses.extend(
+            _check_story_guesses(db, story, guessed_links, resolved_updates,
+                                 resolved_lemma_ids, guess_reglosses)
+        )
 
     # Batch-load glosses for all resolved lemmas (avoids N+1 queries later)
     resolved_gloss_map: dict[int, str] = {}
@@ -749,9 +853,15 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         if root_str and is_valid_root(root_str):
             root_id = existing_roots.get(root_str)
 
-        # Dedup check: direct match or clitic-aware resolve
+        # Dedup check: direct match or clitic-aware resolve. A word whose
+        # CAMeL guess was checked and found different accepts only an exact
+        # match on its checked citation form, never the refused lemma.
         existing_id = lemma_lookup.get(lex_norm)
-        if existing_id is None:
+        refused_id = analysis.get("refused_lemma_id")
+        if refused_id is not None:
+            if existing_id == refused_id:
+                existing_id = None
+        elif existing_id is None:
             existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
         if existing_id is not None:
             sw.lemma_id = existing_id
