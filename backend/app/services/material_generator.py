@@ -706,6 +706,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             known_bare_forms=all_bare_forms,
             known_lemma_lookup=lemma_lookup,
             comprehensive_lemma_lookup=mapping_lookup,
+            target_lemma_id=target_lemma_id,
         )
         if not validation.valid:
             _log_pipeline(_log_dir, {
@@ -1225,6 +1226,7 @@ def batch_generate_material(
             known_bare_forms=all_bare_forms,
             known_lemma_lookup=lemma_lookup,
             comprehensive_lemma_lookup=mapping_lookup,
+            target_lemma_id=target_lemma_id,
         )
         if not validation.valid:
             _log_pipeline(_log_dir, {

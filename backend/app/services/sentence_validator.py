@@ -906,11 +906,75 @@ def _target_forms_for_bare(target_bare: str | None) -> set[str]:
     return forms
 
 
+def _target_inflections(
+    lemma_lookup: dict | None,
+    target_lemma_id: int | None,
+) -> frozenset[str]:
+    """The target verb's own inflections recorded by ``build_lemma_lookup``."""
+    if lemma_lookup is None or target_lemma_id is None:
+        return frozenset()
+    table = getattr(lemma_lookup, "target_inflection_forms", None)
+    if not table:
+        return frozenset()
+    return table.get(target_lemma_id, frozenset())
+
+
+def _surface_in_inflections(
+    surface_form: str,
+    inflections: frozenset[str],
+) -> bool:
+    """Whether the token, or its stem after clitics, is one of the forms.
+
+    A function-word surface (لِأَنَّنِي, كَانَتْ) never counts: generated
+    conjugations of mis-tagged particle rows would otherwise claim it.
+    """
+    if not inflections:
+        return False
+    bare = strip_punctuation(strip_tatweel(strip_diacritics(surface_form)))
+    if _is_function_word(bare):
+        return False
+    bare_norm = normalize_alef(bare)
+    if bare_norm in inflections:
+        return True
+    return any(
+        normalize_alef(stem) in inflections
+        for stem in _strip_clitics(bare_norm)
+    )
+
+
+def _inflection_identity_allows_target(
+    surface_form: str,
+    lemma_lookup: dict | None,
+    target_lemma_id: int | None,
+) -> bool:
+    """A conjugation match stands only if the resolver does not disagree.
+
+    Generated forms collide with other words (اِسْمِي "my name" is also the
+    1s present of سَمَّى); the resolver's own answer for the token wins.
+    """
+    if lemma_lookup is None or target_lemma_id is None:
+        return False
+    if not _surface_identity_allows_target(
+        surface_form,
+        lemma_lookup,
+        target_lemma_id,
+    ):
+        return False
+    resolved = lookup_lemma_id(surface_form, lemma_lookup)
+    return resolved is None or resolved == target_lemma_id
+
+
 def _surface_matches_target_bare(
     surface_form: str,
     target_bare: str | None,
+    inflections: frozenset[str] = frozenset(),
 ) -> bool:
-    """Check orthographic target shape without deciding lexical identity."""
+    """Check orthographic target shape without deciding lexical identity.
+
+    ``inflections`` are the target verb's own conjugations
+    (``verb_target_inflections``); a conjugated verb (كَنَسَتْ, اِسْتَحْيَتِ,
+    يَرْمُونَ) has the target's shape although its bare differs.
+    """
     target_forms = _target_forms_for_bare(target_bare)
     if not target_forms:
         return False
@@ -929,7 +993,7 @@ def _surface_matches_target_bare(
             or strip_tanwin_alif(stem_norm) in target_forms
         ):
             return True
-    return False
+    return _surface_in_inflections(surface_form, inflections)
 
 
 def _surface_identity_allows_target(
@@ -1020,6 +1084,7 @@ def refresh_target_mapping_flags(
                 else _surface_matches_target_bare(
                     mapping.surface_form,
                     target_bare,
+                    _target_inflections(lemma_lookup, target_id),
                 )
             )
             if not surface_identity_matches:
@@ -1146,6 +1211,11 @@ def map_tokens_to_lemmas(
         and bool(target_bare.strip())
     )
     target_forms = _target_forms_for_bare(target_bare) if target_enabled else set()
+    target_inflections = (
+        _target_inflections(lemma_lookup, target_lemma_id)
+        if target_enabled
+        else frozenset()
+    )
 
     result: list[TokenMapping] = []
     for i, token in enumerate(tokens):
@@ -1164,7 +1234,11 @@ def map_tokens_to_lemmas(
             (
                 alias.lemma_id == target_lemma_id
                 if alias.applicable
-                else _surface_matches_target_bare(token, target_bare)
+                else _surface_matches_target_bare(
+                    token,
+                    target_bare,
+                    target_inflections,
+                )
             )
         )
 
@@ -1263,7 +1337,8 @@ def map_tokens_to_lemmas(
             elif mapping.lemma_id is None and identity_allowed:
                 # Preserve the historical orthographic fallback for a target
                 # absent from derived lookup forms (for example a final-weak
-                # ا/ى surface alternation). Identity-sensitive forms are
+                # ا/ى surface alternation or a jussive such as لَمْ يَرْمِ,
+                # which only the target's own inflections know). Identity-sensitive forms are
                 # rejected by ``_surface_identity_allows_target`` above.
                 mapping.lemma_id = target_lemma_id
                 mapping.is_target = True
@@ -2777,6 +2852,11 @@ class LemmaLookupDict(dict):
         self.required_exact_running_text_aliases: set[str] = set(
             EXACT_RUNNING_TEXT_ALIAS_IDENTITIES
         )
+        # verb lemma_id → normalized bare inflections of that verb alone
+        # (stored conjugations, generated conjugations, final-weak stem
+        # alternations). Used only to recognise the target word's own
+        # surface; never registered as lookup keys.
+        self.target_inflection_forms: dict[int, frozenset[str]] = {}
 
     def set_if_new(
         self,
@@ -2939,6 +3019,89 @@ def _generate_verb_conjugations(
 
     # Filter: discard forms shorter than 2 chars (noise from short roots)
     return {f for f in forms if len(f) >= 2}
+
+
+_VERB_INFLECTION_KEY_PREFIXES = ("present", "past", "imperative")
+_WEAK_PRESENT_FINALS = "يوى"
+
+
+def _final_weak_verb_forms(
+    past_bare: str,
+    stored: dict[str, str],
+) -> set[str]:
+    """Stem alternations of a final-weak verb that suffixing cannot produce.
+
+    The weak final letter drops before most suffixes and in the jussive:
+    رَمَى → رَمَتْ / رَمَوْا, يَرْمِي → لَمْ يَرْمِ / يَرْمُونَ / تَرْمِينَ; دَعَا →
+    دَعَتْ / دَعَوْا, يَدْعُو → يَدْعُونَ; بَقِيَ → بَقُوا, يَبْقَى → يَبْقَوْنَ.
+    Whether the verb is final-weak is read from its stored present, not from
+    the citation bare: alef normalization makes بَدَأَ look like بَدَا.
+    """
+    present = stored.get("present")
+    if not (
+        present
+        and len(present) >= 4
+        and present[0] in "يتان"
+        and present[-1] in _WEAK_PRESENT_FINALS
+    ):
+        return set()
+    forms: set[str] = set()
+    if len(past_bare) >= 3 and past_bare[-1] in "ىاي":
+        stem = past_bare[:-1]
+        forms.add(stem + "وا")  # 3mp رَمَوْا / بَقُوا
+        if past_bare[-1] in "ىا":
+            forms.update({stem + "ت", stem + "تا"})  # 3fs / 3fd رَمَتْ
+    past_3fs = stored.get("past_3fs")
+    if past_3fs and len(past_3fs) >= 3:
+        forms.add(past_3fs + "ا")  # 3fd رَمَتَا
+    short = present[1:-1]
+    for prefix in _PRESENT_PREFIXES:
+        forms.add(prefix + short)  # jussive / imperative stem لَمْ يَرْمِ
+        for suffix in ("ون", "وا", "ين"):
+            forms.add(prefix + short + suffix)
+    return forms
+
+
+def verb_target_inflections(
+    lemma_ar_bare: str | None,
+    forms_json: dict | None,
+) -> frozenset[str]:
+    """Normalized bare surfaces that are inflections of this verb itself.
+
+    Built from the verb's stored conjugations (``present``, ``past_*``,
+    ``imperative``), the regular conjugations generated from them, and the
+    final-weak stem alternations. Masdars and participles are separate
+    lemmas and are excluded. Forms under three letters are dropped: they
+    collide too easily with unrelated words.
+    """
+    if not isinstance(forms_json, dict) or not lemma_ar_bare:
+        return frozenset()
+    stored: dict[str, str] = {}
+    for key, value in forms_json.items():
+        if not isinstance(key, str) or not key.startswith(
+            _VERB_INFLECTION_KEY_PREFIXES
+        ):
+            continue
+        if not isinstance(value, str) or not value.strip():
+            continue
+        bare = normalize_alef(
+            strip_punctuation(strip_tatweel(strip_diacritics(value.strip())))
+        )
+        if bare:
+            stored[key] = bare
+    if not stored:
+        return frozenset()
+    past_bare = normalize_arabic(lemma_ar_bare)
+    forms = set(stored.values())
+    present = stored.get("present")
+    if present:
+        forms |= _generate_verb_conjugations(
+            past_bare,
+            present,
+            stored.get("past_1s"),
+        )
+    forms |= _final_weak_verb_forms(past_bare, stored)
+    return frozenset(f for f in forms if len(f) >= 3)
 
 
 def _generate_noun_inflections(bare: str) -> set[str]:
@@ -3176,8 +3339,16 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                         source=MATCH_LAYER_GENERATED,
                     )
 
-        # Noun/adjective inflections: sound plurals + dual
         pos = getattr(lem, "pos", None)
+        if pos in _VERB_POS and forms and isinstance(forms, dict):
+            target_forms = verb_target_inflections(
+                getattr(lem, "lemma_ar_bare", None),
+                forms,
+            )
+            if target_forms:
+                lookup.target_inflection_forms[lem.lemma_id] = target_forms
+
+        # Noun/adjective inflections: sound plurals + dual
         if pos in ("noun", "adjective", None):
             bare = normalize_arabic(lem.lemma_ar_bare)
             inflections = _generate_noun_inflections(bare)
@@ -4676,6 +4847,14 @@ def validate_sentence_multi_target(
                 target_form_map[variant[2:]] = bare
 
     targets_found: dict[str, bool] = {bare: False for bare in target_bares}
+    identity_lookup = comprehensive_lemma_lookup or known_lemma_lookup
+    target_inflections_by_bare = {
+        bare: (
+            _target_inflections(comprehensive_lemma_lookup, target_id)
+            or _target_inflections(known_lemma_lookup, target_id)
+        )
+        for bare, target_id in target_bares.items()
+    }
     unknown_words: list[str] = []
     known_words: list[str] = []
     function_words: list[str] = []
@@ -4718,6 +4897,19 @@ def validate_sentence_multi_target(
                     matched_target = target_form_map.get(stem_sans)
                     if matched_target:
                         break
+
+        if not matched_target and not alias.applicable:
+            for target_bare, target_id in target_bares.items():
+                if _surface_in_inflections(
+                    token,
+                    target_inflections_by_bare.get(target_bare, frozenset()),
+                ) and _inflection_identity_allows_target(
+                    token,
+                    identity_lookup,
+                    target_id,
+                ):
+                    matched_target = target_bare
+                    break
 
         if matched_target:
             targets_found[matched_target] = True
@@ -4817,6 +5009,7 @@ def validate_sentence(
     known_bare_forms: set[str],
     known_lemma_lookup: dict | None = None,
     comprehensive_lemma_lookup: dict | None = None,
+    target_lemma_id: int | None = None,
 ) -> ValidationResult:
     """Validate that a sentence uses known words + exactly 1 target word.
 
@@ -4837,6 +5030,11 @@ def validate_sentence(
             but resolvable via comprehensive is accepted (it maps to a real
             lemma the user just doesn't know yet — downstream naturalness
             gates catch forced combinations).
+        target_lemma_id: Optional target lemma. When given and the lookup
+            recorded the verb's own inflections (``target_inflection_forms``),
+            a conjugated target (كَنَسَتْ, اِسْتَحْيَتِ, يَرْمُونَ) counts as the
+            target, provided the resolver does not map that token to another
+            lemma.
 
     Returns:
         ValidationResult with word classifications and validity.
@@ -4863,6 +5061,10 @@ def validate_sentence(
         2026-05-03 investigation found the latter dominated. The
         word-final ا ↔ ى variant added 2026-05-20 is orthographic, not
         morphological, and mirrors ``build_lemma_lookup`` Pass 1b.
+           Since 2026-11-18 a verb target also matches its own conjugations
+        (``verb_target_inflections``: stored forms, regular conjugations and
+        final-weak stem alternations). Only the target lemma's inflections
+        count, so related-root words still fail.
     """
     tokens = tokenize(arabic_text)
     if not tokens:
@@ -4875,6 +5077,11 @@ def validate_sentence(
     # Normalize the known set for comparison
     known_normalized = {normalize_alef(w) for w in known_bare_forms}
     target_normalized = normalize_alef(target_bare)
+    identity_lookup = comprehensive_lemma_lookup or known_lemma_lookup
+    target_inflections = _target_inflections(
+        comprehensive_lemma_lookup,
+        target_lemma_id,
+    ) or _target_inflections(known_lemma_lookup, target_lemma_id)
 
     classifications: list[WordClassification] = []
     unknown_words: list[str] = []
@@ -4932,6 +5139,16 @@ def validate_sentence(
                 if stem_sans != stem_norm and stem_sans in target_forms:
                     is_target = True
                     break
+        if (
+            not is_target
+            and not alias.applicable
+            and _surface_in_inflections(token, target_inflections)
+        ):
+            is_target = _inflection_identity_allows_target(
+                token,
+                identity_lookup,
+                target_lemma_id,
+            )
 
         if is_target:
             classifications.append(
