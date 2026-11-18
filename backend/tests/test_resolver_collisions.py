@@ -49,13 +49,19 @@ def _lemma(lemma_id, lemma_ar, bare, pos="noun", forms=None):
     )
 
 
-def _camel_says(monkeypatch, answers):
-    """Make CAMeL return ``answers[word]`` (a lemma id) and nothing else."""
+def _camel_says(monkeypatch, answers, lex_keys=None):
+    """Make CAMeL return ``answers[word]`` (a lemma id) and nothing else.
+
+    ``lex_keys[word]`` is the lookup key of the headword behind that answer.
+    """
 
     def fake(word, _lookup):
         return answers.get(word)
 
     monkeypatch.setattr(sv, "_camel_disambiguate", fake)
+    monkeypatch.setattr(
+        sv, "_camel_lex_key", lambda word, _lookup: (lex_keys or {}).get(word)
+    )
 
 
 def _resolve(surface, lookup):
@@ -89,6 +95,48 @@ class TestFixture:
             row["after_layer"] == MATCH_LAYER_CAMEL
             for row in wrong
             if row["mechanism"].startswith("M3")
+        )
+
+    def test_homograph_round(self):
+        """Second measurement, after the collision chooser."""
+        rows = json.loads(FIXTURE.read_text(encoding="utf-8"))["rows"]
+        wrong = [row for row in rows if row["verdict"] == "different"]
+        changed = {
+            row["surface"]: row["homograph_round"]
+            for row in rows
+            if "homograph_round" in row
+        }
+
+        def now(row):
+            return changed.get(row["surface"], {}).get("after_lemma_id")
+
+        fixed = {
+            row["surface"]
+            for row in wrong
+            if "homograph_round" in row
+            and now(row) == row.get("word_in_text_lemma_id_now")
+            and row["homograph_round"]["before_lemma_id"] != now(row)
+        }
+        assert fixed == {"خرّج", "والنقل", "لأمر", "ويبدو"}
+        assert {
+            surface
+            for surface, entry in changed.items()
+            if entry["homograph_tie"]
+            and surface in {row["surface"] for row in wrong}
+            and entry["after_lemma_id"]
+            != next(
+                row.get("word_in_text_lemma_id_now")
+                for row in wrong
+                if row["surface"] == surface
+            )
+        } == {"دار", "كاتب", "ظلّ", "خصمه", "ترويها", "أدري", "والقدر"}
+        # No row the sense check accepted moved to another lemma.
+        assert all(
+            entry["before_lemma_id"] == entry["after_lemma_id"]
+            for row in rows
+            if row["verdict"] != "different"
+            for entry in [row.get("homograph_round")]
+            if entry
         )
 
 
@@ -290,8 +338,10 @@ class TestCollisionStems:
         )
         _camel_says(monkeypatch, {})
         lemma_id, provenance = _resolve("لأمر", lookup)
-        assert lemma_id == 1185
-        assert provenance.alternatives == [2501]
+        # The text writes أ, which آمَرَ is not spelled with.
+        assert lemma_id == 2501
+        assert provenance.alternatives == [1185]
+        assert provenance.decided_by == "hamza"
 
     def test_map_tokens_carries_alternatives_and_layer(self, monkeypatch):
         lookup = build_lemma_lookup(
@@ -302,7 +352,8 @@ class TestCollisionStems:
         )
         _camel_says(monkeypatch, {"وزارة": 2501})
         mappings = map_tokens_to_lemmas(["لأمر", "وزارة"], lookup, 0, "")
-        assert mappings[0].alternative_lemma_ids == [2501]
+        assert mappings[0].lemma_id == 2501
+        assert mappings[0].alternative_lemma_ids == [1185]
         assert mappings[0].match_layer == MATCH_LAYER_CLITIC
         assert not mappings[0].via_camel
         assert mappings[1].lemma_id == 2501
@@ -536,3 +587,229 @@ class TestStrictFallback:
             == 1
         )
         assert ocr_service._lookup_vocabulary_match(None, "وزيرا", lookup) is None
+
+
+class TestHomographChoice:
+    """M4 / M6a: lemmas that share one bare key (Form I / II verbs, a noun and
+    its verb). The first-registered row used to take every surface."""
+
+    @pytest.fixture
+    def lookup(self):
+        return build_lemma_lookup(
+            [
+                _lemma(1185, "آمَرَ", "امر", pos="verb"),
+                _lemma(2501, "أَمْر", "امر"),
+                _lemma(
+                    4600, "أَمَرَ", "امر", pos="verb",
+                    forms={"present": "يَأْمُرُ", "masdar": "أَمْر"},
+                ),
+                _lemma(
+                    2205, "خَرَجَ", "خرج", pos="verb",
+                    forms={"present": "يَخْرُجُ", "past_3p": "خَرَجُوا"},
+                ),
+                _lemma(
+                    4861, "خَرَّجَ", "خرج", pos="verb",
+                    forms={"present": "يُخَرِّجُ", "past_3p": "خَرَّجُوا"},
+                ),
+                _lemma(
+                    4339, "نَقَلَ", "نقل", pos="verb",
+                    forms={"present": "يَنْقُلُ", "masdar": "نَقْل"},
+                ),
+                _lemma(4612, "نَقْل", "نقل"),
+                _lemma(1206, "دَارَ", "دار", pos="verb"),
+                _lemma(4856, "دَار", "دار"),
+                _lemma(
+                    881, "شَعَرَ", "شعر", pos="verb",
+                    forms={"present": "يَشْعُرُ", "masdar": "شُعُور"},
+                ),
+                _lemma(4573, "شَعْر", "شعر", forms={"plural": "شُعُور"}),
+                _lemma(272, "عَمَل", "عمل", pos="verb"),
+                _lemma(1804, "تَعْمَل", "تعمل", forms={"masdar": "عَمَل"}),
+                _lemma(700, "شَمَّسَ", "شمس", pos="verb"),
+                _lemma(701, "شَمْس", "شمس"),
+            ]
+        )
+
+    def test_printed_shadda_picks_form_two(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        lemma_id, provenance = _resolve("خرّج", lookup)
+        assert lemma_id == 4861
+        assert provenance.decided_by == "vocalization"
+        assert provenance.alternatives == [2205]
+        assert not provenance.homograph_tie
+
+    def test_full_vocalization_picks_each_form(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        assert _resolve("خَرَجَ", lookup)[0] == 2205
+        assert _resolve("خَرَّجَ", lookup)[0] == 4861
+        assert _resolve("خَرَجُوا", lookup)[0] == 2205
+        assert _resolve("خَرَّجُوا", lookup)[0] == 4861
+        # A present form under another prefix letter, and behind a clitic.
+        assert _resolve("تَخْرُجُ", lookup)[0] == 2205
+        assert _resolve("نُخَرِّجُ", lookup)[0] == 4861
+        assert _resolve("وَخَرَّجَهُ", lookup)[0] == 4861
+
+    def test_bare_homograph_is_a_tie_not_a_guess(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        lemma_id, provenance = _resolve("خرج", lookup)
+        assert lemma_id == 2205
+        assert provenance.homograph_tie
+        assert provenance.decided_by is None
+        assert not provenance.is_guess
+        assert provenance.alternatives == [4861]
+
+    def test_marks_that_fit_nobody_decide_nothing(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        # Passive يُخْرَجُ is in neither row's stored spellings.
+        lemma_id, provenance = _resolve("يُخْرَجُ", lookup)
+        assert lemma_id == 2205
+        assert provenance.decided_by is None
+
+    def test_article_rules_out_the_verb(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        for surface in ("والنقل", "النقل", "بالنقل", "للنقل", "بنقل"):
+            lemma_id, provenance = _resolve(surface, lookup)
+            assert lemma_id == 4612, surface
+            assert provenance.decided_by == "prefix", surface
+            assert provenance.alternatives == [4339], surface
+        lemma_id, provenance = _resolve("ونقل", lookup)
+        assert lemma_id == 4339
+        assert provenance.homograph_tie
+
+    def test_camel_naming_the_key_agrees_with_the_chosen_sibling(
+        self, lookup, monkeypatch
+    ):
+        # CAMeL's headword نقل is the bare key: its owner is the verb.
+        _camel_says(monkeypatch, {"والنقل": 4339}, {"والنقل": "نقل"})
+        assert _resolve("والنقل", lookup)[0] == 4612
+
+    def test_hamza_then_lam_prefix(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        lemma_id, provenance = _resolve("لأمر", lookup)
+        assert lemma_id == 2501
+        assert provenance.decided_by == "hamza+prefix"
+        assert set(provenance.alternatives) == {1185, 4600}
+        # Vocalized, the verb is recognised; آمَرَ never is.
+        assert _resolve("أَمَرَ", lookup)[0] == 4600
+        assert _resolve("فَأَمَرَ", lookup)[0] == 4600
+        assert _resolve("الأَمْرُ", lookup)[0] == 2501
+        assert _resolve("آمَرَ", lookup)[0] == 1185
+
+    def test_case_ending_rules_out_the_past_verb(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        assert _resolve("دارٌ", lookup)[0] == 4856
+        assert _resolve("دَارُ", lookup)[0] == 4856
+        assert _resolve("دَارَ", lookup)[0] == 1206
+        lemma_id, provenance = _resolve("دار", lookup)
+        assert lemma_id == 1206
+        assert provenance.homograph_tie
+
+    def test_verb_row_keeps_its_masdar(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        # شُعُور is the verb's masdar and another noun's plural: the article
+        # does not move it to the other noun.
+        assert _resolve("الشعور", lookup)[0] == 881
+
+    def test_prefix_does_not_promote_a_lower_ranked_row(
+        self, lookup, monkeypatch
+    ):
+        _camel_says(monkeypatch, {})
+        # عَمَل is labelled a verb; the other row only lists عمل as a form.
+        assert _resolve("العمل", lookup)[0] == 272
+
+    def test_assimilated_article_shadda_is_not_a_stem_shadda(
+        self, lookup, monkeypatch
+    ):
+        _camel_says(monkeypatch, {})
+        assert _resolve("الشَّمْسُ", lookup)[0] == 701
+        assert _resolve("شَمَّسَ", lookup)[0] == 700
+
+    def test_map_tokens_flags_the_tie_for_the_verifier(self, lookup, monkeypatch):
+        _camel_says(monkeypatch, {})
+        tie, decided = map_tokens_to_lemmas(["خرج", "خَرَّجَ"], lookup, 0, "")
+        assert tie.homograph_tie and tie.alternative_lemma_ids == [4861]
+        assert "homograph" in _mapping_provenance_tag(tie)
+        assert decided.lemma_id == 4861 and not decided.homograph_tie
+        assert _mapping_provenance_tag(decided) == ""
+
+    def test_unvocalized_lookup_without_surface_still_works(self, lookup):
+        # Callers that only have a bare form (textbook scan) pass no surface.
+        provenance = LemmaMatchProvenance()
+        assert lookup_lemma("خرج", lookup, out_provenance=provenance) == 2205
+        assert provenance.homograph_tie
+
+
+class TestHamzaSpellings:
+    def test_form_spelling_decides_a_direct_collision(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(
+                    775, "سَالَ", "سال", pos="verb",
+                    forms={"present": "يَسِيلُ", "past_3fs": "سَالَتْ"},
+                ),
+                _lemma(
+                    391, "سَأَلَ", "سال", pos="verb",
+                    forms={"present": "يَسْأَلُ", "past_1s": "سَأَلْتُ"},
+                ),
+            ]
+        )
+        _camel_says(monkeypatch, {})
+        lemma_id, provenance = _resolve("سألت", lookup)
+        assert lemma_id == 391
+        assert provenance.decided_by == "hamza"
+        assert _resolve("سالت", lookup)[0] == 775
+
+    def test_generated_form_of_a_hamzaless_verb_is_ruled_out(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(4855, "بَدَا", "بدا", pos="verb", forms={"present": "يَبْدُو"}),
+                _lemma(402, "بَدَأَ", "بدا", pos="verb", forms={"present": "يَبْدَأُ"}),
+            ]
+        )
+        _camel_says(monkeypatch, {})
+        # Both rows generate the key بدات; only بَدَأَ has a hamza to write.
+        assert _resolve("بدأت", lookup)[0] == 402
+
+    def test_ya_variant_owner_loses_to_the_written_spelling(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(4769, "أَبَى", "ابى", pos="verb"),
+                _lemma(158, "أَب", "اب", forms={"construct": "أَبِي"}),
+            ]
+        )
+        _camel_says(monkeypatch, {})
+        assert _resolve("أَبِي", lookup)[0] == 158
+
+    def test_strict_camel_returns_the_lemma_whose_spelling_matched(
+        self, monkeypatch
+    ):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(465, "أَمام", "امام", pos="prep"),
+                _lemma(624, "إِمَام", "امام"),
+            ]
+        )
+        monkeypatch.setattr(
+            "app.services.morphology.analyze_word_camel",
+            lambda _word: [{"lex": "إِمام", "pos": "noun"}],
+        )
+        assert sv._camel_headword_match("وإماما", lookup) == 624
+
+
+class TestCliticParsesAndVowels:
+    def test_parse_the_vowels_contradict_is_dropped(self, monkeypatch):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(
+                    2519, "أَكَلَ", "اكل", pos="verb",
+                    forms={"present": "يَأْكُلُ", "past_1s": "أَكَلْتُ"},
+                ),
+                _lemma(324, "أَكْلَة", "اكلة"),
+            ]
+        )
+        _camel_says(monkeypatch, {"أكلته": 324, "اكلته": 324})
+        lemma_id, provenance = _resolve("أَكَلْتُهُ", lookup)
+        assert lemma_id == 2519
+        assert 324 in provenance.alternatives
+        # Unvocalized, both parses stand and CAMeL chooses, as before.
+        assert _resolve("أكلته", lookup)[0] == 324

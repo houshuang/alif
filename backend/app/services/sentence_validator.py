@@ -12,6 +12,7 @@ import logging as _logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 _validator_logger = _logging.getLogger(__name__)
 
@@ -639,16 +640,18 @@ def _strip_clitics(bare_form: str) -> list[str]:
     Handles taa marbuta: ة→ت before suffixes (e.g. مدرسته → مدرسة + ه).
     Also tries ال removal on the remaining stem.
     """
-    candidates: set[str] = set()
+    # Insertion-ordered: callers fall back to the first stem, and a set's
+    # order changes from one process to the next.
+    candidates: dict[str, None] = {}
 
     def _add_with_al_variants(stem: str) -> None:
         if len(stem) < 2:
             return
-        candidates.add(stem)
+        candidates[stem] = None
         if stem.startswith("ال") and len(stem) > 2:
-            candidates.add(stem[2:])
+            candidates[stem[2:]] = None
         else:
-            candidates.add("ال" + stem)
+            candidates["ال" + stem] = None
 
     def _strip_suffix(stem: str) -> list[str]:
         results = [stem]
@@ -672,7 +675,7 @@ def _strip_clitics(bare_form: str) -> list[str]:
             for stem in _strip_suffix(after_pre):
                 _add_with_al_variants(stem)
 
-    candidates.discard(bare_form)
+    candidates.pop(bare_form, None)
     return list(candidates)
 
 
@@ -736,6 +739,9 @@ class TokenMapping:
     # out-of-vocabulary words. Verifiers are told; unverified writers skip it.
     via_camel: bool = False
     match_layer: str | None = None
+    # Several vocabulary words share this spelling at the same rank and the
+    # token itself did not tell them apart (see LemmaMatchProvenance).
+    homograph_tie: bool = False
 
 
 # Deciding layer of a running-text match, most to least trustworthy.
@@ -762,6 +768,14 @@ class LemmaMatchProvenance:
     layer: str | None = None
     key_source: str | None = None
     alternatives: list[int] = field(default_factory=list)
+    # Evidence that chose this lemma over others sharing the key
+    # (``hamza``, ``vocalization``, ``prefix``, joined by ``+``), or None.
+    decided_by: str | None = None
+    # Several distinct lemmas own this spelling at the same rank and nothing
+    # in the word told them apart: the answer is only the first-registered
+    # one. The siblings are in ``alternatives``. Not ``is_guess``: the word is
+    # in the vocabulary, so it must not take a caller's new-word path.
+    homograph_tie: bool = False
 
     @property
     def is_guess(self) -> bool:
@@ -1207,6 +1221,7 @@ def map_tokens_to_lemmas(
                     out_alternatives=alternatives,
                     out_via_clitic=clitic_flag,
                     out_provenance=provenance,
+                    surface_form=token,
                 )
                 # Deduplicate and exclude winner
                 alts = list(
@@ -1226,6 +1241,7 @@ def map_tokens_to_lemmas(
                     via_clitic=clitic_flag[0],
                     via_camel=provenance.is_guess,
                     match_layer=provenance.layer,
+                    homograph_tie=provenance.homograph_tie,
                 )
 
         if surface_matches_target:
@@ -1457,6 +1473,510 @@ def lookup_lemma_direct(
     return None
 
 
+_SHADDA = "ّ"
+_VOWEL_MARKS = frozenset("ًٌٍَُِْ")
+_TANWIN_MARKS = frozenset("ًٌٍ")
+_VERB_POS = frozenset({"verb", "v"})
+_GENERATED_COLLISION_PREFIXES = ("conj:", "infl:")
+# Proclitics that only a noun takes. لـ also precedes a present-tense verb, so
+# it only rules out a verb's bare past form (لِأَمْرٍ is not لـ + أَمَرَ).
+_NOMINAL_ONLY_PREFIXES = frozenset({"ب", "ك", "وب", "وك", "فب", "فك"})
+_LAM_PREFIXES = frozenset({"ل", "ول", "فل"})
+_HAMZA_LETTERS = frozenset("أإآؤئء")
+_OTHER_FINAL_LETTER = "final ى/ي"
+_FINITE_FORM_KINDS = ("past", "present", "imperative")
+_SOURCE_RANK = {
+    MATCH_LAYER_FUNCTION: 0,
+    MATCH_LAYER_LEMMA: 0,
+    MATCH_LAYER_FORMS: 1,
+    MATCH_LAYER_GENERATED: 2,
+}
+
+Letters = list[tuple[str, frozenset[str]]]
+
+
+def _vocalized_letters(text: str | None) -> Letters:
+    """Split a spelling into ``(alef-normalized letter, its marks)`` pairs.
+
+    Only shadda, the short vowels, sukun and tanwin are kept as marks.
+    """
+    letters: list[tuple[str, set[str]]] = []
+    for ch in strip_punctuation(strip_tatweel(text or "")):
+        if ARABIC_DIACRITICS.match(ch):
+            if letters and (ch == _SHADDA or ch in _VOWEL_MARKS):
+                letters[-1][1].add(ch)
+        elif not ch.isspace():
+            letters.append((normalize_alef(ch), set()))
+    return [(letter, frozenset(marks)) for letter, marks in letters]
+
+
+@lru_cache(maxsize=65536)
+def _reference_letters(spelling: str) -> tuple[tuple[str, frozenset[str]], ...]:
+    return tuple(_vocalized_letters(spelling))
+
+
+def _skeleton(letters: Letters) -> str:
+    return "".join(letter for letter, _ in letters)
+
+
+def _without_article(text: str) -> str:
+    return text[2:] if text.startswith("ال") and len(text) > 2 else text
+
+
+def _final_ya(text: str) -> str:
+    return text[:-1] + "ي" if text.endswith("ى") else text
+
+
+def _count_mark_conflicts(
+    surface: Letters,
+    reference: Letters,
+    *,
+    check_last_vowel: bool,
+) -> tuple[int, int]:
+    """Compare the marks two aligned spellings both write.
+
+    A letter only counts where both sides marked it, so partial vocalization
+    (book print's lone shadda) never conflicts with a full one. The last
+    letter's vowel is a case or mood ending unless the caller knows the
+    reference's ending is fixed. A shadda on the first letter may be the
+    article's assimilation (الشَّمْس) and is ignored.
+    """
+    conflicts = agreements = 0
+    last = len(reference) - 1
+    for index, ((_, s_marks), (_, r_marks)) in enumerate(zip(surface, reference)):
+        s_shadda, r_shadda = _SHADDA in s_marks, _SHADDA in r_marks
+        if index > 0:
+            if s_shadda and r_shadda:
+                agreements += 1
+            elif s_shadda != r_shadda and s_marks and r_marks:
+                conflicts += 1
+        s_vowel, r_vowel = s_marks & _VOWEL_MARKS, r_marks & _VOWEL_MARKS
+        if index == last and not (
+            # A past verb's own final fatha: a damma, kasra or tanwin there
+            # is a noun's case ending (دارٌ is not دَارَ). A sukun is not
+            # evidence (pause, or a suffix joined on).
+            check_last_vowel
+            and r_vowel == {"\u064e"}
+            and "\u0652" not in s_vowel
+        ):
+            continue
+        if s_vowel and r_vowel:
+            if s_vowel == r_vowel:
+                agreements += 1
+            else:
+                conflicts += 1
+    return conflicts, agreements
+
+
+def _vocalization_verdict(
+    region: Letters,
+    lemma_id: int,
+    lemma_lookup: dict[str, int],
+    *,
+    first_letter_shared: bool = False,
+) -> bool | None:
+    """Whether the written marks fit one lemma's stored spellings.
+
+    True: its closest stored spelling has no conflicting mark. False: it has
+    one (خرّج against خَرَجَ, نَقْلُ against نَقَلَ). None: no stored spelling of
+    this lemma lines up with the word, so there is no evidence either way.
+
+    ``first_letter_shared``: the stem's first ل is also the article's
+    (لِلْقَاءِ writes لـ + ال + لقاء with two lams), so its marks are the
+    article's, not the stem's.
+    """
+    if first_letter_shared and region:
+        region = [(region[0][0], frozenset())] + region[1:]
+    skeleton = _final_ya(_skeleton(region))
+    is_verb = (
+        getattr(lemma_lookup, "lemma_pos", None) or {}
+    ).get(lemma_id) in _VERB_POS
+    starts = [0]
+    if skeleton.startswith("ال") and len(skeleton) > 3:
+        starts.append(2)
+    best: tuple[int, int, int] | None = None
+    spellings = (getattr(lemma_lookup, "lemma_vocalized", None) or {}).get(
+        lemma_id, ()
+    )
+    for kind, spelling in spellings:
+        reference = _reference_letters(spelling)
+        if not any(marks for _, marks in reference):
+            continue
+        ref_skeleton = _skeleton(reference)
+        fixed_ending = is_verb and kind == "lemma"
+        # (reference letters, leading letters that are a swappable prefix)
+        variants = [(reference, 0)]
+        if ref_skeleton.startswith("ال") and len(reference) > 3:
+            variants.append((reference[2:], 0))
+        if ref_skeleton.endswith("ة") and len(reference) > 2:
+            # معلمة lines up with معلمات / معلمتي up to the ة.
+            variants.append((reference[:-1], 0))
+        if is_verb and kind.startswith("present") and len(reference) > 2:
+            # يَحْمِلُ also describes تحمل / نحمل / أحمل: same stem and the
+            # same prefix vowel under another prefix letter.
+            variants.append((reference, 1))
+        for letters, lead in variants:
+            # A final ى is written ي before a suffix (مَشَى, مَشَيْتُ).
+            tail = _final_ya(_skeleton(letters)[lead:])
+            if len(tail) < 2:
+                continue
+            for start in ([1] if lead else starts):
+                if skeleton[start:start + len(tail)] != tail:
+                    continue
+                end = start + len(tail)
+                conflicts, agreements = _count_mark_conflicts(
+                    region[start - lead:end],
+                    letters,
+                    check_last_vowel=fixed_ending and end == len(region),
+                )
+                score = (len(letters), -conflicts, agreements)
+                if best is None or score > best:
+                    best = score
+    if best is None:
+        return None
+    if best[1]:
+        return False
+    # No mark in common is no evidence, not a fit.
+    return True if best[2] else None
+
+
+def _shares_article_lam(letters: Letters, start: int) -> bool:
+    return (
+        0 < start < len(letters)
+        and letters[start][0] == "ل"
+        and letters[start - 1][0] == "ل"
+    )
+
+
+@dataclass
+class _CollisionChoice:
+    lemma_id: int
+    source: str
+    decided_by: str | None = None
+    tie: bool = False
+    # Some evidence spoke for this lemma (not only against its siblings).
+    supported: bool = False
+
+
+def _locate_stem(
+    letters: Letters,
+    key: str,
+) -> tuple[int, int, bool] | None:
+    """Where ``key`` sits in the word: ``(start, end, taa_marbuta_restored)``."""
+    skeleton = _skeleton(letters)
+    cores = [key]
+    if key.startswith("ال") and len(key) > 2:
+        cores.append(key[2:])
+    for core in cores:
+        index = skeleton.find(core)
+        if index >= 0:
+            return index, index + len(core), False
+    for core in cores:
+        if core.endswith("ة"):
+            index = skeleton.find(core[:-1] + "ت")
+            if index >= 0:
+                return index, index + len(core), True
+    return None
+
+
+def _choose_collision_candidate(
+    key: str,
+    lemma_lookup: dict[str, int],
+    letters: Letters,
+    *,
+    original_word: str | None = None,
+    camel_fallback: bool = False,
+) -> _CollisionChoice | None:
+    """Pick among the lemmas that share ``key``, using the word itself.
+
+    The lookup keeps the first-registered lemma for a key (lemma bare forms
+    before ``forms_json`` values before generated inflections, then lowest
+    id). That order knows nothing about the token, so حَمَّلَ, نَقَلَ and آمَرَ
+    won every surface their sibling also spells. Evidence, in order, each
+    step only removing candidates while at least one survives:
+
+    1. Hamza: candidates stored with the hamza spelling the text writes.
+    2. Vocalization: candidates none of whose stored spellings fit the
+       marks the text writes (shadda, short vowels, a verb's fixed ending).
+    3. Prefix: after the article, بـ or كـ, or under tanwin, a verb whose
+       conjugation the key is is out while a non-verb of the same or a
+       better rank remains; after لـ only a verb's bare past form.
+
+    The owner keeps the key when it survives; otherwise a survivor the
+    evidence spoke for takes it. ``tie`` reports that another survivor is
+    registered at the same rank, so only registration order chose. Returns
+    None when ``key`` has no collision (or a function-form override owns it).
+
+    ``letters`` is the whole token with its marks; ``original_word`` its
+    hamza-preserving bare spelling.
+    """
+    entries = (getattr(lemma_lookup, "collisions", None) or {}).get(key)
+    if not entries:
+        return None
+    owner = lemma_lookup[key]
+    ids = [lemma_id for lemma_id, _ in entries]
+    if owner not in ids:
+        return None
+    sources = (
+        getattr(lemma_lookup, "collision_sources", None) or {}
+    ).get(key, {})
+    bares = getattr(lemma_lookup, "lemma_bares", None) or {}
+    pos_of = getattr(lemma_lookup, "lemma_pos", None) or {}
+    pool = list(ids)
+    evidence: list[str] = []
+
+    def _narrow(keep: list[int], reason: str) -> None:
+        nonlocal pool
+        if keep and len(keep) < len(pool):
+            pool = keep
+            evidence.append(reason)
+
+    located = _locate_stem(letters, key)
+    skeleton = _skeleton(letters)
+    if original_word:
+        original_word = original_word.replace("ٱ", "ا")
+    # Candidates some evidence spoke for, not merely failed to rule out.
+    supported: set[int] = set()
+
+    # 1. Hamza spelling.
+    original_stem = None
+    if (
+        original_word
+        and located is not None
+        and len(original_word) == len(skeleton)
+    ):
+        start, end, restored = located
+        original_stem = original_word[start:end]
+        if restored:
+            original_stem = original_stem[:-1] + "ة"
+    if original_stem:
+        target = _final_ya(_without_article(original_stem))
+        inner_hamza = any(ch in _HAMZA_LETTERS for ch in target[1:])
+        spellings = (
+            getattr(lemma_lookup, "key_spellings", None) or {}
+        ).get(key, {})
+
+        headwords = getattr(lemma_lookup, "lemma_vocalized", None) or {}
+
+        def _spelling_fit(lemma_id: int, spelling: str) -> bool | str | None:
+            if not spelling:
+                # A generated inflection: its hamza is the headword's. A
+                # headword with no hamza cannot be behind سألت or بدأت (the
+                # first letter is left out: it may be the أ of "I ...").
+                headword = next(
+                    (
+                        text
+                        for kind, text in headwords.get(lemma_id, ())
+                        if kind == "lemma"
+                    ),
+                    "",
+                )
+                if (
+                    inner_hamza
+                    and headword
+                    and not any(ch in _HAMZA_LETTERS for ch in headword)
+                ):
+                    return False
+                return None
+            # ى stored, ي written before a suffix (مقهى in مقهيها) is the
+            # same spelling. At the end of the word it is another letter
+            # (أبي is not أبى) unless the ي is "my" (إليّ), so it only
+            # counts against a lemma when another is stored as written.
+            if (
+                spelling.endswith("ى")
+                and original_stem.endswith("ي")
+                and located[1] == len(skeleton)
+            ):
+                return _OTHER_FINAL_LETTER
+            # Letter for letter first: the ال of الام is the article for
+            # أُمّ and the first letters of آلام.
+            spelling = _final_ya(spelling)
+            for stored, written in (
+                (spelling, _final_ya(original_stem)),
+                (_without_article(spelling), target),
+            ):
+                if stored == written:
+                    return True
+                if normalize_alef(stored) == normalize_alef(written):
+                    return False
+            # The key reached this lemma some other way than by its hamza.
+            return None
+
+        def _hamza_fit(lemma_id: int) -> bool | str | None:
+            """True: stored with this hamza spelling. False: only with
+            another. None: nothing stored tells."""
+            results = {
+                _spelling_fit(
+                    lemma_id,
+                    _exact_lookup_bare(spelling).replace("ٱ", "ا"),
+                )
+                for spelling in spellings.get(lemma_id) or ("",)
+            }
+            if True in results:
+                return True
+            if results and results <= {False, _OTHER_FINAL_LETTER}:
+                return False if False in results else _OTHER_FINAL_LETTER
+            return None
+
+        fits = {lemma_id: _hamza_fit(lemma_id) for lemma_id in ids}
+        if any(fit is True for fit in fits.values()):
+            fits = {
+                lemma_id: False if fit is _OTHER_FINAL_LETTER else fit
+                for lemma_id, fit in fits.items()
+            }
+        else:
+            fits = {
+                lemma_id: None if fit is _OTHER_FINAL_LETTER else fit
+                for lemma_id, fit in fits.items()
+            }
+        # A lemma stored with the written spelling decides. Without one, a
+        # hamza the text does write still rules out lemmas spelled without
+        # it; a plain alif rules out nothing (hamzas are often left off).
+        stored_as_written = any(fit for fit in fits.values())
+        if stored_as_written or any(ch in _HAMZA_LETTERS for ch in target):
+            supported.update(
+                lemma_id for lemma_id, fit in fits.items() if fit
+            )
+            _narrow(
+                [lemma_id for lemma_id in ids if fits[lemma_id] is not False],
+                "hamza",
+            )
+        if (
+            not stored_as_written
+            and camel_fallback
+            and original_word == original_stem
+        ):
+            try:
+                from app.services.morphology import find_best_db_match
+
+                cand_bares = {strip_diacritics(bare) for _, bare in entries}
+                match = find_best_db_match(original_word, cand_bares)
+                if match:
+                    for lemma_id, bare in entries:
+                        if (
+                            lemma_id in pool
+                            and strip_diacritics(bare) == match["lex_bare"]
+                        ):
+                            _narrow([lemma_id], "camel")
+                            break
+            except Exception:
+                pass
+
+    if located is not None:
+        start, end, restored = located
+        region = letters[start:end]
+        if restored:
+            region = region[:-1] + [("ة", region[-1][1])]
+
+        # 2. Vocalization.
+        if any(marks for _, marks in region):
+            verdicts = {
+                lemma_id: _vocalization_verdict(
+                    region,
+                    lemma_id,
+                    lemma_lookup,
+                    first_letter_shared=_shares_article_lam(letters, start),
+                )
+                for lemma_id in pool
+            }
+            # Marks that fit nobody (a passive, a variant vocalization, a
+            # typo) say nothing; marks that fit someone rule out the rest.
+            if any(verdicts.values()):
+                _narrow(
+                    [
+                        lemma_id
+                        for lemma_id in pool
+                        if verdicts[lemma_id] is not False
+                    ],
+                    "vocalization",
+                )
+                supported.update(
+                    lemma_id for lemma_id in pool if verdicts[lemma_id]
+                )
+
+        # 3. What the clitics and the ending allow.
+        prefix = skeleton[:start]
+        article = (
+            prefix.endswith("ال")
+            or prefix in {"لل", "ولل", "فلل"}
+            or (skeleton[start:start + 2] == "ال" and key.startswith("ال"))
+        )
+        nominal = prefix in _NOMINAL_ONLY_PREFIXES or (
+            end == len(letters) and bool(letters[-1][1] & _TANWIN_MARKS)
+        )
+        core = _without_article(key)
+        vocalized = getattr(lemma_lookup, "lemma_vocalized", None) or {}
+
+        def _is_finite_form_of(lemma_id: int) -> bool:
+            """``key`` is a conjugation of this verb, not its masdar or a
+            participle: those are nouns the verb's row legitimately owns."""
+            return not any(
+                kind != "lemma"
+                and not kind.startswith(_FINITE_FORM_KINDS)
+                and normalize_alef(strip_diacritics(spelling)) == core
+                for kind, spelling in vocalized.get(lemma_id, ())
+            )
+
+        # A noun with its own row beats the masdar a verb's row carries
+        # (نَقْل next to نَقَلَ); a verb's masdar is not ruled out by another
+        # lemma's plural (شُعُور of شَعَرَ against شَعْر's plural).
+        noun_row = any(
+            pos_of.get(lemma_id) not in _VERB_POS
+            and sources.get(lemma_id) == MATCH_LAYER_LEMMA
+            for lemma_id in pool
+        )
+
+        def _ruled_out(lemma_id: int) -> bool:
+            if pos_of.get(lemma_id) not in _VERB_POS:
+                return False
+            bare = bares.get(lemma_id, "")
+            if nominal:
+                return noun_row or _is_finite_form_of(lemma_id)
+            if article:
+                # التقى, الف: the ال is the verb's own first letters.
+                return not bare.startswith("ال") and (
+                    noun_row or _is_finite_form_of(lemma_id)
+                )
+            return prefix in _LAM_PREFIXES and bare == core
+
+        ruled_out = [lemma_id for lemma_id in pool if _ruled_out(lemma_id)]
+        if ruled_out:
+            # Part-of-speech labels are not reliable enough to hand the key
+            # to a lower-ranked registration (a stray conjugated-form row).
+            best_rank = min(
+                _SOURCE_RANK.get(sources.get(lemma_id), 0)
+                for lemma_id in ruled_out
+            )
+            keep = [lemma_id for lemma_id in pool if lemma_id not in ruled_out]
+            if any(
+                _SOURCE_RANK.get(sources.get(lemma_id), 0) <= best_rank
+                for lemma_id in keep
+            ):
+                before = len(pool)
+                _narrow(keep, "prefix")
+                if len(pool) < before:
+                    supported.update(pool)
+
+    winner = (
+        owner
+        if owner in pool
+        else next(
+            (lemma_id for lemma_id in pool if lemma_id in supported), pool[0]
+        )
+    )
+    source = sources.get(winner, _key_source(lemma_lookup, key))
+    tie = any(
+        other != winner and sources.get(other) == source for other in pool
+    )
+    return _CollisionChoice(
+        lemma_id=winner,
+        source=source,
+        decided_by="+".join(evidence) or None,
+        tie=tie,
+        supported=winner in supported,
+    )
+
+
 def _resolve_collision(
     original_bare: str,
     candidates: list[tuple[int, str]],
@@ -1501,6 +2021,7 @@ def _lookup_exact_layers(
     original_bare: str | None = None,
     out_alternatives: list[int] | None = None,
     out_provenance: LemmaMatchProvenance | None = None,
+    letters: Letters | None = None,
 ) -> int | None:
     """High-confidence layers shared by lookup_lemma and lookup_lemma_citation:
     function-form overrides, direct match (with collision resolution), and
@@ -1523,38 +2044,44 @@ def _lookup_exact_layers(
             _decided(None, MATCH_LAYER_FUNCTION)
             return override
 
+    if letters is None or _skeleton(letters) != bare_norm:
+        letters = [(letter, frozenset()) for letter in bare_norm]
+
+    def _match(key: str) -> int:
+        """The lemma for ``key``, chosen among its homographs by the word."""
+        choice = _choose_collision_candidate(
+            key,
+            lemma_lookup,
+            letters,
+            original_word=original_bare,
+            camel_fallback=key == bare_norm,
+        )
+        if choice is None:
+            _decided(key)
+            return lemma_lookup[key]
+        # Always report the siblings: the evidence is not always right.
+        if out_alternatives is not None:
+            out_alternatives.extend(
+                lemma_id
+                for lemma_id, _ in lemma_lookup.collisions[key]
+                if lemma_id != choice.lemma_id
+            )
+        if out_provenance is not None:
+            out_provenance.layer = choice.source
+            out_provenance.key_source = choice.source
+            out_provenance.decided_by = choice.decided_by
+            out_provenance.homograph_tie = choice.tie
+        return choice.lemma_id
+
     # Direct match
     if bare_norm in lemma_lookup:
-        _decided(bare_norm)
-        # If collision exists and we have original form, disambiguate
-        if (original_bare
-                and hasattr(lemma_lookup, "collisions")
-                and bare_norm in lemma_lookup.collisions):
-            resolved = _resolve_collision(
-                original_bare, lemma_lookup.collisions[bare_norm]
-            )
-            if resolved is not None:
-                # Still report alternatives — hamza/CAMeL isn't always right
-                if out_alternatives is not None:
-                    for lid, _ in lemma_lookup.collisions[bare_norm]:
-                        if lid != resolved:
-                            out_alternatives.append(lid)
-                return resolved
-        # Unresolved collision — report all alternatives
-        if (out_alternatives is not None
-                and hasattr(lemma_lookup, "collisions")
-                and bare_norm in lemma_lookup.collisions):
-            for lid, _ in lemma_lookup.collisions[bare_norm]:
-                if lid != lemma_lookup[bare_norm]:
-                    out_alternatives.append(lid)
-        return lemma_lookup[bare_norm]
+        return _match(bare_norm)
 
     # With/without al-prefix
     if bare_norm.startswith("ال") and len(bare_norm) > 2:
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
-            _decided(without_al)
-            return lemma_lookup[without_al]
+            return _match(without_al)
     elif len(bare_norm) >= 3:
         # Don't add ال to 2-char words — causes false matches
         # e.g. أن (ان) + ال → الان → الآن (now)
@@ -1566,8 +2093,7 @@ def _lookup_exact_layers(
             with_al in lemma_lookup
             and _key_source(lemma_lookup, with_al) != MATCH_LAYER_GENERATED
         ):
-            _decided(with_al)
-            return lemma_lookup[with_al]
+            return _match(with_al)
 
     return None
 
@@ -1651,6 +2177,7 @@ def lookup_lemma(
     *,
     strict_fallback: bool = False,
     tanwin_alif: bool = False,
+    surface_form: str | None = None,
 ) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
 
@@ -1680,8 +2207,15 @@ def lookup_lemma(
             word without it before stripping clitics or asking CAMeL. Only
             honoured together with ``strict_fallback`` (``lookup_lemma_id``
             detects it from the surface).
+        surface_form: The token as written, with whatever tashkeel it has.
+            Its marks help choose among lemmas that share the bare key
+            (خرّج is خَرَّجَ, not خَرَجَ); without it only hamza spelling and
+            clitics can.
     """
     alternatives: list[int] = []
+    letters = _vocalized_letters(surface_form) if surface_form else None
+    if letters is None or _skeleton(letters) != bare_norm:
+        letters = [(letter, frozenset()) for letter in bare_norm]
     result = _lookup_lemma_layers(
         bare_norm,
         lemma_lookup,
@@ -1691,6 +2225,7 @@ def lookup_lemma(
         out_provenance,
         strict_fallback=strict_fallback,
         tanwin_alif=tanwin_alif and strict_fallback,
+        letters=letters,
     )
     alternatives = [
         lemma_id
@@ -1719,6 +2254,7 @@ def _lookup_lemma_layers(
     *,
     strict_fallback: bool = False,
     tanwin_alif: bool = False,
+    letters: Letters,
 ) -> int | None:
     def _decided(layer: str, key: str | None = None) -> None:
         if out_provenance is not None:
@@ -1741,7 +2277,12 @@ def _lookup_lemma_layers(
         return None
 
     exact_match = _lookup_exact_layers(
-        bare_norm, lemma_lookup, original_bare, out_alternatives, out_provenance
+        bare_norm,
+        lemma_lookup,
+        original_bare,
+        out_alternatives,
+        out_provenance,
+        letters,
     )
     if exact_match is not None:
         return exact_match
@@ -1770,7 +2311,12 @@ def _lookup_lemma_layers(
             )
         for stem, stem_original in stems:
             match = _lookup_exact_layers(
-                stem, lemma_lookup, stem_original, out_alternatives, out_provenance
+                stem,
+                lemma_lookup,
+                stem_original,
+                out_alternatives,
+                out_provenance,
+                letters[:len(stem)],
             )
             if match is not None:
                 return match
@@ -1787,6 +2333,7 @@ def _lookup_lemma_layers(
             out_alternatives,
             out_via_clitic,
             out_provenance,
+            letters[:len(stem)],
         )
         if clitic_match is not None:
             return clitic_match
@@ -1811,15 +2358,24 @@ def _lookup_clitic_layer(
     out_alternatives: list[int],
     out_via_clitic: list[bool] | None,
     out_provenance: LemmaMatchProvenance | None,
+    letters: Letters,
 ) -> int | None:
     """Resolve through clitic stripping; None when no stripped stem is a key."""
+
+    choices: dict[str, _CollisionChoice] = {}
+
+    def _source(key: str) -> str:
+        choice = choices.get(key)
+        return choice.source if choice else _key_source(lemma_lookup, key)
 
     def _decided(layer: str, key: str | None = None) -> None:
         if out_provenance is not None:
             out_provenance.layer = layer
-            out_provenance.key_source = (
-                _key_source(lemma_lookup, key) if key else None
-            )
+            out_provenance.key_source = _source(key) if key else None
+            choice = choices.get(key) if key else None
+            if choice is not None and layer == MATCH_LAYER_CLITIC:
+                out_provenance.decided_by = choice.decided_by
+                out_provenance.homograph_tie = choice.tie
 
     # Clitic stripping — collect every stem the vocabulary knows.
     stem_hits: list[tuple[str, int]] = []
@@ -1835,19 +2391,111 @@ def _lookup_clitic_layer(
                 # "nothing stripped" stem: a generated verb form, not ال+word.
                 continue
             stem_hits.append((norm_stem, lemma_lookup[norm_stem]))
+
+    # A stem that several lemmas spell goes to the one the word's own marks
+    # and clitics allow, not to the first registered. An ال+X the stripper
+    # made up next to X is the same parse and takes X's answer.
+    hit_keys = {norm_stem for norm_stem, _ in stem_hits}
+    for index, (norm_stem, _) in enumerate(stem_hits):
+        plain = (
+            norm_stem[2:]
+            if norm_stem.startswith("ال") and norm_stem not in bare_norm
+            else None
+        )
+        choice = _choose_collision_candidate(
+            plain if plain in hit_keys else norm_stem,
+            lemma_lookup,
+            letters,
+            original_word=word,
+        )
+        if choice is not None:
+            choices[norm_stem] = choice
+            stem_hits[index] = (norm_stem, choice.lemma_id)
+        elif plain in hit_keys:
+            stem_hits[index] = (norm_stem, lemma_lookup[plain])
+
+    rejected: set[int] = set()
+    if any(marks for _, marks in letters):
+        # Two parses, one of which the written vowels contradict
+        # (أَكَلْتُهُ is not أَكْلَة + ه): keep the parses that fit.
+        verdicts = []
+        for norm_stem, lemma_id in stem_hits:
+            located = _locate_stem(letters, norm_stem)
+            if located is None:
+                verdicts.append(None)
+                continue
+            start, end, restored = located
+            region = letters[start:end]
+            if restored:
+                region = region[:-1] + [("ة", region[-1][1])]
+            verdicts.append(
+                _vocalization_verdict(
+                    region,
+                    lemma_id,
+                    lemma_lookup,
+                    first_letter_shared=_shares_article_lam(letters, start),
+                )
+            )
+        if any(verdicts) and False in verdicts:
+            rejected = {
+                lemma_id
+                for (_, lemma_id), verdict in zip(stem_hits, verdicts)
+                if verdict is False
+            } - {
+                lemma_id
+                for (_, lemma_id), verdict in zip(stem_hits, verdicts)
+                if verdict is not False
+            }
+            if rejected:
+                out_alternatives.extend(rejected)
+                stem_hits = [
+                    hit for hit in stem_hits if hit[1] not in rejected
+                ]
     candidates = [lemma_id for _, lemma_id in stem_hits]
 
     if candidates:
         if out_via_clitic is not None:
             out_via_clitic[0] = True
-        # A stem that is itself a homograph key was decided by insertion
-        # order, not by this word: hand the siblings to contextual checks.
+        # Hand the siblings of a homograph stem to contextual checks: the
+        # word's own evidence is not always right, and often there is none.
         collisions = getattr(lemma_lookup, "collisions", None) or {}
         for norm_stem, _ in stem_hits:
             for sibling_id, _ in collisions.get(norm_stem, ()):
                 out_alternatives.append(sibling_id)
 
     unique = list(dict.fromkeys(candidates))
+
+    def _camel_choice() -> int | None:
+        """CAMeL's lemma for the whole word. Its headword is a bare key, so
+        it names that key's first-registered lemma. When the word's own
+        evidence gave that key to a sibling, or a clitic candidate is also
+        registered for it (at the owner's rank, or with the word's marks
+        speaking for it), CAMeL agrees with that one."""
+        camel_id = _camel_disambiguate(word, lemma_lookup)
+        if camel_id in rejected:
+            # CAMeL reads the bare word; the vowels already ruled this out.
+            return None
+        if camel_id is None or camel_id in unique:
+            return camel_id
+        lex_key = _camel_lex_key(word, lemma_lookup)
+        if lex_key is None or lemma_lookup.get(lex_key) != camel_id:
+            return camel_id
+        choice = choices.get(lex_key) or choices.get("ال" + lex_key)
+        if choice is not None and choice.decided_by:
+            return choice.lemma_id
+        sources = (
+            getattr(lemma_lookup, "collision_sources", None) or {}
+        ).get(lex_key, {})
+        supported = {
+            choice.lemma_id for choice in choices.values() if choice.supported
+        }
+        for lemma_id in unique:
+            if lemma_id in sources and (
+                lemma_id in supported
+                or sources[lemma_id] == sources.get(camel_id)
+            ):
+                return lemma_id
+        return camel_id
 
     if len(candidates) == 1:
         _decided(MATCH_LAYER_CLITIC, stem_hits[0][0])
@@ -1861,14 +2509,14 @@ def _lookup_clitic_layer(
             (
                 norm_stem
                 for norm_stem, _ in stem_hits
-                if _key_source(lemma_lookup, norm_stem) == MATCH_LAYER_LEMMA
+                if _source(norm_stem) == MATCH_LAYER_LEMMA
                 and len(
                     norm_stem[2:] if norm_stem.startswith("ال") else norm_stem
                 ) >= _MIN_TRUSTED_CLITIC_STEM
             ),
             None,
         )
-        camel_id = _camel_disambiguate(word, lemma_lookup)
+        camel_id = _camel_choice()
         if camel_id is None or camel_id == winner:
             _decided(MATCH_LAYER_CLITIC, trusted_stem or stem_hits[0][0])
             return winner
@@ -1900,7 +2548,7 @@ def _lookup_clitic_layer(
 
     if len(unique) > 1:
         # Multiple clitic interpretations — try CAMeL to disambiguate
-        camel_id = _camel_disambiguate(word, lemma_lookup)
+        camel_id = _camel_choice()
         if camel_id is not None:
             out_alternatives.extend(candidates)
             if camel_id in unique:
@@ -1919,6 +2567,19 @@ def _lookup_clitic_layer(
     return None
 
 
+def _camel_lex_key(word: str, lemma_lookup: dict[str, int]) -> str | None:
+    """Lookup key of the first CAMeL headword the vocabulary has a key for."""
+    try:
+        from app.services.morphology import find_best_db_match
+        known_bare_forms = set(lemma_lookup.keys())
+        match = find_best_db_match(word, known_bare_forms)
+        if match:
+            return normalize_alef(match["lex_bare"])
+    except Exception:
+        pass
+    return None
+
+
 def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
     """Use CAMeL morphological analysis to find the best lemma match.
 
@@ -1926,16 +2587,8 @@ def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
         word: Arabic word (pre-normalization preferred for better accuracy).
         lemma_lookup: Normalized bare form → lemma_id dict.
     """
-    try:
-        from app.services.morphology import find_best_db_match
-        known_bare_forms = set(lemma_lookup.keys())
-        match = find_best_db_match(word, known_bare_forms)
-        if match:
-            lex_norm = normalize_alef(match["lex_bare"])
-            return lemma_lookup.get(lex_norm)
-    except Exception:
-        pass
-    return None
+    lex_key = _camel_lex_key(word, lemma_lookup)
+    return lemma_lookup.get(lex_key) if lex_key else None
 
 
 def _camel_headword_match(word: str, lemma_lookup: dict[str, int]) -> int | None:
@@ -1969,6 +2622,19 @@ def _camel_headword_match(word: str, lemma_lookup: dict[str, int]) -> int | None
         stored = spellings.get(lex_norm)
         if stored and lex_exact not in stored:
             continue
+        if stored:
+            # The key's owner may be a homograph with another hamza
+            # (أمام owns the key إمام matched): return the lemma whose own
+            # spelling passed the check.
+            for lemma_id, bare in (
+                getattr(lemma_lookup, "collisions", None) or {}
+            ).get(lex_norm, ()):
+                if (
+                    not bare.startswith(_GENERATED_COLLISION_PREFIXES)
+                    and _exact_lookup_bare(bare).replace("ٱ", "ا") == lex_exact
+                    and lemma_lookup.lemma_bares.get(lemma_id) == lex_norm
+                ):
+                    return lemma_id
         return lemma_lookup[lex_norm]
     return None
 
@@ -2030,6 +2696,7 @@ def lookup_lemma_id(
         out_provenance=out_provenance,
         strict_fallback=strict_fallback,
         tanwin_alif=strict_fallback and has_tanwin_alif(surface_form),
+        surface_form=surface_form,
     )
 
 
@@ -2058,6 +2725,18 @@ class LemmaLookupDict(dict):
         # normalized lemma-bare key → hamza-preserving spellings of the
         # lemma(s) that own it (stored bare and displayed headword).
         self.headword_spellings: dict[str, set[str]] = {}
+        # Evidence for choosing among lemmas that share one key: each lemma's
+        # part of speech and its vocalized spellings (headword first, then
+        # ``(forms_json key, value)``), and which kind of registration each
+        # colliding lemma made for the key.
+        self.lemma_pos: dict[int, str | None] = {}
+        self.lemma_vocalized: dict[int, list[tuple[str, str]]] = {}
+        self.collision_sources: dict[str, dict[int, str]] = {}
+        # key → lemma_id → every spelling that lemma registered for the key,
+        # as stored, so with its hamza. "" is added when the lemma also
+        # reaches the key through a generated inflection, which has no
+        # spelling of its own; a lemma absent here reaches it only that way.
+        self.key_spellings: dict[str, dict[int, set[str]]] = {}
         # Exact surface bare form → lemma_id for high-confidence function-word
         # compounds that must override same-bare content lemmas.
         self.function_form_overrides: dict[str, int] = {}
@@ -2098,13 +2777,25 @@ class LemmaLookupDict(dict):
     ) -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
         bare = original_bare or key
+        if source != MATCH_LAYER_GENERATED:
+            self.key_spellings.setdefault(key, {}).setdefault(
+                lemma_id, set()
+            ).add(bare)
+        else:
+            spelled = self.key_spellings.get(key)
+            if spelled is not None and lemma_id in spelled:
+                spelled[lemma_id].add("")
         if key in self:
             if self[key] != lemma_id:
                 if key not in self.collisions:
                     first_bare = self._first_bare.get(key, key)
                     self.collisions[key] = [(self[key], first_bare)]
+                    self.collision_sources[key] = {
+                        self[key]: self.key_sources.get(key, MATCH_LAYER_LEMMA)
+                    }
                 if lemma_id not in [lid for lid, _ in self.collisions[key]]:
                     self.collisions[key].append((lemma_id, bare))
+                    self.collision_sources[key][lemma_id] = source
         else:
             self[key] = lemma_id
             self._first_bare[key] = bare
@@ -2381,6 +3072,12 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         exact_bare = _lemma_exact_bare(lem)
         lookup.set_if_new(bare_norm, lem.lemma_id, exact_bare or lem.lemma_ar_bare)
         lookup.lemma_bares[lem.lemma_id] = bare_norm
+        lookup.lemma_pos[lem.lemma_id] = getattr(lem, "pos", None)
+        headword = getattr(lem, "lemma_ar", None)
+        if headword:
+            lookup.lemma_vocalized.setdefault(lem.lemma_id, []).append(
+                ("lemma", headword)
+            )
         lookup.headword_spellings.setdefault(bare_norm, set()).update(
             spelling.replace("ٱ", "ا")
             for spelling in (
@@ -2416,7 +3113,11 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         bare_norm = normalize_arabic(lem.lemma_ar_bare)
         if len(bare_norm) >= 2 and bare_norm.endswith("ى"):
             ya_variant = bare_norm[:-1] + "ي"
-            lookup.set_if_new(ya_variant, lem.lemma_id, lem.lemma_ar_bare)
+            lookup.set_if_new(
+                ya_variant,
+                lem.lemma_id,
+                _lemma_exact_bare(lem) or lem.lemma_ar_bare,
+            )
 
     # Pass 2: Register derived forms from forms_json (lower priority)
     # Indexes ALL string-valued keys — no hardcoded whitelist needed
@@ -2432,6 +3133,9 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                     lookup.lemma_form_keys.setdefault(
                         lem.lemma_id, set()
                     ).add(form_bare)
+                    lookup.lemma_vocalized.setdefault(lem.lemma_id, []).append(
+                        (key, form_val)
+                    )
                     lookup.set_if_new(
                         form_bare, lem.lemma_id, form_val,
                         source=MATCH_LAYER_FORMS,
@@ -2579,6 +3283,12 @@ def _mapping_provenance_tag(mapping) -> str:
         return (
             " [morphological guess — no vocabulary form matched this word;"
             " check the lemma carefully]"
+        )
+    if getattr(mapping, "homograph_tie", False):
+        return (
+            " [homograph — other vocabulary words share this spelling and"
+            " the word alone does not decide; check which one the sentence"
+            " means]"
         )
     if getattr(mapping, "via_clitic", False):
         return " [via clitic stripping]"

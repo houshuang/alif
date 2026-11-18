@@ -34,7 +34,14 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   `check_senses` call with the story context (`_check_story_guesses`). (e) Form I / Form II verbs that share a bare key (حَمَلَ/حَمَّلَ,
   صَنَعَ/صَنَّعَ, خَرَجَ/خَرَّجَ) and same-bare noun/verb pairs (قَدَر/قَدَّرَ, نَقْل/نَقَلَ):
   the first-registered row wins even when the other exists; 19 of the 50 still resolve
-  wrongly after deploy, most of them this way.
+  wrongly after deploy, most of them this way. Done in the resolver 2026-11-18: the
+  token's hamza spelling, written tashkeel and clitics choose among the rows
+  (`_choose_collision_candidate`), and an undecided match carries `homograph_tie`
+  (4 more of the 50 right, 7 labelled a tie, 5 left confident and wrong). Open from (e):
+  let the sense check choose among the alternatives of a tie in the textbook scan, story
+  import and Snap; try a frequency prior for ties; re-verify the stored mappings the
+  replay showed to be wrong; the vocabulary proposals in the analysis §9 (conjugated
+  forms kept as lemmas, #194, #2073, the #3270/#4593 duplicate, wrong `pos`).
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
   ~~textbook-scan matches~~ — done 2026-11-18 for CAMeL-guess matches (`_check_scan_guesses`).
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
