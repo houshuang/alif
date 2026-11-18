@@ -19,6 +19,34 @@ from app.models import Lemma, WordAddContext
 logger = logging.getLogger(__name__)
 
 _MAX_SENTENCE_CHARS = 1500
+# Verdicts under which the add sentence uses the entry's own word.
+_SAME_WORD_VERDICTS = (None, "fits", "broader")
+# Longer add sentences are cut for the generation prompt.
+_MAX_HINT_CHARS = 300
+
+
+def add_sentences_for(db: Session, lemma_ids) -> dict[int, str]:
+    """The latest sentence each word was added from, as a generation hint.
+
+    Skips rows whose check found the sentence uses another word or a name.
+    The hint anchors the sense in the generation prompt; it is never stored
+    or shown as a review sentence."""
+    ids = list(lemma_ids or ())
+    if not ids:
+        return {}
+    rows = (
+        db.query(WordAddContext.lemma_id, WordAddContext.sentence_ar, WordAddContext.check_verdict)
+        .filter(WordAddContext.lemma_id.in_(ids))
+        .order_by(WordAddContext.created_at.desc(), WordAddContext.id.desc())
+        .all()
+    )
+    out: dict[int, str] = {}
+    for lemma_id, sentence, verdict in rows:
+        sentence = (sentence or "").strip()
+        if lemma_id in out or not sentence or verdict not in _SAME_WORD_VERDICTS:
+            continue
+        out[lemma_id] = sentence[:_MAX_HINT_CHARS]
+    return out
 
 
 def record_add_context(

@@ -687,6 +687,7 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
 def _format_target_example_block(
     target_example_ar: str | None,
     target_example_en: str | None,
+    target_context_ar: str | None = None,
 ) -> str:
     """Render an EXAMPLE block to anchor the lemma's correct sense.
 
@@ -695,12 +696,20 @@ def _format_target_example_block(
     sense grounding. (Phase 4: enrich prompt with already-existing examples
     to prevent wrong-sense awkward sentences like the استَوَى/dust case.)
     """
-    if not target_example_ar or not target_example_en:
-        return ""
-    return (
-        f"Example of correct usage:\n"
-        f"- {target_example_ar.strip()} → {target_example_en.strip()}\n"
-    )
+    block = ""
+    if target_context_ar and target_context_ar.strip():
+        # The sentence the learner added the word from (Snap, pre-read).
+        block += (
+            "The learner met this word in this sentence; use it in the same "
+            "meaning, but do not copy the sentence:\n"
+            f"- {target_context_ar.strip()}\n"
+        )
+    if target_example_ar and target_example_en:
+        block += (
+            f"Example of correct usage:\n"
+            f"- {target_example_ar.strip()} → {target_example_en.strip()}\n"
+        )
+    return block
 
 
 def generate_sentence(
@@ -796,6 +805,7 @@ def generate_sentences_batch(
     max_words: int | None = None,
     target_example_ar: str | None = None,
     target_example_en: str | None = None,
+    target_context_ar: str | None = None,
     rerank: bool = True,
     rerank_top_k: int = 2,
 ) -> list[SentenceResult]:
@@ -833,7 +843,9 @@ def generate_sentences_batch(
     else:
         word_range = "6-10"
 
-    example_block = _format_target_example_block(target_example_ar, target_example_en)
+    example_block = _format_target_example_block(
+        target_example_ar, target_example_en, target_context_ar
+    )
 
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
@@ -1110,6 +1122,11 @@ def generate_sentences_for_words(
 
     target_list = "\n".join(
         f"{i + 1}. {tw['arabic']} ({tw['english']})"
+        + (
+            f" — met in: {tw['context_ar']} (use this meaning; do not copy the sentence)"
+            if tw.get("context_ar")
+            else ""
+        )
         for i, tw in enumerate(target_words)
     )
 
