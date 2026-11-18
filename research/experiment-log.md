@@ -114,6 +114,83 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Resolver chooses among same-spelling lemmas by the token's own evidence
+
+**Why.** After the vocabulary repairs of the same day, 24 of the 50 wrong book rows
+(`research/analysis-2026-11-18-resolver-collisions.md`) still resolved to the wrong lemma
+in the default mode, most because several lemmas share one bare key (خَرَجَ / خَرَّجَ,
+نَقْل / نَقَلَ, أَمْر / أَمَرَ / آمَرَ). The key went to the first-registered row, the clitic
+layer never looked at the siblings, and `_resolve_collision` compared bare surfaces with
+diacritized form strings, which cannot match. This is Rank 4 of that analysis and
+IDEAS item (e).
+
+**Change (`sentence_validator._choose_collision_candidate`).** In the exact layers and
+on every clitic stem, the lemmas sharing a key are narrowed by three kinds of evidence
+from the token: its hamza spelling against every spelling each lemma registered
+(`key_spellings`), its written tashkeel against each lemma's stored headword and
+`forms_json` spellings, and its clitics (after the article, بـ, كـ or under tanwin a verb
+is out when a noun row remains; after لـ only a bare past form). The owner keeps the key
+when it survives. Three related changes: a clitic parse the written vowels contradict is
+dropped when another parse fits; when CAMeL's headword key is a homograph key and a
+clitic candidate or the chooser's pick shares it, CAMeL counts as agreeing; the strict
+CAMeL last resort returns the lemma whose hamza spelling passed its check instead of
+the key's owner. `lookup_lemma()` takes `surface_form=`; `lookup_lemma_id()` and
+`map_tokens_to_lemmas()` pass it. `_strip_clitics` now returns its stems in a fixed
+order (it returned a set, so which stem was "first" could differ between processes; no
+lemma changed on the snapshot). Details: `docs/nlp-pipeline.md` § "Homograph keys".
+
+**When nothing decides.** The first-registered lemma still wins, and
+`LemmaMatchProvenance.homograph_tie` / `TokenMapping.homograph_tie` now say so; the
+verifier prompt labels the token. It is deliberately not `is_guess`: the textbook scan and
+story import send a guess down a new-word path, which for a word that is in the vocabulary
+would create a duplicate.
+
+**Generation is affected.** Unlike the strict fallback, this changes what
+`map_tokens_to_lemmas` proposes, because app sentences are fully vocalized and the
+vocalization is where the evidence is. Mappings are still verified by the LLM afterwards.
+
+**Measured (production snapshot 2026-11-18 12:01 UTC, 4,610 lemmas; old code against
+new, same snapshot).**
+
+| | Before | After |
+|---|---|---|
+| The 50 wrong book rows, default mode: right lemma | 26 | 30 (خرّج, والنقل, لأمر, ويبدو) |
+| … wrong and confident | 15 | 5 (فقد, وأشبه, المستهدف, بالطبع, المدرسة) |
+| … wrong, labelled a homograph tie | 0 | 7 (دار, كاتب, ظلّ, خصمه, ترويها, أدري, والقدر) |
+| … wrong, labelled a CAMeL guess | 9 | 8 |
+| The 138 right book rows that changed lemma | — | 0 (3 are labelled a tie) |
+| Verified sentences: tokens agreeing with the stored lemma (of 90,543) | 87,602 | 88,101 |
+| … distinct surface–lemma pairs agreeing (of 33,335) | 31,912 | 32,086 |
+| Tokens with alternatives (LLM disambiguation load) | 13,319 | 13,319 |
+
+437 of 32,974 distinct surfaces (958 tokens) change lemma: 314 pairs (709 tokens) move to
+the stored lemma, 140 (210 tokens) away from it, 28 between two lemmas neither of which
+is stored. The 140 are 69 lemma pairs; read one by one, about 117 are the stored mapping
+being wrong or pointing at a duplicate row (غَضَب stored on #3270 غَضِب 20 times,
+القَلَق on the adjective قَلِق 11, وَضَعَ on the noun وَضْع 7, أَمَرَ and الأَمْر on آمَرَ,
+الحَرْب on a verb, سَأَلْتُ on سَالَ), about 10 are wrong before and after, and about 13
+are real regressions in 8 lexemes: أَجِدْ → أَجَادَ (the stored present of #2073 وَجَدَ is
+the passive يُوجَدُ), نَصَحَتْنِي → #2109 ناصِح, قُبُول → قَبْل, طِوَالَ → طَوِيل,
+أَغْنِيَة → غِنَاء, جَوْدَتِهِ → the name جَوْدَت, نَجْمَات → نَجْم, وَشَاهِدْ → شَهِدَ. Most come
+from a vowel the generator wrote differently from the stored headword.
+
+Where a tie is reported, the first-registered lemma agrees with the stored mapping on 71%
+of tokens (656 of 919), against 97% overall; where evidence decided, on 95% (8,058 of
+8,449). Stored mappings are not ground truth (analysis §1.4), and they were produced with
+the old resolver's answer in front of the verifier, so these figures understate the gain.
+
+**Tests.** `tests/test_resolver_collisions.py`: `TestHomographChoice`,
+`TestHamzaSpellings`, `TestCliticParsesAndVowels`, and `test_homograph_round` on the
+fixture, which now records this second measurement per row.
+
+**Watch.** Mapping-verification correction rate and `apply_corrections` rejections on new
+sentences; a rise would mean the chooser proposes worse lemmas than first-registered did.
+
+**Open.** The unchecked writers (textbook scan, story import, Snap) do not use
+`homograph_tie` yet: they should let the sense check choose among `alternatives` rather
+than accept the first row. Seven fixture rows cannot be decided from the word alone.
+Vocabulary proposals from the replay are in the analysis §9.
+
 ## 2026-11-18: Story import checks the words CAMeL guessed onto existing lemmas
 
 **Why.** `_import_unknown_words` linked every unknown story/book word whose CAMeL first

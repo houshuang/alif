@@ -133,7 +133,7 @@ When a user flags a word mapping and the flag evaluator fixes it:
 `strip_tanwin_alif()` removes trailing alif that serves as the seat of fathatan (accusative indefinite marker): سعيدا→سعيد, درسا→درس. Applied in both `validate_sentence()` and `validate_sentence_multi_target()` to scaffold words AND target words, including after clitic stripping.
 
 ## Lookup Collision Handling
-`build_lemma_lookup()` uses layered construction: (1) register all lemma bare forms first, (1b) for every ى-final lemma also index a ي-final variant so clitic-stripped residues like `إِلَيْهَا` → `الي` resolve to the alef-maksura-keyed lemma `إلى`, (2) register derived forms from `forms_json`, (3) generate verb conjugations + noun inflections. Each layer uses `set_if_new`, so direct lemma bare forms always take priority over derived/variant forms (e.g., حول "around" wins over حَوْل masdar of حال "to change", and موسيقي "musical" wins over the ي-variant of موسيقى "music"). The exact-running-text alias registry is metadata on `LemmaLookupDict`, not another normalized key: it is derived only after the full inventory establishes a unique gated destination and the absence of an exact-source identity. The dict also tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins in the ordinary lookup. When `lookup_lemma()` hits a collision key and has the pre-normalized form (`original_bare`), it uses hamza-sensitive matching then CAMeL fallback to pick the correct lemma. Collisions are logged at INFO (count) and DEBUG (details).
+`build_lemma_lookup()` uses layered construction: (1) register all lemma bare forms first, (1b) for every ى-final lemma also index a ي-final variant so clitic-stripped residues like `إِلَيْهَا` → `الي` resolve to the alef-maksura-keyed lemma `إلى`, (2) register derived forms from `forms_json`, (3) generate verb conjugations + noun inflections. Each layer uses `set_if_new`, so direct lemma bare forms always take priority over derived/variant forms (e.g., حول "around" wins over حَوْل masdar of حال "to change", and موسيقي "musical" wins over the ي-variant of موسيقى "music"). The exact-running-text alias registry is metadata on `LemmaLookupDict`, not another normalized key: it is derived only after the full inventory establishes a unique gated destination and the absence of an exact-source identity. The dict also tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry owns the key. When `lookup_lemma()` hits a collision key, in the exact layers or on a clitic stem, `_choose_collision_candidate()` picks among the colliding lemmas from the token itself (hamza spelling, written tashkeel, clitics); see § "Homograph keys" below. The function-word path (`lookup_lemma_direct`) keeps its own hamza-only rule. Collisions are logged at INFO (count) and DEBUG (details).
 
 ### Match provenance and the clitic layer (2026-11-18)
 `lookup_lemma()` and `lookup_lemma_id()` take an optional `LemmaMatchProvenance`
@@ -170,9 +170,73 @@ Clitic layer rules:
   (one's bare form is a `forms_json` value of the other: دروسه stays on دَرْس, not
   the plural row دُرُوس), and when the word is CAMeL's lemma plus the accusative
   alif (لَيْلًا is لَيْل, not لـ + يلّا).
-- A stem that is a homograph key (أمر: آمَرَ / أَمْر / أَمَرَ) still resolves to the
-  first-registered lemma, and now reports the siblings as alternatives.
+- A stem that is a homograph key (أمر: آمَرَ / أَمْر / أَمَرَ) is chosen by the
+  collision chooser below, and the siblings are reported as alternatives.
+- With tashkeel, a clitic parse whose lemma the written vowels contradict is dropped
+  when another parse fits (أَكَلْتُهُ is not أَكْلَة + ه; كَأَنَّهُ is not كَانَ + ه). CAMeL,
+  which reads the bare word, cannot bring the dropped lemma back.
+- When CAMeL's headword key is a homograph key, its answer is that key's owner. If the
+  chooser gave that key to a sibling, or a clitic candidate is also registered for it
+  (at the owner's rank, or with the word's marks speaking for it), CAMeL counts as
+  agreeing with that lemma.
 - ال-add ("token → ال+token") ignores generated keys, both in the exact layer and where the clitic layer reaches the same key through its nothing-stripped stem.
+
+### Homograph keys: choosing among lemmas that share one bare form (2026-11-18)
+3,300 lookup keys are shared by more than one lemma: Form I / Form II verbs (خَرَجَ /
+خَرَّجَ), a noun and its verb (نَقْل / نَقَلَ, أَمْر / أَمَرَ / آمَرَ), a plural and another
+word's verb (كُتُب / كَتَبَ). The key's owner is the first registration: lemma bare forms,
+then `forms_json` values, then generated inflections, lowest id first. That order knows
+nothing about the token. `_choose_collision_candidate()` narrows the candidates with
+the token's own evidence, in this order; a step only removes candidates while at least
+one survives:
+
+1. **Hamza.** `LemmaLookupDict.key_spellings` holds every hamza-preserving spelling
+   each lemma registered for the key. A lemma stored with the written spelling fits; one
+   stored only with another hamza is out (أمر is not آمَرَ; سألت is سَأَلَ, not سَالَ). A
+   generated inflection has no spelling of its own: it is out only when the text writes
+   a hamza after the first letter and the lemma's headword has none (بدأت is not بَدَا).
+   A plain alif in the text rules out nothing. ى stored and ي written are the same
+   spelling before a suffix; at the end of the word they differ only when another lemma
+   is stored as written (أبي is أَب, not أَبَى; إليّ stays إِلَى).
+2. **Vocalization.** The token's shadda, short vowels and sukun are compared with each
+   candidate's stored spellings (`lemma_vocalized`: headword plus `forms_json`
+   values), aligned on the stem. Only letters both sides mark are compared, so a lone
+   printed shadda (خرّج) is enough and partial tashkeel never conflicts with a full one.
+   Rules: the longest stored spelling that lines up decides; a present form also
+   describes the other prefixes (يَحْمِلُ for تَحْمِلُ); the last letter's vowel is a case
+   or mood ending and is skipped, except a past verb headword's own fatha, which a
+   damma, kasra or tanwin contradicts (دارٌ is not دَارَ); a shadda on the first letter
+   may be the article's assimilation; the first ل after لـ may be the article's. If the
+   marks fit no candidate (a passive, a variant vocalization, a typo), nothing is
+   removed.
+3. **Prefix.** After the article, after بـ or كـ, or under tanwin, a verb is out when
+   a non-verb of the same or a better rank remains and either the key is one of the
+   verb's conjugations or a noun has its own row (والنقل is نَقْل). A verb row keeps its
+   masdar and participles against another lemma's `forms_json` value (الشعور stays with
+   شَعَرَ). After لـ only a verb's bare past form is out (لأمر). Part-of-speech labels
+   are not reliable enough to hand a key to a lower-ranked row.
+
+The owner keeps the key if it survives; otherwise a survivor the evidence spoke for
+takes it. `LemmaMatchProvenance.decided_by` names the evidence (`hamza`,
+`vocalization`, `prefix`, joined by `+`). The siblings are always in `alternatives`.
+
+**`homograph_tie`.** When another survivor is registered at the winner's rank, only
+registration order chose (unvocalized دار: دَارَ or دَار; خصمه: خَصَم or خَصْم).
+`LemmaMatchProvenance.homograph_tie` and `TokenMapping.homograph_tie` say so, and the
+verifier prompt labels the token "homograph". This is not `is_guess`: the word is in
+the vocabulary, and the callers that refuse a guess send it down a new-word path,
+which would create a duplicate. A caller with context should choose among
+`alternatives`.
+
+Pass the surface: `lookup_lemma_id()` and `map_tokens_to_lemmas()` hand the token with
+its marks to `lookup_lemma(surface_form=...)`. A caller that only has a bare form gets
+the hamza and prefix steps.
+
+Measured on a production snapshot (2026-11-18, 32,974 distinct surfaces of verified
+sentences): 437 surfaces change lemma; agreement with the stored mapping rises from
+87,602 to 88,101 of 90,543 tokens. The surfaces that move away from the stored lemma are
+mostly stored errors (وَضَعَ stored as the noun وَضْع, أَمَرَ as آمَرَ, الحَرْب as a verb).
+Details: `research/analysis-2026-11-18-resolver-collisions.md` §9.
 
 ### Strict fallback for unchecked callers (2026-11-18)
 `lookup_lemma(..., strict_fallback=True)` / `lookup_lemma_id(..., strict_fallback=True)`
@@ -191,7 +255,9 @@ Strict mode changes two things:
    when its headword is a lemma's own bare form with the same hamza spelling
    (`LemmaLookupDict.headword_spellings`). A headword that only coincides with a
    conjugation, imperative, masdar or participle key of another lemma is "no match".
-   A surviving match is still layer `camel` (`is_guess`).
+   A surviving match is still layer `camel` (`is_guess`). When the headword's key is
+   shared by lemmas with different hamzas (أمام / إمام), the lemma whose own spelling
+   passed the check is returned, not the key's owner.
 
 Callers that pass it: `discover_words_in_text` (`/api/discover/words`, `/snap`,
 `/lookup`, and pre-read analysis through it), `ocr_service._lookup_vocabulary_match`,

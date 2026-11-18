@@ -12,6 +12,7 @@
   "M6b": "direct key: forms_json value claims a distinct lexeme",
   "M6c": "direct key: speculative generated form"
  },
+ "homograph_round": "Second measurement, production snapshot 2026-11-18 12:01 UTC (4,610 lemmas, after the vocabulary repairs of the same day), default mode. Rows carry `homograph_round` when the collision chooser changed or qualified the match: lemma before and after, the evidence that decided (`decided_by`), and `homograph_tie`. `word_in_text_lemma_id_now` is the lemma the text uses where the vocabulary has it on that snapshot. Of the 50 wrong rows: 26 right before, 30 after (خرّج, والنقل, لأمر, ويبدو); 7 still wrong but labelled a homograph tie; 8 labelled a CAMeL guess; 5 confident and wrong.",
  "rows": [
   {
    "surface": "الحقبة",
@@ -38,7 +39,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 378,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 378,
+    "after_lemma_id": 378,
+    "after_layer": "lemma",
+    "decided_by": "hamza",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "ابنها",
@@ -52,7 +60,15 @@
    "word_in_text_lemma_id": 79,
    "after_lemma_id": 79,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 79,
+   "homograph_round": {
+    "before_lemma_id": 79,
+    "after_lemma_id": 79,
+    "after_layer": "clitic",
+    "decided_by": "hamza",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "يذهبان",
@@ -75,7 +91,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 1206,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4856,
+   "homograph_round": {
+    "before_lemma_id": 1206,
+    "after_lemma_id": 1206,
+    "after_layer": "lemma",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "يتابع",
@@ -111,7 +135,14 @@
    "layer_before": "clitic-multi→camel",
    "after_lemma_id": 1163,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 1163,
+    "after_lemma_id": 1163,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "ظهرت",
@@ -215,7 +246,14 @@
    "layer_before": "clitic-multi→camel",
    "after_lemma_id": 902,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 902,
+    "after_lemma_id": 902,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "فقد",
@@ -229,7 +267,8 @@
    "word_in_text_lemma_id": 2054,
    "after_lemma_id": 2189,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 2054
   },
   {
    "surface": "أمضت",
@@ -243,7 +282,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2444,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4862
   },
   {
    "surface": "ونهارات",
@@ -261,7 +301,14 @@
    "layer_before": "clitic-multi→camel",
    "after_lemma_id": 1058,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 1058,
+    "after_lemma_id": 1058,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "تتعرف",
@@ -370,7 +417,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 1384,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4857,
+   "homograph_round": {
+    "before_lemma_id": 1384,
+    "after_lemma_id": 1384,
+    "after_layer": "lemma",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "تقارير",
@@ -384,7 +439,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2090,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4866
   },
   {
    "surface": "ذاك",
@@ -488,7 +544,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2983,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4860,
+   "homograph_round": {
+    "before_lemma_id": 2983,
+    "after_lemma_id": 2983,
+    "after_layer": "lemma",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "شوكة",
@@ -511,7 +575,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2074,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 2074
   },
   {
    "surface": "رأيت",
@@ -525,7 +590,8 @@
    "word_in_text_lemma_id": 4576,
    "after_lemma_id": 2735,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4576
   },
   {
    "surface": "وجه",
@@ -575,7 +641,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 561,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4863
   },
   {
    "surface": "باستقالته",
@@ -625,7 +692,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 267,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4853
   },
   {
    "surface": "وجودها",
@@ -684,7 +752,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 2522,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 2522,
+    "after_lemma_id": 2522,
+    "after_layer": "lemma",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "أنشئ",
@@ -698,7 +773,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2425,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4864
   },
   {
    "surface": "لإعداد",
@@ -712,7 +788,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2422,
    "after_layer": "clitic",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4867,
+   "homograph_round": {
+    "before_lemma_id": 4867,
+    "after_lemma_id": 4867,
+    "after_layer": "clitic",
+    "decided_by": "hamza",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "الكادرات",
@@ -735,7 +819,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2205,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4861,
+   "homograph_round": {
+    "before_lemma_id": 2205,
+    "after_lemma_id": 4861,
+    "after_layer": "lemma",
+    "decided_by": "vocalization",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "للجمهورية",
@@ -803,7 +895,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 195,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4852
   },
   {
    "surface": "الوزراء",
@@ -848,7 +941,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 166,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 166,
+    "after_lemma_id": 166,
+    "after_layer": "lemma",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "مادة",
@@ -880,7 +980,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2124,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4875
   },
   {
    "surface": "مشاريع",
@@ -898,7 +999,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 4369,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 4369,
+    "after_lemma_id": 4369,
+    "after_layer": "lemma",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "البرلمان",
@@ -962,7 +1070,15 @@
    "word_in_text_lemma_id": 4612,
    "after_lemma_id": 4339,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4612,
+   "homograph_round": {
+    "before_lemma_id": 4339,
+    "after_lemma_id": 4612,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "خاطفة",
@@ -1008,7 +1124,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 3691,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4870,
+   "homograph_round": {
+    "before_lemma_id": 3691,
+    "after_lemma_id": 3691,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "مبارزة",
@@ -1022,7 +1146,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 1040,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4876
   },
   {
    "surface": "بأرنبٍ",
@@ -1086,7 +1211,15 @@
    "word_in_text_lemma_id": 2501,
    "after_lemma_id": 1185,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 2501,
+   "homograph_round": {
+    "before_lemma_id": 1185,
+    "after_lemma_id": 2501,
+    "after_layer": "clitic",
+    "decided_by": "hamza+prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "فظيع",
@@ -1109,7 +1242,8 @@
    "word_in_text_lemma_id": 2068,
    "after_lemma_id": 2068,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 2068
   },
   {
    "surface": "يستطيع",
@@ -1150,7 +1284,15 @@
    "word_in_text_lemma_id": 349,
    "after_lemma_id": 349,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 349,
+   "homograph_round": {
+    "before_lemma_id": 349,
+    "after_lemma_id": 349,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "الخارج",
@@ -1159,7 +1301,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 983,
    "after_layer": "lemma",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 983,
+    "after_lemma_id": 983,
+    "after_layer": "lemma",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "احتماله",
@@ -1218,7 +1367,15 @@
    "word_in_text_lemma_id": 2640,
    "after_lemma_id": 194,
    "after_layer": "clitic",
-   "after_key_source": "generated"
+   "after_key_source": "generated",
+   "word_in_text_lemma_id_now": 2640,
+   "homograph_round": {
+    "before_lemma_id": 194,
+    "after_lemma_id": 194,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "التواصل",
@@ -1241,7 +1398,8 @@
    "word_in_text_lemma_id": 354,
    "after_lemma_id": 354,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 354
   },
   {
    "surface": "سيرة",
@@ -1259,7 +1417,14 @@
    "layer_before": "clitic-multi→camel",
    "after_lemma_id": 408,
    "after_layer": "clitic",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "homograph_round": {
+    "before_lemma_id": 408,
+    "after_lemma_id": 408,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "بأسى",
@@ -1319,7 +1484,8 @@
    "word_in_text_lemma_id": 45,
    "after_lemma_id": 45,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 45
   },
   {
    "surface": "ماما",
@@ -1337,7 +1503,14 @@
    "layer_before": "clitic-1",
    "after_lemma_id": 501,
    "after_layer": "clitic",
-   "after_key_source": "generated"
+   "after_key_source": "generated",
+   "homograph_round": {
+    "before_lemma_id": 501,
+    "after_lemma_id": 501,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "بنبرة",
@@ -1369,7 +1542,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2683,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 2683
   },
   {
    "surface": "شيئاً",
@@ -1405,7 +1579,14 @@
    "layer_before": "clitic-multi→camel",
    "after_lemma_id": 3314,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "homograph_round": {
+    "before_lemma_id": 3314,
+    "after_lemma_id": 3314,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "واحترام",
@@ -1437,7 +1618,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 884,
    "after_layer": "generated",
-   "after_key_source": "generated"
+   "after_key_source": "generated",
+   "word_in_text_lemma_id_now": 4874,
+   "homograph_round": {
+    "before_lemma_id": 884,
+    "after_lemma_id": 884,
+    "after_layer": "generated",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "امرأة",
@@ -1478,7 +1667,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 3454,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4878
   },
   {
    "surface": "أقلّ",
@@ -1487,7 +1677,14 @@
    "layer_before": "direct+collision",
    "after_lemma_id": 362,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "homograph_round": {
+    "before_lemma_id": 362,
+    "after_lemma_id": 362,
+    "after_layer": "forms",
+    "decided_by": null,
+    "homograph_tie": true
+   }
   },
   {
    "surface": "وبتعابير",
@@ -1587,7 +1784,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2596,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 2596
   },
   {
    "surface": "طفولةً",
@@ -1678,7 +1876,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 3522,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4865
   },
   {
    "surface": "يقارن",
@@ -1719,7 +1918,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 402,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4855,
+   "homograph_round": {
+    "before_lemma_id": 402,
+    "after_lemma_id": 4855,
+    "after_layer": "clitic",
+    "decided_by": null,
+    "homograph_tie": false
+   }
   },
   {
    "surface": "وإيماناً",
@@ -1733,7 +1940,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2838,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4873
   },
   {
    "surface": "بالقضاء",
@@ -1747,7 +1955,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2450,
    "after_layer": "clitic",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4868,
+   "homograph_round": {
+    "before_lemma_id": 4868,
+    "after_lemma_id": 4868,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": false
+   }
   },
   {
    "surface": "والقدر",
@@ -1761,7 +1977,15 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2781,
    "after_layer": "clitic",
-   "after_key_source": "lemma"
+   "after_key_source": "lemma",
+   "word_in_text_lemma_id_now": 4869,
+   "homograph_round": {
+    "before_lemma_id": 2781,
+    "after_lemma_id": 4605,
+    "after_layer": "clitic",
+    "decided_by": "prefix",
+    "homograph_tie": true
+   }
   },
   {
    "surface": "حيال",
@@ -1784,7 +2008,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 1774,
    "after_layer": "camel",
-   "after_key_source": null
+   "after_key_source": null,
+   "word_in_text_lemma_id_now": 4854
   },
   {
    "surface": "المصير",
@@ -1798,7 +2023,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 3017,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4871
   },
   {
    "surface": "الفريد",
@@ -1830,7 +2056,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 3972,
    "after_layer": "forms",
-   "after_key_source": "forms"
+   "after_key_source": "forms",
+   "word_in_text_lemma_id_now": 4877
   },
   {
    "surface": "مدينة",
@@ -1903,7 +2130,8 @@
    "word_in_text_lemma_id": null,
    "after_lemma_id": 2238,
    "after_layer": "generated",
-   "after_key_source": "generated"
+   "after_key_source": "generated",
+   "word_in_text_lemma_id_now": 4872
   },
   {
    "surface": "بألوان",

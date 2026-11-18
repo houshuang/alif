@@ -1,7 +1,7 @@
 # Running-text resolver: why 50 of 196 book tokens matched the wrong word
 
 Investigation date: 2026-11-18. Code read from `origin/main` at `022b0414`.
-Reproduction ran against a production snapshot taken 2026-11-18 08:21 UTC (4,583 lemmas; copy deleted afterwards). Status: Rank 1 (resolver side) and Rank 2 shipped the same day (§7); Rank 3 shipped as an opt-in for unchecked callers (§8); Ranks 4–5 are open.
+Reproduction ran against a production snapshot taken 2026-11-18 08:21 UTC (4,583 lemmas; copy deleted afterwards). Status: Rank 1 (resolver side) and Rank 2 shipped the same day (§7); Rank 3 shipped as an opt-in for unchecked callers (§8); Rank 4 shipped as an evidence-based chooser with a tie label (§9); Rank 5 is partly done (vocabulary repairs of 18 Nov) with further proposals in §9.
 
 Regression fixture: `backend/tests/fixtures/resolver_collisions_2026_11_18.json` (all 188 scored rows; the 50 wrong ones carry mechanism class, deciding layer, the word the text uses, and the result after the repairs in §7). Tests: `backend/tests/test_resolver_collisions.py`. The tracer and fix-variant simulator were session scratch and are not kept; §7 describes how the replay is run.
 
@@ -272,3 +272,58 @@ The three rows that moved from "labelled guess" to "confident wrong match" are �
 - The hamza rule (F5b) is in. It costs 4 replay pairs from two lexemes (انْصَبَّ, حَمْقَاء), against the 2 estimated in §5, and removes تأسف and الفتى. وزارة and ويبدو remain: another analysis lands on a real headword, and بَدَأَ is stored with the bare form `بدا`.
 
 **Still wrong in strict mode:** 36 of the 50 (28 confident, 8 labelled guesses). The remaining fixes are vocabulary work (Rank 5).
+
+---
+
+## 9. Outcome: Rank 4, same-spelling lemmas chosen by the token (2026-11-18)
+
+Measured on a second production snapshot (2026-11-18 12:01 UTC, 4,610 lemmas), taken after the vocabulary repairs of that day added 27 words and removed junk `forms_json` sets. On it, 24 of the 50 rows were still wrong in the default mode. Experiment-log entry: `2026-11-18 "Resolver chooses among same-spelling lemmas by the token's own evidence"`.
+
+**What §5 recommended and what shipped.** §5 recommended only the reporting half of Rank 4, because an automatic CAMeL pick among collision candidates moved 144 verified pairs away from their stored lemma. The shipped chooser does not use CAMeL to pick. It uses evidence in the token: hamza spelling, written tashkeel, clitics. CAMeL-based picking was tried again here (using the vocalized headword and part of speech of CAMeL's analysis to choose among the siblings) and rejected: the analysis used is the first one whose headword is any key, so its vocalization is arbitrary (كِتَابِي → كُتَّاب → كَاتِب, أَمَامِي → إِمَام).
+
+**Mechanism.** `_choose_collision_candidate()` in `sentence_validator.py`, described in `docs/nlp-pipeline.md` § "Homograph keys". It runs in the exact layers and on every clitic stem. Where nothing decides, the first-registered lemma still wins and the match carries `homograph_tie`.
+
+**The 50 rows, default mode.**
+
+| | Before | After |
+|---|---|---|
+| Right lemma | 26 | 30 |
+| Wrong, confident | 15 | 5 |
+| Wrong, labelled a homograph tie | 0 | 7 |
+| Wrong, labelled a CAMeL guess | 9 | 8 |
+
+- Fixed: خرّج (the printed shadda), والنقل (article), لأمر (hamza rules out آمَرَ, لـ rules out the past verb), ويبدو (CAMeL's headword key بدا is shared; the clitic parse يبدو already pointed at بَدَا).
+- Tie, cannot be decided from the word: دار (دَارَ / دَار), كاتب (كَاتَبَ / كَاتِب), ظلّ (ظِلّ / ظَلَّ), خصمه (خَصَم / خَصْم), والقدر (the verb is ruled out; قَدْر / قَدَر remain), أدري (دَرَّ / دَرَى, both generated forms), ترويها (see #194 below).
+- Still confident and wrong: فقد (فـ + قد; the alias is deliberately limited to the vocalized form), وأشبه, المستهدف, بالطبع, المدرسة (the word is missing or is a `forms_json` value of another row).
+- Strict mode: the same four are fixed; right 26 → 30, confident wrong 17 → 7.
+- None of the 138 right rows changes lemma; three are labelled a tie (قالتها, تسميها, أقلّ).
+
+**Verified sentences.** 437 of 32,974 distinct surfaces change (958 tokens). Agreement with the stored lemma: 87,602 → 88,101 of 90,543 tokens. 314 pairs move to the stored lemma and 140 away. Of the 140 (69 lemma pairs), about 117 are stored errors or duplicate rows, about 10 are wrong both ways, about 13 are regressions in 8 lexemes (listed in the experiment log). The number of tokens that carry alternatives, which is what triggers LLM disambiguation, is unchanged (13,319).
+
+**Variants measured and dropped.**
+- CAMeL's vocalized headword and part of speech to choose among siblings: worse than the owner (above).
+- Hamza step that rules out every lemma not stored with the written spelling, including generated forms: sends قَرَأَتِ to a stray row that happens to store the form and أَنْظُرُ to نَاظِر. Generated forms are neutral unless the headword has no hamza at all.
+- Prefix rule on part of speech alone: العَمَل went to a conjugated-form row labelled "noun", because عَمَل is labelled "verb". The rule now needs a survivor of the same or a better rank and leaves a verb row its masdar.
+- Treating a past form's final sukun as fixed: بَدَأَتِ before ال has a kasra.
+
+**Vocabulary proposals from the replay (not applied).**
+
+| Row | Problem | Proposal |
+|---|---|---|
+| #1678 أَضَعُ, #1682 أَكْتُبُ, #1804 تَعْمَل, #1608 أُعَرِّفُكُمْ, #2584 نَقْرَؤُه, #4022 مَانُنَزِّلُ, #2302 حَافِظِينَ | Conjugated forms kept as lemmas; they carry the real verb's forms and take its surfaces (وَضَعْتُ → #1678) | Link as variants of #4030 وَضَعَ, #4028 كَتَبَ, #272, #389/تَعَرَّفَ, #398 قَرَأَ, #3587 نَزَّلَ, #828 حَفِظَ |
+| #194 رَيّ | `forms_json` holds رَوَى's present يَرْوِي and participle | Remove them (fixes ترويها) |
+| #2073 وَجَدَ | `present` is the passive يُوجَدُ, `imperative` اِجِدْ | يَجِدُ, جِدْ |
+| #767 زَوِرَ | Holds زَارَ's `past_3fs` زَارَتْ and owns that key | Remove |
+| #3270 غَضِب (noun "anger") / #4593 غَضَب | Duplicate; #3270 has the verb's vocalization | Merge into #4593 |
+| #272 عَمَل, #686 عَامِلٌ, #2109 ناصِح, #1174 مَلَلٌ | `pos` is "verb" on nouns and adjectives | Correct `pos` |
+| #678 حَرَبَ (gloss "war") / #4590 حَرْب | The verb row holds the noun's sentences | Move mappings to #4590 |
+| #1185 آمَرَ | Every stored surface checked is أَمَرَ or أَمْر | Re-map to #4600 / #2501; consider retiring |
+| #1206 دَارَ | Its sentences use دَارٌّ, the row's former sense ("flowing copiously") | Retire those sentences |
+| #3855 مُتَوَقِّع "expected" | Should be مُتَوَقَّع | Fix `lemma_ar` |
+| #2526 طَوَال, #3398 قَبُولٌ, #739 أُغْنِيَةٌ | Generated sentences vocalize them طِوَال, قُبُول, أَغْنِيَة | Add the variant spelling to `forms_json` or re-vocalize the sentences |
+| Missing | شِعْر (poetry), دَاخِل (inside), خَطّ (line) appear only through other rows | Add |
+
+**Open.**
+- The unchecked writers (textbook scan, story import, Snap chips) ignore `homograph_tie`. They should hand `alternatives` to the sense check instead of accepting the first row. Treating a tie as `is_guess` was not done: those callers answer a guess with a new-word path, which would duplicate a word the vocabulary has.
+- A tie is still broken by registration order. A frequency prior among the tied lemmas was not measured.
+- The stored mappings that the replay shows to be wrong (the roughly 117 pairs) are still stored; a re-verification pass over sentences whose resolver answer changed would correct them.
