@@ -1,0 +1,215 @@
+"""Homograph ties go to the sense check with the same-spelling siblings offered.
+
+دَار "house" and دَارَ "to turn" share the bare form دار; nothing in the bare
+word tells them apart, so the resolver keeps the first-registered row and
+flags ``homograph_tie``. The unchecked writers (textbook scan, story import,
+Snap) must let the sense check pick the sibling, never add a duplicate.
+"""
+import pytest
+
+from app.models import Lemma, Story, StoryWord, UserLemmaKnowledge
+from app.services import lookup_sense
+from app.services import ocr_service
+from app.services import preread_service as ps
+from app.services import story_service
+from app.services.lookup_sense import validate_verdict
+from app.services.sentence_validator import (
+    LemmaMatchProvenance,
+    build_lemma_lookup,
+    lookup_lemma_id,
+)
+
+
+@pytest.fixture
+def pair(db_session):
+    house = Lemma(lemma_ar="دَار", lemma_ar_bare="دار", pos="noun", gloss_en="house",
+                  source="frequency_core")
+    turn = Lemma(lemma_ar="دَارَ", lemma_ar_bare="دار", pos="verb", gloss_en="to turn",
+                 source="frequency_core")
+    db_session.add_all([house, turn])
+    db_session.commit()
+    return house, turn
+
+
+def test_tie_reports_the_siblings(pair):
+    house, turn = pair
+    provenance = LemmaMatchProvenance()
+    lookup = build_lemma_lookup([house, turn])
+    assert lookup_lemma_id("دار", lookup, provenance, strict_fallback=True) == house.lemma_id
+    assert provenance.homograph_tie and provenance.tied_lemma_ids == [turn.lemma_id]
+    assert not provenance.is_guess
+
+
+# ── sense-check validation ──────────────────────────────────────────────
+
+CANDIDATES = [{"lemma_id": 7, "lemma_ar": "دَارَ", "gloss_en": "to turn", "pos": "verb"}]
+ENTRY = {"lemma_ar": "دَار", "gloss_en": "house", "pos": "noun", "candidates": CANDIDATES}
+
+
+@pytest.mark.parametrize("res, expected", [
+    ({"verdict": "sibling", "candidate_id": 7}, {"verdict": "sibling", "lemma_id": 7}),
+    ({"verdict": "sibling", "candidate_id": 99}, None),
+    ({"verdict": "sibling"}, None),
+    # A "different" answer naming an offered entry is that entry, not a new word.
+    ({"verdict": "different", "lemma_ar": "دَارَ", "gloss_en": "to turn", "pos": "verb"},
+     {"verdict": "sibling", "lemma_id": 7}),
+    ({"verdict": "fits"}, {"verdict": "fits"}),
+])
+def test_lookup_verdict_validates_the_chosen_sibling(res, expected):
+    assert validate_verdict(res, ENTRY) == expected
+
+
+def test_lookup_sibling_needs_candidates():
+    entry = {k: v for k, v in ENTRY.items() if k != "candidates"}
+    assert validate_verdict({"verdict": "sibling", "candidate_id": 7}, entry) is None
+
+
+def test_check_senses_offers_and_validates_siblings(monkeypatch):
+    prompts = []
+
+    def fake(**kwargs):
+        prompts.append(kwargs["prompt"])
+        return {"mismatches": [
+            {"index": 0, "verdict": "sibling", "candidate_id": 7},
+            {"index": 1, "verdict": "sibling", "candidate_id": 7},  # not offered
+            {"index": 2, "verdict": "sibling", "candidate_id": 3},  # not among its ids
+        ]}
+    from app.services import llm
+    monkeypatch.setattr(llm, "generate_completion", fake)
+    items = [
+        {"index": 0, "lemma_ar": "دَار", "gloss_en": "house", "pos": "noun", "forms": ["دار"],
+         "candidates": CANDIDATES},
+        {"index": 1, "lemma_ar": "بَيْت", "gloss_en": "house", "pos": "noun", "forms": ["بيت"]},
+        {"index": 2, "lemma_ar": "دَار", "gloss_en": "house", "pos": "noun", "forms": ["دار"],
+         "candidates": CANDIDATES},
+    ]
+    assert ps.check_senses("دار الرجل", items) == {0: {"verdict": "sibling", "lemma_id": 7}}
+    assert "other entries with this spelling: id 7: دَارَ (verb) — to turn" in prompts[0]
+
+
+# ── textbook scan ───────────────────────────────────────────────────────
+
+def _fake_check(monkeypatch, verdicts):
+    calls = []
+
+    def fake(text, items):
+        calls.append(items)
+        return verdicts(items) if callable(verdicts) else verdicts
+    monkeypatch.setattr(ps, "check_senses", fake)
+    return calls
+
+
+def test_scan_tie_takes_the_sibling_the_check_names(db_session, monkeypatch, pair):
+    house, turn = pair
+    lookup = build_lemma_lookup([house, turn])
+    calls = _fake_check(monkeypatch, lambda items: {
+        items[0]["index"]: {"verdict": "sibling", "lemma_id": turn.lemma_id}})
+    accepted, skip = ocr_service._check_scan_guesses(
+        db_session, [{"arabic": "دار", "english": "to turn"}], lookup)
+    assert accepted == {(None, "دار"): turn.lemma_id} and skip == set()
+    assert calls[0][0]["candidates"] == [
+        {"lemma_id": turn.lemma_id, "lemma_ar": "دَارَ", "gloss_en": "to turn", "pos": "verb"}]
+
+
+@pytest.mark.parametrize("verdicts", [
+    None,  # failed check
+    lambda items: {items[0]["index"]: {"verdict": "different", "lemma_ar": "دَارّ",
+                                       "gloss_en": "flowing", "pos": "adj"}},
+])
+def test_scan_tie_otherwise_keeps_the_resolver_answer(db_session, monkeypatch, pair, verdicts):
+    house, turn = pair
+    lookup = build_lemma_lookup([house, turn])
+    _fake_check(monkeypatch, verdicts)
+    accepted, skip = ocr_service._check_scan_guesses(
+        db_session, [{"arabic": "دار", "english": "house"}], lookup)
+    # Never skipped and never sent down the new-word path.
+    assert skip == set()
+    assert accepted.get((None, "دار"), house.lemma_id) == house.lemma_id
+
+
+# ── story import ────────────────────────────────────────────────────────
+
+def _story(db_session, house):
+    story = Story(body_ar="رأيت دار الرجل", source="imported", status="active")
+    db_session.add(story)
+    db_session.flush()
+    story.words.extend([
+        StoryWord(position=0, surface_form="رأيت", is_function_word=True),
+        StoryWord(position=1, surface_form="دار", lemma_id=house.lemma_id, gloss_en="house"),
+        StoryWord(position=2, surface_form="الرجل", is_function_word=True),
+        StoryWord(position=3, surface_form="دار", lemma_id=house.lemma_id, gloss_en="house"),
+    ])
+    db_session.commit()
+    return story
+
+
+def test_story_tie_relinks_to_the_named_sibling(db_session, monkeypatch, pair):
+    house, turn = pair
+    db_session.add(UserLemmaKnowledge(lemma_id=turn.lemma_id, knowledge_state="known"))
+    story = _story(db_session, house)
+    lookup = build_lemma_lookup([house, turn])
+    calls = _fake_check(monkeypatch, lambda items: {
+        items[0]["index"]: {"verdict": "sibling", "lemma_id": turn.lemma_id}})
+    assert story_service._import_unknown_words(db_session, story, lookup) == []
+    tied = [w for w in story.words if w.surface_form == "دار"]
+    assert [(w.lemma_id, w.gloss_en, w.is_known_at_creation) for w in tied] == [
+        (turn.lemma_id, "to turn", True)] * 2
+    # One check item per surface, with the story text around it.
+    assert len(calls) == 1 and len(calls[0]) == 1
+    assert calls[0][0]["candidates"][0]["lemma_id"] == turn.lemma_id
+
+
+def test_story_tie_failed_check_leaves_the_link(db_session, monkeypatch, pair):
+    house, turn = pair
+    story = _story(db_session, house)
+    lookup = build_lemma_lookup([house, turn])
+    _fake_check(monkeypatch, None)
+    assert story_service._import_unknown_words(db_session, story, lookup) == []
+    assert {w.lemma_id for w in story.words if w.surface_form == "دار"} == {house.lemma_id}
+    assert db_session.query(Lemma).count() == 2
+
+
+# ── Snap ────────────────────────────────────────────────────────────────
+
+def test_lookup_sense_offers_siblings_and_returns_the_chosen_one(
+    client, db_session, monkeypatch, pair
+):
+    house, turn = pair
+    seen = []
+
+    def fake(sentence, surface, entry):
+        seen.append(entry)
+        return validate_verdict({"verdict": "sibling", "candidate_id": turn.lemma_id}, entry)
+    monkeypatch.setattr(lookup_sense, "check_lookup_sense", fake)
+    body = client.post("/api/discover/lookup/sense", json={
+        "lemma_id": house.lemma_id, "surface": "دار", "context": "دار الرجل حول البيت"}).json()
+    assert [c["lemma_id"] for c in seen[0]["candidates"]] == [turn.lemma_id]
+    assert body["verdict"] == "different" and body["sibling"] is True
+    assert (body["word"]["lemma_id"], body["word"]["lemma_source"]) == (
+        turn.lemma_id, "homograph_sibling")
+
+
+def test_lookup_sense_without_a_tie_offers_nothing(client, db_session, monkeypatch, pair):
+    house, _ = pair
+    seen = []
+    monkeypatch.setattr(lookup_sense, "check_lookup_sense",
+                        lambda s, surface, entry: seen.append(entry) or {"verdict": "fits"})
+    client.post("/api/discover/lookup/sense", json={
+        "lemma_id": house.lemma_id, "surface": "الدار", "context": "في الدار"})
+    assert "candidates" not in seen[0]
+
+
+def test_snap_chip_tie_is_replaced_by_the_sibling(db_session, monkeypatch, pair):
+    from app.routers import discover
+
+    house, turn = pair
+    calls = _fake_check(monkeypatch, lambda items: {
+        items[0]["index"]: {"verdict": "sibling", "lemma_id": turn.lemma_id}})
+    words = discover.discover_words_in_text(db_session, "دار", count=5, include_oov=True,
+                                            include_learning=True)
+    assert words[0]["lemma_id"] == house.lemma_id
+    assert words[0]["homograph_candidates"] == [turn.lemma_id]
+    out = discover._sense_check_chips(db_session, "دار", words)
+    assert calls[0][0]["candidates"][0]["lemma_id"] == turn.lemma_id
+    assert out[0]["lemma_id"] == turn.lemma_id and out[0]["gloss_en"] == "to turn"
+    assert out[0]["sense_from"]["lemma_id"] == house.lemma_id

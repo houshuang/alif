@@ -507,7 +507,7 @@ def _generate_via_legacy_batch(
     from app.services.llm import generate_sentences_for_words
 
     target_words_for_llm = [
-        {"arabic": t["clean_target"], "english": t["gloss_en"]}
+        {"arabic": t["clean_target"], "english": t["gloss_en"], "context_ar": t.get("context_ar")}
         for t in targets
     ]
     results = generate_sentences_for_words(
@@ -602,6 +602,9 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         # worse than no example.
         target_example_ar = (lemma.example_ar or "").strip() or None
         target_example_en = (lemma.example_en or "").strip() or None
+        from app.services.add_context import add_sentences_for
+
+        target_context_ar = add_sentences_for(db, [lemma_id]).get(lemma_id)
 
         active_lemmas = (
             db.query(Lemma)
@@ -673,6 +676,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             model_override=model_override,
             target_example_ar=target_example_ar,
             target_example_en=target_example_en,
+            target_context_ar=target_context_ar,
             rerank=False,  # deferred to after deterministic validation
         )
     except AllProvidersFailed:
@@ -688,6 +692,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         "model": model_override, "requested": batch_requested, "returned": len(results),
         "difficulty": diff_params["difficulty_hint"], "known_sample_size": len(sample),
         "had_example": bool(target_example_ar and target_example_en),
+        "had_add_sentence": bool(target_context_ar),
     })
 
     # Phase 2a: Deterministic validation + mapping (no LLM calls)
@@ -1064,6 +1069,9 @@ def batch_generate_material(
             .all()
         )
         lemma_by_id_target = {l.lemma_id: l for l in target_lemmas}
+        from app.services.add_context import add_sentences_for
+
+        add_sentences = add_sentences_for(db, lemma_by_id_target)
 
         active_lemmas = (
             db.query(Lemma)
@@ -1116,6 +1124,7 @@ def batch_generate_material(
             "clean_target": clean,
             "target_bare": strip_diacritics(clean),
             "gloss_en": lem.gloss_en or "",
+            "context_ar": add_sentences.get(lid),
         })
 
     if not targets:

@@ -324,6 +324,18 @@ Measured on a second production snapshot (2026-11-18 12:01 UTC, 4,610 lemmas), t
 | Missing | شِعْر (poetry), دَاخِل (inside), خَطّ (line) appear only through other rows | Add |
 
 **Open.**
-- The unchecked writers (textbook scan, story import, Snap chips) ignore `homograph_tie`. They should hand `alternatives` to the sense check instead of accepting the first row. Treating a tie as `is_guess` was not done: those callers answer a guess with a new-word path, which would duplicate a word the vocabulary has.
-- A tie is still broken by registration order. A frequency prior among the tied lemmas was not measured.
+- ~~The unchecked writers (textbook scan, story import, Snap chips) ignore `homograph_tie`.~~ Done the same day: they offer the tied siblings (`LemmaMatchProvenance.tied_lemma_ids`) to their sense check, which may name one (`sibling`). Treating a tie as `is_guess` was not done: those callers answer a guess with a new-word path, which would duplicate a word the vocabulary has.
+- A tie is still broken by registration order where no check runs. A frequency prior among the tied lemmas was measured and rejected (§10).
 - The stored mappings that the replay shows to be wrong (the roughly 117 pairs) are still stored; a re-verification pass over sentences whose resolver answer changed would correct them.
+
+## 10. Frequency prior for homograph ties: measured, not shipped (2026-11-18)
+
+Question: when the token cannot decide between same-spelling lemmas, does the most frequent of them (lowest `Lemma.frequency_rank`) pick the right word more often than the lowest id? Measured with the current resolver on a production snapshot taken 2026-11-18 13:21 UTC. Unranked lemmas never win; when no tied lemma is ranked the owner stays.
+
+| Test set | Ties | Lowest id right | Frequency prior right |
+|---|---|---|---|
+| Fixture `resolver_collisions_2026_11_18.json` (truth: the sense check's word) | 10 rows | 4 | 3 |
+| Verified sentence mappings (truth: stored lemma; stored lemma among the tied set) | 699 tokens, 354 tied surfaces | 554 | 546 |
+
+On the verified tokens the prior changes 118 answers: 55 move to the stored lemma, 63 away (دَخَلْتُ to the noun row, كَثِيرُونَ, حَجَرَ). In 7 of the 10 fixture rows the siblings have the same rank, because the rank is attached to the bare form both share (دار, كاتب, ظلّ, خصمه), so the prior cannot help where the errors are. 27 further tied tokens are stored with a lemma outside the tied set. Decision: not shipped; the contextual sense check is the tie-breaker where one runs.
+

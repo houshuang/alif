@@ -247,12 +247,13 @@ _SENSE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "index": {"type": "integer"},
-                    "verdict": {"type": "string", "enum": ["broader", "different"]},
+                    "verdict": {"type": "string", "enum": ["broader", "different", "sibling"]},
                     "lemma_ar": {"type": "string"},
                     "gloss_en": {"type": "string"},
                     "pos": {"type": "string"},
+                    "candidate_id": {"type": "integer"},
                 },
-                "required": ["index", "verdict", "gloss_en"],
+                "required": ["index", "verdict"],
             },
         }
     },
@@ -260,6 +261,51 @@ _SENSE_SCHEMA = {
 }
 # A widened gloss stays a dictionary gloss, not a definition.
 _MAX_GLOSS_CHARS = 90
+
+
+def candidate_line(candidate: dict) -> str:
+    """One same-spelling vocabulary entry offered to a sense check."""
+    return (
+        f'id {candidate["lemma_id"]}: {candidate.get("lemma_ar")} '
+        f'({candidate.get("pos") or "?"}) — {candidate.get("gloss_en") or ""}'
+    )
+
+
+def load_candidates(db, lemma_ids) -> list[dict]:
+    """Same-spelling entries to offer a sense check: [{lemma_id, lemma_ar,
+    gloss_en, pos}], in the given order, skipping rows without a gloss."""
+    from app.models import Lemma
+
+    ids = list(dict.fromkeys(lemma_ids or ()))
+    if not ids:
+        return []
+    rows = {lem.lemma_id: lem for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(ids)).all()}
+    return [
+        {"lemma_id": lid, "lemma_ar": rows[lid].lemma_ar, "gloss_en": rows[lid].gloss_en,
+         "pos": rows[lid].pos}
+        for lid in ids
+        if lid in rows and (rows[lid].gloss_en or "").strip()
+    ]
+
+
+def sibling_choice(res: dict, candidates: list[dict] | None) -> int | None:
+    """The offered same-spelling entry a sense check chose, or None.
+
+    Accepts an explicit ``sibling`` verdict naming an offered id, and a
+    ``different`` verdict whose citation form is an offered entry's: either
+    way the word is already in the vocabulary and must not be added again."""
+    if not candidates:
+        return None
+    if res.get("verdict") == "sibling":
+        chosen = res.get("candidate_id")
+        ids = {c["lemma_id"] for c in candidates}
+        return chosen if isinstance(chosen, int) and chosen in ids else None
+    if res.get("verdict") == "different":
+        key = _vocalized_key(res.get("lemma_ar") or "")
+        matches = [c["lemma_id"] for c in candidates
+                   if key and _vocalized_key(c.get("lemma_ar") or "") == key]
+        return matches[0] if len(matches) == 1 else None
+    return None
 
 
 def _vocalized_key(ar: str) -> str:
@@ -296,9 +342,14 @@ def _is_widening(old: str, new: str) -> bool:
 def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
     """One LLM pass: does each stored gloss cover how the pages use the word?
 
-    ``items``: [{index, lemma_ar, gloss_en, pos, forms}]. Returns {index: {verdict,
-    gloss_en, lemma_ar?, pos?}} for mismatches only, or None when the call failed
-    (callers must then treat the matches as unchecked)."""
+    ``items``: [{index, lemma_ar, gloss_en, pos, forms, candidates?}]. Returns
+    {index: {verdict, gloss_en, lemma_ar?, pos?}} for mismatches only, or None
+    when the call failed (callers must then treat the matches as unchecked).
+
+    ``candidates`` ([{lemma_id, lemma_ar, gloss_en, pos}]) are the other
+    vocabulary entries a homograph tie left open for that word. The check may
+    then answer ``{"verdict": "sibling", "lemma_id": <offered id>}``; a sibling
+    is never reported as ``different``."""
     if not items:
         return {}
     from app.services.llm import generate_completion
@@ -306,6 +357,13 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
     lines = [
         f'{it["index"]}. {it["lemma_ar"]} ({it.get("pos") or "?"}) — {it.get("gloss_en") or ""}'
         + (f' [in the pages: {", ".join(it["forms"][:5])}]' if it.get("forms") else "")
+        + (
+            " [other entries with this spelling: "
+            + "; ".join(candidate_line(c) for c in it["candidates"])
+            + "]"
+            if it.get("candidates")
+            else ""
+        )
         for it in items
     ]
     prompt = (
@@ -327,6 +385,9 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
         "of the word used here (singular noun, past-tense 3ms verb, no ال), pos, "
         "and gloss_en: a short general dictionary gloss that includes the meaning "
         "used here.\n"
+        '- "sibling": only for an entry listing other entries with this spelling, '
+        "when the pages use one of those instead. Give candidate_id: that entry's "
+        "id. Prefer it over \"different\" whenever a listed entry is the word used.\n"
         "Do not report entries that fit, rewordings or reorderings of a gloss that "
         "already covers the use, or words used as part of a name. Keep glosses "
         "under 80 characters.\n\n"
@@ -351,6 +412,10 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
         if not isinstance(r, dict) or r.get("index") not in by_index:
             continue
         item = by_index[r["index"]]
+        sibling = sibling_choice(r, item.get("candidates"))
+        if sibling is not None:
+            out[r["index"]] = {"verdict": "sibling", "lemma_id": sibling}
+            continue
         gloss = (r.get("gloss_en") or "").strip()
         verdict = r.get("verdict")
         if not gloss or len(gloss) > _MAX_GLOSS_CHARS or verdict not in ("broader", "different"):

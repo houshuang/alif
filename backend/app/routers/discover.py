@@ -50,6 +50,7 @@ from app.services.material_generator import (
 from app.services.morphology import get_best_lemma_mle
 from app.services.ocr_service import extract_text_and_translation
 from app.services.sentence_validator import (
+    LemmaMatchProvenance,
     _candidate_matches_correction,
     _is_function_word,
     build_comprehensive_lemma_lookup,
@@ -350,7 +351,10 @@ def discover_words_in_text(
         # left ordinary book pages with zero or one suggestion.
         # Nothing checks this match before it is shown or used to suppress a
         # suggestion, so the last-resort CAMeL guess is held to lemma headwords.
-        existing_id = lookup_lemma_id(tok, lemma_lookup, strict_fallback=True)
+        provenance = LemmaMatchProvenance()
+        existing_id = lookup_lemma_id(
+            tok, lemma_lookup, provenance, strict_fallback=True
+        )
         if existing_id in already_learning_ids:
             continue
         # Approved exact-running-text identities are fail-closed. If their
@@ -383,8 +387,15 @@ def discover_words_in_text(
         )
         if key_id in already_learning_ids:
             continue
+        tied = (
+            provenance.tied_lemma_ids
+            if existing is not None and provenance.homograph_tie
+            else []
+        )
         entry = cand.get(key)
         if entry:
+            if entry.get("db_lemma_id") == existing_id:
+                entry["tied"].extend(t for t in tied if t not in entry["tied"])
             entry["count"] += 1
             entry["surfaces"][tok] = entry["surfaces"].get(tok, 0) + 1
             # A confident CAMeL analysis upgrades an earlier surface-fallback guess.
@@ -400,6 +411,9 @@ def discover_words_in_text(
                 ),
                 "register": existing.register if existing is not None else None,
                 "dialect": existing.dialect if existing is not None else None,
+                "db_lemma_id": existing_id if existing is not None else None,
+                # Same-spelling entries the token could not rule out.
+                "tied": list(tied),
             }
 
     if not cand:
@@ -497,6 +511,9 @@ def discover_words_in_text(
                 "lemma_source": v["source"],
                 "lemma_id": state_id,
                 "knowledge_state": state_by_id.get(state_id) if state_id else None,
+                "homograph_candidates": (
+                    v["tied"] if state_id is not None and state_id == v["db_lemma_id"] else []
+                ),
             }
         )
     return words
@@ -578,6 +595,18 @@ def _resolve_different_word(db: Session, surface: str, matched_id: int, v: dict)
     }
 
 
+def _sibling_word(db: Session, lemma_id: int, surface: str) -> dict | None:
+    """Snap word for the same-spelling entry a sense check chose."""
+    lemma = db.get(Lemma, lemma_id)
+    if lemma is None:
+        return None
+    state = (
+        db.query(UserLemmaKnowledge.knowledge_state)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id).scalar()
+    )
+    return _word_out(lemma, surface, state, "homograph_sibling")
+
+
 @router.post("/lookup/sense")
 def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
     """Second step of a Snap lookup that matched a vocabulary entry: does that
@@ -588,16 +617,31 @@ def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
     so the reader can add it; ``fits``/``name`` change nothing. ``verdict`` is
     null when the check failed."""
     from app.services.lookup_sense import check_lookup_sense
-    from app.services.preread_service import regloss
+    from app.services.preread_service import load_candidates, regloss
 
     lemma = db.get(Lemma, req.lemma_id)
     if lemma is None:
         raise HTTPException(status_code=404, detail="Lemma not found")
     entry = {"lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en, "pos": lemma.pos}
+    # A homograph tie: offer the same-spelling entries the word did not rule out.
+    provenance = LemmaMatchProvenance()
+    tied_owner = lookup_lemma_id(
+        req.surface, build_comprehensive_lemma_lookup(db), provenance, strict_fallback=True
+    )
+    if provenance.homograph_tie and tied_owner == req.lemma_id:
+        entry["candidates"] = load_candidates(db, provenance.tied_lemma_ids)
     db.rollback()  # hold no transaction across the LLM call
     v = check_lookup_sense(req.context, req.surface, entry)
     out: dict = {"verdict": v["verdict"] if v else None}
-    if v and v["verdict"] == "broader":
+    if v and v["verdict"] == "sibling":
+        # Reported as "different" with an existing entry, which clients
+        # already show; ``sibling`` says it came from the tie.
+        out = {"verdict": "different", "sibling": True,
+               "word": _sibling_word(db, v["lemma_id"], req.surface)}
+        db.rollback()
+        if out["word"] is None:
+            out = {"verdict": None}
+    elif v and v["verdict"] == "broader":
         w = {"lemma_id": req.lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"]}}
         try:
             regloss(db, [w])
@@ -613,7 +657,8 @@ def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
     log_interaction(
         event="discover_lookup_sense", surface=req.surface, lemma_id=req.lemma_id,
         lemma_ar=entry["lemma_ar"], gloss_from=entry["gloss_en"],
-        context=req.context[:500], verdict=out["verdict"],
+        context=req.context[:500], verdict=out["verdict"], sibling=out.get("sibling", False),
+        candidate_ids=[c["lemma_id"] for c in entry.get("candidates") or []],
         gloss_to=out.get("gloss_en"), written=out.get("written"),
         word_lemma_id=(out.get("word") or {}).get("lemma_id"),
         word_lemma_ar=(out.get("word") or {}).get("lemma_ar"),
@@ -638,17 +683,21 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
     (compare-and-set); a different word replaces the chip, or drops it when the
     learner already studies that word. On a failed check the chips are kept:
     nothing is written until Add, and the add-context check covers it then."""
-    from app.services.preread_service import check_senses, regloss
+    from app.services.preread_service import check_senses, load_candidates, regloss
 
     matched = [w for w in words if w.get("lemma_id")]
     if not matched:
         return words
+    items = []
+    for i, w in enumerate(matched):
+        item = {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"),
+                "pos": w.get("pos"), "forms": w.get("surface_forms") or [w["surface"]]}
+        candidates = load_candidates(db, w.get("homograph_candidates"))
+        if candidates:
+            item["candidates"] = candidates
+        items.append(item)
     db.rollback()  # hold no transaction across the LLM call
-    verdicts = check_senses(text, [
-        {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
-         "forms": w.get("surface_forms") or [w["surface"]]}
-        for i, w in enumerate(matched)
-    ])
+    verdicts = check_senses(text, items)
     if not verdicts:
         return words
     drop: set[int] = set()
@@ -662,8 +711,13 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
             db.commit()
             w["gloss_en"] = v["gloss_en"]
             continue
-        real = _resolve_different_word(db, w["surface"], w["lemma_id"], v)
+        if v["verdict"] == "sibling":
+            real = _sibling_word(db, v["lemma_id"], w["surface"])
+        else:
+            real = _resolve_different_word(db, w["surface"], w["lemma_id"], v)
         db.rollback()
+        if real is None:
+            continue
         if real.get("knowledge_state") in _ALREADY_LEARNING_STATES:
             drop.add(id(w))
             continue
@@ -672,6 +726,7 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
         for k in ("lemma_ar", "lemma_ar_bare", "gloss_en", "pos", "root", "lemma_id",
                   "knowledge_state", "transliteration", "register", "dialect", "lemma_source"):
             w[k] = real.get(k)
+        w["homograph_candidates"] = []
     return [w for w in words if id(w) not in drop]
 
 

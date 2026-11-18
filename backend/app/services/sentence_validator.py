@@ -776,6 +776,9 @@ class LemmaMatchProvenance:
     # one. The siblings are in ``alternatives``. Not ``is_guess``: the word is
     # in the vocabulary, so it must not take a caller's new-word path.
     homograph_tie: bool = False
+    # With ``homograph_tie``: the siblings the word did not rule out, which a
+    # contextual check can choose among.
+    tied_lemma_ids: list[int] = field(default_factory=list)
 
     @property
     def is_guess(self) -> bool:
@@ -1656,6 +1659,8 @@ class _CollisionChoice:
     tie: bool = False
     # Some evidence spoke for this lemma (not only against its siblings).
     supported: bool = False
+    # With ``tie``: the other survivors registered at the winner's rank.
+    tied_with: tuple[int, ...] = ()
 
 
 def _locate_stem(
@@ -1965,15 +1970,18 @@ def _choose_collision_candidate(
         )
     )
     source = sources.get(winner, _key_source(lemma_lookup, key))
-    tie = any(
-        other != winner and sources.get(other) == source for other in pool
+    tied_with = tuple(
+        other
+        for other in pool
+        if other != winner and sources.get(other) == source
     )
     return _CollisionChoice(
         lemma_id=winner,
         source=source,
         decided_by="+".join(evidence) or None,
-        tie=tie,
+        tie=bool(tied_with),
         supported=winner in supported,
+        tied_with=tied_with,
     )
 
 
@@ -2071,6 +2079,7 @@ def _lookup_exact_layers(
             out_provenance.key_source = choice.source
             out_provenance.decided_by = choice.decided_by
             out_provenance.homograph_tie = choice.tie
+            out_provenance.tied_lemma_ids = list(choice.tied_with)
         return choice.lemma_id
 
     # Direct match
@@ -2376,6 +2385,7 @@ def _lookup_clitic_layer(
             if choice is not None and layer == MATCH_LAYER_CLITIC:
                 out_provenance.decided_by = choice.decided_by
                 out_provenance.homograph_tie = choice.tie
+                out_provenance.tied_lemma_ids = list(choice.tied_with)
 
     # Clitic stripping — collect every stem the vocabulary knows.
     stem_hits: list[tuple[str, int]] = []
