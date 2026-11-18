@@ -38,7 +38,8 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
   ~~textbook-scan matches~~ — done 2026-11-18 for CAMeL-guess matches (`_check_scan_guesses`).
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
-  Next: surface `different` verdicts in the app (offer to swap the enrolled word), and use
+  ~~Surface `different` verdicts in the app (offer to swap the enrolled word)~~ — done
+  2026-11-18 (Snap start screen, "Check added words"). Next: use
   the stored sentence as the first example when generating the word's review material.
 
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension

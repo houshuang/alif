@@ -32,6 +32,7 @@ import {
   type AlignedSentence,
   type SnapToken,
 } from "../lib/snap-alignment";
+import AddChecks from "../components/AddChecks";
 
 type AddState = "idle" | "adding" | "added" | "known" | "error";
 
@@ -416,6 +417,7 @@ export default function SnapScreen() {
               <Text style={styles.secondaryBtnText}>Try again</Text>
             </Pressable>
           )}
+          <AddChecks />
           {history.length > 0 && (
             <View style={styles.history}>
               <Text style={styles.sectionLabel}>Recent pages</Text>

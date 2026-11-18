@@ -135,6 +135,22 @@ Exact aliases and surface-aware hits upstream are unchanged. Callers: `import_st
 processed-book imports), `scripts/backfill_story_words.py`; none relies on the old link.
 `book_import_service._resolve_unmapped_via_camel` (book sentences) is left as is: its
 links pass through `verify_and_correct_mappings_llm` before a sentence is reviewable.
+## 2026-11-18: Snap start screen offers to swap a word added under the wrong entry
+
+**Why.** Since #311 every Snap and pre-read add keeps its sentence, and a background check
+records `different` when the sentence uses another word than the enrolled entry (أمضت
+added as مَاضٍ "past"). Nothing showed that verdict, so the wrong word stayed enrolled.
+
+**What.** `GET /api/discover/add-checks` lists unresolved `different` rows with the
+enrolled entry and the word the sentence uses (existing lemma or a proposal).
+`POST /api/discover/add-checks/{id}` with `swap` enrolls that word (creating it when
+missing, with the same sentence stored) and returns the wrong word to `encountered` only
+when this add started it and it is still acquiring; a word studied before is left alone.
+`keep` only records the choice. New columns `introduced_by_add`, `resolution`,
+`resolved_at` (migration `c3e5a7b9d1f4`). The app shows "Check added words" on the Snap
+start screen with Switch / Keep. No rows existed on prod yet (adds with sentences started
+today). Tests: `tests/test_add_checks.py`.
+
 
 ## 2026-11-18: Textbook scan checks its guessed matches instead of refusing them
 
