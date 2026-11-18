@@ -34,6 +34,7 @@ from app.services.sentence_validator import (
     strip_diacritics,
     strip_tatweel,
     _is_function_word,
+    LemmaMatchProvenance,
     lookup_lemma,
     requires_exact_running_text_alias,
     resolve_exact_running_text_alias,
@@ -747,6 +748,35 @@ def _normalize_import_pos(pos: str | None, word_category: str | None) -> str | N
     return pos
 
 
+def _lookup_vocabulary_match(
+    base_lemma_bare: str | None,
+    bare: str,
+    lemma_lookup: dict[str, int],
+) -> int | None:
+    """Existing lemma for a scanned word, refusing morphological guesses.
+
+    A scan writes its answer straight into learner state (an encounter, or an
+    ``encountered`` row) with no contextual check afterwards. A match that
+    only CAMeL's analysis produced is wrong more often than right on words
+    the vocabulary does not have (وزارة → زَارَ), so it counts as no match and
+    the word takes the new-word path, where the quality gates' variant
+    detection links it if it was an inflection after all.
+    """
+    for candidate in (
+        base_lemma_bare if base_lemma_bare and base_lemma_bare != bare else None,
+        bare,
+    ):
+        if not candidate:
+            continue
+        provenance = LemmaMatchProvenance()
+        lemma_id = lookup_lemma(
+            candidate, lemma_lookup, out_provenance=provenance
+        )
+        if lemma_id and not provenance.is_guess:
+            return lemma_id
+    return None
+
+
 def _storage_word_category(category_by_bare: dict[str, str], *bares: str | None) -> str | None:
     for bare in bares:
         if not bare:
@@ -916,10 +946,9 @@ def process_textbook_page(
             # Try to find existing lemma — try base_lemma first, then bare
             lemma_id = alias.lemma_id if alias.applicable else None
             if not alias.applicable:
-                if base_lemma_bare and base_lemma_bare != bare:
-                    lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
-                if not lemma_id:
-                    lemma_id = lookup_lemma(bare, lemma_lookup)
+                lemma_id = _lookup_vocabulary_match(
+                    base_lemma_bare, bare, lemma_lookup
+                )
 
             if lemma_id:
                 # If lookup landed on a variant, redirect to its canonical so
@@ -1349,10 +1378,9 @@ def process_batch(
         # Look up existing lemma
         lemma_id = alias.lemma_id if alias.applicable else None
         if not alias.applicable:
-            if base_lemma_bare and base_lemma_bare != bare:
-                lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
-            if not lemma_id:
-                lemma_id = lookup_lemma(bare, lemma_lookup)
+            lemma_id = _lookup_vocabulary_match(
+                base_lemma_bare, bare, lemma_lookup
+            )
 
         if lemma_id:
             from app.services.canonical_resolution import resolve_canonical_lemma_id

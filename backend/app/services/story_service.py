@@ -51,6 +51,7 @@ from app.services.sentence_validator import (
     is_function_word_lemma,
     _WORD_CHAR,
     lookup_lemma,
+    LemmaMatchProvenance,
     lookup_lemma_id,
     requires_exact_running_text_alias,
     resolve_exact_running_text_alias,
@@ -204,11 +205,20 @@ def _create_story_words(
     knowledge_map: dict[int, str],
     proper_names: set[str] | None = None,
     proper_name_source: str = "story",
+    trust_morphological_guesses: bool = False,
 ) -> tuple[int, int, int]:
     """Create StoryWord records for each token in the story.
 
     Surface forms preserve original punctuation (commas, periods, guillemets)
     so the reader can display them naturally.
+
+    A token whose only match is a CAMeL analysis (no vocabulary form, with or
+    without clitics, matched it) is left unmapped: on imported text such a
+    guess is wrong more often than right, nothing checks a link to an
+    existing lemma afterwards, and the link later carries review credit.
+    Unmapped words go to ``_import_unknown_words``. Only a caller whose text
+    was generated from the vocabulary and has no unknown-word step sets
+    ``trust_morphological_guesses``.
 
     Returns (total_words, known_count, function_word_count).
     """
@@ -223,10 +233,18 @@ def _create_story_words(
     }
     proper_name_norms = {name for name in proper_name_norms if name}
 
+    def _vocabulary_match(display_form: str) -> int | None:
+        if trust_morphological_guesses:
+            return lookup_lemma_id(display_form, lemma_lookup)
+        provenance = LemmaMatchProvenance()
+        lemma_id = lookup_lemma_id(display_form, lemma_lookup, provenance)
+        return None if provenance.is_guess else lemma_id
+
     # Build set of known bare forms for morphological fallback
     known_bare_forms: set[str] = set()
-    for lem in db.query(Lemma).all():
-        known_bare_forms.add(normalize_alef(lem.lemma_ar_bare))
+    if trust_morphological_guesses:
+        for lem in db.query(Lemma).all():
+            known_bare_forms.add(normalize_alef(lem.lemma_ar_bare))
 
     # Batch-load all lemmas for gloss lookup (avoid N+1 queries)
     all_lemma_ids_needed: set[int] = set()
@@ -238,9 +256,10 @@ def _create_story_words(
             if bare_norm in proper_name_norms and not exact_required:
                 continue
             if not _is_function_word(clean_form):
-                lid = lookup_lemma_id(display_form, lemma_lookup)
+                lid = _vocabulary_match(display_form)
                 if (
                     not lid
+                    and trust_morphological_guesses
                     and not exact_required
                     and bare_norm not in morph_cache
                 ):
@@ -276,7 +295,7 @@ def _create_story_words(
                     source=proper_name_source,
                 )
             elif not is_func:
-                lemma_id = lookup_lemma_id(display_form, lemma_lookup)
+                lemma_id = _vocabulary_match(display_form)
             if (
                 not lemma_id
                 and not is_func
