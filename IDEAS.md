@@ -43,9 +43,13 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   ~~try a frequency prior for ties~~ — measured 2026-11-18, no better than lowest id
   (546 vs 554 of 699 tied verified tokens), not shipped; ~~offer tie siblings to pre-read's
   `_apply_senses` and the add-context check too~~ — done 2026-11-18 (`sense_sibling`,
-  `sibling_lemma_id`); re-verify the stored mappings the
+  `sibling_lemma_id`); ~~re-verify the stored mappings the
   replay showed to be wrong; the vocabulary proposals in the analysis §9 (conjugated
-  forms kept as lemmas, #194, #2073, the #3270/#4593 duplicate, wrong `pos`).
+  forms kept as lemmas, #194, #2073, the #3270/#4593 duplicate, wrong `pos`)~~ — done
+  2026-11-18 on prod (backups `alif_pre_vocab318*`, `alif_pre_reverify322_*`): 403
+  sentences re-verified, 25 corrected, 46 positions hidden as real errors; plus the #272
+  split (new verb #4882 عَمِلَ) and fixes to #2023, #2090, #2130, #2338, #2921, #1608,
+  #2109, #1185, #3992, #1831, #2759/#3580.
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
   ~~textbook-scan matches~~ — done 2026-11-18 for CAMeL-guess matches (`_check_scan_guesses`).
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
