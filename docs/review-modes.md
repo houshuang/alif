@@ -90,3 +90,12 @@ Verse-by-verse Quran reading interleaved with review sessions. Not a separate mo
 6. **Pipeline protection**: Quran-only lemmas created with `source="quran"`, ULK `state="encountered"`. They never auto-enter acquiring, never get intro cards, never get FSRS cards.
 7. **Interleaving**: `buildInterleavedSession()` in `index.tsx` distributes verse slots at evenly-spaced positions among sentence + intro card slots.
 8. **Data**: 6236 verses from risan/quran-json CDN. Sequential from Al-Fatihah. Tables: `quranic_verses`, `quranic_verse_words`.
+
+## Today card (2026-11-18)
+
+Batches continue automatically, so there is no end-of-session screen unless the learner
+taps Wrap Up. In reading mode, after each finished batch of at least 5 cards (about every
+10–15 cards) a Today card shows the UTC day's cumulative figures: cards, words correct %,
+new words, words that moved up a box, graduations, and the known total. Continue returns to
+practice; the card is logged as `card_shown` with `card_type="progress"` and gives no
+review credit.

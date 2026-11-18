@@ -140,7 +140,7 @@ Every user interaction must be logged. Append-only JSONL files (`data/logs/inter
 
 Events of note:
 - `session_start` — fired by `/api/review/next-sentences` when `prefetch=False`. Carries `total_due_words`, `covered_due_words`, `sentence_count`. Use to audit session size.
-- `card_shown` — fired by the frontend whenever a card transitions onto the user's screen (intro / sentence / verse / reintro / grammar / wrapup). Carries `card_type`, `session_id`, `lemma_id`/`sentence_id`, `card_index`, `total_cards`. Lets the analyzer reconstruct the exact card sequence the user experienced — invisible to ack-only events when cards are auto-skipped, re-rendered, or replaced by a background prefetch.
+- `card_shown` — fired by the frontend whenever a card transitions onto the user's screen (intro / sentence / verse / reintro / grammar / wrapup / progress). Carries `card_type`, `session_id`, `lemma_id`/`sentence_id`, `card_index`, `total_cards`. Lets the analyzer reconstruct the exact card sequence the user experienced — invisible to ack-only events when cards are auto-skipped, re-rendered, or replaced by a background prefetch.
 - `sentence_review` / `experiment_intro_shown` / `auto_introduce` / `word_graduated` / `leech_suspended` — ack-driven; fire on user action. `sentence_review` carries `parent_card_type` (`"passage"`/`"sentence"`/`"wrapup"`, added 2026-05-13) plus word-evidence protocol/count/saved summaries (2026-07-27); exact token-level surface/tashkeel/cause evidence lives in `word_review_evidence`.
 
 ### 3. Testability — Claude Must Be Able to Test Everything

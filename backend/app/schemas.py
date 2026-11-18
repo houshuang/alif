@@ -768,6 +768,16 @@ class SessionEndOut(BaseModel):
     daily_goal: Optional[DailyGoalOut] = None
 
 
+class TodayProgressOut(BaseModel):
+    cards: int
+    words_reviewed: int
+    words_correct: int
+    new_words: int
+    moved_up: int
+    graduated: int
+    known: int
+
+
 class BulkSyncItem(BaseModel):
     type: str  # "sentence"
     payload: dict

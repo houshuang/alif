@@ -3210,3 +3210,4 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   sentence) instead of the generic grouping order, so the sentence echoes the page's topic.
 - [DONE 2026-11-18] Sentences that practise two pre-read batch words together
   (`generate_paired_material`).
+- [DONE 2026-11-18] Today card between batches (cumulative cards, % correct, new words, moved up, graduated, known).
