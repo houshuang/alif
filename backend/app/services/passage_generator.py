@@ -1944,6 +1944,9 @@ def store_maintenance_passage(
         knowledge_map,
         proper_names=proper_name_norms,
         proper_name_source="passage",
+        # Generated from the vocabulary, with no unknown-word import step:
+        # an unmapped token would only lose its tap gloss.
+        trust_morphological_guesses=True,
     )
     story.total_words = total
     story.known_count = known + func

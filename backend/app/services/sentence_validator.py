@@ -731,6 +731,70 @@ class TokenMapping:
     alternative_lemma_ids: list[int] | None = None
     via_clitic: bool = False
     is_proper_name: bool = False
+    # The lemma came from CAMeL's analysis rather than from a key the
+    # vocabulary registered: a guess, wrong more often than not on text with
+    # out-of-vocabulary words. Verifiers are told; unverified writers skip it.
+    via_camel: bool = False
+    match_layer: str | None = None
+
+
+# Deciding layer of a running-text match, most to least trustworthy.
+MATCH_LAYER_ALIAS = "alias"          # approved exact running-text alias
+MATCH_LAYER_FUNCTION = "function"    # function-word direct lookup / form table
+MATCH_LAYER_LEMMA = "lemma"          # a lemma's own bare form (± ال)
+MATCH_LAYER_FORMS = "forms"          # a forms_json value of a lemma
+MATCH_LAYER_GENERATED = "generated"  # algorithmically generated inflection
+MATCH_LAYER_CLITIC = "clitic"        # stem left after stripping clitics
+MATCH_LAYER_CAMEL = "camel"          # CAMeL analysis chose the lemma
+
+
+@dataclass
+class LemmaMatchProvenance:
+    """How ``lookup_lemma`` / ``lookup_lemma_id`` reached their answer.
+
+    ``layer`` is the deciding layer (``None`` when nothing matched).
+    ``key_source`` says which kind of vocabulary key was hit — for a clitic
+    match, the key the stripped stem hit. ``alternatives`` lists the other
+    lemmas the same surface could be (homograph collisions, competing clitic
+    parses, a clitic parse CAMeL overrode).
+    """
+
+    layer: str | None = None
+    key_source: str | None = None
+    alternatives: list[int] = field(default_factory=list)
+
+    @property
+    def is_guess(self) -> bool:
+        return self.layer == MATCH_LAYER_CAMEL
+
+
+def _key_source(lemma_lookup: dict[str, int], key: str) -> str:
+    """Kind of vocabulary key ``key`` is; plain dicts hold lemma keys only."""
+    sources = getattr(lemma_lookup, "key_sources", None)
+    if not sources:
+        return MATCH_LAYER_LEMMA
+    return sources.get(key, MATCH_LAYER_LEMMA)
+
+
+def _form_of_related(
+    lemma_lookup: dict[str, int],
+    lemma_id: int,
+    other_id: int,
+) -> bool:
+    """True when one lemma's bare form is a registered form of the other.
+
+    This is the plural-kept-as-its-own-lemma shape (دُرُوس next to دَرْس whose
+    ``forms_json.plural`` is دروس): two rows for one lexeme.
+    """
+    bares = getattr(lemma_lookup, "lemma_bares", None)
+    forms = getattr(lemma_lookup, "lemma_form_keys", None)
+    if not bares or forms is None:
+        return False
+    bare, other_bare = bares.get(lemma_id), bares.get(other_id)
+    return bool(
+        (bare and bare in forms.get(other_id, ()))
+        or (other_bare and other_bare in forms.get(lemma_id, ()))
+    )
 
 
 @dataclass(frozen=True)
@@ -1137,10 +1201,12 @@ def map_tokens_to_lemmas(
             else:
                 alternatives = []
                 clitic_flag: list[bool] = [False]
+                provenance = LemmaMatchProvenance()
                 lemma_id = lookup_lemma(
                     bare_norm, lemma_lookup, original_bare=bare_clean,
                     out_alternatives=alternatives,
                     out_via_clitic=clitic_flag,
+                    out_provenance=provenance,
                 )
                 # Deduplicate and exclude winner
                 alts = list(
@@ -1158,6 +1224,8 @@ def map_tokens_to_lemmas(
                     False,
                     alternative_lemma_ids=alts or None,
                     via_clitic=clitic_flag[0],
+                    via_camel=provenance.is_guess,
+                    match_layer=provenance.layer,
                 )
 
         if surface_matches_target:
@@ -1365,7 +1433,10 @@ def lookup_lemma_direct(
             return lemma_lookup[without_al]
     elif len(bare_norm) >= 3:
         with_al = "ال" + bare_norm
-        if with_al in lemma_lookup:
+        if (
+            with_al in lemma_lookup
+            and _key_source(lemma_lookup, with_al) != MATCH_LAYER_GENERATED
+        ):
             collided, resolved = _check_collision(with_al)
             if collided:
                 winner = (
@@ -1429,21 +1500,32 @@ def _lookup_exact_layers(
     lemma_lookup: dict[str, int],
     original_bare: str | None = None,
     out_alternatives: list[int] | None = None,
+    out_provenance: LemmaMatchProvenance | None = None,
 ) -> int | None:
     """High-confidence layers shared by lookup_lemma and lookup_lemma_citation:
     function-form overrides, direct match (with collision resolution), and
     plain al-prefix add/strip. Returns None when no exact-layer key matches.
     """
+
+    def _decided(key: str | None, layer: str | None = None) -> None:
+        if out_provenance is None:
+            return
+        source = _key_source(lemma_lookup, key) if key else None
+        out_provenance.layer = layer or source
+        out_provenance.key_source = source
+
     if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
         exact = _exact_lookup_bare(original_bare)
         override = lemma_lookup.function_form_overrides.get(exact)
         if override is None:
             override = lemma_lookup.function_form_overrides.get(normalize_alef(exact))
         if override is not None:
+            _decided(None, MATCH_LAYER_FUNCTION)
             return override
 
     # Direct match
     if bare_norm in lemma_lookup:
+        _decided(bare_norm)
         # If collision exists and we have original form, disambiguate
         if (original_bare
                 and hasattr(lemma_lookup, "collisions")
@@ -1471,12 +1553,20 @@ def _lookup_exact_layers(
     if bare_norm.startswith("ال") and len(bare_norm) > 2:
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
+            _decided(without_al)
             return lemma_lookup[without_al]
     elif len(bare_norm) >= 3:
         # Don't add ال to 2-char words — causes false matches
         # e.g. أن (ان) + ال → الان → الآن (now)
         with_al = "ال" + bare_norm
-        if with_al in lemma_lookup:
+        # A generated inflection that happens to begin with ال is a verb form
+        # whose radicals are ا-ل (الفحين from لفح), never "the + token":
+        # letting it match hid فـ+حين behind لَفَحَ.
+        if (
+            with_al in lemma_lookup
+            and _key_source(lemma_lookup, with_al) != MATCH_LAYER_GENERATED
+        ):
+            _decided(with_al)
             return lemma_lookup[with_al]
 
     return None
@@ -1557,6 +1647,7 @@ def lookup_lemma(
     original_bare: str | None = None,
     out_alternatives: list[int] | None = None,
     out_via_clitic: list[bool] | None = None,
+    out_provenance: LemmaMatchProvenance | None = None,
 ) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
 
@@ -1571,7 +1662,52 @@ def lookup_lemma(
             LLM-based contextual disambiguation.
         out_via_clitic: If provided (as single-element list), set to [True]
             when the match came from clitic stripping rather than direct match.
+        out_provenance: If provided, filled with the deciding layer, the kind
+            of vocabulary key that was hit, and the alternatives. Callers
+            that write without a later check should refuse
+            ``out_provenance.is_guess`` matches.
     """
+    alternatives: list[int] = []
+    result = _lookup_lemma_layers(
+        bare_norm,
+        lemma_lookup,
+        original_bare,
+        alternatives,
+        out_via_clitic,
+        out_provenance,
+    )
+    alternatives = [
+        lemma_id
+        for lemma_id in dict.fromkeys(alternatives)
+        if lemma_id != result
+    ]
+    if out_alternatives is not None:
+        out_alternatives.extend(alternatives)
+    if out_provenance is not None:
+        out_provenance.alternatives = alternatives
+    return result
+
+
+# A stem this short left after stripping clitics is too often an accident
+# (أذني → إذ, لمّا → ما) to outrank CAMeL's reading of the whole word.
+_MIN_TRUSTED_CLITIC_STEM = 3
+
+
+def _lookup_lemma_layers(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    original_bare: str | None,
+    out_alternatives: list[int],
+    out_via_clitic: list[bool] | None,
+    out_provenance: LemmaMatchProvenance | None,
+) -> int | None:
+    def _decided(layer: str, key: str | None = None) -> None:
+        if out_provenance is not None:
+            out_provenance.layer = layer
+            out_provenance.key_source = (
+                _key_source(lemma_lookup, key) if key else None
+            )
+
     if (
         original_bare
         and _exact_lookup_bare(original_bare)
@@ -1586,45 +1722,111 @@ def lookup_lemma(
         return None
 
     exact_match = _lookup_exact_layers(
-        bare_norm, lemma_lookup, original_bare, out_alternatives
+        bare_norm, lemma_lookup, original_bare, out_alternatives, out_provenance
     )
     if exact_match is not None:
         return exact_match
 
-    # Clitic stripping — collect all candidates, prefer CAMeL disambiguation
-    candidates = []
+    # Clitic stripping — collect every stem the vocabulary knows.
+    stem_hits: list[tuple[str, int]] = []
+    whole_word_with_al = "ال" + bare_norm
     for stem in _strip_clitics(bare_norm):
         norm_stem = normalize_alef(stem)
         if norm_stem in lemma_lookup:
-            candidates.append(lemma_lookup[norm_stem])
+            if (
+                norm_stem == whole_word_with_al
+                and _key_source(lemma_lookup, norm_stem) == MATCH_LAYER_GENERATED
+            ):
+                # Same ال-add as the exact layer, reached through the
+                # "nothing stripped" stem: a generated verb form, not ال+word.
+                continue
+            stem_hits.append((norm_stem, lemma_lookup[norm_stem]))
+    candidates = [lemma_id for _, lemma_id in stem_hits]
+
+    if candidates:
+        if out_via_clitic is not None:
+            out_via_clitic[0] = True
+        # A stem that is itself a homograph key was decided by insertion
+        # order, not by this word: hand the siblings to contextual checks.
+        collisions = getattr(lemma_lookup, "collisions", None) or {}
+        for norm_stem, _ in stem_hits:
+            for sibling_id, _ in collisions.get(norm_stem, ()):
+                out_alternatives.append(sibling_id)
+
+    unique = list(dict.fromkeys(candidates))
+    word = original_bare or bare_norm
 
     if len(candidates) == 1:
-        if out_via_clitic is not None:
-            out_via_clitic[0] = True
+        _decided(MATCH_LAYER_CLITIC, stem_hits[0][0])
         return candidates[0]
-    if len(candidates) > 1:
-        if out_via_clitic is not None:
-            out_via_clitic[0] = True
-        # Multiple clitic interpretations — try CAMeL to disambiguate
-        camel_id = _camel_disambiguate(
-            original_bare or bare_norm, lemma_lookup
+
+    if len(unique) == 1:
+        # Every stem agrees (typically X and ال+X of one clean parse such as
+        # ابن+ها). That is one parse, not an ambiguity.
+        winner = unique[0]
+        trusted_stem = next(
+            (
+                norm_stem
+                for norm_stem, _ in stem_hits
+                if _key_source(lemma_lookup, norm_stem) == MATCH_LAYER_LEMMA
+                and len(
+                    norm_stem[2:] if norm_stem.startswith("ال") else norm_stem
+                ) >= _MIN_TRUSTED_CLITIC_STEM
+            ),
+            None,
         )
+        camel_id = _camel_disambiguate(word, lemma_lookup)
+        if camel_id is None or camel_id == winner:
+            _decided(MATCH_LAYER_CLITIC, trusted_stem or stem_hits[0][0])
+            return winner
+        if trusted_stem is not None:
+            # The stem is a lemma's own bare form. CAMeL may still redirect
+            # between two rows of one lexeme (دروسه: the plural row دُرُوس vs
+            # دَرْس), but not to an unrelated lemma (ابنها → أَب).
+            if _form_of_related(lemma_lookup, winner, camel_id):
+                out_alternatives.append(winner)
+                _decided(MATCH_LAYER_CLITIC, trusted_stem)
+                return camel_id
+            # A whole-word reading beats a clitic parse: when the word is
+            # CAMeL's lemma plus the accusative alif (لَيْلًا = ليل + ا), the
+            # "clitic" was a radical (لـ + يلّا).
+            camel_bare = (
+                getattr(lemma_lookup, "lemma_bares", None) or {}
+            ).get(camel_id)
+            if camel_bare and bare_norm == camel_bare + "ا":
+                out_alternatives.append(winner)
+                _decided(MATCH_LAYER_CAMEL)
+                return camel_id
+            _decided(MATCH_LAYER_CLITIC, trusted_stem)
+            return winner
+        # Only derived/generated or very short stems agree: CAMeL's reading of
+        # the whole word still outranks them, as a guess.
+        out_alternatives.append(winner)
+        _decided(MATCH_LAYER_CAMEL)
+        return camel_id
+
+    if len(unique) > 1:
+        # Multiple clitic interpretations — try CAMeL to disambiguate
+        camel_id = _camel_disambiguate(word, lemma_lookup)
         if camel_id is not None:
-            if out_alternatives is not None:
-                for c in candidates:
-                    if c != camel_id:
-                        out_alternatives.append(c)
+            out_alternatives.extend(candidates)
+            if camel_id in unique:
+                _decided(
+                    MATCH_LAYER_CLITIC,
+                    next(k for k, lid in stem_hits if lid == camel_id),
+                )
+            else:
+                _decided(MATCH_LAYER_CAMEL)
             return camel_id
         # Report all non-winner candidates as alternatives
-        if out_alternatives is not None:
-            for c in candidates[1:]:
-                if c != candidates[0]:
-                    out_alternatives.append(c)
+        out_alternatives.extend(candidates[1:])
+        _decided(MATCH_LAYER_CLITIC, stem_hits[0][0])
         return candidates[0]  # fallback to first match
 
     # No clitic match — try CAMeL as last resort for unmapped words
-    camel_id = _camel_disambiguate(original_bare or bare_norm, lemma_lookup)
+    camel_id = _camel_disambiguate(word, lemma_lookup)
     if camel_id is not None:
+        _decided(MATCH_LAYER_CAMEL)
         return camel_id
 
     return None
@@ -1649,22 +1851,46 @@ def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
     return None
 
 
-def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | None:
-    """Resolve a sentence token surface form to a lemma_id using lookup variants."""
+def lookup_lemma_id(
+    surface_form: str,
+    lemma_lookup: dict[str, int],
+    out_provenance: LemmaMatchProvenance | None = None,
+) -> int | None:
+    """Resolve a sentence token surface form to a lemma_id using lookup variants.
+
+    Pass ``out_provenance`` to learn how the match was made; a caller that
+    shows or stores the result without a contextual check should treat
+    ``out_provenance.is_guess`` as "no match".
+    """
     alias = _resolve_exact_running_text_alias(surface_form, lemma_lookup)
     if alias.applicable:
+        if out_provenance is not None and alias.lemma_id is not None:
+            out_provenance.layer = MATCH_LAYER_ALIAS
         return alias.lemma_id
     bare = strip_diacritics(surface_form)
     bare_clean = strip_punctuation(strip_tatweel(bare))
     bare_norm = normalize_alef(bare_clean)
     if _is_function_word(bare_clean):
-        return lookup_lemma_direct(
+        alternatives: list[int] = []
+        lemma_id = lookup_lemma_direct(
             bare_norm,
             lemma_lookup,
             original_bare=bare_clean,
             original_exact=_exact_correction_form(surface_form),
+            out_alternatives=alternatives,
         )
-    return lookup_lemma(bare_norm, lemma_lookup, original_bare=bare_clean)
+        if out_provenance is not None and lemma_id is not None:
+            out_provenance.layer = MATCH_LAYER_FUNCTION
+            out_provenance.alternatives = [
+                alt for alt in dict.fromkeys(alternatives) if alt != lemma_id
+            ]
+        return lemma_id
+    return lookup_lemma(
+        bare_norm,
+        lemma_lookup,
+        original_bare=bare_clean,
+        out_provenance=out_provenance,
+    )
 
 
 class LemmaLookupDict(dict):
@@ -1680,6 +1906,15 @@ class LemmaLookupDict(dict):
         # normalized_key → [(lemma_id, pre_normalized_bare), ...]
         self.collisions: dict[str, list[tuple[int, str]]] = {}
         self._first_bare: dict[str, str] = {}
+        # normalized_key → MATCH_LAYER_* of the registration that owns the
+        # key (lemma bare, forms_json value, generated inflection, function
+        # form). Keys absent here were added by a caller and count as lemma.
+        self.key_sources: dict[str, str] = {}
+        # lemma_id → its normalized bare, and → its normalized forms_json
+        # values. Lets the clitic layer tell a plural-as-lemma duplicate
+        # from an unrelated lemma.
+        self.lemma_bares: dict[int, str] = {}
+        self.lemma_form_keys: dict[int, set[str]] = {}
         # Exact surface bare form → lemma_id for high-confidence function-word
         # compounds that must override same-bare content lemmas.
         self.function_form_overrides: dict[str, int] = {}
@@ -1711,7 +1946,13 @@ class LemmaLookupDict(dict):
             EXACT_RUNNING_TEXT_ALIAS_IDENTITIES
         )
 
-    def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
+    def set_if_new(
+        self,
+        key: str,
+        lemma_id: int,
+        original_bare: str = "",
+        source: str = MATCH_LAYER_LEMMA,
+    ) -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
         bare = original_bare or key
         if key in self:
@@ -1724,6 +1965,7 @@ class LemmaLookupDict(dict):
         else:
             self[key] = lemma_id
             self._first_bare[key] = bare
+            self.key_sources[key] = source
 
     def set_exact_identity(
         self,
@@ -1781,7 +2023,17 @@ def _prefixed_exact_bare(exact_bare: str, prefix: str) -> str:
 _PAST_3MS_SUFFIXES = ["ت", "ا", "تا", "وا", "ن"]  # 3fs, 3md, 3fd, 3mp, 3fp
 _PAST_1S2_SUFFIXES = ["", "ي", "ما", "م", "ن", "نا"]  # 1s, 2fs, 2md, 2mp, 2fp, 1p
 _PRESENT_PREFIXES = ["ي", "ت", "ا", "ن"]
-_PRESENT_SUFFIXES = ["ون", "ان", "ين", "ن", "ي"]
+# Suffixes each present-tense prefix really takes. The full prefix × suffix
+# product also produced forms no verb has (1sg أ and 1pl ن with plural/dual
+# endings: ا+لفح+ين = الفحين, which then swallowed فحين through the ال layer).
+# ا keeps ي and ن because the same spelling is the Form I imperative
+# (اجلسي, اكتبن).
+_PRESENT_SUFFIXES_BY_PREFIX = {
+    "ي": ["ون", "ان", "ن"],              # 3mp, 3md, 3fp
+    "ت": ["ون", "ان", "ين", "ن", "ي"],   # 2mp, 2d/3fd, 2fs, 2fp, 2fs jussive
+    "ا": ["ي", "ن"],                     # imperative fs / fp spelling
+    "ن": [],
+}
 
 # Noun inflection suffixes
 _SOUND_F_PLURAL_SUFFIX = "ات"
@@ -1838,7 +2090,7 @@ def _generate_verb_conjugations(
             for prefix in _PRESENT_PREFIXES:
                 forms.add(prefix + present_stem)
             for prefix in _PRESENT_PREFIXES:
-                for suffix in _PRESENT_SUFFIXES:
+                for suffix in _PRESENT_SUFFIXES_BY_PREFIX[prefix]:
                     forms.add(prefix + present_stem + suffix)
 
     # Filter: discard forms shorter than 2 chars (noise from short roots)
@@ -1985,6 +2237,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         bare_norm = normalize_arabic(lem.lemma_ar_bare)
         exact_bare = _lemma_exact_bare(lem)
         lookup.set_if_new(bare_norm, lem.lemma_id, exact_bare or lem.lemma_ar_bare)
+        lookup.lemma_bares[lem.lemma_id] = bare_norm
         bare_to_id.setdefault(bare_norm, lem.lemma_id)
         if bare_norm.startswith("ال") and len(bare_norm) > 2:
             without_al = bare_norm[2:]
@@ -2025,9 +2278,18 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                     continue
                 if form_val and isinstance(form_val, str):
                     form_bare = normalize_alef(strip_diacritics(form_val))
-                    lookup.set_if_new(form_bare, lem.lemma_id, form_val)
+                    lookup.lemma_form_keys.setdefault(
+                        lem.lemma_id, set()
+                    ).add(form_bare)
+                    lookup.set_if_new(
+                        form_bare, lem.lemma_id, form_val,
+                        source=MATCH_LAYER_FORMS,
+                    )
                     if not form_bare.startswith("ال"):
-                        lookup.set_if_new("ال" + form_bare, lem.lemma_id, form_val)
+                        lookup.set_if_new(
+                            "ال" + form_bare, lem.lemma_id, form_val,
+                            source=MATCH_LAYER_FORMS,
+                        )
 
     # Pass 3: Generate verb conjugation + noun inflection forms algorithmically
     pre_gen_size = len(lookup)
@@ -2044,7 +2306,10 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                 past_1s_bare = normalize_alef(strip_diacritics(past_1s_val)) if past_1s_val and isinstance(past_1s_val, str) else None
                 conjugations = _generate_verb_conjugations(past_bare, present_bare, past_1s_bare)
                 for conj_form in conjugations:
-                    lookup.set_if_new(conj_form, lem.lemma_id, f"conj:{conj_form}")
+                    lookup.set_if_new(
+                        conj_form, lem.lemma_id, f"conj:{conj_form}",
+                        source=MATCH_LAYER_GENERATED,
+                    )
 
         # Noun/adjective inflections: sound plurals + dual
         pos = getattr(lem, "pos", None)
@@ -2052,7 +2317,10 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             bare = normalize_arabic(lem.lemma_ar_bare)
             inflections = _generate_noun_inflections(bare)
             for infl_form in inflections:
-                lookup.set_if_new(infl_form, lem.lemma_id, f"infl:{infl_form}")
+                lookup.set_if_new(
+                    infl_form, lem.lemma_id, f"infl:{infl_form}",
+                    source=MATCH_LAYER_GENERATED,
+                )
 
     generated_forms = len(lookup) - pre_gen_size
     if generated_forms:
@@ -2081,6 +2349,7 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         if base_id is not None and (override or form_norm not in lookup):
             lookup[form_norm] = base_id
             lookup._first_bare[form_norm] = form_exact
+            lookup.key_sources[form_norm] = MATCH_LAYER_FUNCTION
             if override:
                 lookup.function_form_overrides.setdefault(form_exact, base_id)
                 lookup.function_form_overrides.setdefault(form_norm, base_id)
@@ -2153,6 +2422,18 @@ def build_comprehensive_lemma_lookup(
     return build_lemma_lookup(all_lemmas)
 
 
+def _mapping_provenance_tag(mapping) -> str:
+    """Tell the verifier how weak the evidence for a mapping is."""
+    if getattr(mapping, "via_camel", False):
+        return (
+            " [morphological guess — no vocabulary form matched this word;"
+            " check the lemma carefully]"
+        )
+    if getattr(mapping, "via_clitic", False):
+        return " [via clitic stripping]"
+    return ""
+
+
 def verify_word_mappings_llm(
     arabic_text: str,
     english_text: str,
@@ -2221,7 +2502,7 @@ def verify_and_correct_mappings_llm(
             pos = getattr(lemma, "pos", None) or "?"
         else:
             continue
-        tag = " [via clitic stripping]" if m.via_clitic else ""
+        tag = _mapping_provenance_tag(m)
         lemma_ar = getattr(lemma, "lemma_ar", None) or "?"
         word_lines.append(
             f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
@@ -2337,7 +2618,7 @@ def batch_verify_sentences(
             lemma = lemma_map.get(m.lemma_id)
             if not lemma or not hasattr(lemma, "gloss_en"):
                 continue
-            tag = " [via clitic stripping]" if m.via_clitic else ""
+            tag = _mapping_provenance_tag(m)
             lemma_ar = getattr(lemma, "lemma_ar", None) or "?"
             word_lines.append(
                 f"  {m.position}: {m.surface_form} → lemma_id=#{m.lemma_id}; "
