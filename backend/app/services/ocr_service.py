@@ -754,6 +754,7 @@ def _lookup_vocabulary_match(
     bare: str,
     lemma_lookup: dict[str, int],
     surface: str | None = None,
+    out_guess: list[int] | None = None,
 ) -> int | None:
     """Existing lemma for a scanned word, refusing morphological guesses.
 
@@ -762,7 +763,8 @@ def _lookup_vocabulary_match(
     only CAMeL's analysis produced is wrong more often than right on words
     the vocabulary does not have (وزارة → زَارَ), so it counts as no match and
     the word takes the new-word path, where the quality gates' variant
-    detection links it if it was an inflection after all.
+    detection links it if it was an inflection after all. ``out_guess``
+    receives the refused guess, which ``_check_scan_guesses`` can confirm.
     """
     for candidate in (
         base_lemma_bare if base_lemma_bare and base_lemma_bare != bare else None,
@@ -780,7 +782,79 @@ def _lookup_vocabulary_match(
         )
         if lemma_id and not provenance.is_guess:
             return lemma_id
+        if lemma_id and out_guess is not None and not out_guess:
+            out_guess.append(lemma_id)
     return None
+
+
+def _check_scan_guesses(
+    db: Session, extracted: list[dict], lemma_lookup: dict[str, int]
+) -> tuple[dict[tuple, int], set[tuple]]:
+    """Decide the scanned words that only a CAMeL guess matched.
+
+    One batched sense check (``preread_service.check_senses``) over the guessed
+    entries, given the scanned words with their translations. Returns
+    ``(accepted, skip)`` keyed by ``(base_lemma_bare, bare)``: a confirmed or
+    merely too-narrow guess is accepted (the gloss is widened, compare-and-set);
+    a different word takes the normal new-word path; a failed check skips the
+    word for this scan. Commits first, so no write lock is held across the call.
+    """
+    from app.services.preread_service import check_senses, regloss
+
+    guesses: dict[tuple, tuple[int, str]] = {}
+    lines: list[str] = []
+    for w in extracted:
+        arabic, warnings = sanitize_arabic_word((w.get("arabic") or "").strip())
+        if not arabic or {"multi_word", "too_short", "no_letters"} & set(warnings):
+            continue
+        lines.append(f"{arabic} — {w.get('english') or ''}")
+        bare = compute_bare_form(arabic)
+        base = w.get("base_lemma")
+        key = (base, bare)
+        if key in guesses or resolve_exact_running_text_alias(arabic, lemma_lookup).applicable:
+            continue
+        if _is_function_word(bare) or (base and _is_function_word(base)):
+            continue
+        guess: list[int] = []
+        if _lookup_vocabulary_match(base, bare, lemma_lookup, arabic, out_guess=guess) is None and guess:
+            guesses[key] = (guess[0], arabic)
+    if not guesses:
+        return {}, set()
+
+    keys = list(guesses)
+    lemmas = {
+        lem.lemma_id: lem
+        for lem in db.query(Lemma).filter(
+            Lemma.lemma_id.in_({lid for lid, _ in guesses.values()})
+        ).all()
+    }
+    items = []
+    for i, key in enumerate(keys):
+        lid, arabic = guesses[key]
+        lem = lemmas.get(lid)
+        if lem is not None:
+            items.append({"index": i, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
+                          "pos": lem.pos, "forms": [arabic]})
+    db.commit()  # write the caller's pending state before the LLM call
+    verdicts = check_senses(
+        "Words scanned from a textbook page, each with its translation:\n" + "\n".join(lines),
+        items,
+    )
+    if verdicts is None:
+        logger.warning("scan: guess check failed; skipping %d guessed words", len(keys))
+        return {}, set(keys)
+    accepted: dict[tuple, int] = {}
+    for item in items:
+        key = keys[item["index"]]
+        v = verdicts.get(item["index"])
+        lid = guesses[key][0]
+        if v is None:
+            accepted[key] = lid
+        elif v["verdict"] == "broader":
+            regloss(db, [{"lemma_id": lid, "regloss": {"from": item["gloss_en"], "to": v["gloss_en"]}}])
+            accepted[key] = lid
+    db.commit()
+    return accepted, set()
 
 
 def _storage_word_category(category_by_bare: dict[str, str], *bares: str | None) -> str | None:
@@ -898,6 +972,7 @@ def process_textbook_page(
         knowledge_map: dict[int, UserLemmaKnowledge] = {}
         for ulk in db.query(UserLemmaKnowledge).all():
             knowledge_map[ulk.lemma_id] = ulk
+        scan_accepted, scan_skip = _check_scan_guesses(db, extracted, lemma_lookup)
 
         results = []
         new_count = 0
@@ -952,7 +1027,10 @@ def process_textbook_page(
             # Try to find existing lemma — try base_lemma first, then bare
             lemma_id = alias.lemma_id if alias.applicable else None
             if not alias.applicable:
-                lemma_id = _lookup_vocabulary_match(
+                guess_key = (base_lemma_bare, bare)
+                if guess_key in scan_skip:
+                    continue
+                lemma_id = scan_accepted.get(guess_key) or _lookup_vocabulary_match(
                     base_lemma_bare, bare, lemma_lookup, arabic
                 )
 
@@ -1334,6 +1412,7 @@ def process_batch(
     knowledge_map: dict[int, UserLemmaKnowledge] = {
         ulk.lemma_id: ulk for ulk in db.query(UserLemmaKnowledge).all()
     }
+    scan_accepted, scan_skip = _check_scan_guesses(db, all_extracted, lemma_lookup)
 
     seen_bares: set[str] = set()  # dedupe across ALL pages
     new_lemma_ids: list[int] = []
@@ -1384,7 +1463,10 @@ def process_batch(
         # Look up existing lemma
         lemma_id = alias.lemma_id if alias.applicable else None
         if not alias.applicable:
-            lemma_id = _lookup_vocabulary_match(
+            guess_key = (base_lemma_bare, bare)
+            if guess_key in scan_skip:
+                continue
+            lemma_id = scan_accepted.get(guess_key) or _lookup_vocabulary_match(
                 base_lemma_bare, bare, lemma_lookup, arabic
             )
 
