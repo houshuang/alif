@@ -53,6 +53,10 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   the stored sentence as the first example when generating the word's review material~~ —
   done 2026-11-18 (`add_context.add_sentences_for`, a prompt hint in both generation paths).
 
+- Story import's homograph-tie check (#319) asks once per spelling and relinks every token
+  with that spelling; a story that uses one spelling for two words (دار "house" and "turned")
+  gets one answer for both. Check per occurrence when the contexts differ.
+
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
 Short real clips, drilled through Listen, Shadow, Blind and the original on TikTok, until followed at full speed without text. Word-by-word highlighting, short phrases, a Words step and 0.5× speed added after first use (too fast, hard to match speech to text). Open: a gentler on-ramp if the slowest clips stay too hard (Michel Thomas Egyptian, slowly read core-phrase sentences); move more of the remaining captioned clips in; a separate spaced deck for Egyptian chunks; feeding clip words that also exist in MSA into Alif; other dialects (Levantine, Gulf); blurred rather than covered picture in Blind (needs `expo-blur` and a native build).
