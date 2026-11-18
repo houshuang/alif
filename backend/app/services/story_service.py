@@ -237,7 +237,9 @@ def _create_story_words(
         if trust_morphological_guesses:
             return lookup_lemma_id(display_form, lemma_lookup)
         provenance = LemmaMatchProvenance()
-        lemma_id = lookup_lemma_id(display_form, lemma_lookup, provenance)
+        lemma_id = lookup_lemma_id(
+            display_form, lemma_lookup, provenance, strict_fallback=True
+        )
         return None if provenance.is_guess else lemma_id
 
     # Build set of known bare forms for morphological fallback

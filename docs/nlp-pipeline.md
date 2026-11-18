@@ -174,6 +174,31 @@ Clitic layer rules:
   first-registered lemma, and now reports the siblings as alternatives.
 - ال-add ("token → ال+token") ignores generated keys, both in the exact layer and where the clitic layer reaches the same key through its nothing-stripped stem.
 
+### Strict fallback for unchecked callers (2026-11-18)
+`lookup_lemma(..., strict_fallback=True)` / `lookup_lemma_id(..., strict_fallback=True)`
+is for callers whose result nothing checks afterwards. The default path is unchanged,
+and sentence generation, `map_tokens_to_lemmas`, corpus/book import and mapping
+verification must keep using it: they rely on the wider CAMeL match and verify it
+with an LLM.
+
+Strict mode changes two things:
+1. **Accusative alif.** A surface ending in ـًا / ـاً (`has_tanwin_alif()`) is tried
+   without the alif through the exact layers, then the clitic layer runs on the full
+   word, then on the shortened word (وزيراً → وَزِير; شيئاً → شَيْء; وطبعاً stays
+   و + طَبْعاً). An unmarked final alif is not touched. `lookup_lemma()` takes the hint
+   as `tanwin_alif=` because it only sees the bare form.
+2. **Headword-only last resort.** `_camel_headword_match()` accepts an analysis only
+   when its headword is a lemma's own bare form with the same hamza spelling
+   (`LemmaLookupDict.headword_spellings`). A headword that only coincides with a
+   conjugation, imperative, masdar or participle key of another lemma is "no match".
+   A surviving match is still layer `camel` (`is_guess`).
+
+Callers that pass it: `discover_words_in_text` (`/api/discover/words`, `/snap`,
+`/lookup`, and pre-read analysis through it), `ocr_service._lookup_vocabulary_match`,
+`story_service._create_story_words`, `scripts/bookify_arabic.py`,
+`scripts/reading_readiness.py`. A new caller that displays or stores a match without
+mapping verification belongs on this list.
+
 Evidence, mechanism classes and the replay numbers:
 `research/analysis-2026-11-18-resolver-collisions.md`; fixture
 `backend/tests/fixtures/resolver_collisions_2026_11_18.json`; tests

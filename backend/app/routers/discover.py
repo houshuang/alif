@@ -346,7 +346,9 @@ def discover_words_in_text(
         # Resolve against the corpus, but only suppress words the learner has actually
         # introduced.  Previously every corpus Lemma was treated as "known", which
         # left ordinary book pages with zero or one suggestion.
-        existing_id = lookup_lemma_id(tok, lemma_lookup)
+        # Nothing checks this match before it is shown or used to suppress a
+        # suggestion, so the last-resort CAMeL guess is held to lemma headwords.
+        existing_id = lookup_lemma_id(tok, lemma_lookup, strict_fallback=True)
         if existing_id in already_learning_ids:
             continue
         # Approved exact-running-text identities are fail-closed. If their
@@ -372,7 +374,11 @@ def discover_words_in_text(
         if not key or _is_function_word(key):
             continue
         # The citation/fallback form itself may already be in active learning.
-        key_id = lookup_lemma(key, lemma_lookup) if key != bare else existing_id
+        key_id = (
+            lookup_lemma(key, lemma_lookup, strict_fallback=True)
+            if key != bare
+            else existing_id
+        )
         if key_id in already_learning_ids:
             continue
         entry = cand.get(key)

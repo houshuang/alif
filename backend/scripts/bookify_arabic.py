@@ -184,7 +184,7 @@ def classify_token(
             "status": "function",
         }
 
-    lemma_id = lookup_lemma_id(bare, lemma_lookup)
+    lemma_id = lookup_lemma_id(bare, lemma_lookup, strict_fallback=True)
     if lemma_id is None:
         # Even if the comprehensive lookup didn't match, the user might still
         # know a lemma with this bare form (e.g. a clitic-stripped match).

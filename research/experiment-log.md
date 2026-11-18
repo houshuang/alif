@@ -114,6 +114,59 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Strict resolver fallback for callers nothing checks afterwards
+
+**Scope.** Opt-in only (`strict_fallback=True` on `lookup_lemma` / `lookup_lemma_id`).
+**Sentence generation, `map_tokens_to_lemmas`, corpus/book import and mapping
+verification do not pass it and are unaffected:** on a production snapshot the default
+path resolves all 33,136 replay surfaces exactly as before this change (0 differences).
+
+**Why.** After the provenance change above, the CAMeL last resort was still wrong on most
+of its matches on real book pages, and Snap, `/words`, pre-read, the textbook scan and
+story import show or store the result with no mapping verification
+(`research/analysis-2026-11-18-resolver-collisions.md`, Rank 3).
+
+**Change (`sentence_validator.py`), strict path only.**
+- **Accusative alif.** When the surface ends in ـًا / ـاً, the word without the alif is
+  tried through the exact layers first (وزيراً → وَزِير, شيئاً → شَيْء), then the clitic
+  layer on the full word, then on the shortened word. A lemma that itself ends in the
+  alif still wins (طَبْعاً, عَصًا). `has_tanwin_alif()` detects it; unmarked وزيرا is
+  left alone.
+- **Headword-only last resort.** `_camel_headword_match` accepts a CAMeL analysis only
+  when its headword is a lemma's own bare form with the same hamza spelling
+  (`LemmaLookupDict.headword_spellings`). The default `_camel_disambiguate` compares the
+  headword with every lookup key, so تَعَرَّفَ landed on عرف's conjugation تعرف, أَسْقَطَ
+  on سقط's imperative, and زَأَرَ / آلِف passed for زَارَ / أَلْف after alef normalization.
+
+**Callers that now pass it.** `discover_words_in_text` (`/words`, `/snap`, Snap tap
+`/lookup`, pre-read analysis), `ocr_service._lookup_vocabulary_match` (textbook scan),
+`story_service._create_story_words` (unless `trust_morphological_guesses`),
+`scripts/bookify_arabic.py`, `scripts/reading_readiness.py`. The scan and story import
+still refuse any remaining CAMeL guess.
+
+**Measured (same snapshot, strict vs default).** Book rows: 9 more of the 50 wrong
+matches become "no match" (أمضت, تتعرف, سيتقدم, تقارير, خاطفة, باندفاعة, أُسقطا, and
+with the hamza rule تأسف, الفتى); with the 5 fixed earlier, 14 of 50 no longer resolve
+to a wrong word. Of the 138 right rows one becomes "no match" (جارناك → جَار; the token
+is the place name Jarnac). Guess-labelled rows: 8 wrong, 9 right (was 20 and 15).
+Replay over 33,219 verified pairs, as a cost estimate only since these callers do not
+feed review sentences: 125 pairs lose their match, 42 move to another lemma (mostly
+plural rows kept as separate lemmas: أَيَّامًا → أَيّام, and stored errors: كِتَاباً was
+stored as تَابَ), 68 move to the stored lemma, 10 wrong ones become "no match".
+
+**Decisions.**
+- The accusative-alif layer stays behind the flag. Applied everywhere it is net positive
+  in the replay (58 pairs to the stored lemma, 24 away), but most of the 24 move review
+  credit from a singular to its plural-row duplicate; that needs the duplicates merged
+  first.
+- The hamza rule is included. It costs 4 replay pairs (two lexemes: انْصَبَّ, حَمْقَاء)
+  against 2 estimated in the analysis, and fixes تأسف and الفتى.
+
+**Watch.** More "new word" chips in Snap for inflected forms only CAMeL resolved
+(participles such as النائمة → نَامَ); unmapped story words reaching
+`_import_unknown_words`. Still wrong after this: 36 of the 50 (28 confident matches on
+derived or homograph keys, 8 labelled guesses); 39 of the 50 need the missing lemma.
+
 ## 2026-11-18: Running-text resolver reports how it matched; three collision repairs
 
 **Observation.** The Snap sense check judged 188 resolver matches from photographed

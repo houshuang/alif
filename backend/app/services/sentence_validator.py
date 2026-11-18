@@ -1648,6 +1648,9 @@ def lookup_lemma(
     out_alternatives: list[int] | None = None,
     out_via_clitic: list[bool] | None = None,
     out_provenance: LemmaMatchProvenance | None = None,
+    *,
+    strict_fallback: bool = False,
+    tanwin_alif: bool = False,
 ) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
 
@@ -1666,6 +1669,17 @@ def lookup_lemma(
             of vocabulary key that was hit, and the alternatives. Callers
             that write without a later check should refuse
             ``out_provenance.is_guess`` matches.
+        strict_fallback: For callers whose result nothing checks afterwards
+            (Snap/discover, pre-read, textbook scan, story import, reading
+            analyses). The CAMeL last resort then accepts an analysis only
+            when its headword is a lemma's own bare form with the same
+            hamza spelling, instead of any key in the lookup. Sentence
+            generation and mapping verification leave this off: their
+            mappings are checked by an LLM and they rely on the wider match.
+        tanwin_alif: The surface ended in the accusative alif (ـًا); try the
+            word without it before stripping clitics or asking CAMeL. Only
+            honoured together with ``strict_fallback`` (``lookup_lemma_id``
+            detects it from the surface).
     """
     alternatives: list[int] = []
     result = _lookup_lemma_layers(
@@ -1675,6 +1689,8 @@ def lookup_lemma(
         alternatives,
         out_via_clitic,
         out_provenance,
+        strict_fallback=strict_fallback,
+        tanwin_alif=tanwin_alif and strict_fallback,
     )
     alternatives = [
         lemma_id
@@ -1700,6 +1716,9 @@ def _lookup_lemma_layers(
     out_alternatives: list[int],
     out_via_clitic: list[bool] | None,
     out_provenance: LemmaMatchProvenance | None,
+    *,
+    strict_fallback: bool = False,
+    tanwin_alif: bool = False,
 ) -> int | None:
     def _decided(layer: str, key: str | None = None) -> None:
         if out_provenance is not None:
@@ -1726,6 +1745,81 @@ def _lookup_lemma_layers(
     )
     if exact_match is not None:
         return exact_match
+
+    word = original_bare or bare_norm
+
+    if tanwin_alif and len(bare_norm) >= 4 and bare_norm.endswith("ا"):
+        # وزيراً is وزير: resolve the word without its accusative alif through
+        # the vocabulary layers before a clitic strip or a CAMeL guess can
+        # misread the alif (لـ + يلّا for لَيْلًا, ك + تابا for كِتَابًا).
+        original_stem = (
+            original_bare[:-1]
+            if original_bare
+            and original_bare.endswith("ا")
+            and len(original_bare) == len(bare_norm)
+            else None
+        )
+        stems = [(bare_norm[:-1], original_stem)]
+        if bare_norm[:-1].endswith("ئ"):
+            # شيئاً → شيء: the hamza moves to its own seat without the alif.
+            stems.append(
+                (
+                    bare_norm[:-2] + "ء",
+                    original_stem[:-1] + "ء" if original_stem else None,
+                )
+            )
+        for stem, stem_original in stems:
+            match = _lookup_exact_layers(
+                stem, lemma_lookup, stem_original, out_alternatives, out_provenance
+            )
+            if match is not None:
+                return match
+    else:
+        stems = []
+
+    # A clitic parse of the full word comes before one of the shortened word:
+    # وطبعاً is و + طبعاً (its own lemma), not و + طبع.
+    for stem, stem_word in [(bare_norm, word), *((s, o or s) for s, o in stems)]:
+        clitic_match = _lookup_clitic_layer(
+            stem,
+            lemma_lookup,
+            stem_word,
+            out_alternatives,
+            out_via_clitic,
+            out_provenance,
+        )
+        if clitic_match is not None:
+            return clitic_match
+
+    # No clitic match — try CAMeL as last resort for unmapped words
+    camel_id = (
+        _camel_headword_match(word, lemma_lookup)
+        if strict_fallback
+        else _camel_disambiguate(word, lemma_lookup)
+    )
+    if camel_id is not None:
+        _decided(MATCH_LAYER_CAMEL)
+        return camel_id
+
+    return None
+
+
+def _lookup_clitic_layer(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    word: str,
+    out_alternatives: list[int],
+    out_via_clitic: list[bool] | None,
+    out_provenance: LemmaMatchProvenance | None,
+) -> int | None:
+    """Resolve through clitic stripping; None when no stripped stem is a key."""
+
+    def _decided(layer: str, key: str | None = None) -> None:
+        if out_provenance is not None:
+            out_provenance.layer = layer
+            out_provenance.key_source = (
+                _key_source(lemma_lookup, key) if key else None
+            )
 
     # Clitic stripping — collect every stem the vocabulary knows.
     stem_hits: list[tuple[str, int]] = []
@@ -1754,7 +1848,6 @@ def _lookup_lemma_layers(
                 out_alternatives.append(sibling_id)
 
     unique = list(dict.fromkeys(candidates))
-    word = original_bare or bare_norm
 
     if len(candidates) == 1:
         _decided(MATCH_LAYER_CLITIC, stem_hits[0][0])
@@ -1823,12 +1916,6 @@ def _lookup_lemma_layers(
         _decided(MATCH_LAYER_CLITIC, stem_hits[0][0])
         return candidates[0]  # fallback to first match
 
-    # No clitic match — try CAMeL as last resort for unmapped words
-    camel_id = _camel_disambiguate(word, lemma_lookup)
-    if camel_id is not None:
-        _decided(MATCH_LAYER_CAMEL)
-        return camel_id
-
     return None
 
 
@@ -1851,16 +1938,67 @@ def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
     return None
 
 
+def _camel_headword_match(word: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Strict CAMeL last resort: an analysis counts only as a lemma headword.
+
+    CAMeL's ``lex`` is a dictionary headword. ``_camel_disambiguate`` compares
+    it with every lookup key, so the headword of a word the vocabulary lacks
+    lands on another lemma's conjugation, imperative or masdar key
+    (تَعَرَّفَ on عرف's تعرف, أَسْقَطَ on سقط's اسقط), and alef normalization
+    lets زَأَرَ pass for زَارَ. Here the headword must be a lemma's own bare
+    form, hamza included.
+    """
+    try:
+        from app.services.morphology import analyze_word_camel
+
+        analyses = analyze_word_camel(word) or analyze_word_camel(
+            strip_diacritics(word)
+        )
+    except Exception:
+        return None
+    spellings = getattr(lemma_lookup, "headword_spellings", None) or {}
+    for analysis in analyses or []:
+        lex_exact = _exact_lookup_bare(analysis.get("lex", "")).replace("ٱ", "ا")
+        lex_norm = normalize_alef(lex_exact)
+        if (
+            not lex_norm
+            or lex_norm not in lemma_lookup
+            or _key_source(lemma_lookup, lex_norm) != MATCH_LAYER_LEMMA
+        ):
+            continue
+        stored = spellings.get(lex_norm)
+        if stored and lex_exact not in stored:
+            continue
+        return lemma_lookup[lex_norm]
+    return None
+
+
+_TANWIN_ALIF_END = re.compile("(?:\u064b\u0627|\u0627\u064b)$")
+
+
+def has_tanwin_alif(surface_form: str) -> bool:
+    """True when the surface ends in the accusative alif (ـًا / ـاً)."""
+    cleaned = strip_punctuation(strip_tatweel(surface_form or ""))
+    marks = "".join(
+        ch for ch in cleaned
+        if ch == "\u064b" or not ARABIC_DIACRITICS.match(ch)
+    )
+    return bool(_TANWIN_ALIF_END.search(marks))
+
+
 def lookup_lemma_id(
     surface_form: str,
     lemma_lookup: dict[str, int],
     out_provenance: LemmaMatchProvenance | None = None,
+    *,
+    strict_fallback: bool = False,
 ) -> int | None:
     """Resolve a sentence token surface form to a lemma_id using lookup variants.
 
     Pass ``out_provenance`` to learn how the match was made; a caller that
     shows or stores the result without a contextual check should treat
-    ``out_provenance.is_guess`` as "no match".
+    ``out_provenance.is_guess`` as "no match", and should pass
+    ``strict_fallback=True`` (see ``lookup_lemma``).
     """
     alias = _resolve_exact_running_text_alias(surface_form, lemma_lookup)
     if alias.applicable:
@@ -1890,6 +2028,8 @@ def lookup_lemma_id(
         lemma_lookup,
         original_bare=bare_clean,
         out_provenance=out_provenance,
+        strict_fallback=strict_fallback,
+        tanwin_alif=strict_fallback and has_tanwin_alif(surface_form),
     )
 
 
@@ -1915,6 +2055,9 @@ class LemmaLookupDict(dict):
         # from an unrelated lemma.
         self.lemma_bares: dict[int, str] = {}
         self.lemma_form_keys: dict[int, set[str]] = {}
+        # normalized lemma-bare key → hamza-preserving spellings of the
+        # lemma(s) that own it (stored bare and displayed headword).
+        self.headword_spellings: dict[str, set[str]] = {}
         # Exact surface bare form → lemma_id for high-confidence function-word
         # compounds that must override same-bare content lemmas.
         self.function_form_overrides: dict[str, int] = {}
@@ -2238,6 +2381,14 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         exact_bare = _lemma_exact_bare(lem)
         lookup.set_if_new(bare_norm, lem.lemma_id, exact_bare or lem.lemma_ar_bare)
         lookup.lemma_bares[lem.lemma_id] = bare_norm
+        lookup.headword_spellings.setdefault(bare_norm, set()).update(
+            spelling.replace("ٱ", "ا")
+            for spelling in (
+                exact_bare,
+                _exact_lookup_bare(lem.lemma_ar_bare),
+            )
+            if spelling
+        )
         bare_to_id.setdefault(bare_norm, lem.lemma_id)
         if bare_norm.startswith("ال") and len(bare_norm) > 2:
             without_al = bare_norm[2:]
