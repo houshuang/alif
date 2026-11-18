@@ -31,6 +31,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, UserLemmaKnowledge
+from app.services.acquisition_service import PRACTICED_NAME_CATEGORY
 from app.services.fsrs_service import card_retrievability, parse_json_column
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,8 @@ PREREAD_SOURCE = "preread"
 SHAKY_RETRIEVABILITY = 0.90
 # Days after a batch during which its words are scheduled first.
 PRIORITY_DAYS = 4
+# Entered words and names not yet shown once keep their priority this long.
+UNSEEN_PRIORITY_DAYS = 21
 # Known words count against discovery's cap too, so it must cover a whole batch.
 MAX_CANDIDATES = 4000
 LEARN_PER_PAGE = 6
@@ -51,7 +54,6 @@ SHAKY_MAX = 60
 NAMES_MAX = 30
 # A practised name leaves the inert ``proper_name`` category so every gate that
 # skips names (selection, credit, scaffold counts) treats it as a normal word.
-PRACTICED_NAME_CATEGORY = "practiced_name"
 # A word must clear this score to be learned, however many slots remain.
 MIN_LEARN_SCORE = 3.0
 _TEXT_CHAR_LIMIT = 24000
@@ -145,29 +147,49 @@ def _dedupe(words: list[dict]) -> list[dict]:
 
 
 def active_priority_ids(db: Session, now: datetime | None = None) -> set[int]:
-    """Lemma ids from pre-read batches finished in the last
-    ``PRIORITY_DAYS``: the words and names entered and the shaky words refreshed. The
-    session builder schedules and boosts these while the pages are being read."""
+    """Lemma ids the session builder schedules and boosts for pre-read batches.
+
+    For ``PRIORITY_DAYS`` after a batch finishes: the words and names entered
+    and the shaky words refreshed. After that, up to ``UNSEEN_PRIORITY_DAYS``:
+    only the entered words and names still waiting for their first card, so a
+    batch larger than a few days of reviews does not lose its place."""
     from app.models import PrereadSet
 
     now = now or datetime.now(timezone.utc)
-    since = (now - timedelta(days=PRIORITY_DAYS)).replace(tzinfo=None)
+    recent = (now - timedelta(days=PRIORITY_DAYS)).replace(tzinfo=None)
+    oldest = (now - timedelta(days=UNSEEN_PRIORITY_DAYS)).replace(tzinfo=None)
     rows = (
-        db.query(PrereadSet.result_json)
-        .filter(PrereadSet.status == "done", PrereadSet.finished_at >= since)
+        db.query(PrereadSet.result_json, PrereadSet.finished_at)
+        .filter(PrereadSet.status == "done", PrereadSet.finished_at >= oldest)
         .all()
     )
     ids: set[int] = set()
-    for (result,) in rows:
+    older: set[int] = set()
+    for result, finished_at in rows:
         result = parse_json_column(result)
         if not isinstance(result, dict):
             continue
-        for w in (result.get("learn") or []) + (result.get("names") or []):
-            if isinstance(w, dict) and w.get("added") and w.get("lemma_id"):
-                ids.add(int(w["lemma_id"]))
+        entered = {
+            int(w["lemma_id"])
+            for w in (result.get("learn") or []) + (result.get("names") or [])
+            if isinstance(w, dict) and w.get("added") and w.get("lemma_id")
+        }
+        if finished_at < recent:
+            older |= entered
+            continue
+        ids |= entered
         for w in result.get("shaky") or []:
             if isinstance(w, dict) and w.get("lemma_id"):
                 ids.add(int(w["lemma_id"]))
+    older -= ids
+    if older:
+        ids |= {
+            lid for lid, in db.query(UserLemmaKnowledge.lemma_id).filter(
+                UserLemmaKnowledge.lemma_id.in_(older),
+                UserLemmaKnowledge.knowledge_state == "acquiring",
+                (UserLemmaKnowledge.times_seen == 0) | UserLemmaKnowledge.times_seen.is_(None),
+            )
+        }
     return ids
 
 

@@ -3197,3 +3197,11 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   prefer at least two verified surface forms and cap same-form repetition.
   Corpus-wide form diversity can hide that only 48.5% of target slots in the
   first reviewed v2 cohort delivered multiple surfaces.
+
+- [2026-11-18] Prefetched session builds drop every card containing a not-yet-introduced
+  ("cold") word, and nearly all builds are prefetched. Measure how much of the sentence pool
+  this hides; if large, let the intake pass promote cold collateral words of upcoming cards.
+- [2026-11-18] Pair pre-read batch words by page (two words from the same page in one
+  sentence) instead of the generic grouping order, so the sentence echoes the page's topic.
+- [DONE 2026-11-18] Sentences that practise two pre-read batch words together
+  (`generate_paired_material`).

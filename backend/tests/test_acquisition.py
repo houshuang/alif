@@ -152,6 +152,25 @@ def test_distributed_day_policy_defers_first_correct(
     assert log.fsrs_log_json["distributed_days_confirmed"] is False
 
 
+def test_practised_name_graduates_on_one_correct_answer(db_session, monkeypatch):
+    monkeypatch.setenv("ALIF_DISTRIBUTED_DAY_GRADUATION", "1")
+    name = _create_lemma(db_session, arabic="ماكرون", english="Macron")
+    name.word_category = "practiced_name"
+    db_session.commit()
+    start_acquisition(db_session, name.lemma_id)
+
+    missed = submit_acquisition_review(db_session, name.lemma_id, rating_int=1)
+    assert missed["graduated"] is False
+
+    result = submit_acquisition_review(db_session, name.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=name.lemma_id).first()
+    assert ulk.acquisition_box is None
+    assert ulk.fsrs_card_json is not None
+    log = db_session.query(ReviewLog).order_by(ReviewLog.id.desc()).first()
+    assert log.fsrs_log_json["graduation_reason"] == "name_correct"
+
+
 def test_distributed_day_policy_graduates_on_second_day_success(
     db_session,
     monkeypatch,

@@ -1574,6 +1574,67 @@ def _auto_introduce_words(
     return introduced_ids
 
 
+def _reserved_intro_slots(db: Session, now: datetime, limit: int, acquiring_count: int) -> int:
+    """New-word slots reserved even when the due queue is full.
+
+    Keeps vocabulary growing when reviews pile up, but returns 0 when the
+    acquiring pipeline is overloaded for the learner's recent accuracy, when
+    accuracy is below the floor, or when today's target is already met.
+    """
+    accuracy_slots = _get_accuracy_intro_slots(db, now)
+    # Dynamic backlog threshold: scale with accuracy so high-performing learners
+    # aren't starved of new words by an inflow they can clearly handle.
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
+        .all()
+    )
+    if len(recent_reviews) >= 10:
+        recent_accuracy = sum(1 for r in recent_reviews if r.rating >= 3) / len(recent_reviews)
+    else:
+        recent_accuracy = 0.80  # conservative default
+    effective_threshold = _intro_backlog_threshold_for_accuracy(recent_accuracy)
+
+    daily_intro_remaining = max(0, DAILY_AUTO_INTRO_TARGET - _introduced_today_count(db, now))
+    if (
+        daily_intro_remaining > 0
+        and accuracy_slots > 0
+        and acquiring_count <= effective_threshold
+    ):
+        reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
+        return min(accuracy_slots, reserved_intro, daily_intro_remaining)
+    if daily_intro_remaining <= 0:
+        logger.info(
+            f"Auto-intro reserved slots suppressed: daily target "
+            f"{DAILY_AUTO_INTRO_TARGET} already reached"
+        )
+    elif acquiring_count > effective_threshold:
+        logger.info(
+            f"Auto-intro reserved slots suppressed: {acquiring_count} acquiring "
+            f"> {effective_threshold} threshold (accuracy={recent_accuracy:.0%})"
+        )
+    return 0
+
+
+def introduce_reserved_words(db: Session, now: datetime | None = None, limit: int = 10) -> list[int]:
+    """Run the reserved-slot introduction outside a session build.
+
+    Prefetched (speculative) builds never introduce words, and the phone reads
+    sessions from its prefetched queue, so introduction is triggered by real
+    reviews (``intake_pass``). The gates and budgets are the session build's.
+    Sentences come from ``warm_sentence_cache``; the words then appear in later
+    builds like any other acquiring word.
+    """
+    now = now or datetime.now(timezone.utc)
+    acquiring_count = (
+        db.query(UserLemmaKnowledge)
+        .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring")
+        .count()
+    )
+    slots = _reserved_intro_slots(db, now, limit, acquiring_count)
+    return _auto_introduce_words(db, slots, {}, now, skip_material_gen=True)
+
+
 def build_session(
     db: Session,
     limit: int = 10,
@@ -1712,46 +1773,11 @@ def build_session(
     due_lemma_ids &= cohort
 
     # Auto-introduce new words: reserve slots even when due queue is full
-    # This ensures vocabulary growth doesn't stall when reviews pile up.
-    # But suppress reserved intro slots when the acquiring pipeline is overloaded —
-    # still fill undersized sessions (when due < limit).
-    accuracy_slots = _get_accuracy_intro_slots(db, now)
-    acquiring_count = sum(
-        1 for k in all_knowledge if k.knowledge_state == "acquiring"
+    # (gates in _reserved_intro_slots).
+    intro_slots = _reserved_intro_slots(
+        db, now, limit,
+        sum(1 for k in all_knowledge if k.knowledge_state == "acquiring"),
     )
-    # Dynamic backlog threshold: scale with accuracy so high-performing learners
-    # aren't starved of new words by an inflow they can clearly handle.
-    recent_reviews = (
-        db.query(ReviewLog)
-        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
-        .all()
-    )
-    if len(recent_reviews) >= 10:
-        recent_accuracy = sum(1 for r in recent_reviews if r.rating >= 3) / len(recent_reviews)
-    else:
-        recent_accuracy = 0.80  # conservative default
-    effective_threshold = _intro_backlog_threshold_for_accuracy(recent_accuracy)
-
-    daily_intro_remaining = max(0, DAILY_AUTO_INTRO_TARGET - _introduced_today_count(db, now))
-    if (
-        daily_intro_remaining > 0
-        and accuracy_slots > 0
-        and acquiring_count <= effective_threshold
-    ):
-        reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
-        intro_slots = min(accuracy_slots, reserved_intro, daily_intro_remaining)
-    else:
-        intro_slots = 0
-        if daily_intro_remaining <= 0:
-            logger.info(
-                f"Auto-intro reserved slots suppressed: daily target "
-                f"{DAILY_AUTO_INTRO_TARGET} already reached"
-            )
-        elif acquiring_count > effective_threshold:
-            logger.info(
-                f"Auto-intro reserved slots suppressed: {acquiring_count} acquiring "
-                f"> {effective_threshold} threshold (accuracy={recent_accuracy:.0%})"
-            )
     undersized_slots = max(0, limit - len(due_lemma_ids))
     slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = []

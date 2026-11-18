@@ -593,8 +593,13 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/sync")
-def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
+def sync_reviews(
+    body: BulkSyncIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     results = []
+    reviewed_session_id: str | None = None
 
     # Detect glitch batches: >10 reviews from one session with impossibly fast
     # response times (sub-500ms). Return "ok" to clear the client queue but skip
@@ -663,6 +668,8 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                 )
                 status = "duplicate" if result.get("duplicate") else "ok"
                 if status != "duplicate":
+                    if payload.get("review_mode", "reading") == "reading":
+                        reviewed_session_id = payload.get("session_id") or reviewed_session_id
                     log_interaction(
                         event="sentence_review",
                         sentence_id=payload.get("sentence_id"),
@@ -719,6 +726,15 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
         except Exception as e:
             db.rollback()
             results.append({"client_review_id": item.client_review_id, "status": "error", "error": str(e)})
+    if reviewed_session_id:
+        # Background tasks run before the request session is finalized; release
+        # any write lock first so the pass never waits on this request.
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+        from app.services.intake_pass import run_intake_pass
+        background_tasks.add_task(run_intake_pass, reviewed_session_id)
     return {"results": results}
 
 

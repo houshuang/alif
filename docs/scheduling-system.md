@@ -160,9 +160,10 @@ knowledge state:
 The user sees 5 candidates ranked by the word selection algorithm, picks words to
 learn, and each enters acquisition immediately.
 
-### 3.2 Auto-Introduction (During Session Building)
+### 3.2 Auto-Introduction (After Reviews and During Session Building)
 
 **Path**: `build_session()` detects room for more acquiring words → auto-introduces
+**Path since 2026-11-18**: prefetched builds never introduce, and the phone reads sessions from its prefetched queue, so `intake_pass.run_intake_pass()` runs after `/api/review/sync` stores a new reading review (once per session id): `refresh_attention`, then `introduce_reserved_words()` with the reserved-slot gates below (`_reserved_intro_slots`), then `warm_sentence_cache()` if anything was introduced. The words appear in later builds like any acquiring word. The undersized-session fill runs only in fresh (`prefetch=false`) builds.
 **Initial state**: `acquiring` (box 1, `due_immediately=True`)
 **Source**: `"auto_intro"`
 **Code**: `sentence_selector.py:_auto_introduce_words()`
@@ -2162,6 +2163,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `ALIF_DISTRIBUTED_DAY_GRADUATION` | enabled in production | Require a second-day success before early graduation |
 | `ROOT_SIBLING_THRESHOLD` | 2 | Known root siblings needed for Easy graduation boost |
 | Tier 0: first-correct | times_seen=0 + rating≥3 | Flag off: instant; flag on: Box 2 due next day |
+| Practised name (2026-11-18) | `word_category="practiced_name"` + rating≥3, outside the intro-card gap and re-test guard | Graduate at once (`name_correct`), no second-day confirmation |
 | Distributed confirmation | ≥2 correct, accuracy≥80%, ≥2 UTC days | Graduate immediately on successful second-day evidence |
 | Tier 1: perfect | current rating≥3 + accuracy=100% + seen≥3 | Graduate from any box after distributed-day guard |
 | Tier 2: high accuracy | current rating≥3 + accuracy≥80% + seen≥4 + box≥2 | Graduate after distributed-day guard |
@@ -2796,6 +2798,12 @@ no picking step.
   scheduled even if their frequency lane is slow, and every candidate sentence covering
   one gets `PREREAD_BOOST` ×3 at all three scoring sites (initial greedy cover and both
   re-scoring loops). The oldest-due opening block (`OLDEST_DUE_FIRST_BLOCK`) is unchanged.
+  Since 2026-11-18 entered words and names that have not had a first card (`acquiring`,
+  `times_seen` 0) stay in the set for `UNSEEN_PRIORITY_DAYS` (21); the rest leave after 4.
+- **Paired sentences (2026-11-18).** After the single-target batches,
+  `generate_paired_material()` generates sentences that each practise two of the batch's
+  acquiring words (multi-target path, at most 20 pairs, names excluded), so one card can
+  review two new words.
 - **Names (practised since 2026-11-15, learner decision).** Proper names on the pages
   are listed, glossed and transliterated, and up to `NAMES_MAX` (30) are practised
   (`preread_service.practice_names`): a stored `proper_name` lemma is moved to
@@ -2804,7 +2812,8 @@ no picking step.
   four-day priority). A name whose spelling resolves to an ordinary word is skipped, so
   a real word is never relabelled. `practiced_name` is not in the inert set: every
   name filter keys on `word_category == "proper_name"`, so selection, credit and scaffold
-  counts treat a practised name as a normal word. All other names stay inert.
+  counts treat a practised name as a normal word, except graduation: one correct answer
+  graduates it (2026-11-18). All other names stay inert.
 - **Sense check (2026-11-16).** After selection, every learn or shaky word matched to an
   existing lemma goes through one Sonnet pass (`preread_service.check_senses`) that
   compares the stored gloss with how the pages use the word. `broader` (same word, gloss

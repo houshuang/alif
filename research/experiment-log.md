@@ -114,6 +114,57 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18 — Intake restored: introduction follows reviews; names graduate on one correct answer; pre-read boost holds for unseen words; paired pre-read sentences
+
+**Finding.** Analysis: `research/analysis-2026-11-18-engagement-and-tuning.md`. Words are
+introduced automatically only in a session build with `prefetch=false`; the phone reads
+sessions from its prefetched queue, and 149 of the 150 builds in the server journal
+(9–18 November) were `prefetch=true`. No word entered acquisition automatically between
+5 October and 14 November; all 96 words started 15–17 November came from Snap and pre-read.
+`refresh_attention` ran only in the same fresh builds. The FSRS model itself needs no
+retuning: on due reading reviews of the last 75 days it predicted 85.4% recall against
+83.8% observed (Hard counted as a pass; 78.5% Good only).
+
+**Learner decisions (this date).** Keep the higher new-word rate; stop prioritising
+*Men in the Sun* words (he is reading other books with Snap and pre-read); names graduate
+on the first correct answer.
+
+**Changes.**
+1. `intake_pass.run_intake_pass(session_id)` runs as a background task after
+   `/api/review/sync` stores a new reading review, once per session id: `refresh_attention`,
+   then `sentence_selector.introduce_reserved_words()` (the session build's reserved-slot
+   gates, extracted unchanged into `_reserved_intro_slots`: accuracy floor, pipeline backlog
+   threshold 80/120/200, daily target, and the recovery budget inside `start_acquisition`),
+   then `warm_sentence_cache()` when anything was introduced. Prefetch builds still change
+   no learning state. The undersized-session fill stays in fresh builds only.
+2. A `practiced_name` lemma graduates on any correct acquisition review outside the
+   intro-card gap and the re-test guard (`graduation_reason="name_correct"`), without the
+   second-day confirmation. Evidence: 19 of 19 name reviews correct in the first batch,
+   while names were 28 of its 77 entries.
+3. `preread_service.active_priority_ids()` keeps entered words and names that have not had
+   a first card (`acquiring`, `times_seen` 0) in the priority set for
+   `UNSEEN_PRIORITY_DAYS` (21) after the batch; everything else still leaves after
+   `PRIORITY_DAYS` (4). The first batch had 49 of 77 entries unseen after 2.5 days.
+4. `material_generator.generate_paired_material()` (called at the end of pre-read
+   preparation) generates sentences that each practise two of the batch's acquiring words,
+   through the warm cache's multi-target generate/validate/write path; at most 20 pairs per
+   batch, names excluded. This week 18 of 73 cards with a new word carried two.
+5. Data, not code: the open `reading_targets` rows of `rijal_fi_al_shams` are retired on
+   prod. `ALIF_NOVEL_SPRINT=1` stays on because it carries the intake budget
+   (8/day, 20/60-card ladder, 0/4/8); only the target priority ends.
+
+**Expected.** While acquisition holds more than 80/120 words (118 today) the pass
+introduces nothing, so the learner's own picks drain first; below that it adds up to
+3 words per reviewed session inside the daily and recovery budgets. Names leave Box 1
+after one card. Words per new-word card should rise above the current 1.25.
+
+**Verify.** `intake pass introduced` lines in the backend journal and non-pick sources in
+`acquisition_started_at` once acquisition is below the threshold; `name_correct` in
+`fsrs_log_json.graduation_reason`; share of acquisition cards with two acquiring words;
+unseen pre-read words after day 4 still receiving first cards. Not changed and worth a
+later measurement: prefetch builds drop every card that contains a not-yet-introduced
+word.
+
 ## 2026-11-18: Homograph ties go to the sense check; add sentence anchors generation
 
 **Why.** The resolver now flags `homograph_tie` when same-spelling lemmas survive the

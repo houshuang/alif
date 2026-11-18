@@ -1450,6 +1450,128 @@ def batch_generate_material(
     }
 
 
+PAIRED_MATERIAL_MAX_PAIRS = 20
+
+
+def generate_paired_material(lemma_ids: list[int], max_pairs: int = PAIRED_MATERIAL_MAX_PAIRS) -> dict:
+    """Generate sentences that each practise two of ``lemma_ids`` together.
+
+    For words entered as one batch (a pre-read): a card that carries two new
+    words gives each a review for the price of one card. Only words still in
+    acquisition are paired; names are left to their single-target sentences.
+    Uses the multi-target generate → validate → write path of the warm cache.
+
+    Returns: {"pairs": N, "generated": N, "words_covered": N}
+    """
+    from sqlalchemy.orm import joinedload
+
+    from app.services.acquisition_service import PRACTICED_NAME_CATEGORY
+    from app.services.attention_policy import maintenance_clause
+    from app.services.sentence_generator import (
+        build_at_risk_boost_map,
+        generate_validated_sentences_multi_target,
+        group_words_for_multi_target,
+    )
+    from app.services.sentence_validator import (
+        build_comprehensive_lemma_lookup,
+        build_lemma_lookup,
+        strip_diacritics,
+    )
+
+    stats = {"pairs": 0, "generated": 0, "words_covered": 0}
+    if len(lemma_ids) < 2:
+        return stats
+
+    db = SessionLocal()
+    try:
+        lemmas = (
+            db.query(Lemma).options(joinedload(Lemma.root))
+            .join(UserLemmaKnowledge)
+            .filter(
+                Lemma.lemma_id.in_(lemma_ids),
+                maintenance_clause(), UserLemmaKnowledge.knowledge_state == "acquiring",
+                Lemma.gates_completed_at.isnot(None),
+                Lemma.word_category.is_(None)
+                | Lemma.word_category.notin_(["proper_name", "onomatopoeia", PRACTICED_NAME_CATEGORY]),
+            )
+            .all()
+        )
+        word_dicts = [
+            {"lemma_id": l.lemma_id, "lemma_ar": l.lemma_ar, "lemma_ar_bare": l.lemma_ar_bare,
+             "gloss_en": l.gloss_en or "", "pos": l.pos or "", "root_id": l.root_id}
+            for l in lemmas if l.gloss_en
+        ]
+        groups = group_words_for_multi_target(word_dicts, max_group_size=2)[:max_pairs]
+        if not groups:
+            return stats
+        active_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge)
+            .filter(maintenance_clause(), UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "learning", "known", "lapsed"]
+            ))
+            .all()
+        )
+        known_words = [
+            {"arabic": l.lemma_ar, "english": l.gloss_en or "", "lemma_id": l.lemma_id, "pos": l.pos or ""}
+            for l in active_lemmas
+        ]
+        lemma_lookup = build_lemma_lookup(active_lemmas)
+        mapping_lookup = build_comprehensive_lemma_lookup(db)
+        at_risk_boost = build_at_risk_boost_map(db)
+    finally:
+        db.close()
+
+    stats["pairs"] = len(groups)
+    candidates = []
+    for group in groups:
+        try:
+            results = generate_validated_sentences_multi_target(
+                target_words=group,
+                known_words=known_words,
+                count=len(group),
+                difficulty_hint="beginner",
+                max_words=12,
+                lemma_lookup=lemma_lookup,
+                at_risk_boost=at_risk_boost,
+            )
+        except Exception:
+            logger.warning("Paired material: generation failed for %s", [w["lemma_id"] for w in group])
+            continue
+        target_bares = {
+            (w.get("lemma_ar_bare") or strip_diacritics(w["lemma_ar"])): w["lemma_id"] for w in group
+        }
+        candidates.extend((mres, target_bares) for mres in results)
+    if not candidates:
+        return stats
+
+    db = SessionLocal()
+    try:
+        validated = validate_multi_target_sentences_batch(db, candidates, mapping_lookup)
+    except Exception:
+        logger.exception("Paired material: validation failed")
+        return stats
+    finally:
+        db.close()
+
+    covered: set[int] = set()
+    db = SessionLocal()
+    try:
+        for mres, mappings in validated:
+            write_multi_target_sentence(db, mres, mappings)
+            stats["generated"] += 1
+            covered.update(mres.target_lemma_ids)
+        db.commit()
+    except Exception:
+        logger.exception("Paired material: write failed")
+        db.rollback()
+        return {**stats, "generated": 0}
+    finally:
+        db.close()
+    stats["words_covered"] = len(covered)
+    return stats
+
+
 def validate_multi_target_sentence(
     db,
     result,
