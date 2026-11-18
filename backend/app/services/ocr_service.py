@@ -776,7 +776,7 @@ def _lookup_vocabulary_match(
             lemma_lookup,
             out_provenance=provenance,
             strict_fallback=True,
-            tanwin_alif=candidate is bare and has_tanwin_alif(surface or ""),
+            tanwin_alif=candidate == bare and has_tanwin_alif(surface or ""),
         )
         if lemma_id and not provenance.is_guess:
             return lemma_id
