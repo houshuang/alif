@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useContext } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useContext } from "react";
 import {
   View,
   Text,
@@ -476,6 +476,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [sessionStopped, setSessionStopped] = useState(false);
   const continuingRef = useRef(false);
   const checkpointFetchingRef = useRef(false);
+  // A due quick check is being fetched: show nothing instead of the next card,
+  // which would otherwise flash before the check replaces it.
+  const [checkpointPending, setCheckpointPending] = useState(false);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const [storyInfoVisible, setStoryInfoVisible] = useState(false);
@@ -611,8 +614,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // and auto-skip duplicate sentence cards only when the primary lemma and
   // every due lemma covered by that card were already answered successfully.
   // Acquisition words are excluded: their queued repeat cards are the encoding
-  // loop, especially right after an intro.
-  useEffect(() => {
+  // loop, especially right after an intro. A layout effect, so a skipped card
+  // is never painted.
+  useLayoutEffect(() => {
     if (!sentenceSession || sessionSlots.length === 0 || submittingReview) return;
 
     // Walk forward past every consecutive auto-skippable slot in one pass.
@@ -808,7 +812,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, [results, totalCards, inWrapUp, sessionStopped, loading, submittingReview, sentenceSession, mode]);
 
   // Check only between cards; never replace a sentence the learner is reading.
-  useEffect(() => {
+  // A layout effect, so a due check is decided before the next card is painted.
+  useLayoutEffect(() => {
     const done = results && results.total >= totalCards;
     if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) maybeFireCheckpoint();
   }, [loading, submittingReview, cardIndex, sentenceSession?.session_id]);
@@ -1720,6 +1725,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const { queue, ready } = pickReadyRetest(retestQueueRef.current, now, lastCheckpointAtRef.current);
     retestQueueRef.current = queue;
     if (!ready) return;
+    setCheckpointPending(true);
     // Network failures retain the retry. In-flight fetches cannot cross a
     // card advance, mode change, explicit stop, or unmount.
     checkpointFetchingRef.current = true;
@@ -1756,6 +1762,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       .catch(() => {}) // network error — entry stays queued; retried on a later advance until expiry
       .finally(() => {
         checkpointFetchingRef.current = false;
+        setCheckpointPending(false);
       });
   }
 
@@ -2169,6 +2176,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
+  }
+
+  if (checkpointPending) {
+    return <View style={styles.centeredContainer} />;
   }
 
   if (totalCards === 0) {
