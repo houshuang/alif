@@ -17,6 +17,7 @@ import {
   StoryLookupResult,
   WordLookupResult,
   DiscoverWord,
+  LookupSense,
   SnapHistoryItem,
   PrereadSummary,
   PrereadDetail,
@@ -1202,6 +1203,20 @@ export async function lookupSnapWord(
     timeoutMs: 60000,
   });
   return r.word;
+}
+
+// Second step of a lookup that matched a vocabulary entry: does the entry mean
+// what the word means in this sentence? A widened gloss is written server-side.
+export async function checkLookupSense(
+  lemmaId: number,
+  surface: string,
+  context: string
+): Promise<LookupSense> {
+  return fetchApi<LookupSense>("/api/discover/lookup/sense", {
+    method: "POST",
+    body: JSON.stringify({ lemma_id: lemmaId, surface, context }),
+    timeoutMs: 60000,
+  });
 }
 
 export async function addDiscoveredWord(

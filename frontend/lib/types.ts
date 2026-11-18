@@ -1433,6 +1433,16 @@ export interface DiscoverWord {
   knowledge_state?: string | null;
 }
 
+export interface LookupSense {
+  // null when the check failed; the stored entry is then shown unchecked.
+  verdict: "fits" | "broader" | "different" | "name" | null;
+  gloss_en?: string;
+  gloss_from?: string | null;
+  written?: boolean;
+  // For "different": the word the sentence actually uses (lemma_id null = new).
+  word?: DiscoverWord;
+}
+
 export interface SnapSentence {
   p: number;
   ar: string;

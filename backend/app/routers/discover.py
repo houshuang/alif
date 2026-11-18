@@ -508,8 +508,109 @@ def lookup_word(req: LookupIn, db: Session = Depends(get_db)):
         db, req.word, count=1, include_oov=True, include_learning=True,
         context=req.context,
     )
-    log_interaction(event="discover_lookup", found=bool(words))
-    return {"word": words[0] if words else None}
+    w = words[0] if words else None
+    log_interaction(
+        event="discover_lookup", found=bool(w), surface=req.word,
+        context=(req.context or "")[:500],
+        lemma_id=w.get("lemma_id") if w else None,
+        lemma_ar=w.get("lemma_ar") if w else None,
+        gloss_en=w.get("gloss_en") if w else None,
+        lemma_source=w.get("lemma_source") if w else None,
+    )
+    return {"word": w}
+
+
+class LookupSenseIn(BaseModel):
+    lemma_id: int
+    surface: str
+    context: str
+
+
+def _word_out(lemma: Lemma, surface: str, state: str | None, source: str) -> dict:
+    return {
+        "surface": surface, "surface_forms": [surface],
+        "lemma_ar": lemma.lemma_ar or lemma.lemma_ar_bare,
+        "lemma_ar_bare": _normalize(lemma.lemma_ar_bare),
+        "root": lemma.root.root if lemma.root else None,
+        "gloss_en": lemma.gloss_en, "pos": lemma.pos,
+        "is_proper_noun": lemma.word_category == "proper_name",
+        "register": lemma.register, "dialect": lemma.dialect,
+        "transliteration": lemma.transliteration_ala_lc,
+        "freq_rank": lemma.frequency_rank, "count_in_text": 1, "example_ar": None,
+        "lemma_source": source, "lemma_id": lemma.lemma_id, "knowledge_state": state,
+    }
+
+
+def _resolve_different_word(db: Session, surface: str, matched_id: int, v: dict) -> dict:
+    """The word the sentence actually uses: an existing sense-compatible entry
+    when there is one, otherwise a proposal that /add can create."""
+    lookup = build_comprehensive_lemma_lookup(db)
+    bare = _normalize(v["lemma_ar"])
+    lid = lookup_lemma_citation(bare, lookup, original_bare=v["lemma_ar"])
+    lemma = db.get(Lemma, lid) if lid is not None and lid != matched_id else None
+    if lemma is not None and lemma.canonical_lemma_id:
+        lemma = db.get(Lemma, lemma.canonical_lemma_id)
+    if (
+        lemma is not None and lemma.lemma_id != matched_id and (lemma.gloss_en or "").strip()
+        and _candidate_matches_correction(lemma, v["gloss_en"], v["pos"] or "")
+    ):
+        state = (
+            db.query(UserLemmaKnowledge.knowledge_state)
+            .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id).scalar()
+        )
+        return _word_out(lemma, surface, state, "sense_check_existing")
+    return {
+        "surface": surface, "surface_forms": [surface],
+        "lemma_ar": v["lemma_ar"], "lemma_ar_bare": bare, "root": None,
+        "gloss_en": v["gloss_en"], "pos": v["pos"], "is_proper_noun": False,
+        "register": None, "dialect": None, "transliteration": None,
+        "freq_rank": None, "count_in_text": 1, "example_ar": None,
+        "lemma_source": "sense_check_new", "lemma_id": None, "knowledge_state": None,
+    }
+
+
+@router.post("/lookup/sense")
+def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
+    """Second step of a Snap lookup that matched a vocabulary entry: does that
+    entry mean what the word means in this sentence?
+
+    ``broader`` widens the stored gloss in place (compare-and-set, as pre-read
+    does); ``different`` returns the word actually used, existing or proposed,
+    so the reader can add it; ``fits``/``name`` change nothing. ``verdict`` is
+    null when the check failed."""
+    from app.services.lookup_sense import check_lookup_sense
+    from app.services.preread_service import regloss
+
+    lemma = db.get(Lemma, req.lemma_id)
+    if lemma is None:
+        raise HTTPException(status_code=404, detail="Lemma not found")
+    entry = {"lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en, "pos": lemma.pos}
+    db.rollback()  # hold no transaction across the LLM call
+    v = check_lookup_sense(req.context, req.surface, entry)
+    out: dict = {"verdict": v["verdict"] if v else None}
+    if v and v["verdict"] == "broader":
+        w = {"lemma_id": req.lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"]}}
+        try:
+            regloss(db, [w])
+            db.commit()
+        except Exception:
+            logger.exception("lookup regloss failed for %s", req.lemma_id)
+            db.rollback()
+        out.update(gloss_en=v["gloss_en"], gloss_from=entry["gloss_en"],
+                   written=bool(w.get("reglossed")))
+    elif v and v["verdict"] == "different":
+        out["word"] = _resolve_different_word(db, req.surface, req.lemma_id, v)
+        db.rollback()
+    log_interaction(
+        event="discover_lookup_sense", surface=req.surface, lemma_id=req.lemma_id,
+        lemma_ar=entry["lemma_ar"], gloss_from=entry["gloss_en"],
+        context=req.context[:500], verdict=out["verdict"],
+        gloss_to=out.get("gloss_en"), written=out.get("written"),
+        word_lemma_id=(out.get("word") or {}).get("lemma_id"),
+        word_lemma_ar=(out.get("word") or {}).get("lemma_ar"),
+        word_gloss=(out.get("word") or {}).get("gloss_en"),
+    )
+    return out
 
 
 class SnapOut(BaseModel):

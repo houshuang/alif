@@ -10,6 +10,13 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
 - A Snap "book" mode: keep snapped pages of one book (e.g. the Macron book) in order,
   so pages can be reread and their picked words traced back to the page.
 - Measure whether picks retain as well as frequency words (Box-1 pass rate by source).
+- ~~Check each tapped word's entry against its sentence~~ — done 2026-11-18
+  (`/api/discover/lookup/sense`: widen gloss, show the real word with Add, or mark a name).
+- Fix the running-text resolver collisions the 17 Nov pages exposed (الفتى → أَلْف,
+  فحين → لَفَحَ, رأيت → ياتُرَى, وزارة → زَارَ, ابنها → أَب, ويبدو → بَدَأَ): one-letter
+  prefix stripping (ف/و/ل) and stem guesses beat a whole-word identity that exists or
+  should exist. `discover_lookup_sense` verdicts of `different` are a ready test set.
+- Run the same lookup sense check on Snap's suggested-word chips and textbook-scan matches.
 
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
