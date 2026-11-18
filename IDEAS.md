@@ -57,6 +57,11 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   with that spelling; a story that uses one spelling for two words (دار "house" and "turned")
   gets one answer for both. Check per occurrence when the contexts differ.
 
+- Target check misses weak-final verb forms: `sentence_validator._surface_matches_target_bare`
+  returns False for اِسْتَحْيَتِ / تَسْتَحْيِي against target `استحيا`, so `validate_sentence`
+  reports "Target word not found" and generation for such verbs fails (seen 2026-11-18 on
+  #2759). Generate the ى/ا ↔ ي alternations of defective verbs when matching the target.
+
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
 Short real clips, drilled through Listen, Shadow, Blind and the original on TikTok, until followed at full speed without text. Word-by-word highlighting, short phrases, a Words step and 0.5× speed added after first use (too fast, hard to match speech to text). Open: a gentler on-ramp if the slowest clips stay too hard (Michel Thomas Egyptian, slowly read core-phrase sentences); move more of the remaining captioned clips in; a separate spaced deck for Egyptian chunks; feeding clip words that also exist in MSA into Alif; other dialects (Levantine, Gulf); blurred rather than covered picture in Blind (needs `expo-blur` and a native build).
