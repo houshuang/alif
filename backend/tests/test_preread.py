@@ -261,6 +261,28 @@ def test_active_priority_ids_cover_recent_batches_only(db_session):
     assert ps.active_priority_ids(db_session, now) == {1, 3, 7}
 
 
+def test_unseen_words_keep_priority_after_the_batch_window(db_session):
+    now = datetime.now(timezone.utc)
+    lemmas = [Lemma(lemma_ar=f"كلمة{i}", lemma_ar_bare=f"كلمة{i}", gloss_en=f"w{i}", pos="noun") for i in range(4)]
+    db_session.add_all(lemmas)
+    db_session.commit()
+    unseen, seen, graduated, stale = (l.lemma_id for l in lemmas)
+    db_session.add_all([
+        UserLemmaKnowledge(lemma_id=unseen, knowledge_state="acquiring", times_seen=0),
+        UserLemmaKnowledge(lemma_id=seen, knowledge_state="acquiring", times_seen=1),
+        UserLemmaKnowledge(lemma_id=graduated, knowledge_state="known", times_seen=0),
+        UserLemmaKnowledge(lemma_id=stale, knowledge_state="acquiring", times_seen=0),
+        PrereadSet(status="done", finished_at=now - timedelta(days=ps.PRIORITY_DAYS + 1), result_json={
+            "learn": [{"lemma_id": unseen, "added": True}, {"lemma_id": seen, "added": True}],
+            "names": [{"lemma_id": graduated, "added": True}],
+            "shaky": [{"lemma_id": 999}]}),
+        PrereadSet(status="done", finished_at=now - timedelta(days=ps.UNSEEN_PRIORITY_DAYS + 1),
+                   result_json={"learn": [{"lemma_id": stale, "added": True}]}),
+    ])
+    db_session.commit()
+    assert ps.active_priority_ids(db_session, now) == {unseen}
+
+
 def test_same_lemma_under_two_keys_is_one_candidate(db_session, monkeypatch):
     lem = Lemma(lemma_ar="لَفَّ", lemma_ar_bare="لف", gloss_en="to wrap", pos="verb")
     db_session.add(lem)

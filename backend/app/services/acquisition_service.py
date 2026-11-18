@@ -62,6 +62,7 @@ GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
 ROOT_SIBLING_THRESHOLD = 2  # known root siblings needed for Easy graduation boost
+PRACTICED_NAME_CATEGORY = "practiced_name"  # names entered by pre-read
 # Tier-0 (first-correct) instant graduation must NOT fire when the intro card
 # was shown moments ago — that's working memory, not learning. Require this
 # much elapsed time since the intro card before allowing fast-grad.
@@ -896,6 +897,22 @@ def submit_acquisition_review(
             else:
                 graduated = True
                 grad_reason = "first_correct"
+
+    # A practised name is recognised, not learned as vocabulary: one correct
+    # answer outside the intro-card gap graduates it, with no second-day
+    # confirmation. FSRS keeps reviewing it afterwards.
+    if (
+        not graduated
+        and scheduler_rating_int >= 3
+        and not recent_intro
+        and not retest_gate
+        and not protected_form_recovery
+        and db.query(Lemma.word_category).filter(Lemma.lemma_id == lemma_id).scalar()
+        == PRACTICED_NAME_CATEGORY
+    ):
+        graduated = True
+        grad_reason = "name_correct"
+        early_graduation_blocked = False
 
     # Box advancement logic
     # Box 1→2: allowed for encoding unless this is intro-card working memory

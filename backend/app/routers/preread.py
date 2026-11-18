@@ -287,6 +287,12 @@ def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: lis
         except Exception as e:
             logger.warning("preread material batch failed for %s: %s", chunk, e)
 
+    try:
+        from app.services.material_generator import generate_paired_material
+        logger.info("preread paired material: %s", generate_paired_material(new_ids + existing_ids))
+    except Exception as e:
+        logger.warning("preread paired material failed: %s", e)
+
     from app.services.memory_hooks import generate_memory_hooks
 
     for lid in hook_ids or []:
