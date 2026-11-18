@@ -101,7 +101,8 @@ def _ocr_page_with_retry(image_bytes: bytes) -> str:
     if text.strip():
         return text
 
-    # Retry with thinking model for difficult pages
+    # Retry with a stronger model for difficult pages. The earlier name here
+    # (gemini-2.5-flash-preview) had been withdrawn, so the retry always failed.
     logger.info("Flash returned empty, retrying with thinking model...")
     try:
         result = _call_gemini_vision(
@@ -115,7 +116,7 @@ def _ocr_page_with_retry(image_bytes: bytes) -> str:
                 'Respond with JSON: {"arabic_text": "the extracted Arabic text"}'
             ),
             system_prompt="You are an Arabic OCR system. Extract Arabic text accurately from images. Respond with JSON only.",
-            model_override="gemini/gemini-2.5-flash-preview",
+            model_override="gemini/gemini-4-hydrogen",
         )
         text = result.get("arabic_text", "")
         if text.strip():
