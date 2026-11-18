@@ -12,11 +12,17 @@ from __future__ import annotations
 import logging
 import re
 
-from app.services.preread_service import _MAX_GLOSS_CHARS, _is_widening, _vocalized_key
+from app.services.preread_service import (
+    _MAX_GLOSS_CHARS,
+    _is_widening,
+    _vocalized_key,
+    candidate_line,
+    sibling_choice,
+)
 
 logger = logging.getLogger(__name__)
 
-VERDICTS = ("fits", "broader", "different", "name")
+VERDICTS = ("fits", "broader", "different", "name", "sibling")
 
 _SCHEMA = {
     "type": "object",
@@ -25,6 +31,7 @@ _SCHEMA = {
         "lemma_ar": {"type": "string"},
         "gloss_en": {"type": "string"},
         "pos": {"type": "string"},
+        "candidate_id": {"type": "integer"},
     },
     "required": ["verdict"],
 }
@@ -32,10 +39,31 @@ _SCHEMA = {
 
 def check_lookup_sense(sentence: str, surface: str, entry: dict) -> dict | None:
     """Classify how ``surface`` in ``sentence`` relates to the matched ``entry``
-    ({lemma_ar, gloss_en, pos}). Returns {verdict, gloss_en?, lemma_ar?, pos?},
-    or None when the call fails or its answer does not pass validation."""
+    ({lemma_ar, gloss_en, pos, candidates?}). Returns {verdict, gloss_en?,
+    lemma_ar?, pos?}, or None when the call fails or its answer does not pass
+    validation.
+
+    ``entry["candidates"]`` ([{lemma_id, lemma_ar, gloss_en, pos}]) are other
+    vocabulary entries with the same spelling that the word alone could not
+    rule out (a homograph tie). The check may then answer
+    ``{"verdict": "sibling", "lemma_id": <offered id>}``."""
     from app.services.llm import generate_completion
 
+    candidates = entry.get("candidates") or []
+    others = (
+        "OTHER ENTRIES WITH THIS SPELLING:\n"
+        + "\n".join(f"- {candidate_line(c)}" for c in candidates)
+        + "\n"
+        if candidates
+        else ""
+    )
+    sibling_rule = (
+        '- "sibling": the tapped word is one of the other entries with this '
+        "spelling. Give candidate_id: that entry's id. Prefer it over "
+        '"different" whenever a listed entry is the word used.\n'
+        if candidates
+        else ""
+    )
     prompt = (
         "An adult learner of Arabic tapped a word while reading. Their app matched "
         "it to an entry in their vocabulary. Decide whether a reader relying on that "
@@ -43,7 +71,8 @@ def check_lookup_sense(sentence: str, surface: str, entry: dict) -> dict | None:
         f"SENTENCE: {sentence[:1500]}\n"
         f"TAPPED WORD: {surface}\n"
         f"MATCHED ENTRY: {entry.get('lemma_ar')} ({entry.get('pos') or '?'}) — "
-        f"{entry.get('gloss_en') or ''}\n\n"
+        f"{entry.get('gloss_en') or ''}\n"
+        f"{others}\n"
         "Answer with one verdict:\n"
         '- "fits": the entry is the word used here and its gloss covers this use '
         "(a rewording or a near synonym still fits).\n"
@@ -62,6 +91,7 @@ def check_lookup_sense(sentence: str, surface: str, entry: dict) -> dict | None:
         "3ms verb, no ال, no attached pronouns), pos, and gloss_en: a short general "
         "dictionary gloss that includes the meaning used here.\n"
         '- "name": the tapped word is (part of) a proper name here.\n'
+        f"{sibling_rule}"
         "Glosses are plain English with no Arabic script, under 80 characters."
     )
     try:
@@ -84,7 +114,12 @@ def validate_verdict(res: object, entry: dict) -> dict | None:
     meaning, and a different word must have a different citation form."""
     if not isinstance(res, dict) or res.get("verdict") not in VERDICTS:
         return None
+    sibling = sibling_choice(res, entry.get("candidates"))
+    if sibling is not None:
+        return {"verdict": "sibling", "lemma_id": sibling}
     verdict = res["verdict"]
+    if verdict == "sibling":
+        return None
     if verdict in ("fits", "name"):
         return {"verdict": verdict}
     gloss = (res.get("gloss_en") or "").strip()

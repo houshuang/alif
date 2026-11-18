@@ -755,6 +755,7 @@ def _lookup_vocabulary_match(
     lemma_lookup: dict[str, int],
     surface: str | None = None,
     out_guess: list[int] | None = None,
+    out_tied: list[int] | None = None,
 ) -> int | None:
     """Existing lemma for a scanned word, refusing morphological guesses.
 
@@ -765,6 +766,8 @@ def _lookup_vocabulary_match(
     the word takes the new-word path, where the quality gates' variant
     detection links it if it was an inflection after all. ``out_guess``
     receives the refused guess, which ``_check_scan_guesses`` can confirm.
+    ``out_tied`` receives the siblings of a homograph tie: the match stands
+    (the word is in the vocabulary), but the check can choose a sibling.
     """
     for candidate in (
         base_lemma_bare if base_lemma_bare and base_lemma_bare != bare else None,
@@ -781,6 +784,8 @@ def _lookup_vocabulary_match(
             tanwin_alif=candidate == bare and has_tanwin_alif(surface or ""),
         )
         if lemma_id and not provenance.is_guess:
+            if provenance.homograph_tie and out_tied is not None:
+                out_tied.extend(provenance.tied_lemma_ids)
             return lemma_id
         if lemma_id and out_guess is not None and not out_guess:
             out_guess.append(lemma_id)
@@ -790,18 +795,22 @@ def _lookup_vocabulary_match(
 def _check_scan_guesses(
     db: Session, extracted: list[dict], lemma_lookup: dict[str, int]
 ) -> tuple[dict[tuple, int], set[tuple]]:
-    """Decide the scanned words that only a CAMeL guess matched.
+    """Decide the scanned words that only a CAMeL guess or a homograph tie matched.
 
-    One batched sense check (``preread_service.check_senses``) over the guessed
+    One batched sense check (``preread_service.check_senses``) over those
     entries, given the scanned words with their translations. Returns
     ``(accepted, skip)`` keyed by ``(base_lemma_bare, bare)``: a confirmed or
-    merely too-narrow guess is accepted (the gloss is widened, compare-and-set);
+    merely too-narrow match is accepted (the gloss is widened, compare-and-set);
     a different word takes the normal new-word path; a failed check skips the
-    word for this scan. Commits first, so no write lock is held across the call.
+    word for this scan. A tied match is offered with its same-spelling siblings
+    and accepts the sibling the check names; otherwise, including on a failed
+    check, it keeps the resolver's answer, as an unchecked match did. Commits
+    first, so no write lock is held across the call.
     """
-    from app.services.preread_service import check_senses, regloss
+    from app.services.preread_service import check_senses, load_candidates, regloss
 
     guesses: dict[tuple, tuple[int, str]] = {}
+    ties: dict[tuple, tuple[int, str, list[int]]] = {}
     lines: list[str] = []
     for w in extracted:
         arabic, warnings = sanitize_arabic_word((w.get("arabic") or "").strip())
@@ -811,47 +820,61 @@ def _check_scan_guesses(
         bare = compute_bare_form(arabic)
         base = w.get("base_lemma")
         key = (base, bare)
-        if key in guesses or resolve_exact_running_text_alias(arabic, lemma_lookup).applicable:
+        if key in guesses or key in ties or resolve_exact_running_text_alias(arabic, lemma_lookup).applicable:
             continue
         if _is_function_word(bare) or (base and _is_function_word(base)):
             continue
         guess: list[int] = []
-        if _lookup_vocabulary_match(base, bare, lemma_lookup, arabic, out_guess=guess) is None and guess:
+        tied: list[int] = []
+        lid = _lookup_vocabulary_match(base, bare, lemma_lookup, arabic, out_guess=guess, out_tied=tied)
+        if lid is None and guess:
             guesses[key] = (guess[0], arabic)
-    if not guesses:
+        elif lid is not None and tied:
+            ties[key] = (lid, arabic, tied)
+    if not guesses and not ties:
         return {}, set()
 
-    keys = list(guesses)
+    checked = {**{k: (lid, ar, []) for k, (lid, ar) in guesses.items()}, **ties}
+    keys = list(checked)
     lemmas = {
         lem.lemma_id: lem
         for lem in db.query(Lemma).filter(
-            Lemma.lemma_id.in_({lid for lid, _ in guesses.values()})
+            Lemma.lemma_id.in_({lid for lid, _, _ in checked.values()})
         ).all()
     }
     items = []
     for i, key in enumerate(keys):
-        lid, arabic = guesses[key]
+        lid, arabic, tied = checked[key]
         lem = lemmas.get(lid)
         if lem is not None:
-            items.append({"index": i, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
-                          "pos": lem.pos, "forms": [arabic]})
+            item = {"index": i, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
+                    "pos": lem.pos, "forms": [arabic]}
+            if tied:
+                item["candidates"] = load_candidates(db, tied)
+            items.append(item)
     db.commit()  # write the caller's pending state before the LLM call
     verdicts = check_senses(
         "Words scanned from a textbook page, each with its translation:\n" + "\n".join(lines),
         items,
     )
     if verdicts is None:
-        logger.warning("scan: guess check failed; skipping %d guessed words", len(keys))
-        return {}, set(keys)
+        logger.warning("scan: sense check failed; skipping %d guessed words", len(guesses))
+        return {}, set(guesses)
     accepted: dict[tuple, int] = {}
     for item in items:
         key = keys[item["index"]]
         v = verdicts.get(item["index"])
-        lid = guesses[key][0]
+        lid = checked[key][0]
         if v is None:
             accepted[key] = lid
+        elif v["verdict"] == "sibling":
+            accepted[key] = v["lemma_id"]
         elif v["verdict"] == "broader":
             regloss(db, [{"lemma_id": lid, "regloss": {"from": item["gloss_en"], "to": v["gloss_en"]}}])
+            accepted[key] = lid
+        elif key in ties:
+            # A different word than every same-spelling entry: the resolver's
+            # answer stands rather than adding a duplicate spelling.
             accepted[key] = lid
     db.commit()
     return accepted, set()

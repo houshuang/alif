@@ -363,8 +363,17 @@ def _check_story_guesses(
     resolved_updates: list[tuple[StoryWord, int, bool | None, bool]],
     resolved_lemma_ids: set[int],
     guess_reglosses: list[dict],
+    tie_links: list[tuple[dict, int, list[int]]] | None = None,
 ) -> list[dict]:
     """Decide the unknown story words that only a CAMeL guess linked.
+
+    ``tie_links`` are linked words whose spelling several vocabulary entries
+    share with nothing in the word to choose between them (a homograph tie):
+    ``(analysis, linked id, sibling ids)``, ``analysis["story_words"]`` every
+    token with that surface. They go into the same call with their siblings
+    offered; a named sibling relinks the tokens, broader widens the linked
+    entry's gloss, and anything else, a failed check included, leaves the
+    link as it is.
 
     One batched ``preread_service.check_senses`` call, with the story text
     around each word as context. A fitting guess is queued in
@@ -375,12 +384,15 @@ def _check_story_guesses(
     queues nothing, so every guessed word stays unlinked. Commits first, so no
     write lock is held across the call.
     """
-    from app.services.preread_service import check_senses
+    from app.services.preread_service import check_senses, load_candidates
 
+    tie_links = tie_links or []
     lemmas = {
         lem.lemma_id: lem
         for lem in db.query(Lemma)
-        .filter(Lemma.lemma_id.in_({lid for _, lid in guessed_links}))
+        .filter(Lemma.lemma_id.in_(
+            {lid for _, lid in guessed_links} | {lid for _, lid, _ in tie_links}
+        ))
         .all()
     }
     items = []
@@ -391,6 +403,18 @@ def _check_story_guesses(
             continue
         items.append({"index": index, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
                       "pos": lem.pos, "forms": [analysis["surface"]]})
+        contexts.append(analysis["context"])
+    tie_items: dict[int, tuple[dict, int]] = {}
+    for offset, (analysis, lid, tied) in enumerate(tie_links):
+        lem = lemmas.get(lid)
+        candidates = load_candidates(db, tied)
+        if lem is None or not candidates:
+            continue
+        index = len(guessed_links) + offset
+        tie_items[index] = (analysis, lid)
+        items.append({"index": index, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
+                      "pos": lem.pos, "forms": [analysis["surface"]],
+                      "candidates": candidates})
         contexts.append(analysis["context"])
     if not items:
         return []
@@ -409,8 +433,23 @@ def _check_story_guesses(
         return []
     different: list[dict] = []
     for item in items:
-        analysis, lid = guessed_links[item["index"]]
         verdict = verdicts.get(item["index"])
+        if item["index"] in tie_items:
+            analysis, lid = tie_items[item["index"]]
+            if verdict is not None and verdict["verdict"] == "sibling":
+                for sw in analysis["story_words"]:
+                    resolved_updates.append((sw, verdict["lemma_id"], None, True))
+                resolved_lemma_ids.add(verdict["lemma_id"])
+            elif verdict is not None and verdict["verdict"] == "broader":
+                guess_reglosses.append({
+                    "lemma_id": lid,
+                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"]},
+                })
+                for sw in analysis["story_words"]:
+                    resolved_updates.append((sw, lid, None, False))
+                resolved_lemma_ids.add(lid)
+            continue
+        analysis, lid = guessed_links[item["index"]]
         if verdict is None or verdict["verdict"] == "broader":
             resolved_updates.append((analysis["story_word"], lid, None, False))
             resolved_lemma_ids.add(lid)
@@ -481,6 +520,8 @@ def _import_unknown_words(
     ] = []
     resolved_lemma_ids: set[int] = set()
     unresolved_alias_updates: list[StoryWord] = []
+    # Linked tokens whose spelling is a homograph tie, by surface.
+    tied_by_surface: dict[str, tuple[int, list[int], list[StoryWord]]] = {}
     for sw in story.words:
         if target_positions is not None and sw.position not in target_positions:
             continue
@@ -505,6 +546,21 @@ def _import_unknown_words(
             ):
                 unresolved_alias_updates.append(sw)
             continue
+        if sw.lemma_id is not None and not sw.is_function_word and sw.name_type is None:
+            tied = tied_by_surface.get(sw.surface_form)
+            if tied is None:
+                provenance = LemmaMatchProvenance()
+                lid = lookup_lemma_id(
+                    sw.surface_form, lemma_lookup, provenance, strict_fallback=True
+                )
+                tied = (
+                    (lid, list(provenance.tied_lemma_ids), [])
+                    if lid == sw.lemma_id and provenance.homograph_tie
+                    else (sw.lemma_id, [], [])
+                )
+                tied_by_surface[sw.surface_form] = tied
+            if tied[1] and tied[0] == sw.lemma_id:
+                tied[2].append(sw)
         if sw.lemma_id is not None or sw.is_function_word:
             continue
         bare = _story_word_bare(sw.surface_form)
@@ -561,7 +617,10 @@ def _import_unknown_words(
             sw.is_function_word = False
             sw.name_type = None
 
-    if not unknown_words:
+    tied_surfaces = {
+        surface: entry for surface, entry in tied_by_surface.items() if entry[2]
+    }
+    if not unknown_words and not tied_surfaces:
         if resolved_updates or unresolved_alias_updates:
             resolved_gloss_map, resolved_known_ids = (
                 load_resolved_metadata()
@@ -620,10 +679,23 @@ def _import_unknown_words(
             continue
         word_analyses.append(analysis)
 
-    if guessed_links:
+    tie_links: list[tuple[dict, int, list[int]]] = []
+    for surface, (lid, tied, story_words) in tied_surfaces.items():
+        token_index = story_word_index.get(story_words[0].position, 0)
+        context = " ".join(
+            item.surface_form
+            for item in ordered_story_words[
+                max(0, token_index - 4):min(len(ordered_story_words), token_index + 5)
+            ]
+        )
+        tie_links.append(
+            ({"surface": surface, "context": context, "story_words": story_words}, lid, tied)
+        )
+
+    if guessed_links or tie_links:
         word_analyses.extend(
             _check_story_guesses(db, story, guessed_links, resolved_updates,
-                                 resolved_lemma_ids, guess_reglosses)
+                                 resolved_lemma_ids, guess_reglosses, tie_links)
         )
 
     # Batch-load glosses for all resolved lemmas (avoids N+1 queries later)
