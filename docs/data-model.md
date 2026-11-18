@@ -52,7 +52,7 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 ### Reading targets (2026-10-04, novel sprint)
 
 `ReadingTarget` / `reading_targets`: explicit per-text vocabulary commitments (`lemma_id`,
-`program` such as `rijal_fi_al_shams`, `chapter`, `text_count` = token frequency in that
+`program` such as `rijal_fi_al_shams` or `everyday_core` (curated everyday words, `scripts/stage_everyday_words.py`), `chapter`, `text_count` = token frequency in that
 text, `created_at`, `retired_at`; unique on `(lemma_id, program)`). Migration
 `d0f2b4c6e8a1`. Targets are curriculum intent, not memory state: they steer
 `select_next_words` (top tier) and keep the word `maintain` in the attention refresh.

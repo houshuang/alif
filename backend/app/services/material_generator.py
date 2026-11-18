@@ -1574,8 +1574,8 @@ def generate_paired_material(lemma_ids: list[int], max_pairs: int = PAIRED_MATER
     return stats
 
 
-DUE_MENU_STOCK_TARGET = 60       # unshown sentences carrying >= DUE_MENU_DENSE_MIN due words
-DUE_MENU_DENSE_MIN = 3
+DUE_MENU_STOCK_TARGET = 60       # unshown sentences carrying >= DUE_MENU_MIN_PRIORITY due words
+DUE_MENU_DENSE_MIN = 3           # fewest due words a stored sentence may carry
 DUE_MENU_MIN_POOL = 40           # below this many uncovered due words a menu is too thin
 DUE_MENU_SIZE = 150
 DUE_MENU_SUPPORT_SIZE = 200
@@ -1652,7 +1652,7 @@ def generate_due_menu_material(
             due_by_sentence.setdefault(sentence_id, set()).add(lemma_id)
         stocked: set[int] = set()
         for lemma_ids in due_by_sentence.values():
-            if len(lemma_ids) >= DUE_MENU_DENSE_MIN:
+            if len(lemma_ids) >= DUE_MENU_MIN_PRIORITY:
                 stats["stock"] += 1
                 stocked |= lemma_ids
         missing = DUE_MENU_STOCK_TARGET - stats["stock"]

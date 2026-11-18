@@ -1315,6 +1315,7 @@ IMPORTANT:
 - Do NOT use any Arabic content words that are not in the two lists above (function words are fine).
 - Choose combinations of priority words that belong together naturally; never force unrelated words into one sentence.
 - Use each priority word in at most one sentence, so the {count} sentences cover as many different priority words as possible.
+- Use every listed word as the part of speech and meaning given: never turn a listed noun into its verb, or a listed verb into its noun or participle, unless that form is listed too.
 - Subjects, objects, adjectives and verbs should all come from the priority list when a fitting one exists.
 - Prefer short everyday contexts over poetic or encyclopedic sentences.
 Each sentence should be {word_range} words, each with a different structure.

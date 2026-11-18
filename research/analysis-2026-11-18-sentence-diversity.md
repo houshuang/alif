@@ -108,7 +108,7 @@ The menu prompt does the rotation by need instead: the people, things and qualit
 each batch are the ones due for review, so the cast changes with every batch and no list has to
 be maintained.
 
-## Recommendation (not yet built)
+## Recommendation (built the same day; see the experiment-log entry "Due-word menu generation, card ceiling 4 → 6")
 
 1. **Menu generation for due words.** Add a generation pass that offers a rotating menu of due
    words and stores the results through the existing multi-target validation, verification and
