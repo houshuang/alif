@@ -26,10 +26,16 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   the plural-row duplicates merged so credit does not move to them; (b) report-only use of homograph siblings in the sense check; (c) vocabulary
   repairs: wrong-sense rows #1206 دار, #1384 كاتب, #2781, #1575, the رَأَى conjugations
   stored on #2735 ياتُرَى, ~30 missing common words, plural rows kept as separate lemmas;
+  (c) is partly done 2026-11-18: the رَأَى conjugations and 15 other junk `forms_json`
+  sets removed, 27 missing words added as vocabulary only, 15 plural rows linked to their
+  singular; the wrong-sense rows are still open (proposals in the vocab-repair report).
   (d) `_import_unknown_words` still links unknown story words by CAMeL's first analysis
-  with no check.
+  with no check. (e) Form I / Form II verbs that share a bare key (حَمَلَ/حَمَّلَ,
+  صَنَعَ/صَنَّعَ, خَرَجَ/خَرَّجَ) and same-bare noun/verb pairs (قَدَر/قَدَّرَ, نَقْل/نَقَلَ):
+  the first-registered row wins even when the other exists; 19 of the 50 still resolve
+  wrongly after deploy, most of them this way.
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
-  textbook-scan matches still unchecked.
+  ~~textbook-scan matches~~ — done 2026-11-18 for CAMeL-guess matches (`_check_scan_guesses`).
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).
   Next: surface `different` verdicts in the app (offer to swap the enrolled word), and use
   the stored sentence as the first example when generating the word's review material.

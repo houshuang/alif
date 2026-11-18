@@ -114,6 +114,26 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Textbook scan checks its guessed matches instead of refusing them
+
+**Why.** Since #312 a scanned word that only CAMeL's last-resort guess matched was
+refused and took the new-word path, which creates a lemma for what is often an
+inflection of a word the learner already has (the guess is right ~96% of the time on
+verified app sentences, though only about half the time on book pages). The learner asked
+for the scan to spend the compute to decide instead of choosing between "create" and "skip".
+
+**Change (`ocr_service._check_scan_guesses`).** Before any write, the guessed matches of
+a scan are checked in one batched `check_senses` call, given the scanned words with their
+translations (the scan has a word list, not running text). No mismatch → link the guessed
+lemma; `broader` → link it and widen the gloss (compare-and-set); `different` → new-word
+path, using the scan's own analysis of the word; check failure → skip those words for this
+scan (they come back on a later scan). Both `process_textbook_page` and `process_batch`.
+
+**Deployed state of the 50 wrong book-page matches** (17 Nov pages, after #312, #314 and
+the vocabulary repairs, prod resolver with `strict_fallback`): 23 now resolve right, 3 give
+no match, 19 are still a confident wrong match and 5 a labelled guess. Most of the 24 are
+same-bare verb-form pairs (حَمَلَ/حَمَّلَ) or wrong-sense rows awaiting a decision.
+
 ## 2026-11-18: Strict resolver fallback for callers nothing checks afterwards
 
 **Scope.** Opt-in only (`strict_fallback=True` on `lookup_lemma` / `lookup_lemma_id`).
