@@ -1729,9 +1729,17 @@ def _lookup_lemma_layers(
 
     # Clitic stripping — collect every stem the vocabulary knows.
     stem_hits: list[tuple[str, int]] = []
+    whole_word_with_al = "ال" + bare_norm
     for stem in _strip_clitics(bare_norm):
         norm_stem = normalize_alef(stem)
         if norm_stem in lemma_lookup:
+            if (
+                norm_stem == whole_word_with_al
+                and _key_source(lemma_lookup, norm_stem) == MATCH_LAYER_GENERATED
+            ):
+                # Same ال-add as the exact layer, reached through the
+                # "nothing stripped" stem: a generated verb form, not ال+word.
+                continue
             stem_hits.append((norm_stem, lemma_lookup[norm_stem]))
     candidates = [lemma_id for _, lemma_id in stem_hits]
 
@@ -1778,6 +1786,16 @@ def _lookup_lemma_layers(
             if _form_of_related(lemma_lookup, winner, camel_id):
                 out_alternatives.append(winner)
                 _decided(MATCH_LAYER_CLITIC, trusted_stem)
+                return camel_id
+            # A whole-word reading beats a clitic parse: when the word is
+            # CAMeL's lemma plus the accusative alif (لَيْلًا = ليل + ا), the
+            # "clitic" was a radical (لـ + يلّا).
+            camel_bare = (
+                getattr(lemma_lookup, "lemma_bares", None) or {}
+            ).get(camel_id)
+            if camel_bare and bare_norm == camel_bare + "ا":
+                out_alternatives.append(winner)
+                _decided(MATCH_LAYER_CAMEL)
                 return camel_id
             _decided(MATCH_LAYER_CLITIC, trusted_stem)
             return winner

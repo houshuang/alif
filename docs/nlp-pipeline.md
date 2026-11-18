@@ -118,7 +118,7 @@ When a user flags a word mapping and the flag evaluator fixes it:
 `build_lemma_lookup()` Pass 3 generates ~36 conjugation forms per verb using `_generate_verb_conjugations()`:
 - **Past 3rd person**: 3ms base + 5 suffixes (ت, ا, تا, وا, ن) for 3fs/3md/3fd/3mp/3fp
 - **Past 1st/2nd person**: uses `past_1s` stem when available (crucial for weak verbs: قال→قل, مشى→مشي). Falls back to 3ms base for sound verbs. Generates 1s/2fs/2md/2mp/2fp/1p.
-- **Present tense**: extracts stem from 3ms present (e.g., يكتب→كتب), applies 4 prefixes (ي,ت,ا,ن) alone and with 5 suffixes (ون,ان,ين,ن,ي)
+- **Present tense**: extracts stem from 3ms present (e.g., يكتب→كتب), applies 4 prefixes (ي,ت,ا,ن) alone and with the suffixes each prefix really takes (`_PRESENT_SUFFIXES_BY_PREFIX`: ي + ون/ان/ن; ت + ون/ان/ين/ن/ي; ا + ي/ن, the imperative spelling; ن none). Until 2026-11-18 every prefix took every suffix, which registered forms no verb has (ا+لفح+ين = الفحين) and let them capture real words (فحين).
 - Only applies to verbs with `present` in forms_json (~393 verbs)
 - Weak verb coverage: with `past_1s` from LLM enrichment, hollow (قلت) and defective (مشيت) verbs get correct 1st/2nd person forms. Without `past_1s`, falls back to regular suffixation (sound verbs only).
 
@@ -134,6 +134,50 @@ When a user flags a word mapping and the flag evaluator fixes it:
 
 ## Lookup Collision Handling
 `build_lemma_lookup()` uses layered construction: (1) register all lemma bare forms first, (1b) for every ى-final lemma also index a ي-final variant so clitic-stripped residues like `إِلَيْهَا` → `الي` resolve to the alef-maksura-keyed lemma `إلى`, (2) register derived forms from `forms_json`, (3) generate verb conjugations + noun inflections. Each layer uses `set_if_new`, so direct lemma bare forms always take priority over derived/variant forms (e.g., حول "around" wins over حَوْل masdar of حال "to change", and موسيقي "musical" wins over the ي-variant of موسيقى "music"). The exact-running-text alias registry is metadata on `LemmaLookupDict`, not another normalized key: it is derived only after the full inventory establishes a unique gated destination and the absence of an exact-source identity. The dict also tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins in the ordinary lookup. When `lookup_lemma()` hits a collision key and has the pre-normalized form (`original_bare`), it uses hamza-sensitive matching then CAMeL fallback to pick the correct lemma. Collisions are logged at INFO (count) and DEBUG (details).
+
+### Match provenance and the clitic layer (2026-11-18)
+`lookup_lemma()` and `lookup_lemma_id()` take an optional `LemmaMatchProvenance`
+and report how the match was made. Return values are unchanged.
+
+| `layer` | Meaning |
+|---|---|
+| `alias` | approved exact running-text alias |
+| `function` | function-word direct lookup or form table |
+| `lemma` | a lemma's own bare form, with or without ال |
+| `forms` | a `forms_json` value |
+| `generated` | a Pass 3 generated conjugation or inflection |
+| `clitic` | a stem left after stripping clitics; `key_source` says which kind of key the stem hit |
+| `camel` | no vocabulary key matched; CAMeL's analysis chose the lemma. `is_guess` is true |
+
+`alternatives` lists the other lemmas the surface could be: homograph collisions
+on the key or on the clitic stem, competing clitic parses, a clitic parse CAMeL
+overrode. `LemmaLookupDict.key_sources` records which pass registered each key;
+keys a caller adds to the dict afterwards count as `lemma`.
+
+Use it this way:
+- A caller that shows or stores a match with no contextual check afterwards treats
+  `is_guess` as "no match". The textbook scan and `_create_story_words` do. On real
+  book pages the CAMeL last resort was wrong on 57% of its matches (وزارة → زَارَ);
+  on app sentences it agrees with verified mappings 96% of the time, so it is kept.
+- `map_tokens_to_lemmas()` copies the result into `TokenMapping.via_camel` and
+  `match_layer`; the verifier prompt marks such a token "morphological guess".
+
+Clitic layer rules:
+- Stems that all resolve to one lemma are one parse, not an ambiguity (`ابن` and
+  `الابن` are both keys of اِبْن). When the stem is the lemma's own bare form and at
+  least 3 letters long, CAMeL cannot replace it with an unrelated lemma
+  (ابنها → أَب). CAMeL keeps its override when the two lemmas are rows of one lexeme
+  (one's bare form is a `forms_json` value of the other: دروسه stays on دَرْس, not
+  the plural row دُرُوس), and when the word is CAMeL's lemma plus the accusative
+  alif (لَيْلًا is لَيْل, not لـ + يلّا).
+- A stem that is a homograph key (أمر: آمَرَ / أَمْر / أَمَرَ) still resolves to the
+  first-registered lemma, and now reports the siblings as alternatives.
+- ال-add ("token → ال+token") ignores generated keys, both in the exact layer and where the clitic layer reaches the same key through its nothing-stripped stem.
+
+Evidence, mechanism classes and the replay numbers:
+`research/analysis-2026-11-18-resolver-collisions.md`; fixture
+`backend/tests/fixtures/resolver_collisions_2026_11_18.json`; tests
+`backend/tests/test_resolver_collisions.py`.
 
 ### Citation forms: `lookup_lemma_citation()` (2026-07-15)
 `lookup_lemma_id(surface, lookup)` is the running-text API; after exact-surface

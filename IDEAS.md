@@ -16,6 +16,17 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   فحين → لَفَحَ, رأيت → ياتُرَى, وزارة → زَارَ, ابنها → أَب, ويبدو → بَدَأَ): one-letter
   prefix stripping (ف/و/ل) and stem guesses beat a whole-word identity that exists or
   should exist. `discover_lookup_sense` verdicts of `different` are a ready test set.
+  **Partly done 2026-11-18** (`research/analysis-2026-11-18-resolver-collisions.md`):
+  the resolver now reports how it matched, the textbook scan and story import refuse
+  CAMeL-only guesses, and three repairs fix 5 of the 50 (ابنها, برأسه, حياته, بجدته, فحين).
+  Open from that analysis: (a) a tanwin-alif layer, then matching CAMeL's headword only
+  against lemma headwords (7 more of the 50 become "no match"; costs ~124 verified pairs
+  becoming unmapped — decide whether that applies everywhere or only to unverified
+  callers); (b) report-only use of homograph siblings in the sense check; (c) vocabulary
+  repairs: wrong-sense rows #1206 دار, #1384 كاتب, #2781, #1575, the رَأَى conjugations
+  stored on #2735 ياتُرَى, ~30 missing common words, plural rows kept as separate lemmas;
+  (d) `_import_unknown_words` still links unknown story words by CAMeL's first analysis
+  with no check.
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
   textbook-scan matches still unchecked.
 - ~~Keep the source sentence of every added word~~ — done 2026-11-18 (`word_add_contexts`).

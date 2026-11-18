@@ -114,6 +114,63 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Running-text resolver reports how it matched; three collision repairs
+
+**Observation.** The Snap sense check judged 188 resolver matches from photographed
+book pages against their sentences; 50 were a different word (الفتى → أَلْف, وزارة → زَارَ,
+ابنها → أَب, فحين → لَفَحَ). Traced on a production snapshot
+(`research/analysis-2026-11-18-resolver-collisions.md`): 20 came from the CAMeL last
+resort, 16 from direct keys, 13 from the clitic layer, 1 from the `ال`-add layer. In only
+10 of the 50 did the right lemma exist; in 39 the vocabulary lacks the word. The CAMeL
+last resort was wrong on 57% of its matches on these pages and agrees with stored
+mappings 96% of the time on app sentences, so it stays (the 2026-07-15 finding holds).
+Verified mappings contain the same errors (ابنه → أَب, والشجرة → شَجَرَ), so the LLM
+verification gate does not fully cover for the resolver.
+
+**Change (`sentence_validator.py`).**
+- **Provenance.** `lookup_lemma` / `lookup_lemma_id` accept an optional
+  `LemmaMatchProvenance`: deciding layer (`alias`, `function`, `lemma`, `forms`,
+  `generated`, `clitic`, `camel`), kind of key hit, alternatives. Return values are
+  unchanged. `LemmaLookupDict.key_sources` records which pass registered each key.
+  `map_tokens_to_lemmas` sets `TokenMapping.via_camel` / `match_layer`; the verifier
+  prompt labels a CAMeL match "morphological guess".
+- **Homograph stems.** A clitic stem that is a collision key now reports its siblings
+  as alternatives (the clitic layer used to take the first-registered lemma silently).
+  Sentences with at least one ambiguous token rise from 7,740 to 8,350 of 13,199 in
+  the replay, so generation runs contextual disambiguation somewhat more often.
+- **F1, agreeing clitic parse.** Stems that all resolve to one lemma are one parse
+  (ابن + ها gave `[79, 79]` and was treated as ambiguous). When the stem is that
+  lemma's own bare form and at least 3 letters, CAMeL may replace it only with a
+  form-of related lemma (plural-as-own-lemma rows such as دُرُوس / دَرْس, so no credit
+  moves) or when the word is CAMeL's lemma plus the accusative alif (لَيْلًا).
+- **F2.** `ال`-add skips generated keys (exact layer and the clitic layer's
+  nothing-stripped stem).
+- **F3.** Present-tense generation uses real prefix–suffix pairs only
+  (`_PRESENT_SUFFIXES_BY_PREFIX`); `ا` keeps `ي`/`ن` for the imperative spelling.
+  Lookup keys on the snapshot: 71,674 → 62,075.
+- **Unverified writers.** The textbook scan (`ocr_service._lookup_vocabulary_match`)
+  and `story_service._create_story_words` treat a CAMeL-only match as no match.
+  Generated maintenance passages pass `trust_morphological_guesses=True` and behave
+  as before.
+
+**Measured (same snapshot, old code vs new).** Book rows: 5 of the 50 wrong rows now
+resolve to the right lemma (ابنها, برأسه, حياته, بجدته, فحين); none of the 138 right
+rows changed; all 20 CAMeL last-resort errors are labelled as guesses (so are 15 right
+rows). Replay over 33,219 distinct verified (surface, lemma) pairs: agreement 31,601 →
+31,815; 274 pairs move to the stored lemma, 60 move away. Of the 24 that move to an
+unrelated lemma, 13 are stored mappings that were wrong, 7 are duplicate rows, about 3
+are real regressions (بمعاني → مَعاً, لبناني → بِنا, فكأنّ → كَانَ).
+
+**Not changed.** The CAMeL last resort itself, the function-word direct path, the exact
+aliases, `lookup_lemma_citation`, the same_lemma rejection. No stored mapping was
+rewritten.
+
+**Watch.** Disambiguation call volume in `warm_sentence_cache`; unmapped StoryWords
+after story imports (words that only CAMeL resolved now go to `_import_unknown_words`);
+duplicate lemmas from textbook scans (a refused guess takes the new-word path and
+relies on variant detection). Open: tanwin-alif layer and headword-only CAMeL matching
+(Rank 3), vocabulary repairs for the 39 missing or wrong-sense rows (Rank 5).
+
 ## 2026-11-18: Added words keep their sentence; Snap chips and pre-read stop trusting unchecked matches
 
 **Why.** The resolver investigation (`research/analysis-2026-11-18-resolver-collisions.md`,
