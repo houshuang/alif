@@ -238,7 +238,7 @@ class TestFilledOpeningPolicy:
             "learning_policy_version": "low_energy_maintenance_v1",
             "low_energy_maintenance_enabled": True,
             "daily_intro_cap": 2,
-            "max_due_words_per_sentence_card": 4,
+            "max_due_words_per_sentence_card": 6,
             "trivial_collateral_retrievability": 0.97,
             "base_card_count": 4,
             "acquisition_repeat_card_count": 0,
@@ -1093,8 +1093,8 @@ class TestGreedySetCover:
 
         assert [item["sentence_id"] for item in result["items"]] == [2]
 
-    def test_low_energy_policy_caps_due_density_at_four(self, db_session):
-        for lemma_id in range(1, 6):
+    def test_low_energy_policy_caps_due_density_at_six(self, db_session):
+        for lemma_id in range(1, 8):
             _seed_word(
                 db_session,
                 lemma_id,
@@ -1105,18 +1105,18 @@ class TestGreedySetCover:
         _seed_sentence(
             db_session,
             1,
-            "all-five",
-            "all five",
+            "all-seven",
+            "all seven",
             1,
-            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 6)],
+            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 8)],
         )
         _seed_sentence(
             db_session,
             2,
-            "only-four",
-            "only four",
+            "only-six",
+            "only six",
             1,
-            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 5)],
+            [(f"dense-{lemma_id}", lemma_id) for lemma_id in range(1, 7)],
         )
         db_session.commit()
 
@@ -1127,7 +1127,7 @@ class TestGreedySetCover:
         )
 
         assert [item["sentence_id"] for item in result["items"]] == [2]
-        assert result["selection_diagnostics"]["max_due_words_on_card"] == 4
+        assert result["selection_diagnostics"]["max_due_words_on_card"] == 6
         assert result["selection_diagnostics"]["cards_over_due_density_cap"] == 0
 
     def test_density_cap_counts_due_words_outside_active_cohort(
