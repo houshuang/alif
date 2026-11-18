@@ -142,7 +142,7 @@ def _mark_checked(db, context_id: int, w: dict) -> None:
         return
     row.check_verdict = "broader" if w.get("regloss") else "fits"
     row.check_json = {"via": "preread_sense_check", "regloss": w.get("regloss"),
-                      "sense_from": w.get("sense_from")}
+                      "sense_from": w.get("sense_from"), "sibling": bool(w.get("sense_sibling"))}
     row.checked_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -197,6 +197,7 @@ def _apply_plan(plan: dict, set_id: int | None = None, snap_ids: list[int] | Non
                     ),
                     lookup,
                     preread_set_id=set_id,
+                    existing_lemma_id=w["lemma_id"] if w.get("sense_sibling") else None,
                 )
                 db.commit()
                 _log_add(out)
@@ -210,6 +211,7 @@ def _apply_plan(plan: dict, set_id: int | None = None, snap_ids: list[int] | Non
                 if w.get("sense_from"):
                     log_interaction(event="preread_sense_reroute", lemma_id=out["lemma_id"],
                                     from_lemma_id=w["sense_from"]["lemma_id"],
+                                    sibling=bool(w.get("sense_sibling")),
                                     created=out["created"], state=out["state"])
                 if out["created"]:
                     new_ids.append(out["lemma_id"])

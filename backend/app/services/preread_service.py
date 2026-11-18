@@ -458,24 +458,64 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
     return out
 
 
+def _plan_group(state: str | None, disposition: str | None, retrievability: float | None) -> str | None:
+    """Which list a matched word belongs in, by its knowledge: ``learn`` for a
+    new word, ``shaky`` for a maintained FSRS word likely forgotten, else None."""
+    if state in _NEW_STATES:
+        return "learn"
+    if state in _FSRS_STATES and disposition == "maintain":
+        if state == "known" and (retrievability is None or retrievability >= SHAKY_RETRIEVABILITY):
+            return None
+        return "shaky"
+    return None
+
+
+def _tie_candidates(db: Session, words: list[dict], now: datetime) -> None:
+    """Attach the same-spelling siblings of a homograph tie to each matched
+    word (``tie_candidates``), with the learner's state for each, so the sense
+    check can offer them and a chosen sibling can be placed by its state."""
+    for w in words:
+        candidates = load_candidates(db, w.get("homograph_candidates"))
+        if not candidates:
+            continue
+        ulks = {
+            u.lemma_id: u
+            for u in db.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_([c["lemma_id"] for c in candidates])
+            )
+        }
+        for c in candidates:
+            ulk = ulks.get(c["lemma_id"])
+            c["knowledge_state"] = ulk.knowledge_state if ulk else None
+            c["attention_disposition"] = ulk.attention_disposition if ulk else None
+            r = card_retrievability(ulk.fsrs_card_json, now) if ulk else None
+            c["retrievability"] = round(r, 3) if r is not None else None
+        w["tie_candidates"] = candidates
+
+
 def _apply_senses(
     text: str, learn: list[dict], shaky: list[dict]
 ) -> tuple[list[dict], list[dict], int, int]:
     """Annotate matched words with the sense check. A widened gloss is stored
     on the word as ``regloss`` (written by the router); a different lexeme
     replaces the word's identity so the router's add re-routes it, and leaves
-    the shaky list for the learn list. When the check fails, matched words are
-    held back instead of entered unchecked. Returns (learn, shaky, n_checked,
-    n_held_back)."""
+    the shaky list for the learn list. A homograph tie is offered with its
+    siblings (``tie_candidates``); a chosen sibling replaces the match as that
+    existing lemma (``sense_sibling``) and goes to the list its own state
+    calls for, or is dropped when it needs neither. When the check fails,
+    matched words are held back instead of entered unchecked. Returns (learn,
+    shaky, n_checked, n_held_back)."""
     from app.routers.discover import _normalize
 
     checked = [w for w in learn + shaky if w.get("lemma_id")]
-    verdicts = check_senses(
-        text,
-        [{"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
-          "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
-         for i, w in enumerate(checked)],
-    )
+    items = []
+    for i, w in enumerate(checked):
+        item = {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
+                "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
+        if w.get("tie_candidates"):
+            item["candidates"] = w["tie_candidates"]
+        items.append(item)
+    verdicts = check_senses(text, items)
     if verdicts is None:
         # An unchecked match can be a same-skeleton neighbour (أمضت → ماضٍ):
         # do not enter or pull forward any of them on a failed check.
@@ -483,10 +523,27 @@ def _apply_senses(
         logger.warning("preread: sense check failed; holding back %d matched words", len(unchecked))
         return ([w for w in learn if id(w) not in unchecked],
                 [w for w in shaky if id(w) not in unchecked], 0, len(unchecked))
+    groups = {id(w): "learn" for w in learn} | {id(w): "shaky" for w in shaky}
     for i, w in enumerate(checked):
         w["sense_checked"] = True
         v = verdicts.get(i)
         if not v:
+            continue
+        if v["verdict"] == "sibling":
+            sib = next(c for c in w["tie_candidates"] if c["lemma_id"] == v["lemma_id"])
+            w["sense_from"] = {"lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
+                               "gloss_en": w.get("gloss_en")}
+            w["sense_sibling"] = True
+            w.update(lemma_id=sib["lemma_id"], lemma_ar=sib["lemma_ar"], gloss_en=sib["gloss_en"],
+                     lemma_ar_bare=_normalize(sib["lemma_ar"] or ""),
+                     knowledge_state=sib.get("knowledge_state"),
+                     retrievability=sib.get("retrievability"))
+            if sib.get("pos"):
+                w["pos"] = sib["pos"]
+            taken = any(o is not w and o.get("lemma_id") == sib["lemma_id"] for o in learn + shaky)
+            groups[id(w)] = None if taken else _plan_group(
+                sib.get("knowledge_state"), sib.get("attention_disposition"), sib.get("retrievability")
+            )
             continue
         if v["verdict"] == "broader":
             w["regloss"] = {"from": w.get("gloss_en"), "to": v["gloss_en"]}
@@ -498,8 +555,12 @@ def _apply_senses(
                      lemma_ar_bare=_normalize(v["lemma_ar"]), knowledge_state=None)
             if v["pos"]:
                 w["pos"] = v["pos"]
-    moved = [w for w in shaky if w.get("sense_from")]
-    return learn + moved, [w for w in shaky if not w.get("sense_from")], len(checked), 0
+    for w in shaky:
+        if w.get("sense_from") and not w.get("sense_sibling"):
+            groups[id(w)] = "learn"
+    everything = learn + shaky
+    return ([w for w in everything if groups.get(id(w)) == "learn"],
+            [w for w in everything if groups.get(id(w)) == "shaky"], len(checked), 0)
 
 
 def regloss(db: Session, words: list[dict]) -> list[int]:
@@ -601,6 +662,8 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
     shaky.sort(key=lambda w: (-w["score"], w.get("retrievability") or 0))
     shaky = shaky[: shaky_quota(len(pages))]
 
+    _tie_candidates(db, learn + shaky, now)
+    db.rollback()  # hold no transaction across the sense check
     learn, shaky, n_checked, held_back = _apply_senses(text, learn, shaky)
 
     names = _merge_names(names)
@@ -613,7 +676,8 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
         sense_checked=n_checked,
         sense_check_held_back=held_back,
         reglossed=sum(1 for w in learn + shaky if w.get("regloss")),
-        sense_rerouted=sum(1 for w in learn if w.get("sense_from")),
+        sense_rerouted=sum(1 for w in learn if w.get("sense_from") and not w.get("sense_sibling")),
+        sense_sibling=sum(1 for w in learn + shaky if w.get("sense_sibling")),
     )
     return {"learn": learn, "shaky": shaky, "names": names, "stats": stats}
 
