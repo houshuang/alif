@@ -3228,3 +3228,16 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - [DONE 2026-11-18] Sentences that practise two pre-read batch words together
   (`generate_paired_material`).
 - [DONE 2026-11-18] Today card between batches (cumulative cards, % correct, new words, moved up, graduated, known).
+
+## Model choice (2026-11-18, from `research/analysis-2026-11-18-model-check.md`)
+- Route the dense-sentence generation call to GPT-6.1 Sol through Codex with Sonnet as
+  fallback: 55 of 96 sentences stored against 39 for Sonnet in a two-run dry test.
+  Then repeat the test on the ordinary per-word prompts before moving those.
+- Pin the quality judge to one model. GPT-6.1 Sol passed 93% of valid sentences and
+  Sonnet 56%, so today the pass rate depends on which provider happens to answer.
+- Tell the sentence writer which verbs exist: most sentences lost at the mapping check
+  use a verb or derived form whose own entry is not in the vocabulary.
+- Re-run `research/model-check-2026-11-18/` scripts when a provider ships a new
+  generation; the CLI aliases upgrade silently, the pinned names do not.
+- If Gemini 3 Flash preview is withdrawn, move page scans to Gemini 4 Hydrogen, not to
+  Gemini 3.6 Flash (most scan errors of the four tested).
