@@ -1219,8 +1219,11 @@ export async function checkLookupSense(
   });
 }
 
+// `context` is where the learner met the word; the server keeps the sentence
+// so the entry can be checked against real use.
 export async function addDiscoveredWord(
-  word: DiscoverWord
+  word: DiscoverWord,
+  context?: { surface?: string | null; sentence?: string | null; snapId?: number | null }
 ): Promise<DiscoverAddResult> {
   return fetchApi("/api/discover/add", {
     method: "POST",
@@ -1233,6 +1236,9 @@ export async function addDiscoveredWord(
       register: word.register,
       dialect: word.dialect,
       source: "snap",
+      surface: context?.surface ?? word.surface,
+      context_ar: context?.sentence ?? word.example_ar,
+      snap_id: context?.snapId ?? null,
     }),
     timeoutMs: 20000,
   });

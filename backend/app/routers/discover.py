@@ -57,6 +57,7 @@ from app.services.sentence_validator import (
     lookup_lemma_id,
     requires_exact_running_text_alias,
 )
+from app.services.add_context import record_add_context, verify_add_contexts
 from app.services.attention_policy import LEARNER_PICK_SOURCES
 from app.services.word_selector import introduce_word
 
@@ -623,6 +624,49 @@ class SnapOut(BaseModel):
     count: int
 
 
+def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
+    """Check the suggested words that matched a vocabulary entry against the
+    page (one batched Sonnet call, as pre-read does). A widened gloss is written
+    (compare-and-set); a different word replaces the chip, or drops it when the
+    learner already studies that word. On a failed check the chips are kept:
+    nothing is written until Add, and the add-context check covers it then."""
+    from app.services.preread_service import check_senses, regloss
+
+    matched = [w for w in words if w.get("lemma_id")]
+    if not matched:
+        return words
+    db.rollback()  # hold no transaction across the LLM call
+    verdicts = check_senses(text, [
+        {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
+         "forms": w.get("surface_forms") or [w["surface"]]}
+        for i, w in enumerate(matched)
+    ])
+    if not verdicts:
+        return words
+    drop: set[int] = set()
+    for i, w in enumerate(matched):
+        v = verdicts.get(i)
+        if not v:
+            continue
+        if v["verdict"] == "broader":
+            rg = {"lemma_id": w["lemma_id"], "regloss": {"from": w.get("gloss_en"), "to": v["gloss_en"]}}
+            regloss(db, [rg])
+            db.commit()
+            w["gloss_en"] = v["gloss_en"]
+            continue
+        real = _resolve_different_word(db, w["surface"], w["lemma_id"], v)
+        db.rollback()
+        if real.get("knowledge_state") in _ALREADY_LEARNING_STATES:
+            drop.add(id(w))
+            continue
+        w["sense_from"] = {"lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
+                           "gloss_en": w.get("gloss_en")}
+        for k in ("lemma_ar", "lemma_ar_bare", "gloss_en", "pos", "root", "lemma_id",
+                  "knowledge_state", "transliteration", "register", "dialect", "lemma_source"):
+            w[k] = real.get(k)
+    return [w for w in words if id(w) not in drop]
+
+
 @router.post("/snap", response_model=SnapOut)
 async def discover_snap(
     file: UploadFile = File(...),
@@ -672,6 +716,11 @@ async def discover_snap(
         words = []
     # Names are not vocabulary to learn; /add refuses them anyway.
     words = [w for w in words if not w.get("is_proper_noun")]
+    try:
+        words = _sense_check_chips(db, arabic_text, words)
+    except Exception:
+        logger.exception("snap chip sense check failed; keeping unchecked chips")
+        db.rollback()
     sentences = ocr.get("sentences") or []
     # Keep the page so it survives a reload; a failed save must not cost the
     # reader the page they just paid for.
@@ -757,6 +806,11 @@ class WordIn(BaseModel):
     # in-app discover screen) so existing callers keep their tag; other consumers
     # (e.g. the Bookifier glossary) pass their own to stay distinguishable.
     source: str | None = None
+    # Where the learner met the word: the printed form and its sentence, stored
+    # in word_add_contexts so the entry can be checked against real use.
+    surface: str | None = None
+    context_ar: str | None = None
+    snap_id: int | None = None
 
 
 def _gate_and_generate(lemma_ids: list[int]) -> None:
@@ -818,7 +872,9 @@ def _ensure_material(lemma_ids: list[int]) -> None:
             logger.warning("discover material gen failed for %s: %s", lid, e)
 
 
-def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
+def _create_and_introduce(
+    db: Session, w: WordIn, lemma_lookup: dict, preread_set_id: int | None = None
+) -> dict:
     """Find-or-create the canonical lemma for `w`, then introduce it immediately
     (bypassing the daily intro cap — explicit user add). Newly created lemmas are
     registered in `lemma_lookup` so a repeated word in the same batch resolves to
@@ -919,7 +975,14 @@ def _create_and_introduce(db: Session, w: WordIn, lemma_lookup: dict) -> dict:
         due_immediately=True, enforce_daily_cap=True,
         learner_pick=source in LEARNER_PICK_SOURCES,
     )
+    context = record_add_context(
+        db, lemma.lemma_id, source, w.context_ar, surface=w.surface,
+        snap_id=w.snap_id, preread_set_id=preread_set_id,
+    )
+    if context is not None:
+        db.flush()
     return {
+        "context_id": context.id if context is not None else None,
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
         "gloss_en": lemma.gloss_en,
@@ -957,6 +1020,9 @@ def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends
         raise HTTPException(status_code=400, detail=str(e))
     db.commit()
     _log_add(out)
+    # Check the entry against the sentence before material is generated for it.
+    if out["context_id"]:
+        background_tasks.add_task(verify_add_contexts, [out["context_id"]])
     if out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
     elif out["state"] == "acquiring" and not out["already_known"]:
@@ -972,7 +1038,7 @@ class WordsIn(BaseModel):
 def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create/stage several words at once. Each word is committed independently
     so one failure can't roll back the rest of the batch."""
-    results, new_ids, existing_ids = [], [], []
+    results, new_ids, existing_ids, context_ids = [], [], [], []
     for w in req.words:
         try:
             # Each prior item commits independently and may have changed an
@@ -984,6 +1050,8 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
             db.commit()
             results.append(out)
             _log_add(out)
+            if out["context_id"]:
+                context_ids.append(out["context_id"])
             if out["created"]:
                 new_ids.append(out["lemma_id"])
             elif out["state"] == "acquiring" and not out["already_known"]:
@@ -992,6 +1060,8 @@ def add_words(req: WordsIn, background_tasks: BackgroundTasks, db: Session = Dep
             db.rollback()
             logger.warning("discover add failed for %s: %s", w.lemma_ar_bare, e)
             results.append({"lemma_ar_bare": w.lemma_ar_bare, "error": str(e)})
+    if context_ids:
+        background_tasks.add_task(verify_add_contexts, context_ids)
     if new_ids:
         background_tasks.add_task(_gate_and_generate, new_ids)
     if existing_ids:

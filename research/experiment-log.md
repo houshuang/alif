@@ -114,6 +114,28 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Added words keep their sentence; Snap chips and pre-read stop trusting unchecked matches
+
+**Why.** The resolver investigation (`research/analysis-2026-11-18-resolver-collisions.md`,
+written by the parallel resolver lane) found 50 wrong-lexeme matches among 196 book
+tokens, 39 of them because the right lemma is missing or its row has the wrong sense —
+so no resolver change can fix them; only a check against the real sentence can. The
+learner asked that every added word keep its source sentence so it can be verified later.
+
+**Change.** New table `word_add_contexts` (one row per Snap/pre-read add: surface,
+sentence, snap/pre-read ids, gloss at add). `/add` checks the entry against that sentence
+in a background task before material generation (`services/add_context.py`): `broader`
+widens the gloss (compare-and-set), `different` is recorded and logged for review — the
+enrolled word is not changed automatically. `/snap` checks its suggested words that
+matched an entry against the page (batched `check_senses`), replacing or dropping wrong
+matches. Pre-read: when `check_senses` fails, matched words are held back instead of
+entered or pulled forward unchecked (previously the failure returned `{}` and every match
+went through).
+
+**Watch.** `word_add_context_check` events with `verdict=different` (should be rare for
+panel adds, which were already sense-checked); `stats.sense_check_held_back` in
+`preread_sets.result_json`.
+
 ## 2026-11-18: Snap checks each tapped word's entry against its sentence
 
 **Observation.** In Snap, a tapped word that resolves to a vocabulary entry was shown
