@@ -122,6 +122,45 @@ When a user flags a word mapping and the flag evaluator fixes it:
 - Only applies to verbs with `present` in forms_json (~393 verbs)
 - Weak verb coverage: with `past_1s` from LLM enrichment, hollow (قلت) and defective (مشيت) verbs get correct 1st/2nd person forms. Without `past_1s`, falls back to regular suffixation (sound verbs only).
 
+## Target Check for Verb Conjugations (2026-11-18)
+`validate_sentence()` requires the target word's own surface (bare ± ال, word-final
+ا ↔ ى, clitics, tanwin alif) rather than any token the resolver maps to the target, so
+a related-root word cannot stand in for it. Before 2026-11-18 this rejected every
+conjugated verb target: كَنَسَتِ for كَنَسَ, اِسْتَحْيَتِ / تَسْتَحْيِي for اِسْتَحْيَا.
+
+`verb_target_inflections(bare,
+forms_json)` builds, for one verb, its stored conjugations (`present*`, `past*`,
+`imperative*` keys; masdar and participles are separate lemmas and excluded), the
+conjugations `_generate_verb_conjugations` derives from them, and the final-weak stem
+alternations `_final_weak_verb_forms` adds when the stored present ends in ي/و/ى
+(رَمَتْ, رَمَوْا, لَمْ يَرْمِ, تَرْمِينَ, يَدْعُونَ, بَقُوا, يَبْقَوْنَ). Final weakness is read
+from the stored present, not the bare: alef normalization makes بَدَأَ look like بَدَا.
+Forms under three letters are dropped. `build_lemma_lookup` records the set per verb
+in `LemmaLookupDict.target_inflection_forms`; nothing is registered as a lookup key,
+so the running-text resolver is unchanged.
+
+Consumers, each only for the target lemma's id:
+- `validate_sentence(..., target_lemma_id=)` and `validate_sentence_multi_target()`
+  accept a token whose form or clitic stem is in the set, provided the resolver does
+  not map that token to another lemma (`_inflection_identity_allows_target`: اِسْمِي
+  "my name" is also a generated 1s present of سَمَّى) and it is not a function-word
+  surface. Without `target_lemma_id` the old check is unchanged; both generation paths
+  in `material_generator.py` pass it.
+- `_surface_matches_target_bare(..., inflections)`, used by `map_tokens_to_lemmas()`
+  (sets `is_target` when the token resolved to the target; fills an unresolved token,
+  such as a jussive the lookup lacks) and `refresh_target_mapping_flags()` (the
+  post-verification target integrity check, which still requires the final lemma id).
+
+Measured on a 2026-11-18 production snapshot: 46 of 52 previously rejected sound-verb
+and 8 of 8 weak-verb target tokens in active sentences now match; 164 of 190 verb-target
+"Target word not found" failures in the last 30 days of generation logs would have found
+the target. Over 15,490 verified active tokens, offering each token to every verb whose
+set contains it, 991 new acceptances agree with the verified mapping and none goes to a
+verb the resolver maps the token away from; 93 go to a verb the resolver itself picks
+while the verified mapping names another lemma, nearly all conjugated forms stored as
+their own lemmas (أَضَعُ beside وَضَعَ, وَنَأْكُلُ beside أَكَلَ), which target integrity
+after verification still rejects.
+
 ## Noun Inflection Recognition (Pass 3)
 `_generate_noun_inflections()` generates sound plural and dual forms for nouns/adjectives:
 - **Sound feminine plural**: stem + ات (strips ة/ه first: معلمة→معلمات)

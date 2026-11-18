@@ -84,14 +84,18 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
 
     ``broader`` widens the gloss (compare-and-set, as pre-read does);
     ``different`` records the word actually used so it can be reviewed; the
-    enrolled word is not changed automatically. Own sessions; no transaction is
-    held across the LLM call. Returns verdict counts."""
+    enrolled word is not changed automatically. A homograph tie is offered with
+    its same-spelling siblings; a chosen sibling is recorded as ``different``
+    with ``sibling_lemma_id``, so the swap enrolls that existing entry. Own
+    sessions; no transaction is held across the LLM call. Returns verdict
+    counts."""
     from app.database import SessionLocal
     from app.services.interaction_logger import log_interaction
     from app.services.lookup_sense import check_lookup_sense
     from app.services.preread_service import regloss
 
     counts: dict[str, int] = {}
+    lookup: dict | None = None
     for cid in context_ids:
         db = SessionLocal()
         try:
@@ -106,12 +110,23 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
             lemma_id = lemma.lemma_id
             entry = {"lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en, "pos": lemma.pos}
             sentence, surface = row.sentence_ar, row.surface or lemma.lemma_ar
+            if lookup is None:
+                from app.services.sentence_validator import build_comprehensive_lemma_lookup
+
+                lookup = build_comprehensive_lemma_lookup(db)
+            candidates = _tie_siblings(db, lookup, surface, {row.lemma_id, lemma_id})
+            if candidates:
+                entry["candidates"] = candidates
             db.rollback()
 
             v = check_lookup_sense(sentence, surface, entry)
             if v is None:
                 counts["failed"] = counts.get("failed", 0) + 1
                 continue
+            if v["verdict"] == "sibling":
+                sib = next(c for c in candidates if c["lemma_id"] == v["lemma_id"])
+                v = {"verdict": "different", "sibling_lemma_id": sib["lemma_id"],
+                     "lemma_ar": sib["lemma_ar"], "gloss_en": sib["gloss_en"], "pos": sib["pos"]}
 
             written = False
             if v["verdict"] == "broader":
@@ -131,6 +146,8 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
                     lemma_ar=entry["lemma_ar"], gloss_from=entry["gloss_en"],
                     verdict=v["verdict"], gloss_to=v.get("gloss_en"),
                     proposed_lemma_ar=v.get("lemma_ar"), written=written,
+                    sibling_lemma_id=v.get("sibling_lemma_id"),
+                    candidate_ids=[c["lemma_id"] for c in candidates],
                 )
         except Exception:
             logger.exception("add-context check failed for %s", cid)
@@ -139,3 +156,16 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
         finally:
             db.close()
     return counts
+
+
+def _tie_siblings(db: Session, lookup: dict, surface: str, owner_ids: set[int]) -> list[dict]:
+    """Same-spelling entries a homograph tie left open for this surface, when
+    the tie's chosen row is the added word; [] otherwise."""
+    from app.services.preread_service import load_candidates
+    from app.services.sentence_validator import LemmaMatchProvenance, lookup_lemma_id
+
+    provenance = LemmaMatchProvenance()
+    owner = lookup_lemma_id(surface, lookup, provenance, strict_fallback=True)
+    if not provenance.homograph_tie or owner not in owner_ids:
+        return []
+    return load_candidates(db, [t for t in provenance.tied_lemma_ids if t not in owner_ids])

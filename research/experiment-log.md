@@ -114,6 +114,44 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-18: Target check accepts the target verb's own conjugations; pre-read and the add check offer homograph siblings
+
+**Why.** `validate_sentence` demanded the target's bare form (± ال, clitics, final ا ↔ ى),
+so any conjugated verb target failed with "Target word not found": كَنَسَتِ for كَنَسَ,
+اِسْتَحْيَتِ for اِسْتَحْيَا (#2759). In the last 30 days of generation logs 190 of 437 such
+failures had a verb target. Weak-final verbs fail even when the LLM writes 3fs/3mp,
+because the weak letter drops (رَمَتْ, رَمَوْا). Separately, PR #319 offered homograph-tie
+siblings to the scan, story and Snap sense checks but not to pre-read or the add-context
+check.
+
+**Change.** `verb_target_inflections()` builds each verb's own surfaces from its stored
+conjugations, the regular conjugations generated from them, and final-weak stem
+alternations (final weakness read from the stored present, so بَدَأَ is not treated as
+بَدَا); `build_lemma_lookup` keeps them in `target_inflection_forms`, never as lookup keys.
+`validate_sentence(..., target_lemma_id=)`, `validate_sentence_multi_target`,
+`map_tokens_to_lemmas` and `refresh_target_mapping_flags` accept those forms for the target
+lemma only, and the validators only when the resolver does not map the token to another
+lemma and it is not a function-word surface. Related-root words still fail (اِرْتَمَى for
+رَمَى). Pre-read attaches tie siblings with their learner state; a chosen sibling replaces
+the match and is entered as that existing lemma (`_create_and_introduce(...,
+existing_lemma_id=)`), placed in learn/shaky by its own state; a failed check still holds
+matched words back. `verify_add_contexts` offers tie siblings; a chosen one is recorded as
+`different` with `sibling_lemma_id`, and the Snap add-check swap enrolls it.
+
+**Measured (production snapshot 2026-11-18 16:26 UTC, read-only).** 97 studied weak-final
+verbs (57 known). Active verb-target tokens: sound 452 → 498 of 504 match, weak 53 → 61
+of 61. Replaying the 190 logged verb-target failures: 164 now find the target (the rest
+are derived nouns or a future سَ prefix). Non-target safety over 15,490 verified active
+tokens: 0 acceptances for a verb the resolver maps the token away from; 93 for verbs the
+resolver itself picks against the verified mapping, mostly conjugated forms stored as
+lemmas (IDEAS homograph item §9). Details: `docs/nlp-pipeline.md` § "Target Check for
+Verb Conjugations".
+
+**Watch.** `validation_failed` events with "not found in sentence" for verb targets in
+`generation_pipeline_*.jsonl` should drop; `target_integrity_failed` should not rise.
+`preread_sense_reroute` with `sibling=true`; `word_add_context_check` with
+`sibling_lemma_id`.
+
 ## 2026-11-18 — Intake restored: introduction follows reviews; names graduate on one correct answer; pre-read boost holds for unseen words; paired pre-read sentences
 
 **Finding.** Analysis: `research/analysis-2026-11-18-engagement-and-tuning.md`. Words are

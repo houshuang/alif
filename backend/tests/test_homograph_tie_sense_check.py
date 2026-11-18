@@ -213,3 +213,129 @@ def test_snap_chip_tie_is_replaced_by_the_sibling(db_session, monkeypatch, pair)
     assert calls[0][0]["candidates"][0]["lemma_id"] == turn.lemma_id
     assert out[0]["lemma_id"] == turn.lemma_id and out[0]["gloss_en"] == "to turn"
     assert out[0]["sense_from"]["lemma_id"] == house.lemma_id
+
+
+# ── pre-read ────────────────────────────────────────────────────────────
+
+def _preread_words(house, turn):
+    return [{
+        "surface": "دار", "surface_forms": ["دار"], "lemma_ar": "دَار", "lemma_ar_bare": "دار",
+        "gloss_en": "house", "pos": "noun", "is_proper_noun": False, "freq_rank": 900,
+        "count_in_text": 3, "lemma_id": house.lemma_id, "transliteration": "dār",
+        "register": None, "dialect": None, "homograph_candidates": [turn.lemma_id],
+    }]
+
+
+def _preread(db_session, monkeypatch, house, turn, verdicts):
+    monkeypatch.setattr("app.routers.discover.discover_words_in_text",
+                        lambda *a, **k: [dict(w) for w in _preread_words(house, turn)])
+    monkeypatch.setattr(ps, "rate_importance", lambda text, items: {it["index"]: 2 for it in items})
+    calls = _fake_check(monkeypatch, verdicts)
+    return ps.analyze_pages(db_session, ["دار الرجل حول البيت"]), calls
+
+
+def test_preread_tie_enters_the_sibling_the_check_names(db_session, monkeypatch, pair):
+    from app.routers import preread as pr
+    from app.services import acquisition_service
+
+    house, turn = pair
+    db_session.add(UserLemmaKnowledge(lemma_id=house.lemma_id, knowledge_state="encountered"))
+    db_session.commit()
+    plan, calls = _preread(db_session, monkeypatch, house, turn, lambda items: {
+        items[0]["index"]: {"verdict": "sibling", "lemma_id": turn.lemma_id}})
+    assert calls[0][0]["candidates"][0]["lemma_id"] == turn.lemma_id
+    (w,) = plan["learn"]
+    assert (w["lemma_id"], w["lemma_ar"], w["gloss_en"], w["pos"]) == (
+        turn.lemma_id, "دَارَ", "to turn", "verb")
+    assert w["sense_sibling"] and w["sense_from"]["lemma_id"] == house.lemma_id
+    assert plan["stats"]["sense_sibling"] == 1 and plan["stats"]["sense_rerouted"] == 0
+
+    monkeypatch.setattr(acquisition_service, "_recovery_mode_intro_budget", lambda *a: 0)
+    pr._apply_plan(plan)
+    db_session.expire_all()
+    assert db_session.query(Lemma).count() == 2  # never a new lemma
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=turn.lemma_id).one()
+    assert ulk.knowledge_state == "acquiring"
+    assert db_session.query(UserLemmaKnowledge).filter_by(
+        lemma_id=house.lemma_id).one().knowledge_state == "encountered"
+
+
+def test_preread_tie_sibling_already_learning_leaves_the_plan(db_session, monkeypatch, pair):
+    house, turn = pair
+    db_session.add_all([
+        UserLemmaKnowledge(lemma_id=house.lemma_id, knowledge_state="encountered"),
+        UserLemmaKnowledge(lemma_id=turn.lemma_id, knowledge_state="acquiring"),
+    ])
+    db_session.commit()
+    plan, _ = _preread(db_session, monkeypatch, house, turn, lambda items: {
+        items[0]["index"]: {"verdict": "sibling", "lemma_id": turn.lemma_id}})
+    assert plan["learn"] == [] and plan["shaky"] == []
+
+
+def test_preread_tie_failed_check_holds_the_word_back(db_session, monkeypatch, pair):
+    house, turn = pair
+    db_session.add(UserLemmaKnowledge(lemma_id=house.lemma_id, knowledge_state="encountered"))
+    db_session.commit()
+    plan, calls = _preread(db_session, monkeypatch, house, turn, None)
+    assert calls[0][0]["candidates"][0]["lemma_id"] == turn.lemma_id
+    assert plan["learn"] == [] and plan["stats"]["sense_check_held_back"] == 1
+
+
+# ── add-context check ───────────────────────────────────────────────────
+
+def _add_context(db_session, lemma, surface="دار"):
+    from app.models import WordAddContext
+
+    row = WordAddContext(lemma_id=lemma.lemma_id, source="snap", surface=surface,
+                         sentence_ar="دار الرجل حول البيت", gloss_at_add=lemma.gloss_en,
+                         introduced_by_add=True)
+    db_session.add(row)
+    db_session.commit()
+    return row.id
+
+
+def test_add_check_tie_records_the_sibling_and_swap_enrolls_it(
+    client, db_session, monkeypatch, pair
+):
+    from app.models import WordAddContext
+    from app.services import add_context
+
+    house, turn = pair
+    db_session.add(UserLemmaKnowledge(lemma_id=house.lemma_id, knowledge_state="acquiring"))
+    db_session.commit()
+    cid = _add_context(db_session, house)
+    seen = []
+
+    def fake(sentence, surface, entry):
+        seen.append(entry)
+        return validate_verdict({"verdict": "sibling", "candidate_id": turn.lemma_id}, entry)
+    monkeypatch.setattr(lookup_sense, "check_lookup_sense", fake)
+    assert add_context.verify_add_contexts([cid]) == {"different": 1}
+    assert [c["lemma_id"] for c in seen[0]["candidates"]] == [turn.lemma_id]
+    db_session.expire_all()
+    row = db_session.get(WordAddContext, cid)
+    assert row.check_verdict == "different"
+    assert (row.check_json["sibling_lemma_id"], row.check_json["lemma_ar"]) == (turn.lemma_id, "دَارَ")
+
+    item = client.get("/api/discover/add-checks").json()["items"][0]
+    assert item["proposed"]["lemma_id"] == turn.lemma_id
+    out = client.post(f"/api/discover/add-checks/{cid}", json={"action": "swap"}).json()
+    assert out["lemma_id"] == turn.lemma_id and out["created"] is False
+    db_session.expire_all()
+    assert db_session.query(Lemma).count() == 2
+
+
+def test_add_check_without_a_tie_offers_nothing(db_session, monkeypatch, pair):
+    from app.services import add_context
+
+    house, _ = pair
+    other = Lemma(lemma_ar="بَيْت", lemma_ar_bare="بيت", pos="noun", gloss_en="house",
+                  source="frequency_core")
+    db_session.add(other)
+    db_session.commit()
+    cid = _add_context(db_session, other, surface="البيت")
+    seen = []
+    monkeypatch.setattr(lookup_sense, "check_lookup_sense",
+                        lambda s, surface, entry: seen.append(entry) or {"verdict": "fits"})
+    assert add_context.verify_add_contexts([cid]) == {"fits": 1}
+    assert "candidates" not in seen[0]

@@ -41,8 +41,9 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   ~~let the sense check choose among the alternatives of a tie in the textbook scan, story
   import and Snap~~ — done 2026-11-18 (`sibling` verdict over the offered `candidates`);
   ~~try a frequency prior for ties~~ — measured 2026-11-18, no better than lowest id
-  (546 vs 554 of 699 tied verified tokens), not shipped; offer tie siblings to pre-read's
-  `_apply_senses` and the add-context check too; re-verify the stored mappings the
+  (546 vs 554 of 699 tied verified tokens), not shipped; ~~offer tie siblings to pre-read's
+  `_apply_senses` and the add-context check too~~ — done 2026-11-18 (`sense_sibling`,
+  `sibling_lemma_id`); re-verify the stored mappings the
   replay showed to be wrong; the vocabulary proposals in the analysis §9 (conjugated
   forms kept as lemmas, #194, #2073, the #3270/#4593 duplicate, wrong `pos`).
 - ~~Run the same lookup sense check on Snap's suggested-word chips~~ — done 2026-11-18;
@@ -57,10 +58,14 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   with that spelling; a story that uses one spelling for two words (دار "house" and "turned")
   gets one answer for both. Check per occurrence when the contexts differ.
 
-- Target check misses weak-final verb forms: `sentence_validator._surface_matches_target_bare`
+- ~~Target check misses weak-final verb forms: `sentence_validator._surface_matches_target_bare`
   returns False for اِسْتَحْيَتِ / تَسْتَحْيِي against target `استحيا`, so `validate_sentence`
   reports "Target word not found" and generation for such verbs fails (seen 2026-11-18 on
-  #2759). Generate the ى/ا ↔ ي alternations of defective verbs when matching the target.
+  #2759). Generate the ى/ا ↔ ي alternations of defective verbs when matching the target.~~
+  — done 2026-11-18 for every verb target (`verb_target_inflections`): sound verbs failed
+  the same way. Open: the future prefix سَـ (سَأَسْتَخْدِمُ) is not a proclitic, so it still
+  fails; the jussive/2fs forms of defective verbs are known only to the target check, not
+  to the resolver, so a sentence using one maps only if the resolver finds nothing else.
 
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 

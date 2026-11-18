@@ -936,15 +936,30 @@ def _ensure_material(lemma_ids: list[int]) -> None:
 
 
 def _create_and_introduce(
-    db: Session, w: WordIn, lemma_lookup: dict, preread_set_id: int | None = None
+    db: Session,
+    w: WordIn,
+    lemma_lookup: dict,
+    preread_set_id: int | None = None,
+    existing_lemma_id: int | None = None,
 ) -> dict:
     """Find-or-create the canonical lemma for `w`, then introduce it immediately
     (bypassing the daily intro cap — explicit user add). Newly created lemmas are
     registered in `lemma_lookup` so a repeated word in the same batch resolves to
-    the row we just made instead of being created twice."""
+    the row we just made instead of being created twice.
+
+    ``existing_lemma_id`` (internal callers only) names the lemma already
+    decided, e.g. the homograph sibling pre-read's sense check chose: it is
+    introduced as is, never looked up again and never created."""
     if (w.pos or "").lower() in _PROPER_NOUN_POS:
         raise ValueError(f"refusing to add proper noun {w.lemma_ar_bare!r}")
     source = (w.source or "").strip() or "dragoman"
+    if existing_lemma_id is not None:
+        from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+        lemma = db.get(Lemma, resolve_canonical_lemma_id(db, int(existing_lemma_id)))
+        if lemma is None:
+            raise ValueError(f"lemma #{existing_lemma_id} does not exist")
+        return _introduce_existing(db, lemma, w, source, preread_set_id)
     bare = _normalize(w.lemma_ar_bare)
     citation_surface = (w.lemma_ar or w.lemma_ar_bare).strip()
     exact_alias_required = requires_exact_running_text_alias(
@@ -1033,6 +1048,23 @@ def _create_and_introduce(
         assign_frequency_rank(lemma)
         lemma_lookup[bare] = lemma.lemma_id  # in-batch dedupe
         created = True
+    return _introduce_existing(
+        db, lemma, w, source, preread_set_id,
+        created=created, sense_rerouted_from=sense_rerouted_from,
+    )
+
+
+def _introduce_existing(
+    db: Session,
+    lemma: Lemma,
+    w: WordIn,
+    source: str,
+    preread_set_id: int | None,
+    *,
+    created: bool = False,
+    sense_rerouted_from: int | None = None,
+) -> dict:
+    """Introduce a found or just-created lemma and keep its add sentence."""
     res = introduce_word(
         db, lemma.lemma_id, source=source,
         due_immediately=True, enforce_daily_cap=True,
@@ -1155,7 +1187,12 @@ def _add_check_out(db: Session, row: WordAddContext) -> dict | None:
         "sentence_ar": row.sentence_ar,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "added": _word_out(added, surface, state, "added"),
-        "proposed": _resolve_different_word(db, surface, added.lemma_id, v),
+        # A homograph sibling the check chose is an existing entry by id.
+        "proposed": (
+            _sibling_word(db, v["sibling_lemma_id"], surface)
+            if v.get("sibling_lemma_id")
+            else None
+        ) or _resolve_different_word(db, surface, added.lemma_id, v),
     }
 
 
