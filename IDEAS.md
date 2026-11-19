@@ -3249,6 +3249,18 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   book entries do not arrive mislabelled; re-run `audit_lemma_pos.py` monthly until then.
 - Small function words still break sentences: لَهُ is mapped to الله, إِلَّا to the verb
   أَلَا, كَأَنَّ to كَانَ, مَنْ to مِن. Fix in the deterministic mapper.
+- [DONE 2026-11-19] Labels are now set at import (gate 2b of `run_quality_gates`);
+  87 conflicting entries repaired by `fix_form_gloss_conflicts_2026_11_19.py`;
+  preposition + pronoun forms (لَهُ, لَهُمْ, بِنَا …) override content lemmas in the lookup;
+  إِلَّا, مَنْ and كَأَنَّ have their own rows.
+- Still open in the lookup: كَأَنَّهَا and other كَأَنَّ + pronoun forms resolve to أَنَّ;
+  إِلٰهًا resolves to the pronoun هَا through the generated key ال + ها (skipping the
+  article for pronoun rows changed an unrelated clitic test, so it was not done);
+  بِتِلْكَ resolves to the verb تَلَا.
+- Several textbook entries serve both a verb and its noun under one row (حَجَزَ / حَجْز,
+  غَسَلَ / غَسْل, فَحَصَ / فَحْص). Each was set to its majority use; the minority use is
+  still rejected until the sibling row exists.
+- Left unrepaired: #2024 صَب "youth", #2118 كَيْفِيّ "method", #3413 مَضّ, #4009 أَعاض.
 - The verifier sometimes files an "issue" whose own explanation says the mapping is
   acceptable; the same-entry rule then rejects the sentence. Ask the verifier not to
   return such rows (prompt only; the rejection rule stays).

@@ -813,3 +813,25 @@ class TestCliticParsesAndVowels:
         assert 324 in provenance.alternatives
         # Unvocalized, both parses stand and CAMeL chooses, as before.
         assert _resolve("أكلته", lookup)[0] == 324
+
+
+class TestPrepositionPronounOverride:
+    """لَهُ is لِ + ه, not the al-stripped bare of الله."""
+
+    def test_lahu_resolves_to_the_preposition(self):
+        lookup = build_lemma_lookup(
+            [
+                _lemma(353, "اللّهُ", "الله"),
+                _lemma(1121, "لَهِمٌ", "لهم", pos="adj"),
+                _lemma(452, "لِ", "ل", pos="prep"),
+            ]
+        )
+        assert lookup_lemma_id("لَهُ", lookup) == 452
+        assert lookup_lemma_id("لَهُمْ", lookup) == 452
+        assert lookup_lemma_id("اللهُ", lookup) == 353
+
+    def test_oblique_of_a_plural_headword(self):
+        lookup = build_lemma_lookup(
+            [_lemma(1767, "ثَلاثُونَ", "ثلاثون"), _lemma(1574, "ثَلَاث", "ثلاث", pos="adj")]
+        )
+        assert lookup_lemma_id("ثَلَاثِينَ", lookup) == 1767

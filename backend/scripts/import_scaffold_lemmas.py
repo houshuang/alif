@@ -109,6 +109,11 @@ SCAFFOLD_WORDS = [
     ("نَجَاة", "rescue, salvation", "noun"),
     ("أَوْجَدَ", "to create, to bring into being", "verb"),
     ("جَالِس", "sitting, seated", "adj"),
+    # Grammatical words that had no row of their own: إِلَّا resolved to the
+    # verb أَلَا, مَنْ to مِن, كَأَنَّ to كَانَ.
+    ("إِلَّا", "except, but", "particle"),
+    ("مَنْ", "who, whoever", "pron"),
+    ("كَأَنَّ", "as if, as though", "particle"),
 ]
 
 # Entries that share a bare form with an existing lemma but are a distinct
@@ -139,6 +144,9 @@ ALLOW_HOMOGRAPH = {
     "شَجَاعَة",  # noun vs #2193 adj شُجاع
     "نَجَاة",    # noun vs #3477 نَجَّى
     "جَالِس",    # participle vs #1731 verb جَلَسَ
+    "إِلَّا",     # vs #691 أَلَا
+    "مَنْ",      # vs #154 مِن
+    "كَأَنَّ",    # vs #385 كَانَ after alef normalization
 }
 
 # Roots independently reviewed against the production inventory. Pinning these
