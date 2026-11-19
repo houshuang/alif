@@ -11,7 +11,7 @@ Two steps, so the proposals can be read before anything is written:
 
     python scripts/audit_lemma_pos.py --out /tmp/pos_audit.jsonl      # LLM pass, no DB writes
     python scripts/audit_lemma_pos.py --apply /tmp/pos_audit.jsonl    # dry run of the write
-    python scripts/audit_lemma_pos.py --apply /tmp/pos_audit.jsonl --write
+    python scripts/audit_lemma_pos.py --apply /tmp/pos_audit.jsonl --write --exclude 2577,4041
 
 The LLM pass resumes: lemma ids already in the output file are skipped.
 
@@ -192,9 +192,10 @@ def plan_changes(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
     return changes, left
 
 
-def apply(path: Path, write: bool) -> None:
+def apply(path: Path, write: bool, exclude: set[int]) -> None:
     proposals = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     changes, left = plan_changes(proposals)
+    changes = [c for c in changes if c["lemma_id"] not in exclude]
     print(f"{len(proposals)} audited, {len(changes)} changes, {len(left)} left alone")
     print("changes by kind:", dict(Counter(c["kind"] for c in changes)))
     print("corrected, old -> new:", Counter(
@@ -241,9 +242,10 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="Audit at most this many lemmas")
     parser.add_argument("--apply", type=Path, help="Plan changes from this proposals file")
     parser.add_argument("--write", action="store_true", help="With --apply, write the changes")
+    parser.add_argument("--exclude", default="", help="Comma-separated lemma ids to leave unchanged")
     args = parser.parse_args()
     if args.apply:
-        apply(args.apply, args.write)
+        apply(args.apply, args.write, {int(x) for x in args.exclude.split(",") if x.strip()})
     elif args.out:
         run_audit(args.out, args.limit)
     else:
