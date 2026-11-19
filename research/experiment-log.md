@@ -114,6 +114,46 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-19: Lemma part-of-speech labels corrected (448); dense sentences now written by GPT-6.1 Sol with Sonnet fallback
+
+**Why.** The 2026-11-18 model check lost about a third of reviewed dense sentences at
+the mapping check. The cause was assumed to be missing verbs. The rejected-correction
+log for that day (367 rejected corrections) says otherwise: 162 were entries that exist
+but carry the wrong `pos` (تَسَلَّقَ "to climb" stored as a noun), 54 were noun/adjective
+disagreements on the same entry, 60 gloss or look-alike mismatches, 65 truly missing
+entries. The verifier is shown `pos` and told to flag a wrong part of speech, so a
+wrong label rejects a correctly mapped sentence. Details and tables:
+`research/analysis-2026-11-18-model-check.md` (follow-up section).
+
+**Changed.**
+- Data (backup `/opt/alif-backups/alif_pre_pos_audit_20261119_092144.db`):
+  `scripts/audit_lemma_pos.py` changed `pos` on 448 lemmas (348 corrections among
+  verb/noun/adj/adv incl. 159 empty labels, 100 label spellings); 15 scaffold lemmas
+  imported (#4947–#4961 range, `source="scaffold"`, no ULK); lemma #2177 headword
+  سَوِيّ → سِوَى. 83 form-against-gloss conflicts left for curation
+  (`research/model-check-2026-11-18/pos-audit-form-gloss-conflicts.txt`).
+- Code: `llm.CODEX_FIRST_WRITER` (`gpt_then_sonnet`) — Codex first, then the
+  `claude_sonnet` path; default writer of `generate_sentences_due_menu`.
+  `ALIF_DUE_MENU_WRITER` overrides; `ALIF_AUDIT_PROVIDER=claude` switches it off.
+  Codex cool-down now also starts on a revoked login (401).
+  `format_known_words_by_pos` reads `adjective` and `v`.
+- Not changed: the verifier prompt, `apply_corrections`, the `same_lemma` rejection,
+  ordinary per-word generation (still Sonnet).
+
+**Measured (dry run, 4 calls × 12 sentences, judge GPT-6.1 Sol).** Stored sentences:
+GPT 31 → 41 of 48, Sonnet 25 → 36 of 48; share of reviewed sentences surviving the
+mapping check 70% → 87% and 61% → 90%. Different menus on the two days.
+
+**Expect.** More dense sentences stored per warm-cache pass, and fewer rejected
+sentences in ordinary generation as well, since the same verifier and labels serve
+every generation path. **Verify:** `due_menu_summary` events in
+`generation_pipeline_*.jsonl` (`generated` / `quality_passed`), and the daily failure
+share in `mapping_corrections_*.jsonl` (18 Nov: 316 of 390 corrected sentences rejected).
+
+**Rollback.** Writer: `ALIF_DUE_MENU_WRITER=claude_sonnet` in `/opt/alif/.env`. Labels:
+restore `pos` from the backup for the ids in `/tmp/pos_audit.jsonl` proposals (the
+script's `--apply` output lists every change).
+
 ## 2026-11-18: Model check — fallback pins updated; GPT-6.1 Sol writes more usable dense sentences than Sonnet or Opus (not switched)
 
 **Why.** The learner asked which models run and whether newer ones should be tested.
