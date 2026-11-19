@@ -114,6 +114,30 @@ SCAFFOLD_WORDS = [
     ("إِلَّا", "except, but", "particle"),
     ("مَنْ", "who, whoever", "pron"),
     ("كَأَنَّ", "as if, as though", "particle"),
+    # 2026-11-19 — siblings of rows that served both a verb and its noun.
+    # fix_form_gloss_conflicts_2026_11_19.py set each shared row to its
+    # majority use; these give the other use a row of its own.
+    ("حَجْز", "booking, reservation", "noun"),
+    ("غَسْل", "washing", "noun"),
+    ("فَحْص", "examination, check-up", "noun"),
+    ("دَفْع", "payment; pushing", "noun"),
+    ("دَعْم", "support", "noun"),
+    ("ضَعْف", "weakness", "noun"),
+    ("رَفْع", "raising, lifting", "noun"),
+    ("تَنَقُّل", "moving about, travel", "noun"),
+    ("صَرْصَرَة", "creaking", "noun"),
+    ("وَعْد", "promise", "noun"),
+    ("شُكْر", "thanks, gratitude", "noun"),
+    ("لَوْح", "board, plank", "noun"),
+    ("جِلْد", "skin, leather", "noun"),
+    ("صُحْبَة", "companionship, company", "noun"),
+    ("شَاطِر", "clever, skilled", "adj"),
+    ("شَكَّ", "to doubt", "verb"),
+    ("طَرِبَ", "to be delighted", "verb"),
+    ("خَدَّرَ", "to numb, to anesthetize", "verb"),
+    ("غَلَّفَ", "to wrap", "verb"),
+    ("غَشَّ", "to cheat, to deceive", "verb"),
+    ("عَرَضَ", "to show, to present", "verb"),
 ]
 
 # Entries that share a bare form with an existing lemma but are a distinct
@@ -147,6 +171,27 @@ ALLOW_HOMOGRAPH = {
     "إِلَّا",     # vs #691 أَلَا
     "مَنْ",      # vs #154 مِن
     "كَأَنَّ",    # vs #385 كَانَ after alef normalization
+    "حَجْز",  # vs verb #2718 حَجَزَ
+    "غَسْل",  # vs verb #2448 غَسَلَ
+    "فَحْص",  # vs verb #2498 فَحَصَ
+    "دَفْع",  # vs verb #2376 دَفَعَ
+    "دَعْم",  # vs verb #3040 دَعَمَ
+    "ضَعْف",  # vs verb #3312 ضَعُفَ
+    "رَفْع",  # vs verb #3934 رَفَعَ
+    "تَنَقُّل",  # vs verb #4142 تَنَقَّلَ
+    "صَرْصَرَة",  # vs verb #3036 صَرْصَرَ
+    "وَعْد",  # vs verb #2470 وَعَدَ
+    "شُكْر",  # vs verb #2204 شَكَرَ
+    "لَوْح",  # vs verb #2314 لَوَّحَ
+    "جِلْد",  # vs verb #2418 جَلَدَ
+    "صُحْبَة",  # vs verb #4040 صَحِبَ
+    "شَاطِر",  # vs verb #2421 شَاطَرَ
+    "شَكَّ",  # vs noun #2721 شَكّ
+    "طَرِبَ",  # vs noun #3114 طَرَب
+    "خَدَّرَ",  # vs noun #3258 خَدَر
+    "غَلَّفَ",  # vs noun #3090 غِلَاف
+    "غَشَّ",  # vs noun #3459 غِشّ
+    "عَرَضَ",  # vs noun #2486 عَرَض
 }
 
 # Roots independently reviewed against the production inventory. Pinning these
