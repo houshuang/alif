@@ -1,0 +1,83 @@
+#26 عِنْدي (I have had): None vs prep عِنْدي is the preposition/adverb 'at me' (I have, present); gloss 'I have had' implies a past-tense verb form, which disagrees.
+#150 سُوءٌ (bad): None vs noun سُوءٌ is a noun (badness, evil); gloss 'bad' is an adjective
+#162 بِلا (no): None vs prep بِلا is a preposition meaning 'without'; gloss 'no' does not match
+#163 لَا (neither): None vs particle لَا is a negative particle 'no/not'; gloss 'neither' is imprecise (would be لا...ولا)
+#186 كَيْك (cakes): None vs noun كَيْك is a singular noun (cake); gloss 'cakes' is plural
+#691 أَلَا (to neglect to do, to fail to do, not to do): verb vs particle أَلَا is a particle (attention/negative-interrogative), not a verb; gloss 'to neglect to do' is verbal (probably from أَلَا يَأْلُو).
+#1593 بِنا (about us): noun vs expr Arabic بِنا means 'with/by us' (preposition + pronoun); gloss 'about us' is a loose fit; the form is a preposition with suffix pronoun
+#2016 وَشَّم (tattoo): noun vs verb Form وَشَّم is a Form II verb (to tattoo); gloss 'tattoo' is a noun, though could be read as the verb.
+#2024 صَب (youth): noun vs adj صَب is an adjective (longing, enamored, from صَبّ), not a noun meaning 'youth'; gloss disagrees.
+#2099 لَكّ (for): prep vs noun لَكّ is not a normal word/preposition 'for'; the preposition is لِ / لَكَ. Form unclear (possibly truncated 'لَكَ'), so the gloss 'for' does not match.
+#2118 كَيْفِيّ (method): noun vs adj Form كَيْفِيّ is a nisba adjective (qualitative); gloss 'method' is a noun (كَيْفِيَّة would be the noun).
+#2123 أَخْيَر (finally): adv vs adj أَخْيَر is an elative/adjective form (last); gloss 'finally' is an adverb (أَخِيرًا would be the adverb).
+#2143 وَصْل (to arrive): verb vs noun وَصْل is a noun (arrival/connection, masdar); gloss 'to arrive' is a verb.
+#2150 حَصِر (limit): noun vs adj حَصِر is an adjective-pattern form (constricted/tongue-tied); gloss 'limit' is a noun (حَصْر means limiting/confining).
+#2155 ضَخَّم (huge): adj vs verb ضَخَّم is a Form II verb (to enlarge/magnify); gloss 'huge' is an adjective (ضَخْم).
+#2168 تَدْرِيجِيّ (gradually): adv vs adj Arabic form is a nisba adjective (gradual); gloss 'gradually' is an adverb
+#2177 سَوِيّ (except): prep vs adj سَوِيّ is an adjective (even, upright, sound); gloss 'except' is a preposition/particle (سِوَى)
+#2204 شُكْر (to thank): verb vs noun شُكْر is a verbal noun (thanks, gratitude); gloss 'to thank' is a verb
+#2206 نَصّ (texts): verb vs noun نَصّ is singular (text); gloss 'texts' is plural
+#2314 لَوْح (to wave): verb vs noun لَوْح is a noun form (plank, board); gloss 'to wave' is a verb (the verb would be لَوَّحَ)
+#2339 كُسْكُس (to prepare couscous): verb vs noun كُسْكُس is a noun (couscous); gloss 'to prepare couscous' is a verb
+#2376 دَفَع (payment): noun vs verb Form دَفَعَ is a verb (he paid/pushed); gloss 'payment' is a noun (the masdar would be دَفْع).
+#2418 جِلْد (to whip): verb vs noun جِلْد is a noun (skin, leather); gloss 'to whip' is a verb (the verb would be جَلَدَ).
+#2421 شَاطِر (to share): verb vs adj شَاطِر is an active participle/adj (clever, skilled); gloss 'to share' is a verb.
+#2448 غَسَلَ (washing): noun vs verb Form غَسَلَ is a past-tense verb (he washed); gloss 'washing' is a noun/gerund.
+#2449 دَهَنَ (painting): noun vs verb Form دَهَنَ is a past-tense verb (he painted/smeared); gloss 'painting' is a noun/gerund.
+#2470 وَعْد (to promise): verb vs noun وَعْد is a noun (masdar: promise); gloss 'to promise' is a verb (verb is وَعَدَ).
+#2486 عَرَض (symptoms): verb vs noun Singular noun عَرَض glossed as plural 'symptoms'
+#2498 فَحَصَ (examination): noun vs verb Verb form فَحَصَ (he examined) glossed as noun 'examination'
+#2500 آن (now): adverb vs noun آن means 'the time/moment' (noun) in Arabic; gloss 'now' is an adverb (الآن is the adverb form)
+#2514 خَشِن (to be rough): verb vs adj خَشِن is an adjective (rough); gloss 'to be rough' is verbal
+#2644 حَثّ (to urge): verb vs noun حَثّ vocalized as a verbal noun (masdar, 'urging'); gloss 'to urge' is a verb. Could be the verb حَثَّ if vocalized with fatha on the final letter.
+#2718 حَجَزَ (booking): noun vs verb Form حَجَزَ is a past-tense verb ('he booked/reserved'), but the gloss 'booking' is a noun (the masdar would be حَجْز).
+#2721 شَكَّ (doubt): noun vs verb Form شَكَّ is a past-tense verb ('he doubted'), but the gloss 'doubt' is a noun (the noun would be شَكّ).
+#2812 كَارِيكَاتُورِيّ (caricature): noun vs adj Form is a nisba adjective (caricaturish/caricature-like), but gloss 'caricature' is a noun.
+#2994 أَهْلِيَّة (civil): adj vs noun Form is a noun (eligibility/competence; feminine abstract noun); gloss 'civil' is an adjective (the adjective would be أَهْلِيّ)
+#3036 صَرْصَرَ (creaking sound): noun vs verb Form صَرْصَرَ is a quadriliteral verb (to creak/chirp), but the gloss 'creaking sound' is a noun.
+#3040 دَعَمَ (support): noun vs verb Form دَعَمَ is a past-tense verb (he supported), but the gloss 'support' reads as a noun (bare form); could be the verb 'to support'. Gloss is ambiguous.
+#3055 مَنْفِيّ (exile): noun vs adj Form مَنْفِيّ is a nisba/passive-participle adjective (exiled, negated), but the gloss 'exile' is a noun.
+#3074 رُومَانْسِيَّة (romantic): adj vs noun Arabic form رُومَانْسِيَّة is a noun (romanticism, feminine abstract/nisba noun); gloss 'romantic' is an adjective
+#3090 غَلَّفَ (wrapper, covering): noun vs verb Arabic form غَلَّفَ is a Form II verb (to wrap); gloss 'wrapper, covering' is a noun
+#3114 طَرِبَ (delight, joy): noun vs verb Arabic form طَرِبَ is a verb (to be delighted); gloss 'delight, joy' is a noun
+#3126 طَوَّقَ (collared, wearing a necklace): passive participle vs verb Form طَوَّقَ is a past-tense verb (he encircled/collared); gloss 'collared, wearing a necklace' reads as a participle/adjective (مُطَوَّق).
+#3137 قَشَرَ (peeled, stripped, bare): passive participle vs verb Form قَشَرَ is a past-tense verb (he peeled); gloss 'peeled, stripped, bare' reads as an adjective/participle.
+#3199 وَجَمَ (to collect, gather): noun vs verb Form وَجَمَ is a verb, but the usual meaning is 'to be silent/dejected from grief or anger', not 'to collect, gather'; gloss disagrees.
+#3258 خَدَّر (numbness): noun vs verb Arabic form خَدَّر is a Form II past-tense verb ('to numb'), but the gloss 'numbness' is a noun (the noun would be تَخْدِير or خَدَر).
+#3270 غَضِب (anger, rage): noun vs verb Form غَضِب is a past-tense verb ('to be angry'), but gloss 'anger, rage' is a noun (masdar would be غَضَب).
+#3312 ضَعُفَ (weakness, weak): noun vs verb Form ضَعُفَ is a past-tense verb ('to be weak'), but gloss 'weakness, weak' is a noun/adjective.
+#3413 مَضّ (to pass): verb vs noun مَضّ is a noun (masdar, 'pain/gnawing'; also could be read as verb مَضَّ). Form مَضّ with shadda is ambiguous but as written is a noun/masdar form; gloss 'to pass' is a verb (that would be مَضَى), so 
+#3429 ضَمّ (to annex): verb vs noun ضَمّ is a masdar (noun, 'annexation'); gloss 'to annex' is a verb. Verb form would be ضَمَّ.
+#3459 غَشَّ (fraud): noun vs verb غَشَّ is a past-tense verb ('to cheat'); gloss 'fraud' is a noun (the masdar would be غِشّ).
+#3512 بَثّ (to broadcast, to spread): verb vs noun Form بَثّ is the masdar/noun 'broadcast, spread'; the gloss is a verb ('to broadcast, to spread').
+#3572 ضالّ (error, straying): noun vs adj Arabic ضالّ is an active participle/adjective (straying, astray); gloss 'error' is a noun (though 'straying' fits).
+#3574 مُهْتَدِي (guided ones): noun vs adj Arabic مُهْتَدِي is a singular participle/adjective (guided); gloss 'guided ones' is plural.
+#3582 فاسِق (disobedient ones): noun vs adj Arabic فاسِق is singular (disobedient, transgressor); gloss 'disobedient ones' is plural.
+#3673 قَصِف (bombardment; fragmentary): noun/adj vs adj Form قَصِف is adjective/verb-like (brittle, fragile), not the noun 'bombardment' (قَصْف)
+#3696 مَحَوَر (to focus): verb vs noun Form مَحَوَر resembles noun مِحْوَر (axis/pivot); gloss 'to focus' is a verb (would be تَمَحْوَرَ)
+#3844 فَكّ (to unfasten): verb vs noun فَكّ is a noun (masdar: unfastening); gloss 'to unfasten' is a verb. The verb would be فَكَّ
+#3934 رَفَعَ (raising): noun vs verb Form رَفَعَ is a past-tense verb; gloss 'raising' is a noun (masdar)
+#3986 ٱِنْتَفَض (erection, standing upright): noun vs verb Arabic form is a verb (to shake, start up) but gloss is a noun 'erection, standing upright'
+#3988 عاوَد (compresses, poultices): noun vs verb Arabic form is a verb (to return to, resume); gloss is a plural noun 'compresses, poultices'
+#3993 مُفَلْطَح (to revive, to recover): verb vs adj Arabic form is an adjective (flattened, broad); gloss is a verb 'to revive, to recover'
+#3994 القَصِيب (to assail, to occur to): verb vs noun Arabic form is a noun (penis, with article); gloss is a verb 'to assail, to occur to'
+#3998 ٱِنْتَعَش (aristocratic): adj vs verb Arabic form is a verb 'to revive, recover'; gloss 'aristocratic' is an adjective
+#4003 أَرِسْتُقراطِيّ (to bite): verb vs adj Arabic is nisba adjective/noun 'aristocratic/aristocrat'; gloss 'to bite' is a verb
+#4006 مُنْتَصِب (to tear, to rip): verb vs adj Active participle 'upright/erect'; gloss 'to tear' is a verb
+#4007 حِضْن (does not come out): phrase vs noun حِضْن is 'lap/embrace'; gloss 'does not come out' is a verbal phrase
+#4008 شَرَس (to bite): verb vs adj شَرَس means 'fierce, ill-tempered'; gloss 'to bite' disagrees
+#4009 أَعاض (licking): noun vs verb أَعاضَ is a Form IV verb (to compensate); gloss 'licking' is a noun
+#4010 لَحِس (clinging, holding tight): adj vs verb لَحِسَ is a verb 'to lick'; gloss 'clinging' disagrees
+#4011 الكَلُّوت (to overflow, to spill): verb vs noun الكَلُّوت is a noun (definite, a kind of cap/bloomers); gloss 'to overflow' is a verb
+#4013 لَايَخْرُج (torn, tattered): adj vs expr لا يخرج 'does not come out' is a negated verb phrase; gloss 'torn, tattered' is an adjective
+#4014 عَضّ (to dry, to desiccate): verb vs noun عَضّ is a masdar 'biting' (or verb 'to bite'); gloss 'to dry' disagrees
+#4034 جَزَمَ (decisiveness): noun vs verb جَزَمَ is a past-tense verb 'to decide/make certain'; gloss 'decisiveness' is a noun
+#4040 صُحبَة (to accompany): verb vs noun صُحبَة is a noun 'companionship'; gloss 'to accompany' is a verb
+#4045 عَزَّ (mighty): noun vs verb عَزَّ is a past-tense verb 'to be mighty/dear'; gloss 'mighty' is an adjective
+#4142 تَنَقَّلَ (movement/migration): noun vs verb Arabic form is a Form V past-tense verb (to move about), but the gloss 'movement/migration' is a noun.
+#4162 رَعي (to shepherd): verb vs noun Arabic form رَعْي is a verbal noun (grazing/shepherding), but the gloss 'to shepherd' is a verb.
+#4181 لَمْح (to glimpse): verb vs noun Arabic form لَمْح is a verbal noun (glance), but the gloss 'to glimpse' is a verb.
+#4426 حَامَ (protector): noun vs verb حَامَ is a verb (to hover/circle); gloss 'protector' is a noun (حَامٍ)
+#4472 تَأَفُّف (expressed annoyance): verb vs noun تَأَفُّف is a masdar (noun: expressing annoyance); gloss is a past-tense verb
+#4475 حَتْم (to necessitate): verb vs noun حَتْم is a noun (masdar: necessity/obligation); gloss 'to necessitate' is a verb
+#4773 تَفَاهُم (to come to an understanding): verb vs noun Arabic form تَفَاهُم is a verbal noun (masdar of Form VI), but the gloss is a verb 'to come to an understanding'.

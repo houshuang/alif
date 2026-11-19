@@ -89,3 +89,64 @@ reject a caller-set `temperature`, so a plain rename would have made every fallb
 call fail. The API chain now sends no temperature. New pins: `gpt-6.1-sol` (same model
 as the Codex primary), `claude-haiku-5-5` (also serves `/api/chat/ask`; about 1 s on a
 short prompt, same as Haiku 4.5), `claude-opus-5-5`.
+
+## Follow-up 2026-11-19: why sentences were lost at the mapping check, and the fix
+
+The first version of this note said most sentences lost at the mapping check used a
+verb whose own entry was missing from the vocabulary. Reading the log of rejected
+corrections (`mapping_corrections_2026-11-18.jsonl`, 316 rejected sentences, 367
+rejected word corrections) showed that was wrong. The word was usually there.
+
+| Cause of the rejected correction | Corrections | What it means |
+|---|---|---|
+| Wrong stored part of speech | 162 | The entry exists and the mapping was right, but the entry carried the wrong label: تَسَلَّقَ "to climb" stored as a noun, طَقْم "set" stored as a verb. The verifier is shown the label, is told to flag a wrong part of speech, and the correction step then finds no entry with the "right" label. |
+| Noun or adjective disagreement on the same entry | 54 | مُدِير stored as an adjective, ثَمِين as a noun. The verifier proposes the same word; the same-entry rule rejects the sentence. |
+| Gloss too narrow or a different word with the same letters | 60 | عَالِم "scholar" against the stored عَالَم "world"; عَلَّمَ "to teach" against عَلِمَ "to know". |
+| Entry truly missing | 65 | أَوْضَحَ, مُعْتَقَد, لَمَسَ, بَنَى and others. The lookup had resolved them to a related or look-alike entry (أَوْضَحَ to واضِح, وَجَبَ to و + جُبّ "cistern"). |
+| Other | 26 | Mostly small function words: لَهُ read as الله, إِلَّا read as the verb أَلَا. |
+
+Most of the wrong labels come from the textbook scans (24 of 41 verbs stored as nouns)
+and from the first Duolingo import, which stored no label at all.
+
+### What was changed
+
+- **Labels.** `scripts/audit_lemma_pos.py` asked a model for the part of speech of all
+  4,566 entries with a gloss, then changed 448: 348 corrections among verb, noun,
+  adjective and adverb (159 of them filling an empty label) and 100 spelling variants
+  (`adjective` to `adj`). Six proposals were excluded by hand. 83 entries whose Arabic
+  form and English gloss describe different words were left alone and are listed in
+  `model-check-2026-11-18/pos-audit-form-gloss-conflicts.txt`. Backup:
+  `/opt/alif-backups/alif_pre_pos_audit_20261119_092144.db`.
+- **Missing words.** 15 common words were added through `import_scaffold_lemmas.py`
+  (إِنْسَان, مَصْنَع, لَمَسَ, أَوْضَحَ, مُعْتَقَد, لَحْن, مُشَاهَدَة, وَجَبَ, بَنَى, شَجَاعَة, رَمْل,
+  فَضْل, نَجَاة, أَوْجَدَ, جَالِس). They are inventory only: no learning state is created.
+- **One headword.** Entry #2177 was shown as سَوِيّ with the gloss "except"; it is now سِوَى.
+- **Prompt word lists.** `format_known_words_by_pos` put entries labelled `adjective`
+  under OTHER; it now reads both spellings. Wrong labels had also put verbs in the
+  writer's NOUNS list.
+- The verifier and the rejection rule were not touched.
+
+### Effect (dry run, four calls per writer, judge GPT-6.1 Sol)
+
+| Writer | Run | Returned | Passed review | Stored | Share of reviewed sentences that survived mapping | Due words covered |
+|---|---|---|---|---|---|---|
+| GPT-6.1 Sol | 18 Nov, before | 48 | 44 | 31 | 70% | 132 |
+| GPT-6.1 Sol | 19 Nov, after | 48 | 47 | 41 | 87% | 175 |
+| Sonnet 5.5 | 18 Nov, before | 48 | 41 | 25 | 61% | 121 |
+| Sonnet 5.5 | 19 Nov, after | 48 | 40 | 36 | 90% | 169 |
+
+The menus differ between the two days, so this is one run against one run. The
+remaining six rejections in the after run were: لَهُ read as الله, ثَلَاثُونَ mapped to
+"three", إِلٰه mapped to a pronoun, فَأْس "axe" mapped to Fez, and two noun-against-verb
+pairs (حَجْز, خَدَر). Raw sentences: `model-check-2026-11-18/sentence-run3-after-pos-fix.jsonl`.
+
+### Writer moved
+
+Dense due-word sentences are now written by GPT-6.1 Sol through Codex, with Sonnet as
+fallback (`gpt_then_sonnet` in `llm.py`). `ALIF_DUE_MENU_WRITER=claude_sonnet` restores
+Sonnet. Ordinary per-word generation is unchanged. With the labels fixed the gap
+between the two writers is smaller (41 against 36 stored) than it was on 18 November.
+
+The Codex login on the server was revoked from about 21:00 on 18 November until it was
+renewed on 19 November; every Codex call in between waited about 30 seconds and then
+fell back. A revoked login now starts the same six-hour cool-down as a quota error.

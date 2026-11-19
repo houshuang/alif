@@ -1586,7 +1586,7 @@ DUE_MENU_MIN_PRIORITY = 4
 
 def generate_due_menu_material(
     max_calls: int = DUE_MENU_MAX_CALLS,
-    model_override: str = "claude_sonnet",
+    model_override: str | None = None,
     dry_run: bool = False,
 ) -> dict:
     """Stock sentences that each review several due words at once.
@@ -1598,6 +1598,9 @@ def generate_due_menu_material(
     together. It keeps a stock of unshown dense sentences and stops when the
     stock is full, so its cost follows review activity.
 
+    Written by GPT-6.1 Sol through Codex with Sonnet as fallback (2026-11-18
+    model check); ``ALIF_DUE_MENU_WRITER=claude_sonnet`` restores Sonnet.
+
     Stored through the multi-target verification and write path. The primary
     target is the due word with the fewest reviewable sentences.
     """
@@ -1605,7 +1608,11 @@ def generate_due_menu_material(
 
     from app.services.frequency_lanes import due_lane_snapshot
     from app.services.learning_policy import MAX_DUE_WORDS_PER_SENTENCE_CARD
-    from app.services.llm import generate_sentences_due_menu, review_sentences_quality
+    from app.services.llm import (
+        CODEX_FIRST_WRITER,
+        generate_sentences_due_menu,
+        review_sentences_quality,
+    )
     from app.services.sentence_eligibility import reviewable_coverage_counts
     from app.services.sentence_generator import (
         MultiTargetGeneratedSentence,
@@ -1723,7 +1730,11 @@ def generate_due_menu_material(
                 count=DUE_MENU_SENTENCES_PER_CALL,
                 min_priority=DUE_MENU_MIN_PRIORITY,
                 max_priority=MAX_DUE_WORDS_PER_SENTENCE_CARD,
-                model_override=model_override,
+                model_override=(
+                    model_override
+                    or os.environ.get("ALIF_DUE_MENU_WRITER", "").strip()
+                    or CODEX_FIRST_WRITER
+                ),
             )
         except Exception:
             logger.warning("Due menu: generation call %d failed", call + 1, exc_info=True)
@@ -2881,7 +2892,7 @@ def _warm_sentence_cache_impl(
 
     # ── Phase 3f: Keep a stock of sentences that review several due words ──
     try:
-        stats["due_menu"] = generate_due_menu_material(model_override=llm_model)
+        stats["due_menu"] = generate_due_menu_material()
         logger.info("Warm cache %s: phase 3f due menu %s", run_label, stats["due_menu"])
     except Exception:
         logger.warning("Warm cache: due-menu generation skipped", exc_info=True)

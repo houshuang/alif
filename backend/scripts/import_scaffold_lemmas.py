@@ -95,6 +95,20 @@ SCAFFOLD_WORDS = [
     ("كُلِّيّ", "total; overall; all-encompassing", "adj"),
     ("إِلٰه", "god; deity", "noun"),
     ("فَعَلَ", "to do", "verb"),
+    # 2026-11-19 — words the dense-sentence writers used that the verifier
+    # could not resolve (mapping_corrections_2026-11-18, not_found class).
+    ("أَوْضَحَ", "to clarify, to explain", "verb"),
+    ("مُعْتَقَد", "belief", "noun"),
+    ("لَحْن", "melody, tune", "noun"),
+    ("مُشَاهَدَة", "watching, observation", "noun"),
+    ("وَجَبَ", "to be necessary", "verb"),
+    ("بَنَى", "to build", "verb"),
+    ("شَجَاعَة", "courage", "noun"),
+    ("رَمْل", "sand", "noun"),
+    ("فَضْل", "favor, kindness", "noun"),
+    ("نَجَاة", "rescue, salvation", "noun"),
+    ("أَوْجَدَ", "to create, to bring into being", "verb"),
+    ("جَالِس", "sitting, seated", "adj"),
 ]
 
 # Entries that share a bare form with an existing lemma but are a distinct
@@ -110,6 +124,21 @@ ALLOW_HOMOGRAPH = {
     "كُلِّيّ",  # resolver over-strips to #452 لـِ "to"
     "إِلٰه",   # resolver over-strips to #441 الْ "the"
     "فَعَلَ",  # verb "to do" vs #207 noun فِعْل "verb"
+    # 2026-11-19: the resolver strips a root letter as a clitic, or lands on
+    # a derivational sibling that the verifier then rejects as another word.
+    "إِنْسَان",  # resolves to #… آنِسَة "Miss"
+    "لَمَسَ",    # ل + #1016 مَسَّ
+    "لَحْن",     # ل + #2314
+    "وَجَبَ",    # و + #1089 جُبّ "cistern"
+    "فَضْل",     # ف + #1434 ضَلَّ "to stray"
+    "بَنَى",     # #1593 بِنا "about us"
+    "أَوْضَحَ",   # Form IV verb vs the comparative of #2096 واضِح
+    "أَوْجَدَ",   # Form IV vs #2073 وَجَدَ "to find"
+    "مُعْتَقَد",  # noun vs #2250 verb اعْتَقَدَ
+    "مُشَاهَدَة", # masdar vs #399 verb شاهَدَ
+    "شَجَاعَة",  # noun vs #2193 adj شُجاع
+    "نَجَاة",    # noun vs #3477 نَجَّى
+    "جَالِس",    # participle vs #1731 verb جَلَسَ
 }
 
 # Roots independently reviewed against the production inventory. Pinning these

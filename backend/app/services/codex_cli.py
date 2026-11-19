@@ -67,6 +67,11 @@ def _is_codex_cli_quota_error(message: str) -> bool:
         "rate limit",
         "too many requests",
         "quota",
+        # A revoked login fails every call after ~30 s of reconnects
+        # (2026-11-18: 401 on each audit call until someone logged in again).
+        "401 unauthorized",
+        "invalidated oauth token",
+        "unauthorized (401)",
     )
     return any(marker in msg for marker in quota_markers)
 

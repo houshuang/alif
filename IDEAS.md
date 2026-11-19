@@ -3237,6 +3237,23 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   Sonnet 56%, so today the pass rate depends on which provider happens to answer.
 - Tell the sentence writer which verbs exist: most sentences lost at the mapping check
   use a verb or derived form whose own entry is not in the vocabulary.
+- [DONE 2026-11-19] Dense-sentence call moved to GPT-6.1 Sol with Sonnet fallback
+  (`gpt_then_sonnet`). The "tell the writer which verbs exist" idea above rested on a
+  wrong reading: most mapping losses were wrong stored part-of-speech labels, fixed by
+  `scripts/audit_lemma_pos.py` (448 labels).
+- Curate the 83 entries whose Arabic form and English gloss describe different words
+  (`research/model-check-2026-11-18/pos-audit-form-gloss-conflicts.txt`), and about a
+  dozen textbook-scan entries whose `lemma_ar` and `lemma_ar_bare` are different words
+  (غَلَّفَ / غلاف, رَتَّبَ / رتبة, مُغْتاظ / راس).
+- Set `pos` at import time from the same kind of check, so new textbook-scan and
+  book entries do not arrive mislabelled; re-run `audit_lemma_pos.py` monthly until then.
+- Small function words still break sentences: لَهُ is mapped to الله, إِلَّا to the verb
+  أَلَا, كَأَنَّ to كَانَ, مَنْ to مِن. Fix in the deterministic mapper.
+- The verifier sometimes files an "issue" whose own explanation says the mapping is
+  acceptable; the same-entry rule then rejects the sentence. Ask the verifier not to
+  return such rows (prompt only; the rejection rule stays).
+- Test the ordinary per-word prompts with GPT-6.1 Sol now that labels are fixed; the
+  writer gap on dense sentences shrank to 41 against 36.
 - Re-run `research/model-check-2026-11-18/` scripts when a provider ships a new
   generation; the CLI aliases upgrade silently, the pinned names do not.
 - If Gemini 3 Flash preview is withdrawn, move page scans to Gemini 4 Hydrogen, not to

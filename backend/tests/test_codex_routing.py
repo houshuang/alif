@@ -36,6 +36,8 @@ def _reset_cli_state(monkeypatch):
     # Default: provider routing OFF
     monkeypatch.delenv("ALIF_AUDIT_PROVIDER", raising=False)
     yield
+    codex_module._CODEX_CLI_DISABLED_UNTIL = 0.0
+    codex_module._CODEX_CLI_DISABLED_REASON = ""
 
 
 # ─── ALIF_AUDIT_PROVIDER routing ───────────────────────────────────────────
@@ -368,3 +370,48 @@ def test_strict_response_schema_does_not_mutate_input():
     snapshot = {**src, "properties": dict(src["properties"]), "required": list(src["required"])}
     _ = strict_response_schema(src)
     assert src == snapshot
+
+
+# ─── Dense due-word sentence writer (gpt_then_sonnet) ──────────────────────
+
+
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
+@patch("app.services.llm._generate_via_claude_cli")
+def test_due_menu_writer_uses_codex_first(mock_claude, mock_codex):
+    mock_codex.return_value = {"sentences": []}
+
+    generate_completion("menu", model_override=llm_module.CODEX_FIRST_WRITER)
+
+    mock_codex.assert_called_once()
+    mock_claude.assert_not_called()
+
+
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
+@patch("app.services.llm._generate_via_claude_cli")
+def test_due_menu_writer_falls_back_to_sonnet(mock_claude, mock_codex):
+    mock_codex.side_effect = LLMError("codex down")
+    mock_claude.return_value = {"sentences": []}
+
+    generate_completion("menu", model_override=llm_module.CODEX_FIRST_WRITER)
+
+    assert mock_claude.call_args.kwargs["model"] == "sonnet"
+
+
+@patch("app.services.llm._generate_via_codex_cli_with_logging")
+@patch("app.services.llm._generate_via_claude_cli")
+def test_due_menu_writer_respects_claude_opt_out(mock_claude, mock_codex, monkeypatch):
+    monkeypatch.setenv("ALIF_AUDIT_PROVIDER", "claude")
+    mock_claude.return_value = {"sentences": []}
+
+    generate_completion("menu", model_override=llm_module.CODEX_FIRST_WRITER)
+
+    mock_codex.assert_not_called()
+    assert mock_claude.call_args.kwargs["model"] == "sonnet"
+
+
+def test_revoked_codex_login_starts_cool_down():
+    codex_module.mark_codex_cli_unavailable_from_error(
+        "codex CLI exit 1: failed to refresh available models: unexpected status "
+        "401 Unauthorized: Encountered invalidated oauth token for user"
+    )
+    assert codex_module.codex_cli_temporarily_disabled()
