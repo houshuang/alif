@@ -9,7 +9,10 @@ Hybrid Codex provider (default since 2026-05-26): the ``claude_haiku`` alias
 routes through Codex `gpt-6.1-sol` first, then falls back to Claude CLI, then to
 the API chain. ``claude_sonnet`` (generation) remains on Claude unconditionally
 — the A/B in ``research/codex-vs-claude-sentence-gen-2026-05-26.md`` showed
-Codex weaker on Arabic naturalness under vocab constraint. Enrichment + audit
+Codex weaker on Arabic naturalness under vocab constraint. The one exception
+is the ``gpt_then_sonnet`` alias, used by dense due-word sentences: Codex
+first, then exactly the ``claude_sonnet`` path (2026-11-18 model check:
+GPT-6.1 Sol stored 55 of 96 dense sentences, Sonnet 39). Enrichment + audit
 calls (``research/codex-vs-claude-enrichment-arabic-2026-05-26.md``) flipped
 because Codex got canonical Arabic pattern names 9/9 (Haiku 5/9), provided
 fact-checked cultural notes 10/10 (Haiku 3/10), and ran 1.7× faster. See
@@ -190,6 +193,7 @@ def claude_cli_temporarily_disabled() -> bool:
 
 
 _VALID_AUDIT_PROVIDERS = ("claude", "codex")
+CODEX_FIRST_WRITER = "gpt_then_sonnet"
 
 
 def _audit_provider() -> str:
@@ -417,6 +421,23 @@ def generate_completion(
         "claude_haiku": os.environ.get("ALIF_CLAUDE_HAIKU_CLI_MODEL", "haiku").strip() or "haiku",
     }
 
+    # Dense due-word sentences: Codex writes first, Sonnet is the fallback.
+    # ALIF_AUDIT_PROVIDER=claude switches this off together with audit routing.
+    if model_override == CODEX_FIRST_WRITER:
+        if _audit_provider() == "codex":
+            try:
+                return _generate_via_codex_cli_with_logging(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    json_mode=json_mode,
+                    json_schema=json_schema,
+                    timeout=timeout,
+                    task_type=task_type,
+                )
+            except LLMError:
+                pass
+        model_override = "claude_sonnet"
+
     # When no model_override specified, try Claude CLI (haiku) first — it's free
     cli_model = model_override if model_override in CLAUDE_CLI_MODELS else (None if model_override else "claude_haiku")
 
@@ -550,9 +571,9 @@ def format_known_words_by_pos(known_words: list[dict]) -> str:
         entry = f"{w['arabic']} ({w['english']})"
         if pos in ("noun", "noun_prop"):
             groups["NOUNS"].append(entry)
-        elif pos == "verb":
+        elif pos in ("verb", "v"):
             groups["VERBS"].append(entry)
-        elif pos in ("adj", "adj_comp"):
+        elif pos in ("adj", "adj_comp", "adjective"):
             groups["ADJECTIVES"].append(entry)
         else:
             groups["OTHER"].append(entry)
@@ -1296,8 +1317,8 @@ def generate_sentences_due_menu(
     min_priority: int = 4,
     max_priority: int = 6,
     word_range: str = "9-13",
-    model_override: str = "claude_sonnet",
-    timeout: int = 300,
+    model_override: str = CODEX_FIRST_WRITER,
+    timeout: int = 420,
 ) -> list[SentenceResult]:
     """Generate sentences from a large menu of due words.
 
