@@ -194,6 +194,7 @@ def claude_cli_temporarily_disabled() -> bool:
 
 _VALID_AUDIT_PROVIDERS = ("claude", "codex")
 CODEX_FIRST_WRITER = "gpt_then_sonnet"
+QUALITY_JUDGE_MODEL = "claude_sonnet"
 
 
 def _audit_provider() -> str:
@@ -1687,6 +1688,9 @@ class SentenceReviewResult(BaseModel):
     natural: bool
     translation_correct: bool
     reason: str
+    # The situation is odd or assembled from a word list, in correct Arabic.
+    # Reported for tracking; it does not reject a sentence (2026-11-19).
+    contrived: bool = False
     # False means the reviewer did not return a trustworthy verdict (provider
     # failure, malformed output, missing/duplicate ID).  Callers that can retry
     # should distinguish this from a completed content rejection.
@@ -1811,9 +1815,10 @@ def _review_sentences_quality(
                         },
                         "natural": {"type": "boolean"},
                         "translation_correct": {"type": "boolean"},
+                        "contrived": {"type": "boolean"},
                         "reason": {"type": "string"},
                     },
-                    "required": ["id", "natural", "translation_correct", "reason"],
+                    "required": ["id", "natural", "translation_correct", "contrived", "reason"],
                     "additionalProperties": False,
                 },
             },
@@ -1822,30 +1827,42 @@ def _review_sentences_quality(
         "additionalProperties": False,
     }
 
-    prompt = """Review each Arabic sentence for a language learning app. For each:
-1. Is the Arabic grammatically correct AND something a real Arabic speaker could plausibly say?
-2. Is the English translation accurate?
+    prompt = """Review each Arabic sentence for a language learning app. Give three verdicts for each:
+1. natural: is the Arabic correct, and does it say something a reader can understand?
+2. translation_correct: is the English translation accurate?
+3. contrived: is the situation unusual, unlikely, or visibly assembled from a word list?
 
 REJECT (natural=false) for any of:
 - Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax, wrong i'rab)
-- Translation errors (English doesn't match Arabic meaning, singular/plural mismatch)
-- Nonsensical meaning (word salad, contradictory clauses)
-- Forced word-list combinations that technically contain the target words but
-  do not form a coherent scene or proposition without an absurd hidden context
-  (e.g. asking whether a camel's thigh is ground, then calling it bad classification)
+- A word used in a sense it does not have, or a collocation Arabic does not use \
+(e.g. نَضَبَ for supplies running out, بَاحَ with a memory instead of a secret)
+- Nonstandard or invented word forms (e.g. صَيَّحْتُ for صِحْتُ)
+- Nonsensical meaning (word salad, contradictory clauses, a connective that does not follow)
 - Invented proper names or epithets built from content words \
 (e.g. الأميرة حب التوت "Princess Mulberry Love" — a name fabricated to satisfy a word list)
-- Implausible scenarios no native speaker would write in any context \
-(news, conversation, story, instruction, poetry)
 - Catalog-style fragments: abstract nouns listed without an actor or action \
 (e.g. "In the balcony, watering, and a very nice color")
+
+Set translation_correct=false when the English does not match the Arabic meaning
+(wrong word, singular/plural mismatch, added or missing content). A difference
+only in English tense or aspect that Arabic does not mark is not an error.
+
+Do NOT reject for the situation alone. When the Arabic is correct and the reader
+understands what happened, but the scene is odd or unlikely (a hamster crossing a
+pillow, a neighbor handing over wheat and butter), set natural=true and
+contrived=true. Use contrived=false for an ordinary scene.
 
 ACCEPT (natural=true) even if:
 - The scenario is simple or textbook-like (these are for learners)
 - Word choices are slightly formal or informal
 - Vocabulary is basic
+- An everyday colloquial word or a loanword (بابا, شاف, زعلان, جراج) appears in an \
+otherwise standard sentence: the learner's vocabulary contains such words
+- A word is uncommon but attested in that sense (مِعْمَار for an architect). Judge \
+how the words are used, not whether a commoner synonym exists
+- The sentence is a verbless nominal sentence with a subject and a predicate
 
-Respond with JSON: {"reviews": [{"id": 1, "natural": true, "translation_correct": true, "reason": "..."}, ...]}
+Respond with JSON: {"reviews": [{"id": 1, "natural": true, "translation_correct": true, "contrived": false, "reason": "..."}, ...]}
 
 Sentences:
 """
@@ -1881,11 +1898,12 @@ Sentences:
 
     system_prompt = (
         "You are an expert Arabic linguist reviewing sentences for a "
-        "language learning app. Judge naturalness by asking: could a real "
-        "Arabic speaker plausibly say this in any context? Accept simple or "
-        "textbook-style sentences (appropriate for learners). Reject "
-        "grammatical but implausible sentences, invented names built from "
-        "content words, and catalog fragments without an actor or action."
+        "language learning app. Be strict about the language: grammar, word "
+        "sense, collocation, register and coherence. Accept simple or "
+        "textbook-style sentences (appropriate for learners). An odd or "
+        "unlikely situation in correct, understandable Arabic is reported as "
+        "contrived, not rejected. Reject invented names built from content "
+        "words and catalog fragments without an actor or action."
     )
     if context_keys:
         system_prompt += (
@@ -1894,15 +1912,24 @@ Sentences:
             "coherence, and translation errors."
         )
 
+    # Sonnet judges first. On the same 120 sentences it rejected about twice
+    # as many for language errors as GPT-6.1 Sol (2026-11-19), and one fixed
+    # judge keeps the pass rate from depending on which provider is up. The
+    # audit chain (Codex, Claude CLI, API) is the fallback.
+    judge_kwargs = dict(
+        prompt=prompt,
+        system_prompt=system_prompt,
+        json_schema=schema,
+        temperature=0.0,
+        task_type="quality_review",
+    )
     try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            json_schema=schema,
-            temperature=0.0,
-            model_override="claude_haiku",
-            task_type="quality_review",
-        )
+        try:
+            result = generate_completion(
+                model_override=QUALITY_JUDGE_MODEL, cli_only=True, **judge_kwargs
+            )
+        except (AllProvidersFailed, LLMError):
+            result = generate_completion(model_override="claude_haiku", **judge_kwargs)
     except (AllProvidersFailed, LLMError):
         return [
             SentenceReviewResult(
@@ -1973,6 +2000,7 @@ Sentences:
                 natural=natural,
                 translation_correct=translation_correct,
                 reason=str(item.get("reason", "")),
+                contrived=item.get("contrived") is True,
             ))
         else:
             reviews.append(
