@@ -151,8 +151,8 @@ every generation path. **Verify:** `due_menu_summary` events in
 share in `mapping_corrections_*.jsonl` (18 Nov: 316 of 390 corrected sentences rejected).
 
 **Rollback.** Writer: `ALIF_DUE_MENU_WRITER=claude_sonnet` in `/opt/alif/.env`. Labels:
-restore `pos` from the backup for the ids in `/tmp/pos_audit.jsonl` proposals (the
-script's `--apply` output lists every change).
+restore `pos` from the backup for the ids in `/opt/alif-backups/pos_audit_proposals_20261119.jsonl` (the
+planned changes are in `/opt/alif-backups/pos_audit_plan_20261119.txt`).
 
 ## 2026-11-18: Model check — fallback pins updated; GPT-6.1 Sol writes more usable dense sentences than Sonnet or Opus (not switched)
 
