@@ -114,6 +114,26 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-19 (3): Sibling rows for shared verb/noun lemmas; strict judge re-read of 120 leniently passed sentences
+
+**Siblings.** 21 scaffold rows (#4965–#4985, no learning state) through
+`import_scaffold_lemmas.py`, each the other half of a row that had served both a verb
+and its noun or adjective (حَجْز beside حَجَزَ, جِلْد beside جَلَدَ, شَكَّ beside شَكّ, …).
+Backup `/opt/alif-backups/alif_pre_siblings_20261119_*.db`. Live lookup: a vocalized
+surface now resolves to the matching row and offers the sibling as an alternative for
+the verifier (الْحَجْزَ → حَجْز, حَجَزَ → حَجَزَ). Not right in every case: شَكَّ still
+resolves to the noun first, with the verb as alternative.
+
+**Judge comparison (no change made).** 120 dense sentences that GPT-6.1 Sol had passed
+as natural and correctly translated were re-read by Sonnet 5.5 through the same
+`review_sentences_quality` prompt. Sonnet passed 72 and rejected 48 (40%): 24 of 48
+written by Sonnet, 17 of 47 by GPT, 7 of 25 by Opus. Reading the 48 by hand
+(my classification): about 14 name a real language problem (wrong collocation or
+word sense, register mix, mistranslation), about 31 object to an odd or contrived
+scene in a grammatical sentence, 3 are quibbles or wrong. Raw rows:
+`research/model-check-2026-11-18/judge-strict-on-lenient-passes.jsonl`. Learner
+leans towards keeping the strict judge; decision pending.
+
 ## 2026-11-19 (2): Labels set at import; 87 conflicting lemmas repaired; preposition + pronoun forms override content lemmas
 
 Follow-up to the entry below, at the learner's request ("fix conflicting? fix function

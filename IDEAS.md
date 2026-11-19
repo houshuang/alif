@@ -3260,6 +3260,12 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Several textbook entries serve both a verb and its noun under one row (حَجَزَ / حَجْز,
   غَسَلَ / غَسْل, فَحَصَ / فَحْص). Each was set to its majority use; the minority use is
   still rejected until the sibling row exists.
+- [DONE 2026-11-19] Sibling rows added for 21 shared verb/noun textbook entries.
+- Judge choice (pending learner decision): pin `review_sentences_quality` to Sonnet
+  (strict). Sonnet rejected 40% of what GPT passed; about a third of those rejections
+  name a real language error, two thirds an odd scene. A middle path would be a judge
+  prompt that separates "language error" from "contrived scene" so the two can be
+  gated differently.
 - Left unrepaired: #2024 صَب "youth", #2118 كَيْفِيّ "method", #3413 مَضّ, #4009 أَعاض.
 - The verifier sometimes files an "issue" whose own explanation says the mapping is
   acceptable; the same-entry rule then rejects the sentence. Ask the verifier not to
