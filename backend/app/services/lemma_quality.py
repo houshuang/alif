@@ -306,6 +306,7 @@ def run_quality_gates(
     Runs in order:
       1. finalize  — clean bare forms, assign frequency rank, flag dupes
       2. variants  — detect_variants_llm + detect_definite_variants + mark_variants
+      2b. pos      — correct the part-of-speech label (lemma_pos_check)
       3. enrich    — forms, etymology, transliteration (background thread by default)
       4. stamp     — set gates_completed_at on all lemmas
 
@@ -387,6 +388,17 @@ def run_quality_gates(
             logger.warning("Variant detection failed for lemmas %s: %s", lemma_ids[:5], e)
             db.rollback()
 
+    # ── Gate 2b: Part-of-speech label ──────────────────────────────────────
+    # The mapping verifier is shown `pos` and rejects sentences when it is
+    # wrong; enrichment (forms) also reads it, so this runs first.
+    pos_summary: dict = {}
+    try:
+        from app.services.lemma_pos_check import check_new_lemmas
+        pos_summary = check_new_lemmas(db, lemma_ids)
+    except Exception as e:
+        logger.warning("POS check failed for lemmas %s: %s", lemma_ids[:5], e)
+        db.rollback()
+
     # ── Gate 3: Enrichment (forms, etymology, transliteration) ─────────────
     enriched = False
     if enrich and lemma_ids:
@@ -415,6 +427,7 @@ def run_quality_gates(
         "shape_corrected": sum(1 for r in shape_results if r.auto_corrected),
         "shape_warned": sum(1 for r in shape_results if r.warnings),
         "variants": variants_marked,
+        "pos_check": pos_summary,
         "enriched": enriched,
         "stamped": stamped,
     }

@@ -114,6 +114,42 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-19 (2): Labels set at import; 87 conflicting lemmas repaired; preposition + pronoun forms override content lemmas
+
+Follow-up to the entry below, at the learner's request ("fix conflicting? fix function
+words? how to fix new imports?").
+
+**New imports.** `run_quality_gates()` gains gate 2b, `lemma_pos_check.check_new_lemmas`:
+one model call per 60 new lemmas, same rules as the whole-table audit (only label
+spellings and verb/noun/adj/adv disagreements are written). Form-against-gloss
+conflicts are logged as `import_form_gloss_conflict`, not auto-fixed. A provider
+failure leaves labels as imported.
+
+**Conflicting entries.** `scripts/fix_form_gloss_conflicts_2026_11_19.py`, 87
+hand-reviewed fixes chosen from how each lemma is used in stored sentences: headword
+revocalized on the same bare form where gloss and usage agree (وَصْل → وَصَلَ "to
+arrive", ضَخَّم → ضَخْم "huge"), gloss and label corrected where headword and usage
+agree (دَفَع "payment" → "to pay"), and 21 rows of one story import (#3986–#4014)
+whose glosses had been assigned to the wrong rows. Learner-visible examples: وَجَمَ
+was being learned as "to collect, gather" (it means to fall silent from grief).
+
+**Lookup (`sentence_validator.py`).**
+- `FUNCTION_WORD_FORM_OVERRIDES` now includes every preposition + pronoun form
+  (`_PREPOSITION_PRONOUN_FORMS`). Before, only the عَلَى family overrode; لَهُ resolved to
+  الله (al-stripped bare), لَهُمْ to لَهِم "greedy", بِنَا to a stray noun row.
+- Generated sound-plural/dual keys are built for `adj` and `num` as well as `noun`,
+  `adjective` and empty. The label audit had moved ~140 lemmas from `adjective`/empty
+  to `adj`, which silently dropped their generated keys until this fix.
+- A headword in ـون also gets its ـين form (ثَلَاثُونَ / ثَلَاثِينَ).
+- New scaffold rows إِلَّا, مَنْ, كَأَنَّ (the first resolved to the verb أَلَا, the second
+  to مِن, the third to كَانَ). Same-spelling pairs (مَنْ / مِن) become alternatives that
+  the verifier chooses between.
+- Not changed: clitic layers, exact-alias policy, verifier, `apply_corrections`.
+
+**Gate audit.** No lifecycle change. Function-word classification is unchanged
+(all touched forms were already function words). The override affects only which
+lemma row a function-word token points to.
+
 ## 2026-11-19: Lemma part-of-speech labels corrected (448); dense sentences now written by GPT-6.1 Sol with Sonnet fallback
 
 **Why.** The 2026-11-18 model check lost about a third of reviewed dense sentences at

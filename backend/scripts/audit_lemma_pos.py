@@ -37,80 +37,15 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app.database import SessionLocal
 from app.models import Lemma
-
-BATCH_SIZE = 60
-OPEN_CLASSES = {"verb", "noun", "adj", "adv"}
-POS_VALUES = [
-    "verb", "noun", "adj", "adv", "prep", "pron", "conj", "particle",
-    "num", "interj", "expr", "noun_prop",
-]
-LABEL_SPELLINGS = {
-    "adjective": "adj",
-    "adverb": "adv",
-    "preposition": "prep",
-    "conjunction": "conj",
-    "v": "verb",
-    "passive participle": "adj",
-}
-SKIP_CATEGORIES = {"proper_name", "onomatopoeia", "practiced_name"}
-SKIP_POS = {"noun_prop", "proper_noun", "name", "foreign"}
-
-SYSTEM_PROMPT = (
-    "You are an Arabic lexicographer checking part-of-speech labels in a "
-    "learner's dictionary."
+from app.services.lemma_pos_check import (
+    BATCH_SIZE,
+    audit_rows,
+    auditable,
+    canonical_label,
+    plan_changes,
 )
 
-SCHEMA = {
-    "type": "object",
-    "properties": {
-        "entries": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "lemma_id": {"type": "integer"},
-                    "pos": {"type": "string", "enum": POS_VALUES},
-                    "conflict": {"type": "boolean"},
-                    "note": {"type": "string"},
-                },
-                "required": ["lemma_id", "pos", "conflict", "note"],
-            },
-        }
-    },
-    "required": ["entries"],
-}
-
-
-def canonical_label(pos: str | None) -> str | None:
-    if not pos:
-        return None
-    p = pos.strip().lower()
-    return LABEL_SPELLINGS.get(p, p)
-
-
-def build_prompt(rows: list[dict]) -> str:
-    lines = "\n".join(
-        f"- lemma_id={r['lemma_id']}; word={r['lemma_ar']}; gloss={r['gloss_en']}"
-        for r in rows
-    )
-    return f"""For each dictionary headword below, give its part of speech as a dictionary would list that headword.
-
-Rules:
-- Judge from the vocalized Arabic form together with the gloss.
-- A verbal noun (masdar) is a noun. A person, trade or role (مُدِير, عَامِل, مُتَقَاعِد) is a noun.
-- A participle or nisba used mainly to describe (مُزْدَحِم, ثَمِين, نَبَاتِيّ) is an adj.
-- A fixed phrase of several words is expr.
-- Set conflict=true when the vocalized Arabic form and the English gloss cannot be the same word in the same part of speech, for example the noun form وَصْل with the gloss "to arrive", or a singular noun glossed as a plural or as a verb. In that case still give the part of speech of the Arabic form, and say in the note what disagrees.
-- Otherwise conflict=false and note is an empty string.
-
-Return one entry for every lemma_id.
-
-{lines}"""
-
-
 def run_audit(out_path: Path, limit: int | None) -> None:
-    from app.services.llm import generate_completion
-
     done: set[int] = set()
     if out_path.exists():
         for line in out_path.read_text().splitlines():
@@ -122,10 +57,7 @@ def run_audit(out_path: Path, limit: int | None) -> None:
         rows = [
             {"lemma_id": l.lemma_id, "lemma_ar": l.lemma_ar, "gloss_en": l.gloss_en, "pos": l.pos}
             for l in db.query(Lemma).order_by(Lemma.lemma_id).all()
-            if l.gloss_en
-            and l.word_category not in SKIP_CATEGORIES
-            and (l.pos or "").lower() not in SKIP_POS
-            and l.lemma_id not in done
+            if auditable(l) and l.lemma_id not in done
         ]
     finally:
         db.close()
@@ -135,61 +67,16 @@ def run_audit(out_path: Path, limit: int | None) -> None:
 
     for start in range(0, len(rows), BATCH_SIZE):
         batch = rows[start:start + BATCH_SIZE]
-        by_id = {r["lemma_id"]: r for r in batch}
         try:
-            result = generate_completion(
-                prompt=build_prompt(batch),
-                system_prompt=SYSTEM_PROMPT,
-                json_schema=SCHEMA,
-                timeout=300,
-                model_override="claude_haiku",
-                task_type="lemma_pos_audit",
-            )
+            proposals = audit_rows(batch)
         except Exception as exc:
             print(f"batch at {start} failed: {exc!r}"[:300], flush=True)
             continue
-        entries = result.get("entries", []) if isinstance(result, dict) else []
-        written = 0
         with out_path.open("a") as f:
-            for e in entries:
-                row = by_id.pop(e.get("lemma_id"), None) if isinstance(e, dict) else None
-                if row is None or e.get("pos") not in POS_VALUES:
-                    continue
-                f.write(json.dumps({
-                    **row,
-                    "proposed_pos": e["pos"],
-                    "conflict": bool(e.get("conflict")),
-                    "note": str(e.get("note") or "")[:200],
-                }, ensure_ascii=False) + "\n")
-                written += 1
-        print(f"batch at {start}: {written}/{len(batch)} entries", flush=True)
+            for p in proposals:
+                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+        print(f"batch at {start}: {len(proposals)}/{len(batch)} entries", flush=True)
     print("DONE", flush=True)
-
-
-def plan_changes(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Return (changes, left_alone) from audit proposals."""
-    changes: list[dict] = []
-    left: list[dict] = []
-    for p in proposals:
-        current = p.get("pos")
-        tidy = canonical_label(current)
-        proposed = p["proposed_pos"]
-        if tidy == proposed:
-            if tidy != current:
-                changes.append({**p, "new_pos": tidy, "kind": "label_spelling"})
-            continue
-        if p.get("conflict"):
-            if tidy != current:
-                changes.append({**p, "new_pos": tidy, "kind": "label_spelling"})
-            left.append({**p, "why": "form_gloss_conflict"})
-            continue
-        if proposed in OPEN_CLASSES and (tidy is None or tidy in OPEN_CLASSES):
-            changes.append({**p, "new_pos": proposed, "kind": "corrected"})
-            continue
-        if tidy != current:
-            changes.append({**p, "new_pos": tidy, "kind": "label_spelling"})
-        left.append({**p, "why": "outside_open_classes"})
-    return changes, left
 
 
 def apply(path: Path, write: bool, exclude: set[int]) -> None:
