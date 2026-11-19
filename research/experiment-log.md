@@ -84,6 +84,8 @@ This changes the model, not the existing Arabic quality calibration.
 
 **Corrections / same_lemma / no-auto-create (load-bearing — don't weaken)** — `2026-03-17 "Stop Auto-Creating Lemmas from Mapping Corrections"` · `2026-04-09 "Fix Same-Lemma Correction Silent Pass-Through"` · `2026-04-16 "Corpus sentence mapping bug — 63/74"`.
 
+**Sentence generation: density, writer, judge, lemma metadata (Nov 2026)** — start at `2026-11-19 (5) "Timeline and the one open measurement"`, which lists the six entries of 18–19 Nov in order with what to compare.
+
 **Mapping verification / reviewability gate** — `2026-05-12 "Tighten reviewability gate"` · `2026-05-13 "Comprehensive reverification sweep + continuous rolling"` · `2026-05-29 "Manual reverify sweep clears the stale-gated"` (sweep after a cutoff bump) · `2026-04-14 "Fix Silent JSON Parse Failure in Mapping Verification"`.
 
 **Lemma quality / decomposition / canonicalization** — `2026-04-01 "Centralized Quality Gate Pipeline — run_quality_gates()"` · `2026-04-24 … 2026-04-27 "Lemma decomposition Phase 1 … Phase 2 step 4c"` (the audit arc) · `2026-05-06 "Broadened clitic-leftover audit"` · `2026-05-21 "Chimera cleanup + prevention"` · `2026-05-17 "Sense-aware correction resolver"`.
@@ -113,6 +115,56 @@ This changes the model, not the existing Arabic quality calibration.
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-11-19 (5): Timeline and the one open measurement (generation changes of 18–19 Nov)
+
+Written so a later reading of the data can attribute effects. Nothing changes here.
+
+**What went live, in order (UTC, prod).**
+
+| When | Change | Entry |
+|---|---|---|
+| 18 Nov, evening | Dense due-word sentences (stock of 60), card ceiling 4 → 6, subject hint removed | `2026-11-18: Due-word menu generation …` |
+| 18 Nov, evening | Fallback model pins; no behaviour change while the CLIs answer | `2026-11-18: Model check …` |
+| 19 Nov ≈ 09:20 | 448 part-of-speech labels, 15 missing lemmas | `2026-11-19: Lemma part-of-speech labels …` |
+| 19 Nov ≈ 09:45 | Dense sentences written by GPT-6.1 Sol, Sonnet fallback | same entry |
+| 19 Nov ≈ 10:10 | Label check on import; 87 lemma repairs; preposition + pronoun lookup; إِلَّا / مَنْ / كَأَنَّ | `2026-11-19 (2)` |
+| 19 Nov ≈ 11:10 | 21 sibling lemmas | `2026-11-19 (3)` |
+| 19 Nov ≈ 11:45 | Judge: Sonnet first, language only, `contrived` reported | `2026-11-19 (4)` |
+
+Codex login on prod was dead from 18 Nov ≈ 21:00 to 19 Nov ≈ 09:30, so everything
+generated or judged in that window used Sonnet. The 61 dense sentences in stock on 19 Nov
+were all written by Sonnet and judged before the new judge prompt; the first GPT-written,
+new-judge sentences appear only after that stock is consumed.
+
+**Not yet measured: the learner's reviews.** Everything above was measured on dry runs
+of generation. Baseline (30 days to 18 Nov, from the "Sentence slots" entry): 7.0 content
+words per card, 2.4 of them due or acquiring, 48% exposure-only, 979 words due.
+
+**Check after about a week of reviews (not before 23 Nov; two weeks is better).**
+1. Due or acquiring words per card and the due count:
+   `research/sentence-diversity-2026-11-18/div3.py`. Expect 2.4 → toward 4.
+2. Red/yellow word rate on cards with 5–6 due words against cards with 2–3, and time per
+   card. If accuracy on dense cards is clearly worse, lower the ceiling to 4 or 5.
+3. Supply: `due_menu_summary` in `generation_pipeline_*.jsonl` (`returned` →
+   `quality_passed` → `generated`). Dry-run reference with the old judge: 48 → 43–47 →
+   39–41. With the new judge expect roughly 48 → 36 → 32.
+4. Judge: share `approved=false` and `contrived=true` in `sentence_gen_*.jsonl`
+   `quality_review` events; `quality_review` rows in `llm_calls_*.jsonl` should be
+   `claude_cli/sonnet`. If many are `codex_cli`, the Claude CLI is failing.
+5. Mapping check: failures in `mapping_corrections_*.jsonl` (18 Nov: 316 of 390).
+   Classify what remains with the method in `research/analysis-2026-11-18-model-check.md`.
+6. Writer: which model wrote stored dense sentences is visible only through
+   `task_type="sentence_gen_due_menu"` rows in `llm_calls_*.jsonl` (a `codex_cli`
+   success means GPT; a failure followed by `claude_cli/sonnet` means the fallback).
+   Sentences do not record their writer.
+7. Intake side effect: 39 scaffold lemmas were added on 19 Nov (#4947–#4985). They have
+   no learning state until met in a reviewed sentence; if `auto_introduce` events for
+   them crowd the 8/day budget, that is from this work.
+
+**Known confounds.** Six changes within 18 hours; the novel sprint was paused on 18 Nov;
+intake was restored the same day (`2026-11-18 — Intake restored`). Per-change attribution
+on review data is not possible; only the generation-side steps have separate dry runs.
 
 ## 2026-11-19 (4): Quality judge — strict on language only, Sonnet first
 
