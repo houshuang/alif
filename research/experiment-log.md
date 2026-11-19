@@ -146,6 +146,16 @@ was being learned as "to collect, gather" (it means to fall silent from grief).
   the verifier chooses between.
 - Not changed: clitic layers, exact-alias policy, verifier, `apply_corrections`.
 
+**Applied on prod 2026-11-19** (backup `/opt/alif-backups/alif_pre_conflict_fix_20261119_100846.db`):
+87 of 87 repairs, forms regenerated for 80; scaffold rows #4962 إِلَّا, #4963 مَنْ,
+#4964 كَأَنَّ. Live lookup after deploy: لَهُ → لِ, وَلَهُمْ → لِ, بِنَا → بِ, إِلَّا / مَنْ / كَأَنَّ /
+كَأَنَّهَا → their own rows, الْفَأْسَ → فَأْس; مِنْ keeps #154 with مَنْ as an alternative.
+Still wrong: إِلٰهًا → هَا, بِتِلْكَ → تَلَا; ثَلَاثِينَ → ثَلَاث with ثَلَاثُونَ now offered as
+an alternative. Dense-sentence dry run (GPT-6.1 Sol, 4 calls): 48 returned, 43 passed
+review, 39 stored, 170 due words; 91% of reviewed sentences survived the mapping check
+(87% earlier the same day, 70% on 18 Nov). The four losses: one unmapped word
+(مُجْفِلًا), الْآنَ, حَصَلُوا, إِلٰهًا.
+
 **Gate audit.** No lifecycle change. Function-word classification is unchanged
 (all touched forms were already function words). The override affects only which
 lemma row a function-word token points to.

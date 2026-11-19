@@ -150,3 +150,13 @@ between the two writers is smaller (41 against 36 stored) than it was on 18 Nove
 The Codex login on the server was revoked from about 21:00 on 18 November until it was
 renewed on 19 November; every Codex call in between waited about 30 seconds and then
 fell back. A revoked login now starts the same six-hour cool-down as a quota error.
+
+### Second pass, same day
+
+Three further changes followed (experiment log, entry "2026-11-19 (2)"): the label
+check now runs on every import, 87 entries whose headword and gloss named different
+words were repaired by hand, and preposition + pronoun forms such as لَهُ no longer
+resolve to content words. A third dry run with GPT-6.1 Sol stored 39 of 48 sentences;
+91% of reviewed sentences survived the mapping check, against 87% after the first
+pass and 70% on 18 November. The gain over the first pass is within the noise of one
+run of 48 sentences.
