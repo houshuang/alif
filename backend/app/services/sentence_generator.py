@@ -269,6 +269,7 @@ def _log_quality_review(
                 "natural": bool(getattr(r, "natural", False)),
                 "translation_correct": bool(getattr(r, "translation_correct", False)),
                 "approved": approved,
+                "contrived": bool(getattr(r, "contrived", False)),
                 "reason": str(getattr(r, "reason", "")),
             }
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

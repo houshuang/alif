@@ -3261,7 +3261,11 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   غَسَلَ / غَسْل, فَحَصَ / فَحْص). Each was set to its majority use; the minority use is
   still rejected until the sibling row exists.
 - [DONE 2026-11-19] Sibling rows added for 21 shared verb/noun textbook entries.
-- Judge choice (pending learner decision): pin `review_sentences_quality` to Sonnet
+- [DONE 2026-11-19] Judge pinned to Sonnet first and made strict on language only;
+  odd scenes are reported as `contrived`, not rejected.
+- Use the `contrived` flag: prefer non-contrived sentences when a word has several, or
+  feed the share back into the writer prompt, once a week of data shows how common it is.
+- Judge choice (decided, see line above; kept for the record): pin `review_sentences_quality` to Sonnet
   (strict). Sonnet rejected 40% of what GPT passed; about a third of those rejections
   name a real language error, two thirds an odd scene. A middle path would be a judge
   prompt that separates "language error" from "contrived scene" so the two can be

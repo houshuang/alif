@@ -554,6 +554,7 @@ def test_quality_review_group_failure_does_not_discard_other_context(
             ]
         },
         AllProvidersFailed("Momo review unavailable"),
+        AllProvidersFailed("Momo review fallback unavailable"),
     ]
 
     reviews = review_sentences_quality([
@@ -807,3 +808,22 @@ def test_batch_falls_back_to_unranked_when_rerank_fails(mock_completion):
     # Fail-open: caller gets the 3 unranked candidates back.
     assert len(results) == 3
     assert results[0].arabic == "s0"
+
+
+@patch("app.services.llm.generate_completion")
+def test_quality_review_judge_order_and_contrived_flag(mock_completion):
+    """Sonnet judges first; the audit chain is the fallback. A contrived
+    scene is reported without rejecting the sentence."""
+    mock_completion.side_effect = [
+        AllProvidersFailed("claude cli down"),
+        {"reviews": [{"id": 1, "natural": True, "translation_correct": True,
+                      "contrived": True, "reason": "odd scene"}]},
+    ]
+
+    review = review_sentences_quality([{"arabic": "جُمْلَةٌ", "english": "a sentence"}])[0]
+
+    first, second = mock_completion.call_args_list
+    assert first.kwargs["model_override"] == "claude_sonnet"
+    assert first.kwargs["cli_only"] is True
+    assert second.kwargs["model_override"] == "claude_haiku"
+    assert review.natural and review.translation_correct and review.contrived

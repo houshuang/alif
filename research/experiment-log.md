@@ -114,6 +114,45 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-19 (4): Quality judge — strict on language only, Sonnet first
+
+**Decision (learner).** Keep the strict judge, but strict about language only: an odd
+scene in correct Arabic should not cost a sentence.
+
+**Before.** `review_sentences_quality` went through the `claude_haiku` alias, so GPT-6.1
+Sol judged when Codex was up and Sonnet when it was not. On 120 dense sentences GPT had
+passed, Sonnet rejected 48; by hand about 14 named a language error, about 31 an odd
+scene. The prompt itself asked for rejection of "forced word-list combinations" and
+"implausible scenarios" (added 2026-04-15 after the "Princess Mulberry Love" flag).
+
+**Changed (`llm.py`).**
+- Prompt: `natural=false` only for grammar, wrong word sense or collocation,
+  nonstandard forms, nonsense or a connective that does not follow, invented names,
+  catalog fragments. New required field `contrived` for an unusual or word-list-like
+  scene that is correct and understandable; it does not reject. Accept colloquial or
+  loan words from the learner's vocabulary (بابا, شاف, جراج) and uncommon attested words
+  (مِعْمَار): a first version rejected these, which would have starved those lemmas of
+  sentences. A tense-only difference in the English is not a translation error.
+- Judge order: `QUALITY_JUDGE_MODEL` = `claude_sonnet` through the Claude CLI
+  (`cli_only`), then the previous chain (Codex → Claude CLI → API).
+- `SentenceReviewResult.contrived`; logged on `quality_review` events.
+- The invented-name and fragment rules from 2026-04-15 are kept.
+
+**Measured on the same 120 sentences.** Sonnet, old prompt: 48 rejected. Sonnet, new
+prompt: 26 rejected, 34 accepted with `contrived=true`. GPT-6.1 Sol with the first
+version of the new prompt: 12 rejected. Rows:
+`research/model-check-2026-11-18/judge-language-only-sonnet.jsonl`.
+
+**Expect.** About one in five otherwise valid generated sentences rejected at review
+(40% under the old prompt with Sonnet, about 7% with GPT), independent of Codex being
+up. **Verify:** share of `approved=false` and of `contrived=true` in
+`sentence_gen_*.jsonl`; `quality_review` calls in `llm_calls_*.jsonl` should show
+`claude_cli/sonnet`. Applies to every caller of the judge (ordinary generation, dense
+sentences, corpus and book rows, salvage), not to already stored verdicts.
+
+**Rollback.** Set `QUALITY_JUDGE_MODEL = "claude_haiku"` and restore the prompt from
+the commit before this entry.
+
 ## 2026-11-19 (3): Sibling rows for shared verb/noun lemmas; strict judge re-read of 120 leniently passed sentences
 
 **Siblings.** 21 scaffold rows (#4965–#4985, no learning state) through
