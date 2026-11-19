@@ -98,6 +98,7 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # Emphasis / structure
     "لقد": "indeed/certainly (past)", "اما": "as for", "أما": "as for",
     "الا": "except", "إلا": "except", "اذن": "then/so", "إذن": "then/so",
+    "كأن": "as if",
     "لولا": "if not for", "لوما": "if not for",
     "انه": "indeed he", "إنه": "indeed he", "انها": "indeed she", "إنها": "indeed she",
     "مثل": "like", "غير": "other than",
@@ -517,6 +518,20 @@ _FUNCTION_WORDS_NORMALIZED: set[str] = {
 }
 
 
+# Preposition + attached pronoun. Without an override the al-stripped bare of
+# a content lemma wins the key: له resolved to الله, لهم to لَهِم "greedy" and
+# بنا to a stray noun row (2026-11-18 rejected-correction log).
+_PREPOSITION_PRONOUN_FORMS: set[str] = {
+    "به", "بها", "بهم", "بهما", "بك", "بكم", "بي", "بنا",
+    "له", "لها", "لهم", "لهما", "لك", "لكم", "لي", "لنا",
+    "عنه", "عنها", "عنهم", "عنهما", "عنك", "عني", "عنا",
+    "منه", "منها", "منهم", "منهما", "منك", "مني", "منا",
+    "فيه", "فيها", "فيهم", "فيهما", "فيك", "فينا",
+    "معه", "معها", "معهم", "معهما", "معك", "معي", "معنا",
+    "اليه", "إليه", "اليها", "إليها", "اليهم", "إليهم", "اليهما", "إليهما",
+    "اليك", "إليك", "الينا", "إلينا",
+}
+
 FUNCTION_WORD_FORM_OVERRIDES: set[str] = {
     strip_diacritics(form)
     for form in FUNCTION_WORD_FORMS
@@ -525,6 +540,7 @@ FUNCTION_WORD_FORM_OVERRIDES: set[str] = {
             form in _ATTACHED_PARTICLE_FORMS
             and form not in _EXACT_PREFIX_PARTICLE_FORMS
         )
+        or form in _PREPOSITION_PRONOUN_FORMS
         or form in {
             "عليه", "عليها", "عليهم", "عليهما", "عليك", "عليكم", "علينا",
             "أنه", "انه", "أنها", "انها", "أنك", "انك",
@@ -3349,9 +3365,13 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                 lookup.target_inflection_forms[lem.lemma_id] = target_forms
 
         # Noun/adjective inflections: sound plurals + dual
-        if pos in ("noun", "adjective", None):
+        if pos in ("noun", "adj", "adjective", "num", None):
             bare = normalize_arabic(lem.lemma_ar_bare)
             inflections = _generate_noun_inflections(bare)
+            # A headword stored in the nominative sound plural (ثَلَاثُونَ) also
+            # appears in the oblique: ثَلَاثِينَ.
+            if bare.endswith("ون") and len(bare) >= 5:
+                inflections.add(bare[:-2] + "ين")
             for infl_form in inflections:
                 lookup.set_if_new(
                     infl_form, lem.lemma_id, f"infl:{infl_form}",
