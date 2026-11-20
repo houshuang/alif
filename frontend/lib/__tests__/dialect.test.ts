@@ -3,7 +3,6 @@ import {
   expressionsAt,
   lineSegments,
   linesByExpression,
-  replaySpeed,
   segmentStep,
   sourceLines,
   tokenAt,
@@ -41,16 +40,6 @@ const catalogue: DialectCatalogue = {
     line("b1", "b", 1, [["shu", 0, 0], ["shu", 0, 0]]),
   ],
 };
-
-describe("replaySpeed", () => {
-  it("steps down from the start speed and stops at the slowest", () => {
-    expect([0, 1, 2, 3].map((n) => replaySpeed(1, n))).toEqual([1, 0.75, 0.6, 0.6]);
-    expect([0, 1].map((n) => replaySpeed(0.75, n))).toEqual([0.75, 0.6]);
-  });
-  it("treats an unknown start speed as the fastest", () => {
-    expect(replaySpeed(0.9, 0)).toBe(1);
-  });
-});
 
 describe("expression grouping", () => {
   const byExpr = linesByExpression(catalogue);

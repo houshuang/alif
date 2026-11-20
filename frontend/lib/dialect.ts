@@ -2,12 +2,6 @@ import { DialectCatalogue, DialectLine } from "./types";
 
 export const DIALECT_SPEEDS = [1, 0.75, 0.6];
 
-/** Each replay of the same line steps one speed down from the chosen start, then stays at the slowest. */
-export function replaySpeed(startSpeed: number, replays: number): number {
-  const start = Math.max(0, DIALECT_SPEEDS.indexOf(startSpeed));
-  return DIALECT_SPEEDS[Math.min(start + replays, DIALECT_SPEEDS.length - 1)];
-}
-
 export function linesByExpression(catalogue: DialectCatalogue): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const line of catalogue.lines) {
