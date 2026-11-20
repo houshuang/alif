@@ -10,6 +10,10 @@ old") instead of an isolated word for the retry.
 
 - Built: `missed_word_recovery_v1` lane, acquiring reserve, due-menu priority for open
   misses, retry queue v4, `fragment_retest_v1` A/B. Experiment log 2026-11-20.
+- Same day: the retry-card A/B was switched off and replaced by `fragment_followup_v1`
+  (phrase in place of a sentence card for the follow-up), which is what the idea meant.
+  Experiment log 2026-11-20 (2). Re-enable the retry-card trial (`RETEST_AB_ACTIVE`) only
+  after this one has read out.
 - Open: the readout (lane timing, fragment arm against word-card arm).
 - If fragments win: use them for the next-day step too when a missed word has no fresh
   sentence; consider fragments for acquiring Box-1 words.

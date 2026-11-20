@@ -268,6 +268,19 @@ def next_sentences(
             unsafe_ids = _ensure_session_mapping_hardened(db, result)
             _drop_unsafe_session_items(result, unsafe_ids)
 
+        # fragment_followup_v1: phrase follow-ups travel with the session so
+        # they work offline; each is a word card carrying its phrase.
+        followup_cards = []
+        for entry in result.pop("followup_fragments", None) or []:
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == entry["lemma_id"]).first()
+            if lemma is None:
+                continue
+            card = _wrap_up_card(db, lemma)
+            card.fragment = entry["fragment"]
+            card.retest_arm = "followup_phrase"
+            followup_cards.append(card.model_dump())
+        result["followup_fragment_cards"] = followup_cards
+
         # Listening mode is only for already-learned words — no intro candidates
         if mode == "listening":
             result["intro_candidates"] = []
@@ -335,9 +348,69 @@ def warm_sentences(background_tasks: BackgroundTasks):
     return {"status": "warming"}
 
 
+def _is_repeat_followup(db: Session, review_mode: str | None, lemma_id: int) -> bool:
+    """A resumed session can offer a phrase follow-up that was already answered."""
+    if review_mode != "fragment":
+        return False
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.word_fragments import recent_followup_exists
+
+    return recent_followup_exists(
+        db, resolve_canonical_lemma_id(db, lemma_id), datetime.now(timezone.utc)
+    )
+
+
+def _missed_lemma_ids(result: dict) -> list[int]:
+    return sorted({
+        w["lemma_id"]
+        for w in result.get("word_results", [])
+        if w.get("lemma_id") and (w.get("rating") or 3) <= 2
+        and not w.get("form_recovery_protected")
+    })
+
+
+def _start_fragment_generation(lemma_ids: list[int]) -> None:
+    """fragment_retest_v1 / fragment_followup_v1: stock phrases for words just
+    missed. Own thread and session; call only after the review is committed."""
+    if not lemma_ids:
+        return
+    from app.services.background_threads import start_daemon
+    from app.services.word_fragments import generate_fragments_for_lemmas
+
+    start_daemon(generate_fragments_for_lemmas, lemma_ids, name="word-fragments")
+
+
+def _mark_fragment_shown(db: Session, fragment_id: int | None) -> None:
+    if not fragment_id:
+        return
+    from app.services.word_fragments import mark_fragment_shown
+
+    try:
+        mark_fragment_shown(db, fragment_id, datetime.now(timezone.utc))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _after_sentence_review(
+    db: Session,
+    result: dict,
+    review_mode: str,
+    has_sentence: bool,
+    fragment_id: int | None,
+) -> None:
+    if result.get("duplicate"):
+        return
+    _mark_fragment_shown(db, fragment_id)
+    if (review_mode == "reading" and has_sentence) or review_mode == "fragment":
+        _start_fragment_generation(_missed_lemma_ids(result))
+
+
 @router.post("/submit-sentence", response_model=SentenceReviewSubmitOut)
 def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db)):
     """Submit a sentence-level review."""
+    if _is_repeat_followup(db, body.review_mode, body.primary_lemma_id):
+        return {"word_results": [], "duplicate": True}
     result = submit_sentence_review(
         db,
         sentence_id=body.sentence_id,
@@ -358,20 +431,13 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         ],
     )
 
-    if body.review_mode == "reading" and (body.sentence_id or body.sentence_ids):
-        # fragment_retest_v1: stock phrases for the words just missed so the
-        # same-day retry has one ready. Runs on its own thread and session.
-        missed_now = sorted({
-            w["lemma_id"]
-            for w in result.get("word_results", [])
-            if w.get("lemma_id") and (w.get("rating") or 3) <= 2
-            and not w.get("form_recovery_protected")
-        })
-        if missed_now:
-            from app.services.background_threads import start_daemon
-            from app.services.word_fragments import generate_fragments_for_lemmas
-
-            start_daemon(generate_fragments_for_lemmas, missed_now, name="word-fragments")
+    _after_sentence_review(
+        db,
+        result,
+        review_mode=body.review_mode,
+        has_sentence=bool(body.sentence_id or body.sentence_ids),
+        fragment_id=body.fragment_id,
+    )
 
     log_interaction(
         event="sentence_review",
@@ -616,6 +682,7 @@ def sync_reviews(
 ):
     results = []
     reviewed_session_id: str | None = None
+    fragment_lemma_ids: set[int] = set()
 
     # Detect glitch batches: >10 reviews from one session with impossibly fast
     # response times (sub-500ms). Return "ok" to clear the client queue but skip
@@ -657,6 +724,11 @@ def sync_reviews(
         try:
             if item.type == "sentence":
                 payload = item.payload
+                if _is_repeat_followup(
+                    db, payload.get("review_mode"), payload["primary_lemma_id"]
+                ):
+                    results.append({"client_review_id": item.client_review_id, "status": "duplicate"})
+                    continue
                 raw_word_evidence = payload.get("word_review_evidence")
                 word_review_evidence = (
                     raw_word_evidence
@@ -684,6 +756,13 @@ def sync_reviews(
                 )
                 status = "duplicate" if result.get("duplicate") else "ok"
                 if status != "duplicate":
+                    item_mode = payload.get("review_mode", "reading")
+                    _mark_fragment_shown(db, payload.get("fragment_id"))
+                    if (
+                        item_mode == "reading"
+                        and (payload.get("sentence_id") or payload.get("sentence_ids"))
+                    ) or item_mode == "fragment":
+                        fragment_lemma_ids.update(_missed_lemma_ids(result))
                     if payload.get("review_mode", "reading") == "reading":
                         reviewed_session_id = payload.get("session_id") or reviewed_session_id
                     log_interaction(
@@ -742,6 +821,7 @@ def sync_reviews(
         except Exception as e:
             db.rollback()
             results.append({"client_review_id": item.client_review_id, "status": "error", "error": str(e)})
+    _start_fragment_generation(sorted(fragment_lemma_ids))
     if reviewed_session_id:
         # Background tasks run before the request session is finalized; release
         # any write lock first so the pass never waits on this request.
@@ -893,6 +973,95 @@ def review_verse(body: VerseReviewIn, db: Session = Depends(get_db)):
     return submit_verse_review(db, body.verse_id, body.rating, body.session_id)
 
 
+def _wrap_up_card(db: Session, lemma: Lemma, is_acquiring: bool = False) -> WrapUpCardOut:
+    """Word card with root, pattern, forms, etymology and hook."""
+    root_obj = lemma.root
+    # Pattern examples for wrap-up (compact, limit 3)
+    pe = []
+    if lemma.wazn:
+        touched_root_ids = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.isnot(None))
+            .distinct()
+            .subquery()
+        )
+        examples = (
+            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.wazn == lemma.wazn,
+                Lemma.root_id.in_(touched_root_ids),
+                Lemma.lemma_id != lemma.lemma_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .order_by(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                    else_=1,
+                ),
+                Lemma.frequency_rank.asc().nullslast(),
+            )
+            .limit(3)
+            .all()
+        )
+        for ex, ks in examples:
+            ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+            pe.append({
+                "lemma_id": ex.lemma_id,
+                "lemma_ar": ex.lemma_ar,
+                "gloss_en": ex.gloss_en,
+                "transliteration": _lemma_display_transliteration(ex),
+                "root": ex_root.root if ex_root else None,
+                "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                "knowledge_state": ks,
+            })
+
+    # Root family for wrap-up card
+    rf = []
+    if root_obj:
+        siblings = (
+            db.query(Lemma)
+            .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma.lemma_id, Lemma.canonical_lemma_id.is_(None))
+            .all()
+        )
+        sibling_ulk = {
+            ulk.lemma_id: ulk.knowledge_state
+            for ulk in db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id.in_([s.lemma_id for s in siblings]))
+            .all()
+        } if siblings else {}
+        for sib in siblings:
+            rf.append({
+                "lemma_id": sib.lemma_id,
+                "lemma_ar": sib.lemma_ar,
+                "gloss_en": sib.gloss_en,
+                "transliteration": _lemma_display_transliteration(sib),
+                "state": sibling_ulk.get(sib.lemma_id, "new"),
+            })
+
+    return WrapUpCardOut(
+        lemma_id=lemma.lemma_id,
+        lemma_ar=lemma.lemma_ar,
+        lemma_ar_bare=lemma.lemma_ar_bare,
+        gloss_en=lemma.gloss_en,
+        transliteration=_lemma_display_transliteration(lemma),
+        pos=lemma.pos,
+        forms_json=lemma.forms_json,
+        root=root_obj.root if root_obj else None,
+        root_meaning=root_obj.core_meaning_en if root_obj else None,
+        root_id=root_obj.root_id if root_obj else None,
+        etymology_json=lemma.etymology_json,
+        memory_hooks_json=lemma.memory_hooks_json,
+        wazn=lemma.wazn,
+        wazn_meaning=lemma.wazn_meaning,
+        forms_translit=lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
+        pattern_examples=pe,
+        is_acquiring=is_acquiring,
+        root_family=rf,
+    )
+
+
 @router.post("/wrap-up", response_model=WrapUpOut)
 def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
     """Get word-level recall cards for acquiring and missed words in current session."""
@@ -953,91 +1122,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
     cards = []
     # Acquiring words first, then missed
     for lemma in sorted(lemmas, key=lambda l: (l.lemma_id not in acquiring_ids, l.lemma_id)):
-        root_obj = lemma.root
-        # Pattern examples for wrap-up (compact, limit 3)
-        pe = []
-        if lemma.wazn:
-            touched_root_ids = (
-                db.query(Lemma.root_id)
-                .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-                .filter(Lemma.root_id.isnot(None))
-                .distinct()
-                .subquery()
-            )
-            examples = (
-                db.query(Lemma, UserLemmaKnowledge.knowledge_state)
-                .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-                .filter(
-                    Lemma.wazn == lemma.wazn,
-                    Lemma.root_id.in_(touched_root_ids),
-                    Lemma.lemma_id != lemma.lemma_id,
-                    Lemma.canonical_lemma_id.is_(None),
-                )
-                .order_by(
-                    case(
-                        (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
-                        else_=1,
-                    ),
-                    Lemma.frequency_rank.asc().nullslast(),
-                )
-                .limit(3)
-                .all()
-            )
-            for ex, ks in examples:
-                ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
-                pe.append({
-                    "lemma_id": ex.lemma_id,
-                    "lemma_ar": ex.lemma_ar,
-                    "gloss_en": ex.gloss_en,
-                    "transliteration": _lemma_display_transliteration(ex),
-                    "root": ex_root.root if ex_root else None,
-                    "root_meaning": ex_root.core_meaning_en if ex_root else None,
-                    "knowledge_state": ks,
-                })
-
-        # Root family for wrap-up card
-        rf = []
-        if root_obj:
-            siblings = (
-                db.query(Lemma)
-                .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma.lemma_id, Lemma.canonical_lemma_id.is_(None))
-                .all()
-            )
-            sibling_ulk = {
-                ulk.lemma_id: ulk.knowledge_state
-                for ulk in db.query(UserLemmaKnowledge)
-                .filter(UserLemmaKnowledge.lemma_id.in_([s.lemma_id for s in siblings]))
-                .all()
-            } if siblings else {}
-            for sib in siblings:
-                rf.append({
-                    "lemma_id": sib.lemma_id,
-                    "lemma_ar": sib.lemma_ar,
-                    "gloss_en": sib.gloss_en,
-                    "transliteration": _lemma_display_transliteration(sib),
-                    "state": sibling_ulk.get(sib.lemma_id, "new"),
-                })
-
-        cards.append(WrapUpCardOut(
-            lemma_id=lemma.lemma_id,
-            lemma_ar=lemma.lemma_ar,
-            lemma_ar_bare=lemma.lemma_ar_bare,
-            gloss_en=lemma.gloss_en,
-            transliteration=_lemma_display_transliteration(lemma),
-            pos=lemma.pos,
-            forms_json=lemma.forms_json,
-            root=root_obj.root if root_obj else None,
-            root_meaning=root_obj.core_meaning_en if root_obj else None,
-            root_id=root_obj.root_id if root_obj else None,
-            etymology_json=lemma.etymology_json,
-            memory_hooks_json=lemma.memory_hooks_json,
-            wazn=lemma.wazn,
-            wazn_meaning=lemma.wazn_meaning,
-            forms_translit=lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
-            pattern_examples=pe,
-            is_acquiring=lemma.lemma_id in acquiring_ids,
-            root_family=rf,
-        ))
+        cards.append(_wrap_up_card(db, lemma, lemma.lemma_id in acquiring_ids))
 
     retest_arm = None
     fragment_id = None

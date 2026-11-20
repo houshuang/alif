@@ -2925,6 +2925,14 @@ def _warm_sentence_cache_impl(
     except Exception:
         logger.warning("Warm cache: due-menu generation skipped", exc_info=True)
 
+    # ── Phase 3g: Phrases for open misses whose follow-up will be a phrase ──
+    try:
+        from app.services.word_fragments import stock_followup_fragments
+
+        stats["followup_fragments"] = stock_followup_fragments()
+    except Exception:
+        logger.warning("Warm cache: follow-up fragments skipped", exc_info=True)
+
     # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
     # IMPORTANT: Don't hold DB session during LLM calls — they can hang for minutes
     # and block all other writes (caused "database is locked" cascades).

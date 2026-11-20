@@ -2758,13 +2758,51 @@ def build_session(
                     )
         return used - already
 
+    # fragment_followup_v1: for half the open misses the scheduled follow-up is
+    # a short phrase instead of a sentence card. A phrase takes one of the
+    # lane's slots and one base card off the session; the last required
+    # success always stays a full sentence.
+    missed_lane_slots = reserved_slots(limit, MISSED_RECOVERY_SLOT_FRACTION)
+    followup_fragments: list[dict] = []
+    if open_missed:
+        from app.services.word_fragments import (
+            PHRASE_ARM,
+            followup_arm,
+            fragment_payload,
+            fragment_retest_enabled,
+            pick_fragment,
+            recent_followup_exists,
+        )
+
+        if fragment_retest_enabled():
+            for lemma_id in recovery_order(open_missed):
+                if len(followup_fragments) >= missed_lane_slots or limit <= 1:
+                    break
+                miss = open_missed[lemma_id]
+                if (
+                    lemma_id not in remaining_due
+                    or miss.remaining < 2
+                    or followup_arm(lemma_id, miss.missed_at) != PHRASE_ARM
+                    or recent_followup_exists(db, lemma_id, now)
+                ):
+                    continue
+                fragment = pick_fragment(db, lemma_id)
+                if fragment is None:
+                    continue
+                followup_fragments.append({
+                    "lemma_id": lemma_id,
+                    "fragment": fragment_payload(fragment),
+                })
+                remaining_due.discard(lemma_id)
+                limit -= 1
+
     # Dense due-word cards score with coverage ** 1.5 and would otherwise take
     # every base slot while their stock lasts. Reserve a share for open misses
     # and for words still being learned; the reserved cards are ordinary
     # candidates that passed every gate above.
     missed_recovery_cards = _reserve_cards(
         [lid for lid in recovery_order(open_missed)],
-        reserved_slots(limit, MISSED_RECOVERY_SLOT_FRACTION),
+        missed_lane_slots - len(followup_fragments),
         MISSED_RECOVERY_VERSION,
     )
     acquiring_due_order = sorted(
@@ -3521,7 +3559,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(
+    result = _with_fallbacks(
         db, session_id, due_lemma_ids, stability_map, total_due, items, limit,
         covered_ids,
         reintro_cards=reintro_cards,
@@ -3532,6 +3570,10 @@ def build_session(
         allow_intro_mutations=allow_intro_mutations,
         selector_policy=selector_policy,
     )
+    result["followup_fragments"] = followup_fragments
+    if isinstance(result.get("selection_diagnostics"), dict):
+        result["selection_diagnostics"]["followup_fragment_cards"] = len(followup_fragments)
+    return result
 
 
 MAX_REINTRO_PER_SESSION = 3

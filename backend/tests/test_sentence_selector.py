@@ -252,6 +252,7 @@ class TestFilledOpeningPolicy:
             "confusion_context_rescue_cards": 0,
             "missed_word_recovery_cards": 0,
             "acquiring_reserved_cards": 0,
+            "followup_fragment_cards": 0,
             "max_due_words_on_card": 3,
             "cards_over_due_density_cap": 0,
             "selector_policy": SELECTOR_POLICY_S1B,

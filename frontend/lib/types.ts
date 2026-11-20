@@ -1,4 +1,4 @@
-export type ReviewMode = "reading" | "listening" | "quiz";
+export type ReviewMode = "reading" | "listening" | "quiz" | "fragment";
 export type ComprehensionSignal = "understood" | "partial" | "no_idea";
 export type WordCategory = "proper_name" | "onomatopoeia";
 
@@ -193,7 +193,7 @@ export interface WrapUpCard {
   forms_translit?: Record<string, string> | null;
   pattern_examples?: PatternExample[];
   root_family?: { lemma_id: number; lemma_ar: string; gloss_en: string | null; transliteration?: string | null; state: string }[];
-  retest_arm?: "fragment" | "word_card" | null;
+  retest_arm?: "fragment" | "word_card" | "followup_phrase" | null;
   fragment?: {
     id: number;
     arabic: string;
@@ -511,6 +511,8 @@ export interface SentenceReviewSession {
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
   verse_cards?: VerseCard[];
+  /** Phrase cards that replace a sentence card for a missed word's follow-up. */
+  followup_fragment_cards?: WrapUpCard[];
   selection_diagnostics?: {
     learning_policy_version?: string;
     low_energy_maintenance_enabled?: boolean;
@@ -583,6 +585,7 @@ export interface SentenceReviewSubmission {
   audio_play_count?: number;
   lookup_count?: number;
   parent_card_type?: string;
+  fragment_id?: number;
   rating2_prompt_shown_sentence_word_ids?: number[];
   failure_cause_prompt_shown_sentence_word_ids?: number[];
   word_evidence_protocol_version?: number;

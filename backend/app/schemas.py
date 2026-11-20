@@ -624,6 +624,9 @@ class SentenceSessionOut(BaseModel):
     grammar_refresher_needed: list[str] = []
     verse_cards: list[VerseCardOut] = []
     selection_diagnostics: dict = {}
+    # fragment_followup_v1: phrase cards that replace a sentence card for a
+    # missed word's scheduled follow-up (WrapUpCardOut with `fragment` set).
+    followup_fragment_cards: list[dict] = []
 
 
 class ConfusionCaptureIn(BaseModel):
@@ -673,6 +676,7 @@ class SentenceReviewSubmitIn(BaseModel):
     client_review_id: str | None = None
     audio_play_count: int | None = None
     lookup_count: int | None = None
+    fragment_id: int | None = None  # phrase shown on a follow-up card (review_mode="fragment")
     parent_card_type: str | None = None  # passage|sentence|wrapup|... — set by frontend so analytics can split passage-internal reviews
     rating2_prompt_shown_sentence_word_ids: list[int] = Field(
         default_factory=list
