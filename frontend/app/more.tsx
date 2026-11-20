@@ -172,6 +172,16 @@ export default function MoreScreen() {
         onPress={() => router.push("/books")}
       />
       <NavRow
+        icon="compass-outline"
+        label="Explore"
+        onPress={() => router.push("/explore")}
+      />
+      <NavRow
+        icon="mic-outline"
+        label="Podcast"
+        onPress={() => router.push("/podcast")}
+      />
+      <NavRow
         icon="headset-outline"
         label="Listening"
         onPress={() => router.push("/listening")}

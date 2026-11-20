@@ -49,6 +49,8 @@ import {
   TodayProgress,
   PretestWord,
   ClipCatalogue,
+  DialectCatalogue,
+  DialectEvent,
   ClipEvent,
   ClipProgress,
 } from "./types";
@@ -1552,6 +1554,32 @@ export function clipVideoUrl(clipId: string): string {
 
 export async function recordClipEvent(clipId: string, event: ClipEvent): Promise<ClipProgress> {
   return fetchApi<ClipProgress>(`/api/clips/${clipId}/event`, {
+    method: "POST",
+    body: JSON.stringify(event),
+  });
+}
+
+export async function getDialect(): Promise<DialectCatalogue> {
+  try {
+    const catalogue = await fetchApi<DialectCatalogue>("/api/dialect");
+    cacheData("dialect", catalogue).catch(() => {});
+    return catalogue;
+  } catch (e) {
+    const cached = await getCachedData<DialectCatalogue>("dialect");
+    if (cached) return cached;
+    throw e;
+  }
+}
+
+export function dialectAudioUrl(sourceId: string): string {
+  return `${BASE_URL}/api/dialect/audio/${sourceId}`;
+}
+
+export async function recordDialectEvent(
+  lineId: string,
+  event: DialectEvent,
+): Promise<{ line_id: string; hard: boolean }> {
+  return fetchApi(`/api/dialect/lines/${lineId}/event`, {
     method: "POST",
     body: JSON.stringify(event),
   });

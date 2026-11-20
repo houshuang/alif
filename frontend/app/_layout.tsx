@@ -252,15 +252,16 @@ function LayoutInner({ online }: { online: boolean }) {
           options={{ href: null, title: "Listening", headerShown: false }}
         />
         <Tabs.Screen
-          name="podcast"
+          name="dialect"
           options={{
-            href: arHref("podcast"),
-            title: "Podcast",
+            href: arHref("dialect"),
+            title: "Dialect",
             headerShown: false,
-            tabBarLabel: "Podcast",
-            tabBarIcon: ({ color, size }) => <Ionicons name="mic-outline" size={size} color={color} />,
+            tabBarLabel: "Dialect",
+            tabBarIcon: ({ color, size }) => <Ionicons name="ear-outline" size={size} color={color} />,
           }}
         />
+        <Tabs.Screen name="podcast" options={{ href: null, title: "Podcast", headerShown: false }} />
         <Tabs.Screen
           name="stats"
           options={{
@@ -270,15 +271,7 @@ function LayoutInner({ online }: { online: boolean }) {
             tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}
         />
-        <Tabs.Screen
-          name="explore"
-          options={{
-            href: arHref("explore"),
-            title: "Explore",
-            tabBarLabel: "Explore",
-            tabBarIcon: ({ color, size }) => <Ionicons name="compass-outline" size={size} color={color} />,
-          }}
-        />
+        <Tabs.Screen name="explore" options={{ href: null, title: "Explore" }} />
         <Tabs.Screen
           name="stories"
           options={{

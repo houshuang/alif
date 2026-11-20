@@ -122,6 +122,10 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 
 `automatic_attention.py` computes reversible maintenance eligibility from broad frequency, independent reading contexts and recent practice cost. Ordinary cron and fresh sessions refresh it automatically. `attention_policy.py` remains the shared enforcement layer. The classifier never calls a provider or rewrites memory; all decisions retain reasons in the activity log.
 
+## Dialect Lines
+
+`app/routers/dialect.py` serves `data/dialect/lines.json` and audio in `data/dialect/audio/`. On production `data/dialect` is a symlink to `/srv/media/dialect`. The file is built outside the repo from the private Layl study packs and the Egyptian clip catalogue; each line has source, scene, speaker, vocalized Arabic, English, start/end seconds, timed tokens (`toks`) and expression spans (`ex`: expression id, first and last token). Like Clips, the content is third-party material for private use, stays out of Git, and produces no lemma, FSRS or acquisition evidence; only `dialect_line_state` is written.
+
 ## Dialect listening clips
 
 `app/routers/clips.py` serves the catalogue `data/clips/clips.json` and videos in `data/clips/video/`. On production `data/clips` is a symlink to `/srv/media/egy-clips`. This content is third-party material for private use, so it stays out of Git and is reachable only through the private API capability. Each line carries phrases with word timings, each clip has a `vocab` list and a `wps` speech rate, and the catalogue is ordered slowest first. Clips do not produce lemma, FSRS or acquisition evidence: Egyptian forms are outside the MSA lemma inventory.

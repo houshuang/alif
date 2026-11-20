@@ -27,6 +27,7 @@ const KEYS = {
   stats: "@alif/stats",
   analytics: "@alif/analytics",
   clips: "@alif/clips",
+  dialect: "@alif/dialect-catalogue",
   storyLookups: (storyId: number) => `@alif/story-lookups/${storyId}`,
   stories: "@alif/stories",
   storyDetail: (id: number) => `@alif/story-detail/${id}`,
@@ -405,14 +406,14 @@ export async function invalidateDataCaches(): Promise<void> {
 }
 
 export async function cacheData(
-  type: "words" | "stats" | "analytics" | "clips",
+  type: "words" | "stats" | "analytics" | "clips" | "dialect",
   data: unknown
 ): Promise<void> {
   await setJson(KEYS[type], data);
 }
 
 export async function getCachedData<T>(
-  type: "words" | "stats" | "analytics" | "clips"
+  type: "words" | "stats" | "analytics" | "clips" | "dialect"
 ): Promise<T | null> {
   return getJson<T>(KEYS[type]);
 }

@@ -183,6 +183,12 @@ Returns `recorded` or `duplicate`; invalid identities and conflicting event IDs
 return 422. Writes experiment evidence only, without vocabulary/review credit.
 Content is bundled; see `parallel-reading.md`.
 
+## Dialect Lines
+
+- `GET /api/dialect` returns `{sources, lines, expressions}` from `data/dialect/lines.json`, with `hard` added to each line.
+- `GET /api/dialect/audio/{source_id}` streams the source's MP3/M4A with HTTP Range support.
+- `POST /api/dialect/lines/{line_id}/event` records `{event: "play" | "arabic" | "english"}` or `{event: "hard", hard}` and returns `{line_id, hard}`. Events log as `dialect_play`, `dialect_arabic`, `dialect_english` and `dialect_hard`.
+
 ## Dialect listening clips
 
 - `GET /api/clips` returns `{clips, core}`. Each clip has its timed `lines` and `progress` (`stage`, `pass_count`, `retest_due`, `next_check_at`).
