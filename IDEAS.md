@@ -96,6 +96,10 @@ shows the whole Arabic page with tappable words (gloss, state, Add). Open ideas:
   fails; the jussive/2fs forms of defective verbs are known only to the target check, not
   to the resolver, so a sentence using one maps only if the resolver finds nothing else.
 
+## 🟢 [BUILT 2026-11-20 — first phone use pending] Dialect Lines: one TV line at a time, grouped by expression
+
+Recorded TV episodes (Layl, Lebanese) and the Egyptian clips as single lines: blind first, replay one speed slower each tap, swipe up for Arabic then English, tap an underlined expression to hear other lines that use it. Open, deliberately left out of v1: scheduled re-listens per expression (1/3/7/21/60 days, a re-listen always in a line not yet heard); a list of all expressions with Lebanese/Egyptian/Hard filters; background audio with lock-screen and Bluetooth controls (needs a native build); speaker filter; hand-picked grammar patterns as expressions; repeat-after-me in this screen. Content pipeline: record with BlackHole, Soniox transcript, cross-check with Deepgram/Whisper, study pack, then `build_lines.py` in the private Dialect Lines folder.
+
 ## 🟢 [DEPLOYED 2026-11-08 — phone usage feedback pending] Egyptian TikTok clips practised to full comprehension
 
 Short real clips, drilled through Listen, Shadow, Blind and the original on TikTok, until followed at full speed without text. Word-by-word highlighting, short phrases, a Words step and 0.5× speed added after first use (too fast, hard to match speech to text). Open: a gentler on-ramp if the slowest clips stay too hard (Michel Thomas Egyptian, slowly read core-phrase sentences); move more of the remaining captioned clips in; a separate spaced deck for Egyptian chunks; feeding clip words that also exist in MSA into Alif; other dialects (Levantine, Gulf); blurred rather than covered picture in Blind (needs `expo-blur` and a native build).

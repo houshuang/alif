@@ -71,6 +71,10 @@ decision. Identity-QA parked rows remain excluded. New reading-relevant words ca
 receive an encountered staging row; reconciliation never changes existing memory
 fields. Audit transitions are stored as `activity_log.event_type=automatic_attention`.
 
+## DialectLineState (`dialect_line_state`)
+
+Listening state for one Dialect Lines line: `line_id` (primary key, e.g. `layl30-0012`, `eg-<clip id>-03`), `hard`, counters `plays`, `arabic_reveals`, `english_reveals`, and `updated_at`. Lines themselves live in `data/dialect/lines.json`, outside the repo. It has no link to lemmas, FSRS or acquisition.
+
 ## ClipProgress (`clip_progress`)
 
 Practice state for one dialect listening clip: `clip_id` (primary key), `stage` (1 Listen, 2 Shadow, 3 Blind, 4 TikTok), `pass_count`, `last_passed_at`, `next_check_at`, `updated_at`. It has no link to lemmas, FSRS or acquisition.
