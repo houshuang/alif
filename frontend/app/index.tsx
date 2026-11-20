@@ -835,12 +835,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // Check only between cards; never replace a sentence the learner is reading.
   // A layout effect, so a due check is decided before the next card is painted.
+  // The next batch loads behind the Today card, so wait until it is dismissed:
+  // a word card would otherwise render in its place.
   useLayoutEffect(() => {
     const done = results && results.total >= totalCards;
-    if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) {
+    if (!loading && !submittingReview && !sessionStopped && !todayCard && !done && cardIndex < totalCards) {
       if (!maybeShowFollowup()) maybeFireCheckpoint();
     }
-  }, [loading, submittingReview, cardIndex, sentenceSession?.session_id]);
+  }, [loading, submittingReview, cardIndex, sentenceSession?.session_id, todayCard === null]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {
@@ -4181,6 +4183,7 @@ function TodayProgressCard({
     : "–";
   const tiles: [string, string][] = [
     [data ? String(data.cards) : "–", "cards"],
+    [data ? String(data.due_words ?? 0) : "–", "due words"],
     [pct, "words correct"],
     [data ? String(data.new_words) : "–", "new words"],
     [data ? String(data.moved_up) : "–", "moved up"],
@@ -5270,12 +5273,12 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   dayTile: {
-    width: "33.3%",
+    width: "25%",
     alignItems: "center",
     paddingVertical: 14,
   },
   dayValue: {
-    fontSize: 30,
+    fontSize: 26,
     color: colors.text,
     fontWeight: "700",
   },

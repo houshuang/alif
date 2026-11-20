@@ -95,7 +95,9 @@ Verse-by-verse Quran reading interleaved with review sessions. Not a separate mo
 
 Batches continue automatically, so there is no end-of-session screen unless the learner
 taps Wrap Up. In reading mode, after each finished batch of at least 5 cards (about every
-10–15 cards) a Today card shows the UTC day's cumulative figures: cards, words correct %,
-new words, words that moved up a box, graduations, and the known total. Continue returns to
+10–15 cards) a Today card shows the UTC day's cumulative figures: cards, due words
+(distinct words reviewed today that were due or the card's target), words correct %, new
+words, words that moved up a box, graduations, and the known total. Continue returns to
 practice; the card is logged as `card_shown` with `card_type="progress"` and gives no
-review credit.
+review credit. Phrase follow-ups and quick checks wait until Continue (2026-11-20): the next
+batch loads behind the card, and a word card used to render in its place.

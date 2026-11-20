@@ -774,6 +774,7 @@ class SessionEndOut(BaseModel):
 
 class TodayProgressOut(BaseModel):
     cards: int
+    due_words: int
     words_reviewed: int
     words_correct: int
     new_words: int

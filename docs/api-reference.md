@@ -19,7 +19,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
 | GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + `morphology` `{category, form_key, explanation}` surface→lemma bridge (incl. verb-tense forms the band decomposition can't show) + form-aware visual similarity (surface/form edit distance, rasm, short-verb ranking) + phonetic similarity |
-| GET | `/api/review/today` | Cumulative figures for the current UTC day: cards, words reviewed/correct, new words, moved up, graduated, known (the between-batch Today card) |
+| GET | `/api/review/today` | Cumulative figures for the current UTC day: cards, due/target words seen, words reviewed/correct, new words, moved up, graduated, known (the between-batch Today card) |
 | POST | `/api/review/sync` | Bulk sync offline reviews; a new reading review queues the automatic intake pass (`intake_pass`, once per session id) |
 | POST | `/api/review/reintro-result` | Acknowledge an informational struggling-word reintro card. Writes interaction telemetry only—no ReviewLog, FSRS rating, acquisition advance, or count mutation. Accepts legacy `remember`/`show_again` queue payloads as acknowledgements. |
 | POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (sets `experiment_intro_shown_at` for dedup + rescue cooldown) |
