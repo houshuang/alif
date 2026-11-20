@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio, AVPlaybackStatus, InterruptionModeIOS } from "expo-av";
+import { Audio, AVPlaybackStatus } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { dialectAudioUrl, getDialect, recordDialectEvent } from "../lib/api";
 import {
@@ -238,10 +238,7 @@ function Player({
   }, []);
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    }).catch(() => {});
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
     return () => {
       playId.current += 1;
       sound.current?.s.unloadAsync().catch(() => {});
