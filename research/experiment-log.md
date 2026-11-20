@@ -84,7 +84,7 @@ This changes the model, not the existing Arabic quality calibration.
 
 **Corrections / same_lemma / no-auto-create (load-bearing — don't weaken)** — `2026-03-17 "Stop Auto-Creating Lemmas from Mapping Corrections"` · `2026-04-09 "Fix Same-Lemma Correction Silent Pass-Through"` · `2026-04-16 "Corpus sentence mapping bug — 63/74"`.
 
-**Missed words / same-day retries** — `2026-11-20 "Missed-word recovery lane, acquiring reserve, and the fragment retry A/B"` (definitive: open-miss rule, reserved shares, retry queue v4, fragment A/B and its readout) · `2026-10-15 "Continuous practice and elapsed-time missing-word retries"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-07-25 "Rapid re-exposure re-test after failure"`.
+**Missed words / same-day retries** — `2026-11-20 (2) "Phrase follow-ups replace the retry-card trial"` (definitive for the running fragment trial and its readout) · `2026-11-20 "Missed-word recovery lane, acquiring reserve, and the fragment retry A/B"` (definitive: open-miss rule, reserved shares, retry queue v4; its change 5 was switched off the same day) · `2026-10-15 "Continuous practice and elapsed-time missing-word retries"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-07-25 "Rapid re-exposure re-test after failure"`.
 
 **Sentence generation: density, writer, judge, lemma metadata (Nov 2026)** — start at `2026-11-19 (5) "Timeline and the one open measurement"`, which lists the six entries of 18–19 Nov in order with what to compare.
 
@@ -117,6 +117,54 @@ This changes the model, not the existing Arabic quality calibration.
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-11-20 (2): Phrase follow-ups replace the retry-card trial (`fragment_followup_v1`)
+
+**Why.** The learner's idea was a phrase in place of a full sentence when a missed word
+comes up for review, not a phrase in place of the bare word card on the same-day retry
+(entry below, change 5). Asked which to run, he chose only the more consequential one, for
+a quicker readout (2026-11-20). In the replay most cards picked for missed words carried
+that one due word in a nine-word sentence (about 35 s); a 2–3-word phrase is estimated
+at 12–15 s.
+
+**Also found.** The phone submits reviews through the bulk sync endpoint
+(`/api/review/sync`), and the fragment generation trigger of the entry below sat only in
+`/api/review/submit-sentence`. No fragments were generated on production between the two
+deploys, so the retry-card trial delivered word cards only and produced no usable data.
+
+**Changes.**
+1. Retry-card trial off: `RETEST_AB_ACTIVE = False` in `word_fragments.py`; every same-day
+   retry is a word card, no rows are written to `word_retest_assignments`. The code and the
+   table stay.
+2. `fragment_followup_v1`. Each miss is hashed (lemma, miss time; separate salt) into
+   `phrase` or `sentence`. For a `phrase` word that is an open miss, due, and has at least
+   two required successes left, the session carries a phrase card
+   (`followup_fragment_cards`) instead of reserving a sentence card: it uses one of the
+   missed-word lane's slots and takes one base card off the session. The app shows it
+   between sentence cards (after the first card, at most every second card), with
+   "Got it" / "Missed", submitted as a word-only review with `review_mode="fragment"`,
+   `parent_card_type="followup_fragment"`, `fragment_id`. It is the word's scheduled
+   review: ordinary FSRS update, rating 3 or 1.
+3. Miss rule: a correct phrase counts as a success, but the last required success must be
+   a full sentence (`successes = sentence + min(phrase, required − 1)`). A missed phrase
+   is a new miss.
+4. Supply: phrases are generated after any review with misses for words whose latest miss
+   is in the `phrase` arm (both submission paths, after the review is committed), and
+   warm-cache phase 3g tops up open `phrase` misses with no unshown phrase (8 words per
+   run). No phrase in stock → the ordinary sentence card (intention-to-treat keeps the arm).
+5. Guard for resumed sessions: a second phrase review of the same word within 6 hours is
+   answered as a duplicate and not scheduled; the selector does not offer one either.
+
+**Readout (not before 2026-12-04; 50 words per arm with a completed outcome).** Unit: a
+miss. Arm: `followup_arm(lemma_id, missed_at)` recomputed from `review_log` (no table).
+Primary endpoint: rating at the first full-sentence review after the first follow-up.
+Secondary: seconds per follow-up (`response_ms` of `review_mode="fragment"` rows is
+measured from display for these cards, unlike word cards), share of `phrase` misses that
+actually got a phrase, days from miss to closed. Roll back with `ALIF_FRAGMENT_RETEST=0`
+(stops generation and phrase follow-ups).
+
+**Known weakness.** A phrase gives more of the meaning away than a sentence, so the phrase
+arm's own hit rate is not comparable; only the later full-sentence review is.
 
 ## 2026-11-20: Missed-word recovery lane, acquiring reserve, and the fragment retry A/B
 

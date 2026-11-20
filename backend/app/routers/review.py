@@ -348,6 +348,18 @@ def warm_sentences(background_tasks: BackgroundTasks):
     return {"status": "warming"}
 
 
+def _is_repeat_followup(db: Session, review_mode: str | None, lemma_id: int) -> bool:
+    """A resumed session can offer a phrase follow-up that was already answered."""
+    if review_mode != "fragment":
+        return False
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.word_fragments import recent_followup_exists
+
+    return recent_followup_exists(
+        db, resolve_canonical_lemma_id(db, lemma_id), datetime.now(timezone.utc)
+    )
+
+
 def _missed_lemma_ids(result: dict) -> list[int]:
     return sorted({
         w["lemma_id"]
@@ -397,6 +409,8 @@ def _after_sentence_review(
 @router.post("/submit-sentence", response_model=SentenceReviewSubmitOut)
 def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db)):
     """Submit a sentence-level review."""
+    if _is_repeat_followup(db, body.review_mode, body.primary_lemma_id):
+        return {"word_results": [], "duplicate": True}
     result = submit_sentence_review(
         db,
         sentence_id=body.sentence_id,
@@ -710,6 +724,11 @@ def sync_reviews(
         try:
             if item.type == "sentence":
                 payload = item.payload
+                if _is_repeat_followup(
+                    db, payload.get("review_mode"), payload["primary_lemma_id"]
+                ):
+                    results.append({"client_review_id": item.client_review_id, "status": "duplicate"})
+                    continue
                 raw_word_evidence = payload.get("word_review_evidence")
                 word_review_evidence = (
                     raw_word_evidence

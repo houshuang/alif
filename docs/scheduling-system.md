@@ -2354,6 +2354,16 @@ card), within 30 days. While open and FSRS-due, the word is scheduled regardless
 focus cohort and frequency lane and competes for a reserved share of base cards;
 `generate_due_menu_material` puts open misses at the head of each menu.
 
+**Phrase follow-ups (`fragment_followup_v1`, 2026-11-20).** The retry-card trial was
+switched off the day it launched (`RETEST_AB_ACTIVE = False`): every same-day retry is a
+word card. The running trial hashes each miss into `phrase` or `sentence`. A `phrase`
+word that is an open miss, due, with at least two required successes left gets a phrase
+card with the session (`followup_fragment_cards`) in place of a reserved sentence card;
+the session has one base card fewer per phrase. The phrase is the scheduled review
+(`review_mode="fragment"`, rating 3 or 1, ordinary FSRS update). A correct phrase counts
+toward closing the miss, but the last required success must be a full sentence; a missed
+phrase is a new miss. No phrase in stock means the ordinary sentence card.
+
 | Constant | Value | Location |
 |----------|-------|----------|
 | `MISSED_RECOVERY_WINDOW_DAYS` | 30 | `missed_word_recovery.py` |

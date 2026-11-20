@@ -533,6 +533,7 @@ export async function submitSentenceReview(
     audio_play_count: submission.audio_play_count,
     lookup_count: submission.lookup_count,
     parent_card_type: submission.parent_card_type,
+    fragment_id: submission.fragment_id,
     rating2_prompt_shown_sentence_word_ids:
       submission.rating2_prompt_shown_sentence_word_ids,
     failure_cause_prompt_shown_sentence_word_ids:
@@ -1047,7 +1048,7 @@ export async function acknowledgeReintro(
 }
 
 export interface CardShownPayload {
-  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint" | "progress";
+  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint" | "followup_fragment" | "progress";
   session_id?: string | null;
   lemma_id?: number | null;
   sentence_id?: number | null;

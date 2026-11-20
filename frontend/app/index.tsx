@@ -471,7 +471,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wrapUpRevealed, setWrapUpRevealed] = useState(false);
   const [inWrapUp, setInWrapUp] = useState(false);
   // Protocol v3: elapsed-time checks are independent of batch boundaries.
-  const [wrapUpVariant, setWrapUpVariant] = useState<"wrapup" | "checkpoint">("wrapup");
+  const [wrapUpVariant, setWrapUpVariant] = useState<"wrapup" | "checkpoint" | "followup">("wrapup");
+  // Phrase follow-ups delivered with the session; shown between sentence cards.
+  const followupQueueRef = useRef<WrapUpCard[]>([]);
+  const followupAnsweredRef = useRef<Set<number>>(new Set());
+  const lastFollowupCardIndexRef = useRef(-1);
   const retestQueueRef = useRef<Array<{ lemmaId: number; failedAtMs: number; cardsSince: number }>>([]);
   const lastCheckpointAtRef = useRef(0);
   const checkpointBoundaryRef = useRef(0);
@@ -789,7 +793,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!inWrapUp) return;
     // Checkpoint cards log their own card_shown (with gap/cards-since detail)
     // at fire time in maybeFireCheckpoint.
-    if (wrapUpVariant === "checkpoint") return;
+    if (wrapUpVariant === "checkpoint" || wrapUpVariant === "followup") return;
     const card = wrapUpCards[wrapUpIndex];
     if (card) {
       logCardShown({
@@ -828,7 +832,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // A layout effect, so a due check is decided before the next card is painted.
   useLayoutEffect(() => {
     const done = results && results.total >= totalCards;
-    if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) maybeFireCheckpoint();
+    if (!loading && !submittingReview && !sessionStopped && !done && cardIndex < totalCards) {
+      if (!maybeShowFollowup()) maybeFireCheckpoint();
+    }
   }, [loading, submittingReview, cardIndex, sentenceSession?.session_id]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
@@ -988,6 +994,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         await activateCachedSession(m, ss).catch(() => {});
         if (generation !== sessionLoadGeneration.current) return;
         setSentenceSession(ss);
+        followupQueueRef.current = m === "reading"
+          ? (ss.followup_fragment_cards ?? []).filter(c => c.fragment && !followupAnsweredRef.current.has(c.lemma_id))
+          : [];
+        lastFollowupCardIndexRef.current = -1;
         // Build interleaved session slots: intro cards distributed among sentences
         if (ss.intro_candidates && ss.intro_candidates.length > 0 && m === "reading") {
           setAutoIntroduced(ss.intro_candidates);
@@ -1730,6 +1740,30 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     saveRetests(retestQueueRef.current, lastCheckpointAtRef.current);
   }
 
+  /** A phrase follow-up stands in for a sentence card: one after the first
+   * card, then at most one every second card. */
+  function maybeShowFollowup(): boolean {
+    if (mode !== "reading" || !sentenceSession || sessionStopped) return false;
+    if (inWrapUp || checkpointFetchingRef.current) return false;
+    if (cardIndex < 1 || cardIndex - lastFollowupCardIndexRef.current < 2) return false;
+    const card = followupQueueRef.current.find(c => !followupAnsweredRef.current.has(c.lemma_id));
+    if (!card) return false;
+    lastFollowupCardIndexRef.current = cardIndex;
+    showTime.current = Date.now();
+    setWrapUpCards([card]);
+    setWrapUpIndex(0);
+    setWrapUpRevealed(false);
+    setWrapUpVariant("followup");
+    setInWrapUp(true);
+    logCardShown({
+      card_type: "followup_fragment",
+      session_id: sentenceSession.session_id,
+      lemma_id: card.lemma_id,
+      detail: { fragment_id: card.fragment?.id ?? null },
+    });
+    return true;
+  }
+
   /** Elapsed time determines eligibility; batch length never forces a retry. */
   function maybeFireCheckpoint() {
     if (mode !== "reading" || !sentenceSession || sessionStopped) return;
@@ -1869,7 +1903,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== card.lemma_id);
     if (!gotIt) enqueueRetest(card.lemma_id);
     persistRetests();
-    // Submit as acquisition review
+    const isFollowup = wrapUpVariant === "followup";
+    if (isFollowup) {
+      followupAnsweredRef.current.add(card.lemma_id);
+      followupQueueRef.current = followupQueueRef.current.filter(c => c.lemma_id !== card.lemma_id);
+    }
+    // A follow-up phrase is the word's scheduled review; the others are
+    // same-day word-card retries.
     try {
       await submitSentenceReview({
         sentence_id: null,
@@ -1878,10 +1918,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         missed_lemma_ids: gotIt ? [] : [card.lemma_id],
         response_ms: Date.now() - showTime.current,
         session_id: sentenceSession?.session_id ?? generateUuid(),
-        review_mode: "quiz",
-        parent_card_type: wrapUpVariant === "checkpoint" && card.fragment
-          ? "checkpoint_fragment"
-          : wrapUpVariant,
+        review_mode: isFollowup ? "fragment" : "quiz",
+        fragment_id: card.fragment?.id,
+        parent_card_type: isFollowup
+          ? "followup_fragment"
+          : wrapUpVariant === "checkpoint" && card.fragment
+            ? "checkpoint_fragment"
+            : wrapUpVariant,
       });
     } catch {}
 
@@ -1889,8 +1932,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setWrapUpIndex(wrapUpIndex + 1);
       setWrapUpRevealed(false);
       showTime.current = Date.now();
-    } else if (wrapUpVariant === "checkpoint") {
-      // Mid-session checkpoint done — return to the session where it left off
+    } else if (wrapUpVariant === "checkpoint" || wrapUpVariant === "followup") {
+      // Mid-session card done — return to the session where it left off
       setInWrapUp(false);
       setWrapUpVariant("wrapup");
       showTime.current = Date.now();
@@ -2074,7 +2117,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            {wrapUpVariant === "checkpoint"
+            {wrapUpVariant === "followup"
+              ? "Missed word"
+              : wrapUpVariant === "checkpoint"
               ? "Quick check"
               : `Wrap-up ${wrapUpIndex + 1}/${wrapUpCards.length}`}
           </Text>
