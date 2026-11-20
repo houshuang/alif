@@ -193,6 +193,15 @@ export interface WrapUpCard {
   forms_translit?: Record<string, string> | null;
   pattern_examples?: PatternExample[];
   root_family?: { lemma_id: number; lemma_ar: string; gloss_en: string | null; transliteration?: string | null; state: string }[];
+  retest_arm?: "fragment" | "word_card" | null;
+  fragment?: {
+    id: number;
+    arabic: string;
+    english: string;
+    transliteration: string | null;
+    target_surface: string;
+  } | null;
+  extra_support?: boolean;
 }
 
 export interface RecapItem {

@@ -84,6 +84,8 @@ This changes the model, not the existing Arabic quality calibration.
 
 **Corrections / same_lemma / no-auto-create (load-bearing — don't weaken)** — `2026-03-17 "Stop Auto-Creating Lemmas from Mapping Corrections"` · `2026-04-09 "Fix Same-Lemma Correction Silent Pass-Through"` · `2026-04-16 "Corpus sentence mapping bug — 63/74"`.
 
+**Missed words / same-day retries** — `2026-11-20 "Missed-word recovery lane, acquiring reserve, and the fragment retry A/B"` (definitive: open-miss rule, reserved shares, retry queue v4, fragment A/B and its readout) · `2026-10-15 "Continuous practice and elapsed-time missing-word retries"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-07-25 "Rapid re-exposure re-test after failure"`.
+
 **Sentence generation: density, writer, judge, lemma metadata (Nov 2026)** — start at `2026-11-19 (5) "Timeline and the one open measurement"`, which lists the six entries of 18–19 Nov in order with what to compare.
 
 **Mapping verification / reviewability gate** — `2026-05-12 "Tighten reviewability gate"` · `2026-05-13 "Comprehensive reverification sweep + continuous rolling"` · `2026-05-29 "Manual reverify sweep clears the stale-gated"` (sweep after a cutoff bump) · `2026-04-14 "Fix Silent JSON Parse Failure in Mapping Verification"`.
@@ -115,6 +117,89 @@ This changes the model, not the existing Arabic quality calibration.
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+## 2026-11-20: Missed-word recovery lane, acquiring reserve, and the fragment retry A/B
+
+**Why.** First review-side reading after the 18–19 Nov generation changes (40 sentence
+cards; early): due or acquiring words per card 2.4 → 4.05 at the same time per card
+(35.5 s → 37.1 s); the miss rate on due words rose 22% → 30%, mostly because the dense
+cards carry more long-overdue words (within the on-time and moderately-late buckets it is
+unchanged: 14% → 13%, 19% → 19%). Three delivery problems, two of them older than the
+change. Analysis: `research/analysis-2026-11-20-missed-word-recovery.md`; scripts in
+`research/missed-word-recovery-2026-11-20/`.
+1. A missed established word waits about two weeks. Of 118 red misses between 12 Oct and
+   11 Nov on words with stability ≥7 days, 8% returned in a sentence within 24 h, 25%
+   within 7 days; median 13.6 days. FSRS schedules about 2 days; the word then competes
+   with ~800 due words. `LAPSED_BOOST` and the established-lapse lane key on the state
+   `lapsed`, which a correct word card clears (80 of 110).
+2. Word cards cannot keep up with dense cards: at most one per minute, red misses 0.42 →
+   0.83 per card; on 19 Nov 33 red misses, 19 word cards, typical gap 22 h (expiry 24 h).
+3. Words being learned stopped: 1 of 195 word reviews on 19–20 Nov against 62 of 217 on
+   18 Nov, with 92 Box-1 and 21 Box-2 words due. Card score is coverage ** 1.5, so the full
+   stock of 4–6-due-word cards takes every base slot.
+
+**Learner decision (2026-11-20).** Closing a recent miss on an older word is worth a share
+of daily capacity; try short phrases as the same-day retry, as an A/B; a hit on one word
+card is not enough evidence, a miss on one is a strong signal.
+
+**Changes.**
+1. `missed_word_recovery_v1` (`services/missed_word_recovery.py`). A miss (rating 1 or 2 in
+   a sentence, non-acquisition, not form-recovery-protected, last 30 days) is open until the
+   word has 2 correct sentence reviews since; a missed word card adds one required success;
+   word-card hits never count. Open misses that are FSRS-due are scheduled regardless of
+   focus cohort and frequency lane, and get up to 30% of a session's base cards (3 of 10)
+   before the dense selection, fewest successes first, then newest miss.
+2. `acquiring_reserved_v1`. Up to 30% of base cards go to due acquiring words, most overdue
+   first; cards already selected that carry one count toward it.
+   Both lanes apply only to the default selector policy, pick ordinary candidates that
+   passed every gate, are protected from the established-lapse swap, and are counted in
+   `selection_diagnostics` (`missed_word_recovery_cards`, `acquiring_reserved_cards`).
+   The opening block now stops at the session limit.
+3. Due-word menu: open misses lead each menu (up to 40 of 150) and are named in the prompt
+   as words every sentence must build around; six or more of them without a dense unshown
+   sentence trigger one call even when the stock of 60 is full.
+4. Retry queue, protocol v4 (`frontend/lib/review/retest.ts`): yellow misses join (still
+   excluding form-only misses and open exact-surface episodes); the newest eligible miss
+   is served first; the one-minute spacing is dropped while three or more are waiting.
+5. `fragment_retest_v1` (`services/word_fragments.py`, tables `word_fragments`,
+   `word_retest_assignments`). Each miss is assigned by hash of (lemma, miss time) to
+   `fragment` or `word_card`. Fragment arm: after the sentence review a background thread
+   writes 4 candidate phrases of 2–3 words per word (Sonnet), keeps those where every token
+   resolves without a CAMeL guess, the target appears once, every other content word is
+   `known`, and the language judge passes Arabic and translation. The retry shows the
+   phrase with the target highlighted; the answer is submitted exactly like a word card
+   (`review_mode="quiz"`, `parent_card_type="checkpoint_fragment"`), so scheduling is
+   identical in both arms. No fragment ready → word card, recorded as
+   `delivered="word_card"` under `arm="fragment"`. Fragments are not sentences: never in a
+   session, no sentence credit, not through `generate_material_for_word`.
+   Off switch: `ALIF_FRAGMENT_RETEST=0`.
+6. Word-card miss: regenerates the memory hook with the current one as a negative example
+   (FSRS and acquisition paths); the card shows known same-root words when the open miss
+   already includes a missed word card.
+
+**Replay on a production snapshot (20 Nov 08:30 UTC, four ten-card batches, no writes).**
+251 open misses (180 with no success yet). Every batch: 3 missed-word cards, 2–3 reserved
+acquiring cards, 1 established-lapse swap; 48 open-miss words and 70 acquiring words in
+62 cards. Due words per card in the replay are 2.7, because most missed words have only
+single-due-word sentences today; change 3 is meant to raise that.
+
+**Expected.** Missed words back in a sentence within 2–3 days instead of two weeks; fewer
+ordinary due words refreshed per day (about a fifth of capacity moves); acquiring words
+reviewed again every session.
+
+**Readout (not before 2026-12-04).**
+- Lane: share of misses seen again in a sentence within 24 h / 72 h / 7 d and accuracy
+  then (`review_followup.py`; baseline 8% / 16% / 25%, 78% correct at the first appearance
+  ≥12 h later). Due words per card and the due count; acquisition reviews per day.
+- Fragment A/B, intention-to-treat on `word_retest_assignments.arm`: primary endpoint is
+  the rating at the first sentence review of the word at least 12 h after the miss;
+  secondary: retry correct rate, retry response time, share of the fragment arm actually
+  delivered a fragment. Decide at 50 completed outcomes per arm; do not stop early.
+- Roll back: lanes by setting the two slot fractions to 0 in `missed_word_recovery.py`;
+  fragments by `ALIF_FRAGMENT_RETEST=0`; queue by reverting `retest.ts`.
+
+**Confounds.** Deployed two days after six generation changes; the lane and the A/B start
+together, so the A/B is read within the new lane, not against history.
 
 ## 2026-11-19 (5): Timeline and the one open measurement (generation changes of 18–19 Nov)
 

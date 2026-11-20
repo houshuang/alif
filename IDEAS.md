@@ -1,5 +1,26 @@
 # Alif — Master Ideas File
 
+## 🟡 [IMPLEMENTED 2026-11-20 — readout after 2026-12-04] Closing missed words; fragments as the same-day retry
+
+Learner's framing (2026-11-20): capacity is split between refreshing old words, learning
+new ones and tightening missed older words; the last is good value because the word
+already has connections, and a stream of misses that vanish for two weeks is demotivating.
+Idea from the same conversation: very short phrases ("he kicked a football", "the man is
+old") instead of an isolated word for the retry.
+
+- Built: `missed_word_recovery_v1` lane, acquiring reserve, due-menu priority for open
+  misses, retry queue v4, `fragment_retest_v1` A/B. Experiment log 2026-11-20.
+- Open: the readout (lane timing, fragment arm against word-card arm).
+- If fragments win: use them for the next-day step too when a missed word has no fresh
+  sentence; consider fragments for acquiring Box-1 words.
+- If the lane starves ordinary refreshing: lower `MISSED_RECOVERY_SLOT_FRACTION` or
+  shorten the 30-day window (251 misses were open at launch, 180 with no success yet).
+- Not built: counting a fragment hit as part of the two required successes; a word card
+  that grows richer with each miss beyond same-root words (examples in context, contrast
+  with the word it was confused with).
+- Word-card response time is stored from the reveal, so the cost of a retry cannot be
+  measured yet; log time from first display.
+
 ## 🟢 [DEPLOYED 2026-11-15] Learner picks + Snap as a reading companion
 
 Snap adds and every textbook-scan word enter acquisition at once, even under recovery,

@@ -683,7 +683,8 @@ export async function prefetchWordLookupsForSession(
 export async function getWrapUpCards(
   seenLemmaIds: number[],
   missedLemmaIds: number[],
-  sessionId?: string
+  sessionId?: string,
+  checkpoint = false,
 ): Promise<WrapUpCard[]> {
   const data = await fetchApi<{ cards: WrapUpCard[] }>("/api/review/wrap-up", {
     method: "POST",
@@ -691,6 +692,7 @@ export async function getWrapUpCards(
       seen_lemma_ids: seenLemmaIds,
       missed_lemma_ids: missedLemmaIds,
       session_id: sessionId,
+      checkpoint,
     }),
   });
   return data.cards;
