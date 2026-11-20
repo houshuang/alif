@@ -201,6 +201,12 @@ reviewed again every session.
 **Confounds.** Deployed two days after six generation changes; the lane and the A/B start
 together, so the A/B is read within the new lane, not against history.
 
+**Deployed 2026-11-20 ≈ 08:50 UTC** (PR #330, `5f3ebd76`): backend (migration
+`d4f6b8c0e2a5`; backup `/opt/alif-backups/alif_pre_missed_word_recovery_20261120_084703.db`),
+web frontend, iOS update group `7b7d0954-acfb-4ae1-b17b-d2057163dc7d`. First live prefetch
+build: 3 missed-word cards, 3 reserved acquiring cards of 10 base cards. Retries answered
+before the phone applies the update (second launch) are protocol v3 word cards.
+
 ## 2026-11-19 (5): Timeline and the one open measurement (generation changes of 18–19 Nov)
 
 Written so a later reading of the data can attribute effects. Nothing changes here.
