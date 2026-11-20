@@ -166,6 +166,18 @@ actually got a phrase, days from miss to closed. Roll back with `ALIF_FRAGMENT_R
 **Known weakness.** A phrase gives more of the meaning away than a sentence, so the phrase
 arm's own hit rate is not comparable; only the later full-sentence review is.
 
+**First-data check, 2026-11-20 ≈ 09:35 UTC (five phrase cards answered).** Four are
+recorded as intended: `review_log` row with `review_mode="fragment"`, rating 3, stability
+and due date moved, phrase marked shown, open miss at one success. The fifth (#3199) left
+no row: the word had been moved to `reading_support` after the session was built, so the
+answer was exposure-only, as for any non-maintained word. Two corrections:
+- Two phrases came 33 s and 3 min after a word-card retry of the same word. The app now
+  holds a phrase back for 30 minutes after that word's retry is answered
+  (`FOLLOWUP_AFTER_RETRY_MS`). Exclude the two early ones (#3096, #3199) from the readout.
+- `response_ms` of the first four rows is reveal-to-answer, not display-to-answer as this
+  entry said. From the fix on it is the whole time on screen. For the first four use the
+  `card_shown` → `sentence_review` gap in the interaction log (18 s, 9 s, 7 s, 20 s).
+
 **Deployed 2026-11-20** (PR #331, `69414eef`): backend, web, iOS update group
 `b8e594e5-7f7e-4e1c-91a6-ec38586a3d43`. Stock seeded on the server with six runs of
 `stock_followup_fragments()`: 158 phrases for 47 words (per run about 32 returned, 30

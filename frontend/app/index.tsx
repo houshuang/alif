@@ -381,6 +381,8 @@ function getFormIBase(
 // showing them again from stale prefetched sessions
 const introducedGrammarKeys = new Set<string>();
 
+const FOLLOWUP_AFTER_RETRY_MS = 30 * 60 * 1000;
+
 export default function ReadingScreen() {
   const launchReady = useContext(ReviewLaunchReadyContext);
   const activated = useRef(false);
@@ -476,6 +478,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const followupQueueRef = useRef<WrapUpCard[]>([]);
   const followupAnsweredRef = useRef<Set<number>>(new Set());
   const lastFollowupCardIndexRef = useRef(-1);
+  // When each word's same-day word card was last answered: a phrase follow-up
+  // minutes later would only test short-term memory.
+  const retryAnsweredAtRef = useRef<Map<number, number>>(new Map());
   const retestQueueRef = useRef<Array<{ lemmaId: number; failedAtMs: number; cardsSince: number }>>([]);
   const lastCheckpointAtRef = useRef(0);
   const checkpointBoundaryRef = useRef(0);
@@ -1746,7 +1751,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (mode !== "reading" || !sentenceSession || sessionStopped) return false;
     if (inWrapUp || checkpointFetchingRef.current) return false;
     if (cardIndex < 1 || cardIndex - lastFollowupCardIndexRef.current < 2) return false;
-    const card = followupQueueRef.current.find(c => !followupAnsweredRef.current.has(c.lemma_id));
+    const now = Date.now();
+    const card = followupQueueRef.current.find(c =>
+      !followupAnsweredRef.current.has(c.lemma_id)
+      && now - (retryAnsweredAtRef.current.get(c.lemma_id) ?? 0) >= FOLLOWUP_AFTER_RETRY_MS
+    );
     if (!card) return false;
     lastFollowupCardIndexRef.current = cardIndex;
     showTime.current = Date.now();
@@ -1904,6 +1913,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!gotIt) enqueueRetest(card.lemma_id);
     persistRetests();
     const isFollowup = wrapUpVariant === "followup";
+    if (!isFollowup) retryAnsweredAtRef.current.set(card.lemma_id, Date.now());
     if (isFollowup) {
       followupAnsweredRef.current.add(card.lemma_id);
       followupQueueRef.current = followupQueueRef.current.filter(c => c.lemma_id !== card.lemma_id);
@@ -2228,7 +2238,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <View style={styles.actionRow}>
               <Pressable
                 style={[styles.actionButton, styles.showButton]}
-                onPress={() => { setWrapUpRevealed(true); showTime.current = Date.now(); }}
+                onPress={() => {
+                  setWrapUpRevealed(true);
+                  // A follow-up reports its whole time on screen; word cards keep
+                  // their historical reveal-to-answer timing.
+                  if (wrapUpVariant !== "followup") showTime.current = Date.now();
+                }}
               >
                 <Text style={styles.showButtonText}>Show Answer</Text>
               </Pressable>
