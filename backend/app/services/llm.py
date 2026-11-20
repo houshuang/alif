@@ -1320,6 +1320,7 @@ def generate_sentences_due_menu(
     word_range: str = "9-13",
     model_override: str = CODEX_FIRST_WRITER,
     timeout: int = 420,
+    recently_missed_words: list[dict[str, str]] | None = None,
 ) -> list[SentenceResult]:
     """Generate sentences from a large menu of due words.
 
@@ -1329,16 +1330,26 @@ def generate_sentences_due_menu(
     combinations (2026-11-18 experiment: 5.1 due words per sentence against
     2.3, and a higher quality-gate pass rate).
     """
+    # missed_word_recovery_v1: words the learner missed recently are also in the
+    # priority list; naming them makes the model build sentences around them.
+    missed_block = (
+        "RECENTLY MISSED WORDS (these are also priority words; build the sentences "
+        "around them first: every sentence MUST contain at least one of them, and "
+        f"the {count} sentences together should use as many different ones as possible):\n"
+        f"{format_known_words_by_pos(recently_missed_words)}\n\n"
+        if recently_missed_words
+        else ""
+    )
     prompt = f"""Create {count} different natural MSA sentences for a beginner-to-intermediate Arabic learner.
 
 PRIORITY WORDS (the learner needs to see these; each sentence MUST contain {min_priority} to {max_priority} of them):
 {format_known_words_by_pos(priority_words)}
 
-SUPPORTING VOCABULARY (use only when no priority word fits):
+{missed_block}SUPPORTING VOCABULARY (use only when no priority word fits):
 {format_known_words_by_pos(supporting_words)}
 
 IMPORTANT:
-- Do NOT use any Arabic content words that are not in the two lists above (function words are fine).
+- Do NOT use any Arabic content words that are not in the lists above (function words are fine).
 - Choose combinations of priority words that belong together naturally; never force unrelated words into one sentence.
 - Use each priority word in at most one sentence, so the {count} sentences cover as many different priority words as possible.
 - Use every listed word as the part of speech and meaning given: never turn a listed noun into its verb, or a listed verb into its noun or participle, unless that form is listed too.
