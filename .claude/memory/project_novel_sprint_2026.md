@@ -1,6 +1,6 @@
 ---
 name: project_novel_sprint_2026
-description: "Active goal 2026-10-04 → 2026-12-31 — finish Kanafani's Men in the Sun with a weekly L1 oral-recall + speed test; reading_targets drive intake; local main diverged from origin"
+description: "PAUSED by the learner 2026-11-18 (was: finish Men in the Sun by 2026-12-31); targets retired, ALIF_NOVEL_SPRINT=1 kept only for its intake budget"
 metadata:
   node_type: memory
   type: project
@@ -8,7 +8,9 @@ metadata:
   modified: 2026-10-04T11:44:15.811Z
 ---
 
-**Active goal (set 2026-10-04):** read *رجال في الشمس* (Men in the Sun, 7 chapters, 14,126
+**Paused 2026-11-18 (the user's words: "i'm not reading men in the sun so you don't need to prio those words").** He reads other Arabic books page by page with Snap and pre-read and wants a higher new-word rate tied to those texts. All 207 open `reading_targets` of `rijal_fi_al_shams` were retired on prod; `ALIF_NOVEL_SPRINT=1` stays on because it carries the intake budget (cap 8/day, 20/60-card ladder). Do not feed or prioritise sprint words, and do not turn the flag off (that drops the cap to 2/day), unless he restarts the sprint. Same day: automatic introduction moved to a pass after reviews (PR #320; see experiment-log 2026-11-18).
+
+**Original goal (set 2026-10-04):** read *رجال في الشمس* (Men in the Sun, 7 chapters, 14,126
 running words) cover to cover by 31 December 2026; stretch: finish *Momo*. Weekly Sunday
 test = timed unvocalized fresh passage + oral free recall in English/Norwegian scored
 against idea units (F vs prompted, distortions, intrusions) + 2–3 probes. The user chose

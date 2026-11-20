@@ -24,6 +24,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Don't scp files into the server working tree](feedback_no_scp_to_server_workdir.md) — untracked files block `git pull`, then restart runs stale code silently.
 - [Local DBs are stale — fetch prod for analysis](feedback_polyglot_local_db_stale.md) — local alif.db/polyglot.db are dev copies; real review data lives on prod (`ssh alif`).
 - [Backups & restore](reference_backups.md) — server cron 6h + local `scripts/backup.sh` + GFS retention; back up before any manual data change.
+- [Server Claude CLI token](reference_server_claude_token.md) — `CLAUDE_CODE_OAUTH_TOKEN` in /opt/alif/.env + /etc/environment since 2026-11-18; how to swap accounts.
 - [Deploy & LLM gotchas](reference_deployment_gotchas.md) — valid model IDs, alembic-on-fresh-DB, `.env` key names, TTS model.
 - [Activity logging](reference_activity_logging.md) — batch scripts + manual Claude actions log to ActivityLog; event-type list + the manual CLI command.
 
@@ -46,6 +47,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [CAMeL MLE feminine ة → 3ms_poss misread](feedback_camel_mle_fem_ta_marbuta_misread.md) — any LLM gate over CAMeL MLE output must warn about this; 22/33 false "valid" canonicals.
 - [Quran dagger-alef (U+0670) strip-order bug](feedback_quran_dagger_alef_normalization.md) — normalize before stripping or خَٰلِدُونَ collapses to the name Khaldūn. PR #186.
 - [Text→lemma mapping: reuse the hardened path](feedback_text_to_lemma_hardened_path.md) — for any Arabic-text→lemma scan use `build_comprehensive_lemma_lookup`+`lookup_lemma` and classify by the RESOLVED lemma's `word_category`/`_is_function_word`, never surface-only. Ref impl: `scripts/reading_readiness.py`. (Surface-only fw check leaked بعضهم→بعض; caught 2026-06-03.)
+- [Mapping-check rejections = lemma metadata first](reference_lemma_pos_feeds_verifier.md) — wrong `pos`/gloss on a lemma rejects correct sentences; read `mapping_corrections_*.jsonl` before blaming the writer or missing words.
 - [Quran frequency track (islamic source)](project_quran_frequency_track.md) — `islamic_rank` from the committed QAC v0.4 file via `quran_frequency.py`; rebuild the core after deploy to populate it. NOT from QuranicVerseWord (dead end). Classical track = no-go. PR #195.
 
 ## Polyglot — rules & gotchas
@@ -62,7 +64,12 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Audit a "translation" complaint = check glosses too](feedback_audit_translation_check_glosses_too.md) — check BOTH `sentences.translation_en` AND `lemmas.gloss_en` (the lookup-card surface).
 
 ## Active / in-flight projects
-- [Novel sprint 2026 (ACTIVE to 2026-12-31)](project_novel_sprint_2026.md) — 🔴 finish *Men in the Sun*; Sunday L1-recall test; `reading_targets` intake; local main diverged from origin (branch from origin/main).
+- [Missed-word recovery + fragment A/B (LIVE 2026-11-20, readout OPEN)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase-in-place-of-sentence follow-up trial (retry-card trial off); read after 2026-12-04 per experiment-log entry "2026-11-20 (2)".
+- [Generation changes 18–19 Nov 2026 (measurement OPEN)](project_generation_changes_nov_2026.md) — dense cards, GPT writer, lemma repair, language-only judge; review-side check due after 2026-11-23, plan in experiment-log entry "2026-11-19 (5)".
+- [Codex routing on prod (back on since 2026-11-18)](project_codex_switched_off.md) — where the provider switches live (.env + crontab prefixes); off 11-15→11-18.
+- [Egyptian Clips in the app (ACTIVE, paused 2026-11-08)](project_egyptian_clips.md) — 🔴 "TikTok/clips/Egyptian" → read this first: state, next step, handoff path, how to add clips. Stian is testing at 0.5×/0.6×.
+- [Pre-read (LIVE since 2026-11-16)](project_preread.md) — photographed pages → automatic word/name prep + sense check; how to inspect a batch; restart kills sentence gen.
+- [Novel sprint 2026 (PAUSED 2026-11-18)](project_novel_sprint_2026.md) — learner reads other books via Snap/pre-read; targets retired; keep `ALIF_NOVEL_SPRINT=1` (it carries the 8/day intake budget).
 - [Lemma decomposition audit](project_lemma_decomposition_audit.md) — 🟡 Phase 1 + Phase 2 steps 1–4c + 6 done; steps 7 (re-gloss ت.ر.ك #305) + 8 (Quran spot-check) OPEN.
 - [Polyglot Latin live](project_polyglot_latin_live.md) — shipped 2026-05-25 (PR #140); LatinCy + LLPSI/Roma Aeterna seed + Eutropius reader.
 - [Polyglot Latin picker exhaustion](project_polyglot_latin_picker_exhaustion.md) — diagnosed 2026-05-26; open levers (Coverage Reader / warm-on-intake / raise per-pass target). Revisit when more Latin lemmas due.
