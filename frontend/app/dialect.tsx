@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio, AVPlaybackStatus } from "expo-av";
+import { Audio, AVPlaybackStatus, PitchCorrectionQuality } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { dialectAudioUrl, getDialect, recordDialectEvent } from "../lib/api";
 import {
@@ -20,7 +20,6 @@ import {
   expressionsAt,
   lineSegments,
   linesByExpression,
-  replaySpeed,
   segmentStep,
   sourceLines,
   tokenAt,
@@ -150,7 +149,6 @@ function Player({
   );
   const [stack, setStack] = useState<Stack | null>(null);
   const [layer, setLayer] = useState(0);
-  const [replays, setReplays] = useState(0);
   const [speed, setSpeed] = useState(prefs.speed);
   const [token, setToken] = useState(-1);
   const [playing, setPlaying] = useState(false);
@@ -222,7 +220,7 @@ function Player({
         const s = await soundFor(l.src);
         if (id !== playId.current) return;
         await s.pauseAsync();
-        await s.setRateAsync(rate, true);
+        await s.setRateAsync(rate, true, PitchCorrectionQuality.High);
         const segs = lineSegments(l);
         await s.setPositionAsync(segs[0][0] * 1000, { toleranceMillisBefore: 0, toleranceMillisAfter: 0 });
         if (id !== playId.current) return;
@@ -230,6 +228,8 @@ function Player({
         setPlaying(true);
         setLoadFailed(false);
         await s.playAsync();
+        // iOS can drop a rate set while paused, so set it again once playback runs.
+        await s.setRateAsync(rate, true, PitchCorrectionQuality.High);
         send(l.id, { event: "play" });
       } catch {
         if (id === playId.current) {
@@ -262,8 +262,7 @@ function Player({
   useEffect(() => {
     if (!line) return;
     setLayer(0);
-    setReplays(0);
-    play(line, replaySpeed(speed, 0));
+    play(line, speed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line?.id]);
 
@@ -285,9 +284,7 @@ function Player({
       stop();
       return;
     }
-    const n = replays + 1;
-    setReplays(n);
-    play(line, replaySpeed(speed, n));
+    play(line, speed);
   };
 
   const reveal = (delta: number) => {
@@ -309,6 +306,7 @@ function Player({
     setSpeed(next);
     prefs.speed = next;
     savePrefs();
+    if (line) play(line, next);
   };
 
   const openExpression = (exprId: string) => {
@@ -413,7 +411,6 @@ function Player({
             <Pressable style={styles.chip} onPress={chooseSpeed}>
               <Text style={styles.chipText}>{speed}×</Text>
             </Pressable>
-            {replays > 0 && <Text style={styles.meta}>{replaySpeed(speed, replays)}×</Text>}
           </View>
           <View style={styles.nav}>
             <NavBtn icon="chevron-back" disabled={pos === 0} onPress={() => go(-1)} />
