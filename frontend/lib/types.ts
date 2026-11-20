@@ -1582,6 +1582,54 @@ export type ClipEvent =
   | { event: "blind_rating"; rating: "bits" | "most" | "all" }
   | { event: "pass" };
 
+// --- Dialect Lines (TV episodes and clips, one line at a time) ---
+
+export interface DialectSource {
+  id: string;
+  title: string;
+  group: string;
+  audio: string;
+}
+
+export interface DialectToken {
+  t: string;
+  s: number | null;
+  e: number | null;
+}
+
+export interface DialectLine {
+  id: string;
+  src: string;
+  scene: number;
+  st: string;
+  who: string;
+  ar: string;
+  en: string;
+  s: number;
+  e: number;
+  toks: DialectToken[];
+  ex: [string, number, number][];
+  hard: boolean;
+}
+
+export interface DialectExpression {
+  id: string;
+  ar: string;
+  en: string;
+  msa?: string;
+  note?: string;
+}
+
+export interface DialectCatalogue {
+  sources: DialectSource[];
+  lines: DialectLine[];
+  expressions: DialectExpression[];
+}
+
+export type DialectEvent =
+  | { event: "play" | "arabic" | "english" }
+  | { event: "hard"; hard: boolean };
+
 // --- Pre-read (upcoming book pages) ---
 
 export type PrereadStatus = "uploading" | "reading" | "analyzing" | "applying" | "done" | "failed";
