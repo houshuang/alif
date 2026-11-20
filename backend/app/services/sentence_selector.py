@@ -1829,7 +1829,9 @@ def build_session(
         recovery_order,
         reserved_slots,
     )
-    reserved_lanes_enabled = selector_policy == SELECTOR_POLICY_RECOVERY
+    reserved_lanes_enabled = (
+        selector_policy == SELECTOR_POLICY_RECOVERY and mode == "reading"
+    )
     open_missed = {
         lid: miss
         for lid, miss in (
