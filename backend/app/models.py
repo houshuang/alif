@@ -172,6 +172,22 @@ class ClipProgress(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class DialectLineState(Base):
+    """Learner state for one line in Dialect Lines (TV episodes and clips).
+
+    Lines, audio and expressions live outside the repo in `data/dialect/`; this row
+    only records listening evidence. It never touches lemmas, FSRS or acquisition.
+    """
+    __tablename__ = "dialect_line_state"
+
+    line_id = Column(String(64), primary_key=True)
+    hard = Column(Boolean, nullable=False, default=False, server_default="0")
+    plays = Column(Integer, nullable=False, default=0, server_default="0")
+    arabic_reveals = Column(Integer, nullable=False, default=0, server_default="0")
+    english_reveals = Column(Integer, nullable=False, default=0, server_default="0")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class FrequencyCoreEntry(Base):
     __tablename__ = "frequency_core_entries"
 
