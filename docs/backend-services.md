@@ -124,7 +124,7 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 
 ## Dialect Lines
 
-`app/routers/dialect.py` serves `data/dialect/lines.json` and audio in `data/dialect/audio/`. On production `data/dialect` is a symlink to `/srv/media/dialect`. The file is built outside the repo from the private Layl study packs and the Egyptian clip catalogue; each line has source, scene, speaker, vocalized Arabic, English, start/end seconds, timed tokens (`toks`) and expression spans (`ex`: expression id, first and last token). Like Clips, the content is third-party material for private use, stays out of Git, and produces no lemma, FSRS or acquisition evidence; only `dialect_line_state` is written.
+`app/routers/dialect.py` serves `data/dialect/lines.json` and audio in `data/dialect/audio/`. On production `data/dialect` is a symlink to `/srv/media/dialect`. The file is built outside the repo from the private Layl study packs and the Egyptian clip catalogue; each line has source, scene, speaker, vocalized Arabic, English, start/end seconds, timed tokens (`toks`), optional speech segments (`segs`) and expression spans (`ex`: expression id, first and last token). Like Clips, the content is third-party material for private use, stays out of Git, and produces no lemma, FSRS or acquisition evidence; only `dialect_line_state` is written.
 
 ## Dialect listening clips
 

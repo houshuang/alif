@@ -1607,6 +1607,8 @@ export interface DialectLine {
   en: string;
   s: number;
   e: number;
+  /** Speech segments in source seconds; a pause inside the line is skipped. Absent = [[s, e]]. */
+  segs?: [number, number][];
   toks: DialectToken[];
   ex: [string, number, number][];
   hard: boolean;

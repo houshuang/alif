@@ -18,8 +18,10 @@ import {
   DIALECT_SPEEDS,
   expressionQueue,
   expressionsAt,
+  lineSegments,
   linesByExpression,
   replaySpeed,
+  segmentStep,
   sourceLines,
   tokenAt,
 } from "../lib/dialect";
@@ -160,7 +162,7 @@ function Player({
   const line = byId.get(ids[pos]);
 
   const sound = useRef<{ src: string; s: Audio.Sound } | null>(null);
-  const segment = useRef<{ line: DialectLine; endMs: number } | null>(null);
+  const segment = useRef<{ line: DialectLine; segs: [number, number][]; index: number } | null>(null);
   const tokenRef = useRef(-1);
   const playId = useRef(0);
 
@@ -172,12 +174,21 @@ function Player({
     if (!status.isLoaded) return;
     const seg = segment.current;
     if (!seg) return;
+    const step = status.didJustFinish ? { kind: "end" as const } : segmentStep(seg.segs, seg.index, status.positionMillis);
+    if (step.kind === "stale") return;
     const t = tokenAt(seg.line, status.positionMillis / 1000);
     if (t !== tokenRef.current) {
       tokenRef.current = t;
       setToken(t);
     }
-    if (status.positionMillis >= seg.endMs || status.didJustFinish) {
+    if (step.kind === "next") {
+      seg.index = step.index;
+      sound.current?.s
+        .setPositionAsync(seg.segs[step.index][0] * 1000, { toleranceMillisBefore: 0, toleranceMillisAfter: 0 })
+        .catch(() => {});
+      return;
+    }
+    if (step.kind === "end") {
       segment.current = null;
       tokenRef.current = -1;
       setToken(-1);
@@ -212,9 +223,10 @@ function Player({
         if (id !== playId.current) return;
         await s.pauseAsync();
         await s.setRateAsync(rate, true);
-        await s.setPositionAsync(l.s * 1000, { toleranceMillisBefore: 0, toleranceMillisAfter: 0 });
+        const segs = lineSegments(l);
+        await s.setPositionAsync(segs[0][0] * 1000, { toleranceMillisBefore: 0, toleranceMillisAfter: 0 });
         if (id !== playId.current) return;
-        segment.current = { line: l, endMs: l.e * 1000 };
+        segment.current = { line: l, segs, index: 0 };
         setPlaying(true);
         setLoadFailed(false);
         await s.playAsync();
