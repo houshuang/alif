@@ -12,6 +12,10 @@ A miss is open until the word has been answered correctly in sentences
 close a miss: a correct one comes minutes after the answer was shown. A missed
 word card is evidence the word is weaker than one miss suggests, so it adds
 one required success.
+
+`fragment_followup_v1`: a scheduled follow-up may be a short phrase instead of
+a sentence (`review_mode="fragment"`). A correct phrase counts as a success,
+but the last required success must come from a full sentence.
 """
 from __future__ import annotations
 
@@ -24,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.models import ReviewLog
 
 MISSED_RECOVERY_VERSION = "missed_word_recovery_v1"
+FRAGMENT_REVIEW_MODE = "fragment"
 MISSED_RECOVERY_WINDOW_DAYS = 30
 MISSED_RECOVERY_REQUIRED_SUCCESSES = 2
 MISSED_RECOVERY_WORD_CARD_MISS_EXTRA = 1
@@ -87,16 +92,24 @@ def open_misses(db: Session, now: datetime) -> dict[int, OpenMiss]:
             state[row.lemma_id] = {
                 "missed_at": reviewed_at,
                 "rating": row.rating,
-                "successes": 0,
+                "sentence_successes": 0,
+                "fragment_successes": 0,
                 "word_card_misses": 0,
             }
         elif entry is not None:
-            entry["successes"] += 1
+            if row.review_mode == FRAGMENT_REVIEW_MODE:
+                entry["fragment_successes"] += 1
+            else:
+                entry["sentence_successes"] += 1
 
     result: dict[int, OpenMiss] = {}
     for lemma_id, entry in state.items():
         required = MISSED_RECOVERY_REQUIRED_SUCCESSES + (
             MISSED_RECOVERY_WORD_CARD_MISS_EXTRA if entry["word_card_misses"] else 0
+        )
+        # Phrases can supply every success except the last one.
+        entry["successes"] = entry["sentence_successes"] + min(
+            entry["fragment_successes"], required - 1
         )
         if entry["successes"] >= required:
             continue

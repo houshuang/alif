@@ -20,6 +20,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -34,6 +35,11 @@ from app.models import (
 logger = logging.getLogger(__name__)
 
 FRAGMENT_RETEST_PROTOCOL = "fragment_retest_v1"
+FRAGMENT_FOLLOWUP_PROTOCOL = "fragment_followup_v1"
+PHRASE_ARM = "phrase"
+SENTENCE_ARM = "sentence"
+FRAGMENT_WANTED_LOOKBACK = timedelta(days=30)
+FRAGMENT_FOLLOWUP_REPEAT_GUARD = timedelta(hours=6)
 FRAGMENT_ARM = "fragment"
 WORD_CARD_ARM = "word_card"
 FRAGMENT_MIN_STOCK = 2            # unshown fragments to keep for a word in the fragment arm
@@ -83,22 +89,95 @@ def fragment_retest_enabled() -> bool:
     return os.getenv("ALIF_FRAGMENT_RETEST", "1") != "0"
 
 
+# The retry-card comparison (phrase against bare word card) was switched off on
+# 2026-11-20, hours after launch, so that the follow-up trial is the only
+# randomized factor and reads out sooner. Every same-day retry is a word card.
+RETEST_AB_ACTIVE = False
+
+
 def retest_arm(lemma_id: int, missed_at: datetime) -> str:
-    """Stable arm for one miss of one word."""
+    """Stable arm for one miss of one word (word card while the trial is off)."""
+    if not RETEST_AB_ACTIVE:
+        return WORD_CARD_ARM
     key = f"{FRAGMENT_RETEST_PROTOCOL}:{lemma_id}:{missed_at.replace(tzinfo=None).isoformat()}"
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     return FRAGMENT_ARM if digest[0] % 2 == 0 else WORD_CARD_ARM
 
 
-def latest_sentence_miss(db: Session, lemma_id: int, now: datetime) -> ReviewLog | None:
-    cutoff = (now - FRAGMENT_MISS_LOOKBACK).replace(tzinfo=None)
+def followup_arm(lemma_id: int, missed_at: datetime) -> str:
+    """Stable follow-up arm for one miss of one word, independent of the retry arm."""
+    key = f"{FRAGMENT_FOLLOWUP_PROTOCOL}:{lemma_id}:{missed_at.replace(tzinfo=None).isoformat()}"
+    digest = hashlib.sha256(key.encode("utf-8")).digest()
+    return PHRASE_ARM if digest[0] % 2 == 0 else SENTENCE_ARM
+
+
+def fragments_wanted(db: Session, lemma_id: int, now: datetime) -> bool:
+    """Whether this word's latest miss puts it in an arm that shows phrases."""
+    recent = latest_sentence_miss(db, lemma_id, now)
+    if recent is not None and retest_arm(lemma_id, recent.reviewed_at) == FRAGMENT_ARM:
+        return True
+    miss = latest_sentence_miss(db, lemma_id, now, lookback=FRAGMENT_WANTED_LOOKBACK)
+    return miss is not None and followup_arm(lemma_id, miss.reviewed_at) == PHRASE_ARM
+
+
+def pick_fragment(db: Session, lemma_id: int) -> WordFragment | None:
+    return (
+        db.query(WordFragment)
+        .filter(WordFragment.lemma_id == lemma_id)
+        .order_by(WordFragment.times_shown, WordFragment.id)
+        .first()
+    )
+
+
+def fragment_payload(fragment: WordFragment) -> dict:
+    return {
+        "id": fragment.id,
+        "arabic": fragment.arabic_text,
+        "english": fragment.english_translation,
+        "transliteration": fragment.transliteration,
+        "target_surface": fragment.target_surface,
+    }
+
+
+def recent_followup_exists(db: Session, lemma_id: int, now: datetime) -> bool:
+    """A phrase follow-up for this word was answered recently (resumed sessions)."""
+    cutoff = (now - FRAGMENT_FOLLOWUP_REPEAT_GUARD).replace(tzinfo=None)
+    return (
+        db.query(ReviewLog.id)
+        .filter(
+            ReviewLog.lemma_id == lemma_id,
+            ReviewLog.review_mode == "fragment",
+            ReviewLog.reviewed_at >= cutoff,
+        )
+        .first()
+        is not None
+    )
+
+
+def mark_fragment_shown(db: Session, fragment_id: int, now: datetime) -> None:
+    fragment = db.query(WordFragment).filter(WordFragment.id == fragment_id).first()
+    if fragment is not None:
+        fragment.times_shown = (fragment.times_shown or 0) + 1
+        fragment.last_shown_at = now.replace(tzinfo=None)
+
+
+def latest_sentence_miss(
+    db: Session,
+    lemma_id: int,
+    now: datetime,
+    lookback: timedelta = FRAGMENT_MISS_LOOKBACK,
+) -> ReviewLog | None:
+    cutoff = (now - lookback).replace(tzinfo=None)
     return (
         db.query(ReviewLog)
         .filter(
             ReviewLog.lemma_id == lemma_id,
             ReviewLog.rating <= 2,
             ReviewLog.review_mode != "quiz",
-            ReviewLog.sentence_id.isnot(None),
+            or_(
+                ReviewLog.sentence_id.isnot(None),
+                ReviewLog.review_mode == "fragment",
+            ),
             ReviewLog.reviewed_at >= cutoff,
         )
         .order_by(ReviewLog.reviewed_at.desc(), ReviewLog.id.desc())
@@ -126,7 +205,7 @@ def assign_retest(db: Session, lemma_id: int, now: datetime | None = None) -> tu
 
     now = now or datetime.now(timezone.utc)
     lemma_id = resolve_canonical_lemma_id(db, lemma_id)
-    if not fragment_retest_enabled():
+    if not fragment_retest_enabled() or not RETEST_AB_ACTIVE:
         return WORD_CARD_ARM, None
     miss = latest_sentence_miss(db, lemma_id, now)
     if miss is None:
@@ -134,12 +213,7 @@ def assign_retest(db: Session, lemma_id: int, now: datetime | None = None) -> tu
     arm = retest_arm(lemma_id, miss.reviewed_at)
     fragment = None
     if arm == FRAGMENT_ARM:
-        fragment = (
-            db.query(WordFragment)
-            .filter(WordFragment.lemma_id == lemma_id)
-            .order_by(WordFragment.times_shown, WordFragment.id)
-            .first()
-        )
+        fragment = pick_fragment(db, lemma_id)
     try:
         row = (
             db.query(WordRetestAssignment)
@@ -199,7 +273,7 @@ RULES:
 
 
 def generate_fragments_for_lemmas(lemma_ids: list[int]) -> dict:
-    """Background task: stock fragments for just-missed words in the fragment arm.
+    """Background task: stock fragments for missed words in an arm that shows them.
 
     Read, then LLM with no session open, then a short write.
     """
@@ -228,8 +302,7 @@ def generate_fragments_for_lemmas(lemma_ids: list[int]) -> dict:
         targets: list[dict] = []
         target_bare: dict[int, str] = {}
         for lemma_id in canonical_ids:
-            miss = latest_sentence_miss(db, lemma_id, now)
-            if miss is None or retest_arm(lemma_id, miss.reviewed_at) != FRAGMENT_ARM:
+            if not fragments_wanted(db, lemma_id, now):
                 continue
             if _unshown_count(db, lemma_id) >= FRAGMENT_MIN_STOCK:
                 continue
@@ -383,3 +456,26 @@ def generate_fragments_for_lemmas(lemma_ids: list[int]) -> dict:
         db.close()
     logger.info("Fragments: %s", stats)
     return stats
+
+
+def stock_followup_fragments(max_words: int = FRAGMENT_MAX_WORDS_PER_CALL) -> dict:
+    """Warm-cache step: phrases for open misses in the phrase follow-up arm that
+    have none left unshown. The follow-up comes days after the miss, so the
+    stock written at miss time may be used up by the same-day retry."""
+    if not fragment_retest_enabled():
+        return {"requested": 0}
+    from app.services.missed_word_recovery import open_misses, recovery_order
+
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        misses = open_misses(db, now)
+        wanted = [
+            lemma_id
+            for lemma_id in recovery_order(misses)
+            if followup_arm(lemma_id, misses[lemma_id].missed_at) == PHRASE_ARM
+            and _unshown_count(db, lemma_id) == 0
+        ][:max_words]
+    finally:
+        db.close()
+    return generate_fragments_for_lemmas(wanted)
