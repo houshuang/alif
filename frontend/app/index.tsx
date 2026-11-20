@@ -1515,9 +1515,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
-    // Queue rating-1 failures for a rapid re-exposure re-test (treatment arm).
-    // Confused words (rating 2) are the exact-surface pilot's population and
-    // are deliberately excluded.
+    // Queue red and yellow misses for a same-day retry. Misses that were only
+    // about an unfamiliar form or missing vowels stay out; the endpoint drops
+    // words with an open exact-surface episode.
     if (mode === "reading") {
       const failedCanonicalIds = new Set<number>();
       if (signal === "no_idea") {
@@ -1528,11 +1528,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         }
         failedCanonicalIds.add(item.primary_lemma_id);
       } else if (signal === "partial") {
-        for (const lid of missedLemmaIds) {
+        for (const lid of [...missedLemmaIds, ...confusedLemmaIds]) {
           const matchingFailedIndices = item.words
             .map((word, index) => ({ word, index }))
             .filter(({ word, index }) => (
-              missedIndices.has(index)
+              (missedIndices.has(index) || confusedIndices.has(index))
               && (word.lemma_id === lid || word.canonical_lemma_id === lid)
             ))
             .map(({ index }) => index);
@@ -1745,7 +1745,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const generation = sessionLoadGeneration.current;
     const boundary = checkpointBoundaryRef.current;
     const gapMs = now - ready.failedAtMs;
-    getWrapUpCards([], [ready.lemmaId], sentenceSession.session_id)
+    getWrapUpCards([], [ready.lemmaId], sentenceSession.session_id, true)
       .then(cards => {
         if (generation !== sessionLoadGeneration.current || boundary !== checkpointBoundaryRef.current) return;
         if (cards.length === 0) {
@@ -1769,7 +1769,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           card_type: "checkpoint",
           session_id: sentenceSession.session_id,
           lemma_id: ready.lemmaId,
-          detail: { arm: "all", gap_ms: gapMs, cards_since: ready.cardsSince, v: RETEST_PROTOCOL_VERSION },
+          detail: {
+            arm: cards[0].retest_arm ?? "all",
+            fragment_id: cards[0].fragment?.id ?? null,
+            gap_ms: gapMs,
+            cards_since: ready.cardsSince,
+            v: RETEST_PROTOCOL_VERSION,
+          },
         });
       })
       .catch(() => {}) // network error — entry stays queued; retried on a later advance until expiry
@@ -1873,7 +1879,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         response_ms: Date.now() - showTime.current,
         session_id: sentenceSession?.session_id ?? generateUuid(),
         review_mode: "quiz",
-        parent_card_type: wrapUpVariant,
+        parent_card_type: wrapUpVariant === "checkpoint" && card.fragment
+          ? "checkpoint_fragment"
+          : wrapUpVariant,
       });
     } catch {}
 
@@ -2076,13 +2084,39 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.eiHero, { borderRadius: 16 }]}>
-            <Text style={styles.eiArabic}>{wcDisplay.arabic ?? wc.lemma_ar}</Text>
-            {wcDisplay.transliteration && (
-              <Text style={styles.eiTranslit}>{wcDisplay.transliteration}</Text>
+            {wc.fragment ? (
+              <Text style={[styles.eiArabic, { fontSize: 40, lineHeight: 72, textAlign: "center" }]}>
+                {wc.fragment.arabic.split(/\s+/).map((token, i) => (
+                  <Text
+                    key={i}
+                    style={token === wc.fragment!.target_surface ? { color: colors.accent } : undefined}
+                  >
+                    {(i > 0 ? " " : "") + token}
+                  </Text>
+                ))}
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.eiArabic}>{wcDisplay.arabic ?? wc.lemma_ar}</Text>
+                {wcDisplay.transliteration && (
+                  <Text style={styles.eiTranslit}>{wcDisplay.transliteration}</Text>
+                )}
+              </>
             )}
             {wrapUpRevealed && (
               <>
                 <View style={styles.divider} />
+                {wc.fragment && (
+                  <>
+                    <Text style={[styles.eiEnglish, { fontSize: 20 }]}>{wc.fragment.english}</Text>
+                    {wc.fragment.transliteration && (
+                      <Text style={styles.eiTranslit}>{wc.fragment.transliteration}</Text>
+                    )}
+                    <Text style={[styles.eiArabic, { fontSize: 30, lineHeight: 52, marginTop: 8 }]}>
+                      {wcDisplay.arabic ?? wc.lemma_ar}
+                    </Text>
+                  </>
+                )}
                 <Text style={styles.eiEnglish}>{wc.gloss_en || ""}</Text>
                 <View style={styles.eiChipsArea}>
                   {wc.pos && (
@@ -2124,6 +2158,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 {showMnemonic(wc.memory_hooks_json) && (
                   <View style={[styles.eiMnemonicCard, { marginTop: 4 }]}>
                     <Text style={styles.eiInfoText}>{ltr(wc.memory_hooks_json!.mnemonic!)}</Text>
+                  </View>
+                )}
+                {wc.extra_support && (wc.root_family ?? []).some(f => f.state === "known" || f.state === "learning") && (
+                  <View style={{ marginTop: 10, alignSelf: "stretch" }}>
+                    <Text style={[styles.eiInfoText, { fontSize: 12, color: colors.textSecondary }]}>Same root</Text>
+                    {(wc.root_family ?? [])
+                      .filter(f => f.state === "known" || f.state === "learning")
+                      .slice(0, 4)
+                      .map(f => (
+                        <Text key={f.lemma_id} style={styles.eiInfoText}>
+                          <Text style={{ fontFamily: fontFamily.arabic, fontSize: 18, color: colors.arabic }}>{f.lemma_ar}</Text>
+                          {"  " + ltr(f.gloss_en ?? "")}
+                        </Text>
+                      ))}
                   </View>
                 )}
               </>

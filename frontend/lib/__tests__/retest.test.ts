@@ -25,6 +25,15 @@ describe("elapsed-time missing-word retries", () => {
     expect(pickReadyRetest(q, last + RETEST_SPACING_MS - 1, last).ready).toBeNull();
     expect(pickReadyRetest(q, last + RETEST_SPACING_MS, last).ready?.lemmaId).toBe(42);
   });
+  it("serves the newest eligible miss first", () => {
+    const q = [entry(), entry({ lemmaId: 43, failedAtMs: T0 + 60_000 }), entry({ lemmaId: 44, failedAtMs: T0 + 30 * 60_000 })];
+    expect(pickReadyRetest(q, T0 + 20 * 60_000).ready?.lemmaId).toBe(43);
+  });
+  it("drops the spacing when three or more checks are waiting", () => {
+    const q = [entry(), entry({ lemmaId: 43 }), entry({ lemmaId: 44 })];
+    const last = T0 + 20 * 60_000;
+    expect(pickReadyRetest(q, last + 1000, last).ready?.lemmaId).toBe(42);
+  });
   it("expires stale retries after a day", () => {
     const q = [entry(), entry({ lemmaId: 43, failedAtMs: T0 + 60_000 })];
     expect(pickReadyRetest(q, T0 + RETEST_EXPIRE_MS).queue.map(e => e.lemmaId)).toEqual([43]);

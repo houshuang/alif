@@ -556,6 +556,44 @@ class SnapPage(Base):
     words_json = Column(JSON, nullable=True)
 
 
+class WordFragment(Base):
+    """A two-to-three-word phrase for one word, shown as a same-day retry after a
+    miss (`fragment_retest_v1`, services/word_fragments.py). Deliberately not a
+    Sentence: it never enters a session and earns no sentence credit.
+    ``lemma_id`` is not a foreign key, as with WordAddContext."""
+    __tablename__ = "word_fragments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    lemma_id = Column(Integer, nullable=False, index=True)
+    arabic_text = Column(Text, nullable=False)
+    english_translation = Column(Text, nullable=False)
+    transliteration = Column(Text, nullable=True)
+    target_surface = Column(Text, nullable=False)
+    times_shown = Column(Integer, nullable=False, default=0, server_default="0")
+    last_shown_at = Column(DateTime, nullable=True)
+
+
+class WordRetestAssignment(Base):
+    """Arm of the fragment A/B for one miss of one word. One row per
+    (lemma_id, missed_at); ``delivered`` is what the learner actually saw."""
+    __tablename__ = "word_retest_assignments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    lemma_id = Column(Integer, nullable=False, index=True)
+    missed_at = Column(DateTime, nullable=False)
+    miss_rating = Column(Integer, nullable=True)
+    arm = Column(String(20), nullable=False)        # fragment / word_card
+    delivered = Column(String(20), nullable=False)  # fragment / word_card
+    fragment_id = Column(Integer, nullable=True)
+    protocol = Column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("lemma_id", "missed_at", name="uq_word_retest_assignment_miss"),
+    )
+
+
 class WordAddContext(Base):
     """Where a word was added from: the printed surface and its sentence, kept so
     the entry can be checked against real use later (services/add_context.py).

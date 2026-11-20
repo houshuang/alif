@@ -111,3 +111,38 @@ def test_no_call_when_pool_is_thin_or_stock_is_full(db_session, monkeypatch):
     monkeypatch.setattr(mg, "DUE_MENU_MIN_POOL", 100)
     assert mg.generate_due_menu_material()["calls"] == 0
     assert seen == {}
+
+
+def _miss(db, lemma_id, hours_ago):
+    from app.models import ReviewLog
+
+    db.add(ReviewLog(
+        lemma_id=lemma_id, rating=1, review_mode="reading", is_acquisition=False,
+        reviewed_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago), fsrs_log_json={},
+    ))
+
+
+def test_recently_missed_words_lead_the_menu(db_session, monkeypatch):
+    due = dict(_word(db_session, i) for i in range(50))
+    missed = sorted(due)[40:43]
+    for offset, lemma_id in enumerate(missed):
+        _miss(db_session, lemma_id, hours_ago=5 + offset)
+    db_session.commit()
+    seen, _ = _stub_pipeline(monkeypatch, lambda priority: [])
+
+    stats = mg.generate_due_menu_material(max_calls=1)
+
+    assert seen["priority"][:3] == missed
+    assert [w["lemma_id"] for w in seen["kw"]["recently_missed_words"]] == missed
+    assert stats["missed_uncovered"] == 3
+
+
+def test_full_stock_still_generates_for_enough_missed_words(db_session, monkeypatch):
+    due = dict(_word(db_session, i) for i in range(50))
+    for lemma_id in sorted(due)[:mg.DUE_MENU_MISSED_MIN_FOR_EXTRA_CALL]:
+        _miss(db_session, lemma_id, hours_ago=5)
+    db_session.commit()
+    _stub_pipeline(monkeypatch, lambda priority: [])
+    monkeypatch.setattr(mg, "DUE_MENU_STOCK_TARGET", 0)
+
+    assert mg.generate_due_menu_material()["calls"] == 1

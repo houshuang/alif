@@ -1582,6 +1582,10 @@ DUE_MENU_SUPPORT_SIZE = 200
 DUE_MENU_SENTENCES_PER_CALL = 12
 DUE_MENU_MAX_CALLS = 2
 DUE_MENU_MIN_PRIORITY = 4
+# missed_word_recovery_v1: recently missed due words lead the menu, and enough
+# of them without a dense unshown sentence trigger one call even at full stock.
+DUE_MENU_MISSED_PER_MENU = 40
+DUE_MENU_MISSED_MIN_FOR_EXTRA_CALL = 6
 
 
 def generate_due_menu_material(
@@ -1662,9 +1666,19 @@ def generate_due_menu_material(
             if len(lemma_ids) >= DUE_MENU_MIN_PRIORITY:
                 stats["stock"] += 1
                 stocked |= lemma_ids
+        from app.services.missed_word_recovery import open_misses, recovery_order
+
+        missed_order = [
+            lid
+            for lid in recovery_order(open_misses(db, datetime.now(timezone.utc)))
+            if lid in due_ids and lid not in stocked
+        ]
+        stats["missed_uncovered"] = len(missed_order)
         missing = DUE_MENU_STOCK_TARGET - stats["stock"]
         if missing <= 0:
-            return stats
+            if len(missed_order) < DUE_MENU_MISSED_MIN_FOR_EXTRA_CALL:
+                return stats
+            missing = DUE_MENU_SENTENCES_PER_CALL
 
         active_lemmas = (
             db.query(Lemma, UserLemmaKnowledge.knowledge_state)
@@ -1702,7 +1716,18 @@ def generate_due_menu_material(
                 support_pool.append(as_word(lemma))
         random.shuffle(main_pool)
         random.shuffle(slow_pool)
-        pool = main_pool + slow_pool
+        by_id = {w["lemma_id"]: w for w in main_pool + slow_pool}
+        missed_pool = [by_id[lid] for lid in missed_order if lid in by_id]
+        missed_ids = {w["lemma_id"] for w in missed_pool}
+        rest = [w for w in main_pool + slow_pool if w["lemma_id"] not in missed_ids]
+        # Each menu opens with its share of missed words, then ordinary due words.
+        pool = []
+        while missed_pool or rest:
+            head = missed_pool[:DUE_MENU_MISSED_PER_MENU]
+            missed_pool = missed_pool[DUE_MENU_MISSED_PER_MENU:]
+            fill = DUE_MENU_SIZE - len(head)
+            pool += head + rest[:fill]
+            rest = rest[fill:]
         stats["pool"] = len(pool)
         if len(pool) < DUE_MENU_MIN_POOL:
             return stats
@@ -1735,6 +1760,9 @@ def generate_due_menu_material(
                     or os.environ.get("ALIF_DUE_MENU_WRITER", "").strip()
                     or CODEX_FIRST_WRITER
                 ),
+                recently_missed_words=[
+                    w for w in menu if w["lemma_id"] in missed_ids
+                ] or None,
             )
         except Exception:
             logger.warning("Due menu: generation call %d failed", call + 1, exc_info=True)

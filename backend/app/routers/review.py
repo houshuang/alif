@@ -358,6 +358,21 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         ],
     )
 
+    if body.review_mode == "reading" and (body.sentence_id or body.sentence_ids):
+        # fragment_retest_v1: stock phrases for the words just missed so the
+        # same-day retry has one ready. Runs on its own thread and session.
+        missed_now = sorted({
+            w["lemma_id"]
+            for w in result.get("word_results", [])
+            if w.get("lemma_id") and (w.get("rating") or 3) <= 2
+            and not w.get("form_recovery_protected")
+        })
+        if missed_now:
+            from app.services.background_threads import start_daemon
+            from app.services.word_fragments import generate_fragments_for_lemmas
+
+            start_daemon(generate_fragments_for_lemmas, missed_now, name="word-fragments")
+
     log_interaction(
         event="sentence_review",
         sentence_id=body.sentence_id,
@@ -1024,12 +1039,36 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             root_family=rf,
         ))
 
+    retest_arm = None
+    fragment_id = None
+    if body.checkpoint and len(cards) == 1:
+        from app.services.missed_word_recovery import open_misses
+        from app.services.word_fragments import assign_retest
+
+        card = cards[0]
+        retest_arm, fragment = assign_retest(db, card.lemma_id)
+        card.retest_arm = retest_arm
+        if fragment is not None:
+            fragment_id = fragment.id
+            card.fragment = {
+                "id": fragment.id,
+                "arabic": fragment.arabic_text,
+                "english": fragment.english_translation,
+                "transliteration": fragment.transliteration,
+                "target_surface": fragment.target_surface,
+            }
+        miss = open_misses(db, datetime.now(timezone.utc)).get(card.lemma_id)
+        card.extra_support = bool(miss and miss.word_card_misses)
+
     log_interaction(
         event="wrap_up_quiz",
         session_id=body.session_id,
         card_count=len(cards),
         acquiring_count=len(acquiring_ids),
         missed_count=len(missed_ids),
+        checkpoint=body.checkpoint,
+        retest_arm=retest_arm,
+        fragment_id=fragment_id,
     )
 
     return {"cards": cards}

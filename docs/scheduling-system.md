@@ -2072,6 +2072,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `RETEST_CREDIT_GAP` | 30 min | Quiz-mode (checkpoint/wrap-up) success within this gap of a rating-1 review cannot promote a box, graduate, or count in the leech window (rapid re-exposure experiment, 2026-07-25) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
+| Reserved base cards | 30% + 30% | Before the greedy pass, up to 30% of base cards go to open misses (`missed_word_recovery_v1`) and up to 30% to due acquiring words (`acquiring_reserved_v1`); card score is coverage ** 1.5, so without the reserve a full stock of 4–6-due-word cards takes every slot (2026-11-20). Default selector policy only |
 | `ESTABLISHED_LAPSE_MIN_PRE_STABILITY_DAYS` | 7 days | Latest non-acquisition rating-1 pre-card stability required for the one-slot established-lapse recovery lane |
 | Live selector policy | `r1_established_lapse` | S0 plus at most one workload-neutral later-slot established-lapse swap; rollback is `s0` |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
@@ -2335,6 +2336,34 @@ Since 2026-10-15 (protocol v3), delivery follows elapsed time:
    batch. No automatic wrap-up or completion screen. Empty supply stops normally.
    Explicit **Wrap Up** still ends practice and offers the manual quiz/results.
    Rating-2/confused words remain outside this rating-1 retry queue.
+
+**Since 2026-11-20 (protocol v4 and `fragment_retest_v1`).** Yellow misses join the
+retry queue (form-only misses and open exact-surface episodes stay out). The newest
+eligible miss is served first, and the one-minute spacing is dropped while three or more
+are waiting (`RETEST_BACKLOG_NO_SPACING`), because cards with 4–6 due words produce
+misses faster than one check per minute. Each miss is assigned by hash to a `fragment`
+or `word_card` arm: the fragment arm shows the word in a checked 2–3-word phrase
+(`services/word_fragments.py`) when one is ready. Both arms are answered and scheduled
+identically (`review_mode="quiz"`); fragments are never session material. A missed
+word card regenerates the memory hook. Readout rules: experiment log 2026-11-20.
+
+**Missed-word recovery lane (`missed_word_recovery_v1`, 2026-11-20).** A word-card hit
+does not close a miss. An established word's miss (rating 1 or 2 in a sentence) stays
+open until it has been correct in sentences twice since (three times after a missed word
+card), within 30 days. While open and FSRS-due, the word is scheduled regardless of
+focus cohort and frequency lane and competes for a reserved share of base cards;
+`generate_due_menu_material` puts open misses at the head of each menu.
+
+| Constant | Value | Location |
+|----------|-------|----------|
+| `MISSED_RECOVERY_WINDOW_DAYS` | 30 | `missed_word_recovery.py` |
+| `MISSED_RECOVERY_REQUIRED_SUCCESSES` | 2 (+1 after a missed word card) | `missed_word_recovery.py` |
+| `MISSED_RECOVERY_SLOT_FRACTION` | 0.3 of base cards | `missed_word_recovery.py` |
+| `ACQUIRING_RESERVED_SLOT_FRACTION` | 0.3 of base cards | `missed_word_recovery.py` |
+| `DUE_MENU_MISSED_PER_MENU` | 40 of 150 | `material_generator.py` |
+| `DUE_MENU_MISSED_MIN_FOR_EXTRA_CALL` | 6 | `material_generator.py` |
+| `RETEST_BACKLOG_NO_SPACING` | 3 | `frontend/lib/review/retest.ts` |
+| `FRAGMENT_MIN_STOCK` | 2 unshown per word | `word_fragments.py` |
 
 **Credit guard** (`RETEST_CREDIT_GAP = 30 min`, `acquisition_service.py`): a quiz-mode
 success within the gap of a rating-1 review clears the 5-min retry due-date to the box

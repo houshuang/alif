@@ -250,6 +250,8 @@ class TestFilledOpeningPolicy:
             "distinct_all_words_presented": 6,
             "established_lapse_recovery_cards": 0,
             "confusion_context_rescue_cards": 0,
+            "missed_word_recovery_cards": 0,
+            "acquiring_reserved_cards": 0,
             "max_due_words_on_card": 3,
             "cards_over_due_density_cap": 0,
             "selector_policy": SELECTOR_POLICY_S1B,
@@ -334,7 +336,7 @@ class TestFilledOpeningPolicy:
         db_session.add(ReviewLog(
             lemma_id=2,
             rating=1,
-            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=45),
             is_acquisition=False,
             review_mode="reading",
             fsrs_log_json={"pre_card": {"stability": 30.0}},
@@ -574,7 +576,7 @@ class TestFilledOpeningPolicy:
         db_session.add(ReviewLog(
             lemma_id=2,
             rating=1,
-            reviewed_at=datetime.now(timezone.utc) - timedelta(days=2),
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=46),
             is_acquisition=False,
             review_mode="reading",
             fsrs_log_json={"pre_card": {"stability": 30.0}},
@@ -582,7 +584,7 @@ class TestFilledOpeningPolicy:
         db_session.add(ReviewLog(
             lemma_id=2,
             rating=1,
-            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=45),
             is_acquisition=False,
             review_mode="reading",
             fsrs_log_json={"pre_card": {"stability": 3.0}},
@@ -648,7 +650,7 @@ class TestFilledOpeningPolicy:
         db_session.add(ReviewLog(
             lemma_id=2,
             rating=1,
-            reviewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+            reviewed_at=datetime.now(timezone.utc) - timedelta(days=45),
             is_acquisition=False,
             review_mode="reading",
             fsrs_log_json=payload,
@@ -3253,3 +3255,133 @@ def test_preread_words_win_against_older_debt(db_session):
     ))
     db_session.commit()
     assert 150 in sentence_ids(6)
+
+
+class TestReservedLanes:
+    """missed_word_recovery_v1 and the acquiring reserve (2026-11-20)."""
+
+    def _dense_stock(self, db, first_id=1, sentences=12):
+        """Dense cards of four due words each that would fill every base slot."""
+        lemma_id = first_id
+        for index in range(sentences):
+            ids = []
+            for _ in range(4):
+                _seed_word(db, lemma_id, f"dense-{lemma_id}", f"dense {lemma_id}")
+                ids.append(lemma_id)
+                lemma_id += 1
+            _seed_sentence(
+                db,
+                1000 + index,
+                " ".join(f"dense-{lid}" for lid in ids),
+                f"dense sentence {index}",
+                ids[0],
+                [(f"dense-{lid}", lid) for lid in ids],
+            )
+        return lemma_id
+
+    def _log(self, db, lemma_id, rating, hours_ago, mode="reading"):
+        db.add(ReviewLog(
+            lemma_id=lemma_id,
+            rating=rating,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago),
+            review_mode=mode,
+            is_acquisition=False,
+            fsrs_log_json={},
+        ))
+
+    def test_open_miss_gets_a_card_ahead_of_dense_stock(self, db_session):
+        self._dense_stock(db_session)
+        _seed_word(db_session, 900, "missed", "missed word", stability=2.0)
+        _seed_sentence(db_session, 2000, "missed", "missed", 900, [("missed", 900)])
+        self._log(db_session, 900, 1, hours_ago=20)
+        self._log(db_session, 900, 3, hours_ago=19, mode="quiz")
+        db_session.commit()
+
+        result = build_session(
+            db_session, limit=5, log_events=False, allow_intro_mutations=False,
+        )
+        reasons = {
+            item["sentence_id"]: item["selection_info"]["reason"]
+            for item in result["items"]
+        }
+        assert reasons.get(2000) == "missed_word_recovery_v1"
+        assert result["selection_diagnostics"]["missed_word_recovery_cards"] == 1
+
+    def test_miss_closes_after_two_sentence_successes(self, db_session):
+        self._dense_stock(db_session)
+        _seed_word(db_session, 900, "missed", "missed word", stability=2.0)
+        _seed_sentence(db_session, 2000, "missed", "missed", 900, [("missed", 900)])
+        self._log(db_session, 900, 2, hours_ago=90)
+        self._log(db_session, 900, 3, hours_ago=60)
+        self._log(db_session, 900, 3, hours_ago=20)
+        db_session.commit()
+
+        result = build_session(
+            db_session, limit=5, log_events=False, allow_intro_mutations=False,
+        )
+        assert 2000 not in {item["sentence_id"] for item in result["items"]}
+        assert result["selection_diagnostics"]["missed_word_recovery_cards"] == 0
+
+    def test_missed_word_card_adds_a_required_success(self, db_session):
+        from app.services.missed_word_recovery import open_misses
+
+        _seed_word(db_session, 900, "missed", "missed word", stability=2.0)
+        self._log(db_session, 900, 1, hours_ago=90)
+        self._log(db_session, 900, 1, hours_ago=89, mode="quiz")
+        self._log(db_session, 900, 3, hours_ago=60)
+        self._log(db_session, 900, 3, hours_ago=20)
+        db_session.commit()
+
+        miss = open_misses(db_session, datetime.now(timezone.utc))[900]
+        assert (miss.successes, miss.required_successes, miss.remaining) == (2, 3, 1)
+
+    def test_reserved_slots_are_bounded(self, db_session):
+        next_id = self._dense_stock(db_session)
+        for offset in range(5):
+            lemma_id = next_id + offset
+            _seed_word(db_session, lemma_id, f"missed-{offset}", f"missed {offset}", stability=2.0)
+            _seed_sentence(
+                db_session, 2000 + offset, f"missed-{offset}", f"missed {offset}",
+                lemma_id, [(f"missed-{offset}", lemma_id)],
+            )
+            self._log(db_session, lemma_id, 1, hours_ago=20 + offset)
+        db_session.commit()
+
+        result = build_session(
+            db_session, limit=10, log_events=False, allow_intro_mutations=False,
+        )
+        assert result["selection_diagnostics"]["missed_word_recovery_cards"] == 3
+
+    def test_acquiring_word_gets_a_card_ahead_of_dense_stock(self, db_session):
+        self._dense_stock(db_session)
+        _, knowledge = _seed_word(db_session, 900, "learning", "being learned", state="acquiring")
+        knowledge.fsrs_card_json = None
+        knowledge.acquisition_box = 2
+        knowledge.acquisition_next_due = datetime.now(timezone.utc) - timedelta(hours=5)
+        knowledge.acquisition_started_at = datetime.now(timezone.utc) - timedelta(days=3)
+        knowledge.times_seen = 3
+        knowledge.times_correct = 2
+        _seed_sentence(db_session, 2000, "learning", "learning", 900, [("learning", 900)])
+        db_session.commit()
+
+        result = build_session(
+            db_session, limit=5, log_events=False, allow_intro_mutations=False,
+        )
+        reasons = [
+            item["selection_info"]["reason"]
+            for item in result["items"] if item["sentence_id"] == 2000
+        ]
+        assert reasons and reasons[0] == "acquiring_reserved_v1"
+
+    def test_other_policies_keep_their_selection(self, db_session):
+        self._dense_stock(db_session)
+        _seed_word(db_session, 900, "missed", "missed word", stability=2.0)
+        _seed_sentence(db_session, 2000, "missed", "missed", 900, [("missed", 900)])
+        self._log(db_session, 900, 1, hours_ago=20)
+        db_session.commit()
+
+        result = build_session(
+            db_session, limit=5, log_events=False, allow_intro_mutations=False,
+            selector_policy=SELECTOR_POLICY_S0,
+        )
+        assert result["selection_diagnostics"]["missed_word_recovery_cards"] == 0

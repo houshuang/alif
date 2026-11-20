@@ -972,8 +972,9 @@ def submit_acquisition_review(
             from app.services.memory_hooks import generate_memory_hooks
             start_daemon(generate_memory_hooks, lemma_id)
             logger.info(f"Triggered mnemonic generation for failed acquiring lemma {lemma_id}")
-        elif old_box >= 2:
-            # Had hooks but still failed from box 2+ — regenerate with negative example
+        elif old_box >= 2 or review_mode == "quiz":
+            # Had hooks but still failed from box 2+, or missed its word card
+            # after seeing the answer again — regenerate with negative example
             from app.services.memory_hooks import regenerate_memory_hooks_premium
             start_daemon(regenerate_memory_hooks_premium, lemma_id)
             logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")

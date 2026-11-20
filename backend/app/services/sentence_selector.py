@@ -592,6 +592,8 @@ def _apply_dominating_debt_swap(
                         "frequency_due_first_s1",
                         "frequency_due_first_s1b",
                         "generated_passage_seed",
+                        "missed_word_recovery_v1",
+                        "acquiring_reserved_v1",
                     }
                     or getattr(victim.sentence, "source", None) == "passage"
                     or _candidate_has_cold_content(
@@ -1816,6 +1818,31 @@ def build_session(
         due_lemma_ids |= preread_slow
         slow_scheduled_ids |= preread_slow
 
+    # missed_word_recovery_v1: a word missed recently stays on the schedule on
+    # its own due date whatever today's cohort or frequency lane says, until it
+    # has been answered correctly in sentences again.
+    from app.services.missed_word_recovery import (
+        ACQUIRING_RESERVED_SLOT_FRACTION,
+        MISSED_RECOVERY_SLOT_FRACTION,
+        MISSED_RECOVERY_VERSION,
+        open_misses,
+        recovery_order,
+        reserved_slots,
+    )
+    reserved_lanes_enabled = (
+        selector_policy == SELECTOR_POLICY_RECOVERY and mode == "reading"
+    )
+    open_missed = {
+        lid: miss
+        for lid, miss in (
+            open_misses(db, now).items() if reserved_lanes_enabled else ()
+        )
+        if lid in all_actionable_due_lemma_ids
+        and lid in knowledge_by_id
+        and knowledge_by_id[lid].knowledge_state in ("known", "learning", "lapsed")
+    }
+    due_lemma_ids |= set(open_missed)
+
     # Identify struggling words: seen 3+ times, never correct. Skip words whose
     # reintro card was acknowledged within the cooldown — the /reintro-result
     # ack stamps experiment_intro_shown_at, and re-teaching the same word in
@@ -2681,6 +2708,93 @@ def build_session(
                     session_scaffold_counts.get(word.lemma_id, 0) + 1
                 )
 
+    def _reserve_cards(
+        ordered_ids: list[int],
+        max_cards: int,
+        reason: str,
+        already: int = 0,
+    ) -> int:
+        """Give ordered due words a base card each before the dense greedy pass."""
+        lane_ids = set(ordered_ids)
+        used = already
+        for lemma_id in ordered_ids:
+            if used >= max_cards or len(selected) >= limit:
+                break
+            if lemma_id not in remaining_due:
+                continue
+            options = [
+                c for c in candidates
+                if lemma_id in c.due_words_covered
+                and not _is_near_duplicate_candidate(c, selected)
+            ]
+            if not options:
+                continue
+            best = max(
+                options,
+                key=lambda c: (
+                    (c.sentence.times_shown or 0) == 0,
+                    len(c.due_words_covered & lane_ids & remaining_due),
+                    c.score,
+                    -c.sentence_id,
+                ),
+            )
+            best.selection_reason = reason
+            best.selection_order = len(selected) + 1
+            best.score_components = dict(best.score_components)
+            best.score_components[reason] = True
+            selected.append(best)
+            used += 1
+            candidates.remove(best)
+            remaining_due.difference_update(best.due_words_covered)
+            for word in best.words_meta:
+                if (
+                    word.lemma_id
+                    and not word.is_due
+                    and not word.is_function_word
+                    and not word.is_proper_name
+                ):
+                    session_scaffold_counts[word.lemma_id] = (
+                        session_scaffold_counts.get(word.lemma_id, 0) + 1
+                    )
+        return used - already
+
+    # Dense due-word cards score with coverage ** 1.5 and would otherwise take
+    # every base slot while their stock lasts. Reserve a share for open misses
+    # and for words still being learned; the reserved cards are ordinary
+    # candidates that passed every gate above.
+    missed_recovery_cards = _reserve_cards(
+        [lid for lid in recovery_order(open_missed)],
+        reserved_slots(limit, MISSED_RECOVERY_SLOT_FRACTION),
+        MISSED_RECOVERY_VERSION,
+    )
+    acquiring_due_order = sorted(
+        (
+            lid for lid in remaining_due
+            if knowledge_by_id.get(lid) is not None
+            and knowledge_by_id[lid].knowledge_state == "acquiring"
+        ),
+        key=lambda lid: (-overdue_days_map.get(lid, 0.0), lid),
+    )
+    acquiring_cards_already = sum(
+        1 for c in selected
+        if _candidate_due_acquiring_ids(c, c.due_words_covered, knowledge_by_id)
+    )
+    acquiring_reserved_cards = (
+        _reserve_cards(
+            acquiring_due_order,
+            reserved_slots(limit, ACQUIRING_RESERVED_SLOT_FRACTION),
+            "acquiring_reserved_v1",
+            already=acquiring_cards_already,
+        )
+        if reserved_lanes_enabled
+        else 0
+    )
+    if missed_recovery_cards or acquiring_reserved_cards:
+        logger.info(
+            "Reserved cards: open misses %s of %s due, acquiring %s",
+            missed_recovery_cards, len(open_missed), acquiring_reserved_cards,
+        )
+
     if mode == "reading":
         max_passage_cards = PASSAGE_MAX_CARDS_PER_SESSION if limit >= 12 else 1
         passage_seeds = _best_generated_passage_seeds(
@@ -2733,6 +2847,8 @@ def build_session(
     )
     opening_cards_selected = 0
     for lid in priority_due_ids:
+        if len(selected) >= limit:
+            break
         if (
             selector_policy in {
                 SELECTOR_POLICY_S1,
@@ -4646,6 +4762,14 @@ def _with_fallbacks(
         ),
         "confusion_context_rescue_cards": reason_counts.get(
             "confusion_context_rescue_v1",
+            0,
+        ),
+        "missed_word_recovery_cards": reason_counts.get(
+            "missed_word_recovery_v1",
+            0,
+        ),
+        "acquiring_reserved_cards": reason_counts.get(
+            "acquiring_reserved_v1",
             0,
         ),
         "max_due_words_on_card": max(
