@@ -1,8 +1,10 @@
 import {
   expressionQueue,
   expressionsAt,
+  lineSegments,
   linesByExpression,
   replaySpeed,
+  segmentStep,
   sourceLines,
   tokenAt,
 } from "../dialect";
@@ -80,6 +82,28 @@ describe("tokenAt", () => {
     expect(tokenAt(l, 0.2)).toBe(0);
     expect(tokenAt(l, 0.6)).toBe(1);
     expect(tokenAt(l, 1.5)).toBe(-1);
+  });
+});
+
+describe("segments", () => {
+  const segs: [number, number][] = [[17, 20.5], [41, 43]];
+
+  it("falls back to the line's start and end", () => {
+    expect(lineSegments(catalogue.lines[0])).toEqual([[0, 2]]);
+    expect(lineSegments({ ...catalogue.lines[0], segs })).toEqual(segs);
+  });
+
+  it("plays inside a segment, jumps over the pause, then ends", () => {
+    expect(segmentStep(segs, 0, 18000)).toEqual({ kind: "play" });
+    expect(segmentStep(segs, 0, 20500)).toEqual({ kind: "next", index: 1 });
+    expect(segmentStep(segs, 1, 42000)).toEqual({ kind: "play" });
+    expect(segmentStep(segs, 1, 43050)).toEqual({ kind: "end" });
+  });
+
+  it("ignores positions reported from before the seek", () => {
+    expect(segmentStep(segs, 1, 20600)).toEqual({ kind: "stale" });
+    expect(segmentStep(segs, 0, 90000)).toEqual({ kind: "stale" });
+    expect(segmentStep(segs, 0, 16900)).toEqual({ kind: "play" });
   });
 });
 

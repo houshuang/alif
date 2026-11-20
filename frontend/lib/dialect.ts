@@ -61,6 +61,25 @@ export function tokenAt(line: DialectLine, seconds: number): number {
   return found;
 }
 
+export function lineSegments(line: DialectLine): [number, number][] {
+  return line.segs && line.segs.length > 0 ? line.segs : [[line.s, line.e]];
+}
+
+export type SegmentStep = { kind: "stale" } | { kind: "play" } | { kind: "next"; index: number } | { kind: "end" };
+
+/**
+ * What to do with a playback position while segment `index` is playing. Right after a seek,
+ * iOS can still report the old position; anything well outside the segment is ignored so a
+ * stale report cannot end a line early.
+ */
+export function segmentStep(segs: [number, number][], index: number, positionMs: number): SegmentStep {
+  const startMs = segs[index][0] * 1000;
+  const endMs = segs[index][1] * 1000;
+  if (positionMs < startMs - 250 || positionMs > endMs + 1000) return { kind: "stale" };
+  if (positionMs < endMs) return { kind: "play" };
+  return index + 1 < segs.length ? { kind: "next", index: index + 1 } : { kind: "end" };
+}
+
 export function sourceLines(catalogue: DialectCatalogue, sourceIds: string[]): string[] {
   const wanted = new Set(sourceIds);
   return catalogue.lines.filter((l) => wanted.has(l.src)).map((l) => l.id);
