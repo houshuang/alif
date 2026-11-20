@@ -166,6 +166,12 @@ actually got a phrase, days from miss to closed. Roll back with `ALIF_FRAGMENT_R
 **Known weakness.** A phrase gives more of the meaning away than a sentence, so the phrase
 arm's own hit rate is not comparable; only the later full-sentence review is.
 
+**Deployed 2026-11-20** (PR #331, `69414eef`): backend, web, iOS update group
+`b8e594e5-7f7e-4e1c-91a6-ec38586a3d43`. Stock seeded on the server with six runs of
+`stock_followup_fragments()`: 158 phrases for 47 words (per run about 32 returned, 30
+valid, 26–31 stored). Phrase cards answered before the phone applies the update do not
+exist; until then `phrase` words get sentence cards.
+
 ## 2026-11-20: Missed-word recovery lane, acquiring reserve, and the fragment retry A/B
 
 **Why.** First review-side reading after the 18–19 Nov generation changes (40 sentence
