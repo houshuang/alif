@@ -1391,6 +1391,8 @@ export interface PartialRoot {
 
 export interface TodayProgress {
   cards: number;
+  /** Distinct words reviewed today that were due or the card's target. */
+  due_words: number;
   words_reviewed: number;
   words_correct: number;
   new_words: number;

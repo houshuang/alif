@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models import ReviewLog, SentenceReviewLog, UserLemmaKnowledge
 from app.services.acquisition_service import true_new_acquisition_episode_filter
 from app.services.fsrs_service import parse_json_column
+from app.services.sentence_review_service import _parse_card_datetime
 
 
 def _card_key(log_id: int, client_review_id: str | None) -> str:
@@ -17,6 +18,20 @@ def _card_key(log_id: int, client_review_id: str | None) -> str:
         return f"legacy:{log_id}"
     base, marker, suffix = client_review_id.rpartition(":s")
     return base if marker and suffix.isdigit() else client_review_id
+
+
+def _was_due(log: object, reviewed_at: datetime | None) -> bool:
+    """Acquisition logs record due status; FSRS logs keep the card before the review."""
+    if not isinstance(log, dict):
+        return False
+    if log.get("is_due_at_review") is True:
+        return True
+    pre_card = log.get("pre_card")
+    if not isinstance(pre_card, dict) or reviewed_at is None:
+        return False
+    due_at = _parse_card_datetime(pre_card.get("due"))
+    reviewed = reviewed_at if reviewed_at.tzinfo else reviewed_at.replace(tzinfo=timezone.utc)
+    return due_at is not None and due_at <= reviewed
 
 
 def today_progress(db: Session, now: datetime | None = None) -> dict[str, int]:
@@ -50,6 +65,12 @@ def today_progress(db: Session, now: datetime | None = None) -> dict[str, int]:
         .filter(UserLemmaKnowledge.graduated_at >= start)
         .scalar()
     )
+    due_or_target: set[int] = set()
+    for lemma_id, credit_type, reviewed_at, log in db.query(
+        ReviewLog.lemma_id, ReviewLog.credit_type, ReviewLog.reviewed_at, ReviewLog.fsrs_log_json
+    ).filter(ReviewLog.reviewed_at >= start, ReviewLog.sentence_id.isnot(None)):
+        if credit_type == "primary" or _was_due(parse_json_column(log), reviewed_at):
+            due_or_target.add(lemma_id)
     moved_up: set[int] = set()
     for lemma_id, log in db.query(ReviewLog.lemma_id, ReviewLog.fsrs_log_json).filter(
         ReviewLog.reviewed_at >= start, ReviewLog.is_acquisition.is_(True)
@@ -67,6 +88,7 @@ def today_progress(db: Session, now: datetime | None = None) -> dict[str, int]:
     )
     return {
         "cards": len(cards),
+        "due_words": len(due_or_target),
         "words_reviewed": int(words[0] or 0),
         "words_correct": int(words[1] or 0),
         "new_words": int(new_words or 0),
