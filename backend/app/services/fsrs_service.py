@@ -282,7 +282,11 @@ def submit_review(
             from app.services.memory_hooks import generate_memory_hooks
             start_daemon(generate_memory_hooks, lemma_id)
             logger.info(f"Triggered mnemonic generation for failed lemma {lemma_id}")
-        elif new_state == "lapsed" and old_knowledge_state != "lapsed":
+        elif (new_state == "lapsed" and old_knowledge_state != "lapsed") or (
+            # A missed word card comes after the answer was shown again: the
+            # current hook did not hold either.
+            review_mode == "quiz" and rating_int == 1
+        ):
             # Has hooks but lapsed — regenerate with old mnemonic as negative example
             from app.services.memory_hooks import regenerate_memory_hooks_premium
             start_daemon(regenerate_memory_hooks_premium, lemma_id)

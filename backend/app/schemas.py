@@ -804,6 +804,9 @@ class WrapUpIn(BaseModel):
     seen_lemma_ids: list[int]
     missed_lemma_ids: list[int] = []
     session_id: str | None = None
+    # True for the same-day retry of one missed word: the server assigns the
+    # fragment_retest_v1 arm and may attach a fragment to the card.
+    checkpoint: bool = False
 
 
 class WrapUpCardOut(BaseModel):
@@ -825,6 +828,10 @@ class WrapUpCardOut(BaseModel):
     forms_translit: dict | None = None
     pattern_examples: list[dict] = []
     root_family: list[dict] = []
+    retest_arm: str | None = None
+    fragment: dict | None = None
+    # The word's open miss already includes a missed word card: show more support.
+    extra_support: bool = False
 
 
 class WrapUpOut(BaseModel):
