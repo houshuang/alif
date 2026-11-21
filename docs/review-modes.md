@@ -18,8 +18,11 @@ in a separate dock immediately above the bottom actions, so tapping a word in a
 long sentence never requires scrolling to the end to find its explanation. The
 dock is capped at 42% of the viewport height (340 points maximum) and scrolls
 independently; minimizing collapses it to the restore control. It reserves its
-space rather than covering text. The minimal card shows the surface, a two-line gloss, pronunciation/POS/root,
-and a short morphology or dictionary-form bridge. Its expand button opens a
+space rather than covering text. The dock card shows the dictionary form with gloss,
+pronunciation and POS, the parts of the sentence form, at most three forms (verbs: past,
+present, masdar; the sentence's form is kept when it is another one), and the root
+letters with up to three words of the same root, known words first, wrapping onto a
+second line. The root meaning, pattern and memory note are left to the full card. Its expand button opens a
 scrollable full-card modal; tapping outside or Close dismisses it without
 expanding the dock or reflowing the sentence. The modal includes forms, grammar,
 root/pattern family, examples and available enrichment notes.

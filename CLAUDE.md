@@ -387,7 +387,7 @@ Reading word help is docked above the answer buttons, outside the sentence scrol
 Cap its height (42% viewport, max 340pt), preserve independent scrolling and the
 minimize/restore behavior, and never cover the final lines with an absolute overlay.
 
-Keep the dock minimal: meaning, pronunciation/POS/root and a short form bridge.
+Keep the dock short: meaning, parts, at most three forms and up to three same-root words.
 Open richer word details in a tap-dismissable modal, not an expanding inline panel.
 Mixed up is a plain toggle; turning it on for a yellow word opens the naming popover.
 Reason icons expose hover/focus legends and retain 44pt targets.
