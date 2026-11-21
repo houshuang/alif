@@ -118,6 +118,40 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21 (2): Walk episodes pilot — two-host audio from firmly known words
+
+**Why.** The learner asked for a second attempt at hands-off audio for a daily 20–30 minute walk. Data on this
+date: 2,690 known words (1,981 with FSRS stability ≥ 30 days; 943 of the top 995 core-frequency entries known),
+but 2,786 of 2,841 scheduled words had `times_heard = 0`. The March podcasts (19 episodes, 5–8 minutes, one
+voice, English around every sentence) were finished about 11 times in their first week and not since; audio
+generation has been off since 2026-05-12. Background and sources: `research/walk-audio-2026-11/README.md`.
+
+**What was built.** `scripts/generate_walk_episode.py`: an LLM writes a two-host conversation section by section
+using only firm words (stability ≥ 30 days) plus a pool of up to 45 weak words (due or lapsed, seen ≥ 3 times);
+every token is resolved with the running-text mapper and turns with a word outside the allowed set are rewritten
+(up to three rounds). Speech is ElevenLabs `eleven_multilingual_v2`, one clip per sentence, two cloned voices,
+pausal sentence endings, speed 0.88, pauses of 380 ms / 700 ms / 1.6 s between sentences / turns / sections.
+Each episode ends with the first three sections of the previous episode. Episodes appear in the existing Podcast
+screen (`format_type = "walk"`).
+
+**Pilot.** Three episodes on the books and libraries of Abbasid Baghdad (plan:
+`research/walk-audio-2026-11/plan-baghdad-books.json`), about 1,320 running words and 17 minutes of new
+conversation each, with no token left outside the allowed set after rewriting. Two voice samples of the same
+opening (ElevenLabs, Gemini `gemini-3.8-flash-tts`) are in the Podcast screen for comparison.
+
+**No scheduling effect.** The script only reads the database. Completing an episode in the app increments
+`times_heard` as before; it gives no FSRS or acquisition credit. Open decision for the learner: audio carries
+no new words.
+
+**Comparison group.** Weak words are offered as repeat targets only when
+`sha256("walk_audio_v1:<lemma_id>")[0]` is even; the other half are never offered. Each episode's metadata
+records `target_words` with use counts.
+
+**Readout (not before the learner has finished at least ten episodes).** For weak words that were due when an
+episode was written: first reading-review rating after the episode was heard, targets used ≥ 4 times against
+never-offered words, matched on stability band. The qualitative question comes first: whether the episodes are
+followed and enjoyed at this pace; the one setting to move is `FIRM_STABILITY_DAYS`.
+
 ## 2026-11-21: Clean sentence reading timing and the docked word help (PR #293, part 1)
 
 **Deployed 2026-11-21** (#338, `16d19fa5`): backend restarted, migration `f3b5d7e9a1c4` applied in production (backup `alif_pre_reading_timing_20261121_095625.db`), iOS OTA published. The dock also shows three forms, up to three same-root words, the root's meaning and the memory note, and only the card scrolls inside a 32% / 256 pt cap.

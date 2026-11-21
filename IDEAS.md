@@ -2133,6 +2133,15 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 ---
 
 ## Podcast / Passive Listening (2026-03-22)
+
+### Walk episodes (2026-11-21)
+- [PILOT] Two-host conversation from firm words only, weak words repeated, previous day replayed (`generate_walk_episode.py`; experiment log 2026-11-21 (2)).
+- [IDEA] Private podcast feed (RSS behind the API capability) so episodes arrive in a podcast app with lock-screen controls and offline play.
+- [IDEA] One-tap feedback after an episode (too easy / right / too hard) that moves the firm-word threshold.
+- [IDEA] Daily automatic episode: topic queue chosen by the learner, one topic for three or four days.
+- [IDEA] News ladder: the day's real headlines rewritten in known vocabulary, later a real news clip played after its simplified version.
+- [IDEA] Read the transcript after the walk (reading-while-listening); the Podcast detail view already shows the turns.
+- [IDEA] Gemini two-speaker speech as a cheaper engine (stock voices only); compare with the cloned ElevenLabs voices.
 - [DONE] Sampler with 6 format variants generated and playable in app
 - [ ] Listen to sampler, choose best format(s)
 - [DONE] Repetition-focused episodes targeting acquiring words (3-4x per word, 15 sentences, breakdown audio). Script: `generate_repetition_podcasts.py`
