@@ -118,6 +118,26 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21 (3): Walk episodes — daily job, rating buttons, private feed
+
+Follows "2026-11-21 (2)". The learner asked for the three pieces the pilot left out.
+
+- **Daily job.** `generate_walk_episode.py daily`, cron 04:00 through `deploy/alif-walk-daily.sh`, which sets
+  `ALIF_AUDIO_ENABLED=1` for its own process only. Topics come from the learner's queue (Podcast screen), then
+  from fourteen built-in topics chosen by the assistant. One topic gives three episodes of four sections
+  (about 14 minutes new) plus a replay of the previous episode's first three sections.
+- **Stop rule.** One episode per day; none after four episodes in a row with neither an in-app completion nor
+  a rating. A podcast app gives no listening signal, so the rating is the only sign of use from there. Expected
+  speech cost is about $1.50–2 per episode at list price; the rule bounds unused spend to four episodes.
+- **Safety check.** A script with more than 1% of words outside the allowed set is not voiced.
+- **Rating.** Too easy / About right / Too hard per episode. It moves one setting, the minimum FSRS stability
+  for a word to appear, along 14 / 30 / 60 / 120 / 240 days (start 30). Changing a rating applies only the
+  difference. Pace is not adjustable yet.
+- **Feed.** `/api/podcasts/feed.xml?base=<private prefix>` behind the same private path as the API.
+
+No scheduling effect; the comparison group and readout of entry (2) are unchanged. The script records
+`firm_days` in each episode's metadata so the readout can account for threshold changes.
+
 ## 2026-11-21 (2): Walk episodes pilot — two-host audio from firmly known words
 
 **Why.** The learner asked for a second attempt at hands-off audio for a daily 20–30 minute walk. Data on this

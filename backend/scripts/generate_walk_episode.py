@@ -13,6 +13,11 @@ Two steps, so the script text can be inspected before any paid speech call:
     ALIF_AUDIO_ENABLED=1 python3 scripts/generate_walk_episode.py voice \
         --script data/podcasts/walk-scripts/<name>.json [--replay <previous name>]
 
+The daily job plans a three-episode series from the topic queue, writes, checks
+and voices one episode, and stops by itself when episodes go unacknowledged:
+
+    ALIF_AUDIO_ENABLED=1 python3 scripts/generate_walk_episode.py daily
+
 Read-only against the database: no learning state changes.
 """
 
@@ -123,7 +128,7 @@ def in_audio_arm(lemma_id: int) -> bool:
     return hashlib.sha256(f"walk_audio_v1:{lemma_id}".encode()).digest()[0] % 2 == 0
 
 
-def load_vocabulary(db) -> tuple[dict[int, Lemma], list[Lemma]]:
+def load_vocabulary(db, firm_days: float = FIRM_STABILITY_DAYS) -> tuple[dict[int, Lemma], list[Lemma]]:
     """Return (firm lemmas by id, weak target pool ordered by frequency)."""
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     firm: dict[int, Lemma] = {}
@@ -139,7 +144,7 @@ def load_vocabulary(db) -> tuple[dict[int, Lemma], list[Lemma]]:
             continue
         card = _card(ulk)
         stability = card.get("stability") or 0
-        if ulk.knowledge_state in ("known", "learning") and stability >= FIRM_STABILITY_DAYS:
+        if ulk.knowledge_state in ("known", "learning") and stability >= firm_days:
             firm[lemma.lemma_id] = lemma
         elif (
             ulk.knowledge_state in ("known", "learning", "lapsed")
@@ -355,13 +360,13 @@ VOCABULARY (Arabic = meaning):
     )
 
 
-def cmd_write(args) -> None:
-    plan = json.loads(Path(args.plan).read_text())
-    plan_ep = plan["episodes"][args.episode - 1]
+def write_episode(plan: dict, episode: int, firm_days: float = FIRM_STABILITY_DAYS) -> Path:
+    """Write and verify one episode's script; returns the script file."""
+    plan_ep = plan["episodes"][episode - 1]
     db = SessionLocal()
     try:
-        firm, targets = load_vocabulary(db)
-        logger.info("firm words %d, repeat pool %d", len(firm), len(targets))
+        firm, targets = load_vocabulary(db, firm_days)
+        logger.info("firm words %d (stability >= %s days), repeat pool %d", len(firm), firm_days, len(targets))
         verifier = Verifier(db, firm, targets)
         turns: list[dict] = []
         names: set[str] = set()
@@ -408,11 +413,12 @@ def cmd_write(args) -> None:
         for token in tokens:
             counts[token["status"]] = counts.get(token["status"], 0) + 1
         leftovers = sorted({t["surface"] for t in tokens if t["status"] in ("unmapped", "outside")})
-        name = f"walk-{plan['slug']}-{args.episode}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+        name = f"walk-{plan['slug']}-{episode}-{datetime.now().strftime('%Y%m%d-%H%M')}"
         script = {
             "name": name,
             "slug": plan["slug"],
-            "episode": args.episode,
+            "episode": episode,
+            "firm_days": firm_days,
             "title_en": plan_ep["title_en"],
             "title_ar": plan_ep["title_ar"],
             "intro_en": plan_ep["intro_en"],
@@ -433,6 +439,7 @@ def cmd_write(args) -> None:
         logger.info("script %s: %d words, %s", path, total, counts)
         logger.info("not allowed (%d): %s", len(leftovers), " ".join(leftovers))
         logger.info("repeat words: %s", ", ".join(f"{t['arabic']}×{t['uses']}" for t in script["targets"]))
+        return path
     finally:
         db.close()
 
@@ -525,20 +532,27 @@ async def build_conversation(client, turns: list[dict]):
     return body, characters
 
 
-async def cmd_voice(args) -> None:
+async def voice_episode(
+    script_path: Path,
+    replay_path: Path | None = None,
+    replay_sections: int = 3,
+    name: str | None = None,
+    max_turns: int | None = None,
+) -> Path:
+    """Voice a verified script into an MP3 with metadata for the Podcast screen."""
     import httpx
     from pydub import AudioSegment
 
-    script = json.loads(Path(args.script).read_text())
-    turns = script["turns"][: args.max_turns] if args.max_turns else script["turns"]
-    name = args.name or script["name"]
+    script = json.loads(Path(script_path).read_text())
+    turns = script["turns"][:max_turns] if max_turns else script["turns"]
+    name = name or script["name"]
     async with httpx.AsyncClient() as client:
         body, characters = await build_conversation(client, turns)
         final = AudioSegment.from_mp3(io.BytesIO(await speak(client, script["intro_en"], VOICES["B"], "en")))
         final += AudioSegment.silent(1200) + body
-        if args.replay:
-            previous = json.loads(Path(args.replay).read_text())
-            replay_turns = [t for t in previous["turns"] if t.get("section", 0) < args.replay_sections]
+        if replay_path:
+            previous = json.loads(Path(replay_path).read_text())
+            replay_turns = [t for t in previous["turns"] if t.get("section", 0) < replay_sections]
             replay, replay_characters = await build_conversation(client, replay_turns)
             characters += replay_characters
             bridge = await speak(client, "And now, the first part of yesterday's conversation once more.", VOICES["B"], "en")
@@ -563,7 +577,8 @@ async def cmd_voice(args) -> None:
             "target_words": script["targets"],
             "word_lemma_ids": lemma_ids,
             "token_counts": script["token_counts"],
-            "replay_of": Path(args.replay).stem if args.replay else None,
+            "replay_of": Path(replay_path).stem if replay_path else None,
+            "firm_days": script.get("firm_days"),
             "duration_seconds": int(len(final) / 1000),
             "generated_at": datetime.now().isoformat(),
             "listened_at": None,
@@ -571,6 +586,109 @@ async def cmd_voice(args) -> None:
         },
     )
     logger.info("saved %s: %.1f min (new part %.1f min), %d Arabic characters voiced", output, len(final) / 60000, len(body) / 60000, characters)
+    return output
+
+
+# ── Daily job ────────────────────────────────────────────────────────
+
+PLAN_DIR = PODCAST_DIR / "walk-plans"
+MAX_NOT_ALLOWED_SHARE = 0.01
+
+PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "episodes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title_en": {"type": "string"},
+                    "title_ar": {"type": "string"},
+                    "intro_en": {"type": "string"},
+                    "sections": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["title_en", "title_ar", "intro_en", "sections"],
+            },
+        },
+    },
+    "required": ["episodes"],
+}
+
+
+def make_plan(topic: dict) -> dict:
+    """Plan a three-episode series on one topic as English section briefs."""
+    from app.services.llm import generate_completion
+
+    prompt = f"""Plan a three-episode audio series for one adult listener who enjoys history and ideas.
+Topic: {topic['title']}
+{('His notes on what he wants: ' + topic['notes']) if topic.get('notes') else ''}
+
+Each episode is a conversation between two hosts and will be written in simple Modern Standard Arabic
+from a vocabulary of about two thousand common words, so choose material that can be told with
+everyday words: people, places, journeys, objects, decisions, reversals. Avoid anything that needs
+technical terms.
+
+For each of the three episodes give:
+- title_en: a short English title
+- title_ar: a short Arabic title with full vowel marks
+- intro_en: one English sentence beginning "Today:" that says what the episode is about
+- sections: exactly four briefs in English, three to five sentences each. A brief lists the concrete
+  facts, names and one vivid detail or small joke for that part of the conversation. Use only
+  well-established facts. Where something is a legend or disputed, say so in the brief.
+
+The last brief of episodes one and two ends with what tomorrow's episode is about; the last brief of
+episode three closes the series."""
+    result = generate_completion(
+        prompt,
+        json_schema=PLAN_SCHEMA,
+        model_override=os.environ.get("ALIF_WALK_WRITER", "claude_sonnet"),
+        timeout=600,
+        task_type="walk_episode_plan",
+    )
+    episodes = [e for e in result["episodes"] if e.get("sections")][:3]
+    if len(episodes) < 2:
+        raise RuntimeError("the plan has too few episodes")
+    slug = re.sub(r"[^a-z0-9]+", "-", topic["title"].lower()).strip("-")[:40] or "topic"
+    return {"slug": slug, "topic": topic, "episodes": episodes}
+
+
+def cmd_daily(args) -> None:
+    """Make today's episode if the decision rule allows it."""
+    from app.services import walk_episodes
+
+    ok, reason = walk_episodes.generation_decision()
+    if not ok and not args.force:
+        logger.info("no episode today: %s", reason)
+        return
+    state = walk_episodes.load_state()
+    series = state.get("series")
+    if not series or series["next_episode"] > series["episodes"]:
+        topic = walk_episodes.next_topic(state)
+        plan = make_plan(topic)
+        PLAN_DIR.mkdir(parents=True, exist_ok=True)
+        plan_path = PLAN_DIR / f"{plan['slug']}-{datetime.now().strftime('%Y%m%d')}.json"
+        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+        series = {"plan": str(plan_path), "title": topic["title"], "next_episode": 1, "episodes": len(plan["episodes"])}
+        fresh = walk_episodes.load_state()
+        fresh.update(series=series, used_topics=state["used_topics"])
+        if fresh["queue"][:1] == [topic]:
+            fresh["queue"].pop(0)
+        walk_episodes.save_state(fresh)
+        state = fresh
+        logger.info("new series: %s", topic["title"])
+    plan = json.loads(Path(series["plan"]).read_text())
+    script_path = write_episode(plan, series["next_episode"], state["firm_days"])
+    script = json.loads(script_path.read_text())
+    total = sum(script["token_counts"].values())
+    outside = script["token_counts"].get("unmapped", 0) + script["token_counts"].get("outside", 0)
+    if outside > total * MAX_NOT_ALLOWED_SHARE:
+        raise RuntimeError(f"{outside} of {total} words are outside the allowed vocabulary; not voicing {script_path}")
+    replay = state.get("last_script")
+    asyncio.run(voice_episode(script_path, Path(replay) if replay and Path(replay).exists() else None))
+    fresh = walk_episodes.load_state()
+    fresh["last_script"] = str(script_path)
+    fresh["series"] = dict(series, next_episode=series["next_episode"] + 1)
+    walk_episodes.save_state(fresh)
 
 
 def main() -> None:
@@ -579,17 +697,22 @@ def main() -> None:
     write = sub.add_parser("write")
     write.add_argument("--plan", required=True)
     write.add_argument("--episode", type=int, required=True)
+    write.add_argument("--firm-days", type=float, default=FIRM_STABILITY_DAYS)
     voice = sub.add_parser("voice")
     voice.add_argument("--script", required=True)
     voice.add_argument("--replay", help="script file of the previous episode; its opening sections are replayed at the end")
     voice.add_argument("--replay-sections", type=int, default=3, help="how many sections of the previous episode to replay")
     voice.add_argument("--name", help="output name (default: the script's name)")
     voice.add_argument("--max-turns", type=int, help="voice only the first N turns (for a sample)")
+    daily = sub.add_parser("daily", help="make today's episode from the topic queue if the decision rule allows it")
+    daily.add_argument("--force", action="store_true", help="ignore the decision rule")
     args = parser.parse_args()
     if args.command == "write":
-        cmd_write(args)
+        write_episode(json.loads(Path(args.plan).read_text()), args.episode, args.firm_days)
+    elif args.command == "voice":
+        asyncio.run(voice_episode(args.script, args.replay, args.replay_sections, args.name, args.max_turns))
     else:
-        asyncio.run(cmd_voice(args))
+        cmd_daily(args)
 
 
 if __name__ == "__main__":

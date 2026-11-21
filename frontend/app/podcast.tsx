@@ -9,6 +9,9 @@ import {
   RefreshControl,
   Image,
   Dimensions,
+  TextInput,
+  Share,
+  Platform,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,8 +37,11 @@ interface Podcast {
   listened_at: string | null;
   listen_progress: number;
   format_type: string;
+  feedback?: string | null;
   image_url: string | null;
 }
+interface WalkTopic { title: string; notes: string; }
+const FEEDBACK: [string, string][] = [["easy", "Too easy"], ["right", "About right"], ["hard", "Too hard"]];
 interface PodDetail extends Podcast { sentences: PodSentence[]; }
 
 export default function PodcastScreen() {
@@ -47,6 +53,8 @@ export default function PodcastScreen() {
   const [detail, setDetail] = useState<PodDetail | null>(null);
   const [status, setStatus] = useState<{ position: number; duration: number; isPlaying: boolean } | null>(null);
   const [completeFeedback, setCompleteFeedback] = useState<string | null>(null);
+  const [queue, setQueue] = useState<WalkTopic[]>([]);
+  const [topicText, setTopicText] = useState("");
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const fetchPodcasts = useCallback(async () => {
@@ -58,7 +66,51 @@ export default function PodcastScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => { fetchPodcasts(); return () => { soundRef.current?.unloadAsync(); }; }, [fetchPodcasts]);
+  const fetchWalk = useCallback(async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/podcasts/walk`);
+      if (res.ok) setQueue((await res.json()).queue || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchPodcasts(); fetchWalk(); return () => { soundRef.current?.unloadAsync(); }; }, [fetchPodcasts, fetchWalk]);
+
+  const addTopic = async () => {
+    const title = topicText.trim();
+    if (!title) return;
+    try {
+      const res = await fetch(`${BASE_URL}/api/podcasts/walk/topics`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (res.ok) { setQueue((await res.json()).queue || []); setTopicText(""); }
+    } catch {}
+  };
+
+  const removeTopic = async (index: number) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/podcasts/walk/topics/${index}`, { method: "DELETE" });
+      if (res.ok) setQueue((await res.json()).queue || []);
+    } catch {}
+  };
+
+  const shareFeed = async () => {
+    const url = `${BASE_URL}/api/podcasts/feed.xml?base=${encodeURIComponent(BASE_URL)}`;
+    try {
+      if (Platform.OS === "web") await navigator.clipboard.writeText(url);
+      else await Share.share({ message: url });
+    } catch {}
+  };
+
+  const sendFeedback = async (fn: string, rating: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/podcasts/feedback/${fn}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating }),
+      });
+      if (res.ok) setPodcasts(prev => prev.map(x => x.filename === fn ? { ...x, feedback: rating } : x));
+    } catch {}
+  };
 
   const fetchDetail = async (fn: string) => {
     try {
@@ -184,6 +236,20 @@ export default function PodcastScreen() {
               <Text style={st.feedbackText}>{completeFeedback}</Text>
             )}
 
+            {p.format_type === "walk" && (
+              <View style={st.ratingRow}>
+                {FEEDBACK.map(([value, label]) => (
+                  <Pressable
+                    key={value}
+                    style={[st.ratingBtn, p.feedback === value && st.ratingBtnOn]}
+                    onPress={() => sendFeedback(p.filename, value)}
+                  >
+                    <Text style={[st.ratingText, p.feedback === value && st.ratingTextOn]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             {/* Summary */}
             {(detail?.summary || p.summary) ? (
               <Text style={st.detailSummary}>{detail?.summary || p.summary}</Text>
@@ -248,7 +314,35 @@ export default function PodcastScreen() {
     <View style={st.container}>
       <View style={st.header}>
         <Text style={st.headerTitle}>Podcast</Text>
+        <Pressable onPress={shareFeed} hitSlop={12} accessibilityLabel="Podcast feed link">
+          <Ionicons name="logo-rss" size={22} color={colors.textSecondary} />
+        </Pressable>
       </View>
+
+      <View style={st.topicRow}>
+        <TextInput
+          style={st.topicInput}
+          value={topicText}
+          onChangeText={setTopicText}
+          onSubmitEditing={addTopic}
+          placeholder="Next topic"
+          placeholderTextColor={colors.textSecondary}
+          returnKeyType="done"
+        />
+        <Pressable onPress={addTopic} style={st.topicAdd} accessibilityLabel="Add topic">
+          <Ionicons name="add" size={22} color="#fff" />
+        </Pressable>
+      </View>
+      {queue.length > 0 && (
+        <View style={st.topicChips}>
+          {queue.map((t, i) => (
+            <Pressable key={`${i}-${t.title}`} style={st.topicChip} onPress={() => removeTopic(i)}>
+              <Text style={st.topicChipText} numberOfLines={1}>{t.title}</Text>
+              <Ionicons name="close" size={14} color={colors.textSecondary} />
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Mini player bar when playing */}
       {playing && status && (
@@ -344,7 +438,37 @@ const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   // Header
-  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 8 },
+  header: {
+    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+  },
+
+  // Walk topics
+  topicRow: { flexDirection: "row", gap: 8, marginHorizontal: 16, marginBottom: 8 },
+  topicInput: {
+    flex: 1, height: 44, borderRadius: 10, paddingHorizontal: 12,
+    backgroundColor: colors.surface, color: colors.text, fontSize: 15,
+  },
+  topicAdd: {
+    width: 44, height: 44, borderRadius: 10, backgroundColor: colors.accent,
+    justifyContent: "center", alignItems: "center",
+  },
+  topicChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginHorizontal: 16, marginBottom: 8 },
+  topicChip: {
+    flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%",
+    backgroundColor: colors.surfaceLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+  },
+  topicChipText: { fontSize: 13, color: colors.text, flexShrink: 1 },
+
+  // Episode rating
+  ratingRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  ratingBtn: {
+    flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+    justifyContent: "center", alignItems: "center",
+  },
+  ratingBtnOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  ratingText: { fontSize: 14, fontWeight: "600", color: colors.text },
+  ratingTextOn: { color: "#fff" },
   headerTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
 
   // Mini player bar
