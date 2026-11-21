@@ -118,6 +118,24 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21 (4): Bridge episodes pilot — authentic audio with a spoken bridge
+
+**Learner's idea (this date).** Take an authentic fusha podcast or audiobook on a subject he cares about, split
+it into fragments, and build an audio-only script around each one, so real material becomes followable.
+
+**Built.** `scripts/generate_bridge_episode.py`. Per fragment: the authentic audio; up to three hard words, each
+spoken in Arabic and then English; a retelling in simple Arabic from firm words (same verifier as walk
+episodes); the authentic audio again. Every five fragments the stretch plays uninterrupted; the whole excerpt
+plays at the end. Hard words are the tokens the running-text mapper does not resolve to a firm word.
+
+**Pilot.** Al Jazeera's *Rumooz* episode on Ibn Khaldun, minutes 3:00–5:45 (origins, schooling, the plague),
+transcribed with Soniox `stt-async-v5`: 275 words in 19 fragments, 77% of source tokens firm, 45 key words, no
+retelling word outside the allowed set. Result: 17.8 minutes from 2.7 minutes of source. The episode is in the
+Podcast screen and the private feed (`format_type="bridge"`).
+
+**Open, for the learner's ear.** Order (bridge before or after the first hearing), whether English key words help
+or interrupt, fragment length, and how many repeats. No scheduling effect; no review credit.
+
 ## 2026-11-21 (3): Walk episodes — daily job, rating buttons, private feed
 
 Follows "2026-11-21 (2)". The learner asked for the three pieces the pilot left out.

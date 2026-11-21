@@ -105,3 +105,11 @@ def test_feedback_and_topic_routes(podcast_dir, client):
     assert status["queue"] == [{"title": "Ibn Rushd", "notes": ""}]
     assert client.delete("/api/podcasts/walk/topics/0").json()["queue"] == []
     assert client.delete("/api/podcasts/walk/topics/5").status_code == 404
+
+
+def test_feed_includes_bridge_episodes_but_daily_rule_ignores_them(podcast_dir):
+    for day in range(20, 24):
+        make_episode(podcast_dir, f"bridge-a-{day}", f"2026-11-{day}T04:00:00", format_type="bridge")
+    assert "bridge-a-23.mp3" in walk_episodes.build_feed("https://example.org/secret")
+    assert walk_episodes.walk_episodes() == []
+    assert walk_episodes.generation_decision(datetime(2026, 11, 25, 4, 0))[0] is True

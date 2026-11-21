@@ -213,7 +213,7 @@ recorded as excluded without discarding the underlying review.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/podcasts/feed.xml?base=<private API prefix>` | RSS feed of walk episodes for a podcast app, newest first. `base` must be an https URL on the request's host; the backend cannot see the private path prefix, so the caller supplies it and enclosure URLs are built from it. |
+| GET | `/api/podcasts/feed.xml?base=<private API prefix>` | RSS feed of walk and bridge episodes for a podcast app, newest first. `base` must be an https URL on the request's host; the backend cannot see the private path prefix, so the caller supplies it and enclosure URLs are built from it. |
 | POST | `/api/podcasts/feedback/{filename}` | Body `{"rating": "easy" | "right" | "hard"}`. Stores the rating in the episode metadata and moves the firm-word threshold one step (14/30/60/120/240 days); changing a rating applies only the difference. Returns `{filename, feedback, firm_days}`. |
 | GET | `/api/podcasts/walk` | `{firm_days, queue, current_topic, will_generate, reason}`. |
 | POST | `/api/podcasts/walk/topics` | Body `{"title", "notes"?}`; appends to the topic queue; returns the status object. |
