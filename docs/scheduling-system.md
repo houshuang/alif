@@ -1685,6 +1685,17 @@ Uses a sliding window instead of cumulative accuracy so that words can escape le
 by improving recent performance (fixes the "leech escape trap" where accumulated historical
 failures made it mathematically impossible to reach 50% cumulative accuracy).
 
+**The missed-word lane comes first (2026-11-21, `recovery_lane_has_priority()`).** A word
+with an FSRS card (`learning`/`known`/`lapsed`, not in a `leech_reintro` episode) that has
+an open miss under `missed_word_recovery_v1` is not suspended until that run of misses has
+`LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS = 3` sentence or phrase misses: the first miss
+plus two missed follow-ups (`OpenMiss.misses_in_run`; a run ends when the miss is closed,
+word-card answers do not count). Before this, a first miss in months could suspend a word
+because the window of eight reviews reaches back any length of time, and a suspended word
+leaves the lane. Acquiring words and reintroduction episodes keep the plain rule. A word
+whose window is below 50% with no open miss (older than the lane's 30 days, or closed) is
+suspended as before.
+
 ### Lifecycle
 
 ```
@@ -2190,6 +2201,7 @@ Cap = `0` if `high_stability_due < MIN_DUE_TARGETS`, else `clamp(high_stability_
 | `LEECH_MIN_REVIEWS` | 5 | Minimum total reviews before leech check |
 | `LEECH_MAX_ACCURACY` | 0.50 | Accuracy threshold (below = leech) |
 | `LEECH_WINDOW_SIZE` | 8 | Sliding window size for recent accuracy |
+| `LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS` | 3 | An established word with an open miss is suspended only once the run has this many sentence/phrase misses (first miss + two follow-ups) |
 | `LEECH_REINTRO_DAILY_CAP` | 8 | Maximum reintroduction episodes admitted per UTC day |
 | `LEECH_REINTRO_BOX1_ADMISSION_LIMIT` | 20 (legacy rollback) | Close/limit reintroduction admission at this actionable Box-1 load. Under maintenance, `leech_reintro_box1_admission_limit()` returns `RECOVERY_BOX1_REINTRO_OCCUPANCY_LIMIT` (4) measured against occupancy |
 | `RECOVERY_FSRS_MAIN_DUE_LIMIT` | 750 | Shared strict main-lane FSRS recovery/admission threshold |

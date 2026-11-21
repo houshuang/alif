@@ -46,6 +46,9 @@ class OpenMiss:
     successes: int
     required_successes: int
     word_card_misses: int
+    # Sentence or phrase misses since the word last had no open miss, this one
+    # included: 1 is a fresh miss, 2 means one follow-up was missed as well.
+    misses_in_run: int = 1
 
     @property
     def remaining(self) -> int:
@@ -56,26 +59,39 @@ def reserved_slots(limit: int, fraction: float) -> int:
     return max(1, round(limit * fraction)) if limit > 0 else 0
 
 
-def open_misses(db: Session, now: datetime) -> dict[int, OpenMiss]:
+def _required_successes(entry: dict) -> int:
+    return MISSED_RECOVERY_REQUIRED_SUCCESSES + (
+        MISSED_RECOVERY_WORD_CARD_MISS_EXTRA if entry["word_card_misses"] else 0
+    )
+
+
+def _successes(entry: dict) -> int:
+    # Phrases can supply every success except the last one.
+    return entry["sentence_successes"] + min(
+        entry["fragment_successes"], _required_successes(entry) - 1
+    )
+
+
+def open_misses(
+    db: Session, now: datetime, lemma_id: int | None = None
+) -> dict[int, OpenMiss]:
     """Open misses by canonical lemma id, from non-acquisition review rows."""
     from app.services.form_recovery_service import is_form_recovery_protected_log
 
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     cutoff = (now - timedelta(days=MISSED_RECOVERY_WINDOW_DAYS)).replace(tzinfo=None)
-    rows = (
-        db.query(ReviewLog)
-        .filter(
-            ReviewLog.reviewed_at >= cutoff,
-            ReviewLog.reviewed_at <= now.replace(tzinfo=None),
-            or_(
-                ReviewLog.is_acquisition.is_(False),
-                ReviewLog.is_acquisition.is_(None),
-            ),
-        )
-        .order_by(ReviewLog.reviewed_at, ReviewLog.id)
-        .all()
+    query = db.query(ReviewLog).filter(
+        ReviewLog.reviewed_at >= cutoff,
+        ReviewLog.reviewed_at <= now.replace(tzinfo=None),
+        or_(
+            ReviewLog.is_acquisition.is_(False),
+            ReviewLog.is_acquisition.is_(None),
+        ),
     )
+    if lemma_id is not None:
+        query = query.filter(ReviewLog.lemma_id == lemma_id)
+    rows = query.order_by(ReviewLog.reviewed_at, ReviewLog.id).all()
     state: dict[int, dict] = {}
     for row in rows:
         entry = state.get(row.lemma_id)
@@ -89,12 +105,14 @@ def open_misses(db: Session, now: datetime) -> dict[int, OpenMiss]:
             reviewed_at = row.reviewed_at
             if reviewed_at.tzinfo is None:
                 reviewed_at = reviewed_at.replace(tzinfo=timezone.utc)
+            still_open = entry is not None and _successes(entry) < _required_successes(entry)
             state[row.lemma_id] = {
                 "missed_at": reviewed_at,
                 "rating": row.rating,
                 "sentence_successes": 0,
                 "fragment_successes": 0,
                 "word_card_misses": 0,
+                "misses_in_run": entry["misses_in_run"] + 1 if still_open else 1,
             }
         elif entry is not None:
             if row.review_mode == FRAGMENT_REVIEW_MODE:
@@ -104,13 +122,8 @@ def open_misses(db: Session, now: datetime) -> dict[int, OpenMiss]:
 
     result: dict[int, OpenMiss] = {}
     for lemma_id, entry in state.items():
-        required = MISSED_RECOVERY_REQUIRED_SUCCESSES + (
-            MISSED_RECOVERY_WORD_CARD_MISS_EXTRA if entry["word_card_misses"] else 0
-        )
-        # Phrases can supply every success except the last one.
-        entry["successes"] = entry["sentence_successes"] + min(
-            entry["fragment_successes"], required - 1
-        )
+        required = _required_successes(entry)
+        entry["successes"] = _successes(entry)
         if entry["successes"] >= required:
             continue
         result[lemma_id] = OpenMiss(
@@ -120,6 +133,7 @@ def open_misses(db: Session, now: datetime) -> dict[int, OpenMiss]:
             successes=entry["successes"],
             required_successes=required,
             word_card_misses=entry["word_card_misses"],
+            misses_in_run=entry["misses_in_run"],
         )
     return result
 

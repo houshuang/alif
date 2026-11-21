@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 LEECH_MIN_REVIEWS = 5
 LEECH_MAX_ACCURACY = 0.50
 LEECH_WINDOW_SIZE = 8  # sliding window: use last N reviews for accuracy
+# An established word with an open miss belongs to the missed-word lane first
+# (`missed_word_recovery_v1`). The leech rule waits until that run of misses
+# has this many sentence or phrase misses: the first one plus two follow-ups.
+LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS = 3
 LEECH_REINTRO_DAILY_CAP = 8
 LEECH_REINTRO_BOX1_ADMISSION_LIMIT = 20
 
@@ -144,6 +148,24 @@ def _reintroductions_started_today(db: Session, now: datetime) -> int:
     )
 
 
+def recovery_lane_has_priority(db: Session, ulk: UserLemmaKnowledge) -> bool:
+    """Whether the missed-word lane still gets the word before a leech verdict.
+
+    Only for words with an FSRS card: acquiring words and leech
+    reintroduction episodes have no lane and keep the plain leech rule.
+    """
+    if ulk.knowledge_state not in ("learning", "known", "lapsed"):
+        return False
+    if _is_active_reintro_episode(ulk):
+        return False
+    from app.services.missed_word_recovery import open_misses
+
+    miss = open_misses(db, datetime.now(timezone.utc), lemma_id=ulk.lemma_id).get(
+        ulk.lemma_id
+    )
+    return miss is not None and miss.misses_in_run < LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS
+
+
 def check_and_manage_leeches(db: Session) -> list[int]:
     """Check all active words for leech status and auto-suspend leeches.
 
@@ -165,7 +187,7 @@ def check_and_manage_leeches(db: Session) -> list[int]:
         if acc is None:
             continue
         accuracy = acc
-        if accuracy < LEECH_MAX_ACCURACY:
+        if accuracy < LEECH_MAX_ACCURACY and not recovery_lane_has_priority(db, ulk):
             lemma = _get_lemma(db, ulk.lemma_id)
             core_rank = _get_core_rank(db, ulk.lemma_id)
             ulk.knowledge_state = "suspended"
@@ -462,7 +484,7 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
     if not ulk or not is_maintained(ulk) or ulk.knowledge_state == "suspended":
         return False
 
-    if is_leech(ulk, db=db):
+    if is_leech(ulk, db=db) and not recovery_lane_has_priority(db, ulk):
         since = ulk.acquisition_started_at if _is_active_reintro_episode(ulk) else None
         acc = _recent_accuracy(db, lemma_id, since=since) or 0
         lemma = _get_lemma(db, lemma_id)
