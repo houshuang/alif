@@ -60,18 +60,27 @@ def save_state(state: dict) -> None:
     _state_path().write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
 
-def walk_episodes() -> list[dict]:
-    """Metadata of all walk episodes, oldest first, each with its ``filename``."""
+def _episodes(format_type: str) -> list[dict]:
     episodes = []
-    for path in podcast_service.PODCAST_DIR.glob("walk-*.mp3"):
+    for path in podcast_service.PODCAST_DIR.glob(f"{format_type}-*.mp3"):
         if path.name.startswith(SAMPLE_PREFIX):
             continue
         meta = podcast_service._load_metadata(path) or {}
-        if meta.get("format_type") != "walk":
+        if meta.get("format_type") != format_type:
             continue
         episodes.append(dict(meta, filename=path.name, size_bytes=path.stat().st_size))
     episodes.sort(key=lambda m: m.get("generated_at") or "")
     return episodes
+
+
+def walk_episodes() -> list[dict]:
+    """Metadata of all walk episodes, oldest first, each with its ``filename``."""
+    return _episodes("walk")
+
+
+def feed_episodes() -> list[dict]:
+    """Walk episodes and bridge episodes (authentic audio with a spoken bridge), oldest first."""
+    return sorted(_episodes("walk") + _episodes("bridge"), key=lambda m: m.get("generated_at") or "")
 
 
 def _step(firm_days: float, delta: int) -> int:
@@ -175,10 +184,10 @@ def status() -> dict:
 
 
 def build_feed(base_url: str) -> str:
-    """RSS feed of the walk episodes, newest first. ``base_url`` is the private API prefix."""
+    """RSS feed of the walk and bridge episodes, newest first. ``base_url`` is the private API prefix."""
     base = base_url.rstrip("/")
     items = []
-    for meta in reversed(walk_episodes()):
+    for meta in reversed(feed_episodes()):
         try:
             published = datetime.fromisoformat(meta.get("generated_at") or "")
         except ValueError:

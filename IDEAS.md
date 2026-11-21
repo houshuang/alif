@@ -2134,6 +2134,13 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 
 ## Podcast / Passive Listening (2026-03-22)
 
+### Bridge episodes: authentic audio with a spoken bridge (2026-11-21)
+- [PILOT] Learner's idea: take a real fusha podcast or audiobook, play it in fragments, and bridge each one (hard words in English, the content in simple Arabic, the fragment again). `generate_bridge_episode.py`; first episode from Al Jazeera's Rumooz on Ibn Khaldun.
+- [IDEA] Variants to compare by ear: simple Arabic before the first hearing (pre-listening) vs after; English sentence translation in place of key words; no key words at all; second pass of the same excerpt the next day with the bridge removed.
+- [IDEA] Serialise one long recording across days (each day: yesterday's excerpt straight through, then a new bridged excerpt), so a whole audiobook chapter is consumed.
+- [IDEA] Pick the excerpt automatically by known-word share per fragment (the pilot's source was 77% known) and step up over time.
+- [IDEA] Candidate sources found 2026-11-21: LibriVox al-Kawakibi *Tabai al-Istibdad* (public domain, text on Wikisource), Al Jazeera Rumooz (scripted biographies), Sowt's 1001 Nights and Manbet, LibriVox Kalila wa Dimna.
+
 ### Walk episodes (2026-11-21)
 - [PILOT] Two-host conversation from firm words only, weak words repeated, previous day replayed (`generate_walk_episode.py`; experiment log 2026-11-21 (2)).
 - [DONE 2026-11-21] Private podcast feed (RSS behind the API capability) so episodes arrive in a podcast app with lock-screen controls and offline play.
