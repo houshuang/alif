@@ -266,3 +266,7 @@ Use FSRS scheduling independently at each level. Root mastery = aggregate of its
 ### Risk: Diacritization Accuracy
 
 Published benchmarks are inflated by data leakage (34.6% of a standard test set leaks into training data). Always test on your own MSA content. For educational materials, pre-diacritize and have human review.
+
+### Walk audio (2026-11)
+
+- `walk-audio-2026-11/README.md` — why a second audio attempt, learner data, listening research with sources, the walk-episode design and pilot.
