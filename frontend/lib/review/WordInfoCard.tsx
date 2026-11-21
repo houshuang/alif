@@ -12,6 +12,8 @@ import { UNTRUSTED_FORM_KEYS, sliceSurface } from "./surface-parts";
 export type FocusWordMark = "missed" | "did_not_recognize";
 
 interface WordInfoCardProps {
+  minimal?: boolean;
+  onOpenDetails?: () => void;
   loading: boolean;
   surfaceForm: string | null;
   markState: FocusWordMark | null;
@@ -128,6 +130,8 @@ function bareForm(text: string): string {
 }
 
 export default function WordInfoCard({
+  minimal = false,
+  onOpenDetails,
   loading,
   surfaceForm,
   markState,
@@ -194,6 +198,41 @@ export default function WordInfoCard({
 
   if (!hasFocus && !loading) {
     return reserveSpace ? <View style={styles.spacer} /> : null;
+  }
+
+  if (minimal) {
+    const dockNav = (
+      <View style={miniStyles.actions}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open full word card" onPress={onOpenDetails} style={miniStyles.button}>
+          <Ionicons name="expand-outline" size={19} color={colors.textSecondary} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Minimize word explanation" onPress={onMinimize} style={miniStyles.button}>
+          <Ionicons name="remove-outline" size={19} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+    );
+    return <View style={miniStyles.card}>
+      {loading ? <View style={miniStyles.header}>
+        <Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>{dockNav}
+      </View> : null}
+      {loading ? <ActivityIndicator size="small" color={colors.accent} />
+        : particleInfo ? <>
+          <View style={miniStyles.header}><Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>{dockNav}</View>
+          <Text style={miniStyles.gloss} numberOfLines={2}>{particleInfo.meaning}</Text>
+        </>
+        : <RevealedView
+            dock
+            result={result}
+            surfaceForm={surfaceForm}
+            markState={markState}
+            onNavigateToDetail={onNavigateToDetail}
+            onNavigateToRoot={onNavigateToRoot}
+            surfaceTranslit={surfaceTranslit}
+            confusionData={confusionData}
+            showConfusionCandidates={false}
+            nav={dockNav}
+          />}
+    </View>;
   }
 
   const nav = showNav || onMinimize ? (
@@ -296,6 +335,9 @@ const FORM_CHIP_LABELS: Record<string, string> = {
   imperative: "imp",
 };
 
+const DOCK_FORM_CHIPS = 3;
+const DOCK_ROOT_WORDS = 3;
+
 const FORM_CHIP_ORDER: Record<string, string[]> = {
   verb: ["present", "masdar", "active_participle"],
   noun: ["plural", "feminine"],
@@ -353,7 +395,7 @@ function PanelRow({ label, children, onPress }: { label: React.ReactNode; childr
   );
 }
 
-function RevealedView({
+export function RevealedView({
   result,
   surfaceForm,
   markState,
@@ -365,6 +407,8 @@ function RevealedView({
   onPickConfusion,
   pickedConfusionLemmaId,
   showConfusionCandidates = true,
+  expanded = false,
+  dock = false,
   nav,
 }: {
   result: WordLookupResult | null;
@@ -378,6 +422,9 @@ function RevealedView({
   onPickConfusion?: (lemmaId: number) => void;
   pickedConfusionLemmaId?: number | null;
   showConfusionCandidates?: boolean;
+  expanded?: boolean;
+  /** The reading dock: headword, form, a few conjugations and root words only. */
+  dock?: boolean;
   nav?: React.ReactNode;
 }) {
   if (!result) return null;
@@ -433,6 +480,12 @@ function RevealedView({
       formChips.push({ key, ar: val, tr: result.forms_translit?.[key] ?? null, label: FORM_CHIP_LABELS[key] });
     }
   }
+  if (dock && formChips.length > DOCK_FORM_CHIPS) {
+    const kept = formChips.slice(0, DOCK_FORM_CHIPS);
+    const current = formChips.find((c) => c.key === currentFormKey);
+    if (current && !kept.includes(current)) kept[kept.length - 1] = current;
+    formChips.splice(0, formChips.length, ...kept);
+  }
   const hasFormMatch = currentFormKey != null && formChips.some((c) => c.key === currentFormKey);
   const activeChip = hasFormMatch ? currentFormKey : null;
 
@@ -456,12 +509,12 @@ function RevealedView({
 
   const patternExamples = (result.pattern_examples ?? [])
     .filter((e) => e.lemma_id !== result.lemma_id && e.knowledge_state === "known")
-    .slice(0, 2);
+    .slice(0, expanded ? undefined : 2);
 
   const family = result.root_family
     .filter((s) => s.lemma_id !== result.lemma_id && !glossesOverlap(s.gloss_en, result.gloss_en))
     .sort((a, b) => familyRank(a.state) - familyRank(b.state))
-    .slice(0, 5);
+    .slice(0, expanded ? undefined : dock ? DOCK_ROOT_WORDS : 5);
 
   const note = showMnemonic(result.memory_hooks_json)
     ? result.memory_hooks_json!.mnemonic!
@@ -514,7 +567,7 @@ function RevealedView({
         </PanelRow>
       )}
 
-      {formChips.length > 1 && (
+      {!expanded && formChips.length > 1 && (
         <PanelRow label="forms">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rowStyles.chips}>
             {formChips.map((c) => {
@@ -533,7 +586,7 @@ function RevealedView({
         </PanelRow>
       )}
 
-      {result.wazn && !/^form_1$/i.test(result.wazn) && (
+      {!dock && result.wazn && (expanded || !/^form_1$/i.test(result.wazn)) && (
         <PanelRow
           label="pattern"
           onPress={onNavigateToPattern ? () => onNavigateToPattern(result.wazn!) : undefined}
@@ -558,13 +611,14 @@ function RevealedView({
 
       {result.root && (
         <PanelRow label="root">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={rowStyles.family}>
+          <ScrollView horizontal={!dock} scrollEnabled={!dock} showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[rowStyles.family, dock && rowStyles.familyWrap]}>
             <Pressable
               onPress={onNavigateToRoot && result.root_id ? () => onNavigateToRoot(result.root_id!) : undefined}
               style={rowStyles.rootKey}
             >
               <Text style={rowStyles.rootLetters}>{result.root}</Text>
-              {result.root_meaning ? <Text style={rowStyles.rootMeaning}>{result.root_meaning}</Text> : null}
+              {result.root_meaning && !dock ? <Text style={rowStyles.rootMeaning}>{result.root_meaning}</Text> : null}
             </Pressable>
             {family.length > 0 && <View style={rowStyles.sep} />}
             {family.map((s) => (
@@ -578,11 +632,14 @@ function RevealedView({
                 <Text style={rowStyles.siblingEn}>{shortGloss(s.gloss_en) || "?"}</Text>
               </Pressable>
             ))}
+            {dock && result.root_meaning ? (
+              <Text style={[rowStyles.rootMeaning, rowStyles.rootMeaningLine]}>{result.root_meaning}</Text>
+            ) : null}
           </ScrollView>
         </PanelRow>
       )}
 
-      {note && (
+      {!expanded && note && (
         <PanelRow label={<Ionicons name="bulb-outline" size={13} color="#c9a54a" />}>
           <Text style={[rowStyles.text, rowStyles.note]} numberOfLines={3}>{ltr(note)}</Text>
         </PanelRow>
@@ -981,8 +1038,10 @@ const rowStyles = StyleSheet.create({
   headMain: {
     flex: 1,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    columnGap: 10,
+    rowGap: 0,
     minWidth: 0,
   },
   lemma: {
@@ -991,10 +1050,12 @@ const rowStyles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 44,
     writingDirection: "rtl",
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   headText: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 96,
   },
   gloss: {
     color: colors.text,
@@ -1120,6 +1181,8 @@ const rowStyles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "600",
   },
+  familyWrap: { flexDirection: "row", flexWrap: "wrap", rowGap: 4 },
+  rootMeaningLine: { width: "100%" },
   family: {
     alignItems: "center",
     gap: 10,
@@ -1179,4 +1242,13 @@ const cfStyles = StyleSheet.create({
   dimChar: {
     color: "rgba(232, 232, 240, 0.25)",
   },
+});
+
+const miniStyles = StyleSheet.create({
+  card: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, paddingHorizontal: 10, paddingBottom: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  arabic: { fontFamily: fontFamily.arabic, color: colors.arabic, fontSize: 27, lineHeight: 40, flex: 1, minWidth: 0, writingDirection: "rtl" },
+  actions: { flexDirection: "row" },
+  button: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  gloss: { fontSize: 16, fontWeight: "600", color: colors.text },
 });

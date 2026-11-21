@@ -1,0 +1,1175 @@
+{
+  "snapshot_sha256": "0dadac48ecf47750f1418b92a18e6f66589de0b15a431628ea7091aa02bfb92e",
+  "cutoff": "2026-11-03T07:41:45.372496+00:00",
+  "production_source_head": "6f3c02e6",
+  "periods": [
+    {
+      "period": "Sep",
+      "cards": 656,
+      "active_days": 23,
+      "cards_per_calendar_day": 21.9,
+      "cards_per_active_day": 28.5,
+      "understood": 275,
+      "understood_pct": 41.9,
+      "unassisted_proxy": 265,
+      "unassisted_proxy_pct_all": 40.4,
+      "clean_missing_help_evidence": 0,
+      "legacy_proxy_seconds": {
+        "n": 253,
+        "median": 24.13
+      },
+      "card_timing_sum_minutes_capped_5m": 569.7
+    },
+    {
+      "period": "Oct",
+      "cards": 341,
+      "active_days": 26,
+      "cards_per_calendar_day": 11.0,
+      "cards_per_active_day": 13.1,
+      "understood": 153,
+      "understood_pct": 44.9,
+      "unassisted_proxy": 144,
+      "unassisted_proxy_pct_all": 42.2,
+      "clean_missing_help_evidence": 0,
+      "legacy_proxy_seconds": {
+        "n": 133,
+        "median": 24.59
+      },
+      "card_timing_sum_minutes_capped_5m": 313.1
+    },
+    {
+      "period": "last14",
+      "cards": 116,
+      "active_days": 11,
+      "cards_per_calendar_day": 8.3,
+      "cards_per_active_day": 10.5,
+      "understood": 61,
+      "understood_pct": 52.6,
+      "unassisted_proxy": 55,
+      "unassisted_proxy_pct_all": 47.4,
+      "clean_missing_help_evidence": 0,
+      "legacy_proxy_seconds": {
+        "n": 49,
+        "median": 25.78
+      },
+      "card_timing_sum_minutes_capped_5m": 132.1
+    },
+    {
+      "period": "last7",
+      "cards": 75,
+      "active_days": 6,
+      "cards_per_calendar_day": 10.7,
+      "cards_per_active_day": 12.5,
+      "understood": 42,
+      "understood_pct": 56.0,
+      "unassisted_proxy": 37,
+      "unassisted_proxy_pct_all": 49.3,
+      "clean_missing_help_evidence": 0,
+      "legacy_proxy_seconds": {
+        "n": 34,
+        "median": 25.66
+      },
+      "card_timing_sum_minutes_capped_5m": 73.8
+    },
+    {
+      "period": "today",
+      "cards": 28,
+      "active_days": 1,
+      "cards_per_calendar_day": 28.0,
+      "cards_per_active_day": 28.0,
+      "understood": 17,
+      "understood_pct": 60.7,
+      "unassisted_proxy": 17,
+      "unassisted_proxy_pct_all": 60.7,
+      "clean_missing_help_evidence": 0,
+      "legacy_proxy_seconds": {
+        "n": 15,
+        "median": 24.66
+      },
+      "card_timing_sum_minutes_capped_5m": 24.3
+    }
+  ],
+  "primary_clean_by_month": {
+    "2026-09": {
+      "n": 655,
+      "pct": 77.1
+    },
+    "2026-10": {
+      "n": 338,
+      "pct": 76.9
+    },
+    "2026-11": {
+      "n": 45,
+      "pct": 84.4
+    }
+  },
+  "due_primary_gap_curves": [
+    {
+      "month": "2026-09",
+      "gap": "30–60d",
+      "n": 98,
+      "clean_pct": 66.3
+    },
+    {
+      "month": "2026-09",
+      "gap": "7–14d",
+      "n": 99,
+      "clean_pct": 80.8
+    },
+    {
+      "month": "2026-09",
+      "gap": "<7d",
+      "n": 150,
+      "clean_pct": 88.7
+    },
+    {
+      "month": "2026-09",
+      "gap": "60d+",
+      "n": 53,
+      "clean_pct": 66.0
+    },
+    {
+      "month": "2026-09",
+      "gap": "14–30d",
+      "n": 123,
+      "clean_pct": 80.5
+    },
+    {
+      "month": "2026-10",
+      "gap": "30–60d",
+      "n": 80,
+      "clean_pct": 77.5
+    },
+    {
+      "month": "2026-10",
+      "gap": "7–14d",
+      "n": 26,
+      "clean_pct": 84.6
+    },
+    {
+      "month": "2026-10",
+      "gap": "60d+",
+      "n": 57,
+      "clean_pct": 59.6
+    },
+    {
+      "month": "2026-10",
+      "gap": "14–30d",
+      "n": 71,
+      "clean_pct": 81.7
+    },
+    {
+      "month": "2026-10",
+      "gap": "<7d",
+      "n": 38,
+      "clean_pct": 84.2
+    },
+    {
+      "month": "2026-11",
+      "gap": "14–30d",
+      "n": 10,
+      "clean_pct": 100.0
+    },
+    {
+      "month": "2026-11",
+      "gap": "60d+",
+      "n": 14,
+      "clean_pct": 78.6
+    },
+    {
+      "month": "2026-11",
+      "gap": "30–60d",
+      "n": 9,
+      "clean_pct": 66.7
+    },
+    {
+      "month": "2026-11",
+      "gap": "<7d",
+      "n": 4,
+      "clean_pct": 75.0
+    }
+  ],
+  "due_primary_calibration": {
+    "2026-09": {
+      "n": 523,
+      "predicted_pct": 86.2,
+      "strict_clean_pct": 78.8
+    },
+    "2026-10": {
+      "n": 272,
+      "predicted_pct": 85.6,
+      "strict_clean_pct": 76.5
+    },
+    "2026-11": {
+      "n": 37,
+      "predicted_pct": 84.6,
+      "strict_clean_pct": 81.1
+    }
+  },
+  "lateness_days": {
+    "n": 832,
+    "median": 7.47
+  },
+  "attention_dispositions": {
+    "maintain": 3198,
+    "reading_support": 253,
+    "parked": 3
+  },
+  "maintained_states": {
+    "known": 2608,
+    "lapsed": 70,
+    "learning": 33,
+    "suspended": 156,
+    "acquiring": 24,
+    "encountered": 307
+  },
+  "modeled_cards": 2704,
+  "median_stability_days": 147.12545810197201,
+  "due_now": 948,
+  "new_introductions_by_month": {
+    "2026-09": 16,
+    "2026-10": 24
+  },
+  "due_cumulative_if_no_reviews": {
+    "0": 948,
+    "7": 1067,
+    "14": 1164,
+    "30": 1369
+  },
+  "mean_predicted_recall_if_no_reviews": {
+    "0": 91.4,
+    "7": 90.2,
+    "14": 89.3,
+    "30": 87.8
+  },
+  "confusions": {
+    "n": 75,
+    "latest": "2026-09-14 07:21:04.823029",
+    "methods": {
+      "free_text": 29,
+      "suggested_pick": 46
+    },
+    "unresolved_free_text": 29,
+    "clusters": [
+      {
+        "words": [
+          {
+            "id": 560,
+            "arabic": "بَالَغَ",
+            "gloss": "to exaggerate"
+          },
+          {
+            "id": 3230,
+            "arabic": "بَلَغَ",
+            "gloss": "to reach"
+          }
+        ],
+        "captures": 3,
+        "repeated_edge": true
+      },
+      {
+        "words": [
+          {
+            "id": 1025,
+            "arabic": "هَدَفَ",
+            "gloss": "to aim, target"
+          },
+          {
+            "id": 3253,
+            "arabic": "هَتَفَ",
+            "gloss": "to shout"
+          }
+        ],
+        "captures": 2,
+        "repeated_edge": true
+      },
+      {
+        "words": [
+          {
+            "id": 1467,
+            "arabic": "اِسْتِقْبَالٌ",
+            "gloss": "reception"
+          },
+          {
+            "id": 2436,
+            "arabic": "مُسْتَقْبَل",
+            "gloss": "future"
+          },
+          {
+            "id": 2923,
+            "arabic": "اِسْتَقْبَلَ",
+            "gloss": "to receive"
+          }
+        ],
+        "captures": 2,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 718,
+            "arabic": "وَقَفَ",
+            "gloss": "to come to a stop, to come to a standstill"
+          },
+          {
+            "id": 3023,
+            "arabic": "وافَقَ",
+            "gloss": "agreed"
+          },
+          {
+            "id": 3185,
+            "arabic": "وَفْقاً",
+            "gloss": "according to"
+          }
+        ],
+        "captures": 2,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2590,
+            "arabic": "أَداة",
+            "gloss": "tool"
+          },
+          {
+            "id": 3423,
+            "arabic": "أَداء",
+            "gloss": "performance"
+          }
+        ],
+        "captures": 2,
+        "repeated_edge": true
+      },
+      {
+        "words": [
+          {
+            "id": 1851,
+            "arabic": "طَيَّار",
+            "gloss": "pilot"
+          },
+          {
+            "id": 3603,
+            "arabic": "تَيَّار",
+            "gloss": "current; stream"
+          }
+        ],
+        "captures": 2,
+        "repeated_edge": true
+      },
+      {
+        "words": [
+          {
+            "id": 3124,
+            "arabic": "ضَيْف",
+            "gloss": "guest"
+          },
+          {
+            "id": 3312,
+            "arabic": "ضَعُفَ",
+            "gloss": "weakness, weak"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1043,
+            "arabic": "عَدَلَ",
+            "gloss": "to act justly"
+          },
+          {
+            "id": 3488,
+            "arabic": "عَذْل",
+            "gloss": "blame"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1826,
+            "arabic": "أَصْلاً",
+            "gloss": "originally"
+          },
+          {
+            "id": 2995,
+            "arabic": "إِصْلَاح",
+            "gloss": "reform"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 198,
+            "arabic": "استِماع",
+            "gloss": "listening"
+          },
+          {
+            "id": 3555,
+            "arabic": "اجْتَمَعَ",
+            "gloss": "to gather; assemble"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1868,
+            "arabic": "عَمَّةٌ",
+            "gloss": "paternal aunt"
+          },
+          {
+            "id": 3571,
+            "arabic": "عَمِه",
+            "gloss": "wandering blindly"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 975,
+            "arabic": "خَبَرَ",
+            "gloss": "to try, to test"
+          },
+          {
+            "id": 3082,
+            "arabic": "أَخْبَرَ",
+            "gloss": "to inform, to tell"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2536,
+            "arabic": "تَحَدَّثَ",
+            "gloss": "to talk"
+          },
+          {
+            "id": 2551,
+            "arabic": "حَدَثَ",
+            "gloss": "to happen"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2315,
+            "arabic": "نَظِيف",
+            "gloss": "clean"
+          },
+          {
+            "id": 3011,
+            "arabic": "وَظيفة",
+            "gloss": "job"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2541,
+            "arabic": "قَانِت",
+            "gloss": "devout; obedient one"
+          },
+          {
+            "id": 3125,
+            "arabic": "قَانِص",
+            "gloss": "hunter, one who catches"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 561,
+            "arabic": "قَدَمَ",
+            "gloss": "to precede"
+          },
+          {
+            "id": 3080,
+            "arabic": "قَدِمَ",
+            "gloss": "to come, to arrive"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1412,
+            "arabic": "صَيْدٌ",
+            "gloss": "hunting; game"
+          },
+          {
+            "id": 3127,
+            "arabic": "صَيَّاد",
+            "gloss": "hunter"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1466,
+            "arabic": "شَهْرِيٌّ",
+            "gloss": "monthly"
+          },
+          {
+            "id": 2950,
+            "arabic": "شَهِير",
+            "gloss": "famous"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1856,
+            "arabic": "نَادِل",
+            "gloss": "waiter"
+          },
+          {
+            "id": 2942,
+            "arabic": "جَادَلَ",
+            "gloss": "to argue"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 3004,
+            "arabic": "مُقْبِل",
+            "gloss": "next, upcoming"
+          },
+          {
+            "id": 3078,
+            "arabic": "مُقَابِل",
+            "gloss": "opposite"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1430,
+            "arabic": "أَخْفَى",
+            "gloss": "to hide, to conceal"
+          },
+          {
+            "id": 3401,
+            "arabic": "اِخْتَفَى",
+            "gloss": "to disappear"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 3018,
+            "arabic": "هَدَّدَ",
+            "gloss": "to threaten"
+          },
+          {
+            "id": 3623,
+            "arabic": "حدّد",
+            "gloss": "to specify"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 955,
+            "arabic": "ذِهْنٌ",
+            "gloss": "mind"
+          },
+          {
+            "id": 2449,
+            "arabic": "دَهَنَ",
+            "gloss": "painting"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1209,
+            "arabic": "مَمْنُونٌ",
+            "gloss": "grateful"
+          },
+          {
+            "id": 2172,
+            "arabic": "مَمْنُوع",
+            "gloss": "forbidden"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1162,
+            "arabic": "رَايَة",
+            "gloss": "flag, banner"
+          },
+          {
+            "id": 1260,
+            "arabic": "رَأْيٌ",
+            "gloss": "opinion, view"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2234,
+            "arabic": "تَسَلَّقَ",
+            "gloss": "to climb"
+          },
+          {
+            "id": 3089,
+            "arabic": "عَلَّقَ",
+            "gloss": "to hang"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 601,
+            "arabic": "فَرَاشَةٌ",
+            "gloss": "butterfly"
+          },
+          {
+            "id": 1494,
+            "arabic": "فُرْشاة",
+            "gloss": "brush"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2133,
+            "arabic": "ضَيَّع",
+            "gloss": "to waste"
+          },
+          {
+            "id": 3211,
+            "arabic": "ضِيَاء",
+            "gloss": "radiance"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2190,
+            "arabic": "وَضْع",
+            "gloss": "situation, state"
+          },
+          {
+            "id": 4030,
+            "arabic": "وَضَعَ",
+            "gloss": "put, place"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2201,
+            "arabic": "سَافَرَ",
+            "gloss": "to travel"
+          },
+          {
+            "id": 3184,
+            "arabic": "سَفِير",
+            "gloss": "ambassador"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 675,
+            "arabic": "خَيَّاطٌ",
+            "gloss": "tailor, seamster"
+          },
+          {
+            "id": 2673,
+            "arabic": "خَيْط",
+            "gloss": "thread"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 1028,
+            "arabic": "شَرَعَ",
+            "gloss": "to legislate, start"
+          },
+          {
+            "id": 2685,
+            "arabic": "شَرْح",
+            "gloss": "explanation"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 501,
+            "arabic": "سَمَّى",
+            "gloss": "to name"
+          },
+          {
+            "id": 1262,
+            "arabic": "سَمَّ",
+            "gloss": "to poison"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 352,
+            "arabic": "وَجْه",
+            "gloss": "face"
+          },
+          {
+            "id": 2515,
+            "arabic": "وَجَع",
+            "gloss": "pain"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2223,
+            "arabic": "هِوَايَة",
+            "gloss": "hobbies"
+          },
+          {
+            "id": 3393,
+            "arabic": "حِمَايَة",
+            "gloss": "protection"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 896,
+            "arabic": "مَصْرِفٌ",
+            "gloss": "bank (institution)"
+          },
+          {
+            "id": 3843,
+            "arabic": "مُشْرِف",
+            "gloss": "supervisor; overlooking"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 319,
+            "arabic": "صُوَر",
+            "gloss": "photos, pictures"
+          },
+          {
+            "id": 2279,
+            "arabic": "سُور",
+            "gloss": "wall"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 600,
+            "arabic": "شَهَادَةٌ",
+            "gloss": "testimony, certificate"
+          },
+          {
+            "id": 3020,
+            "arabic": "شَحَّاذَة",
+            "gloss": "beggar"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      },
+      {
+        "words": [
+          {
+            "id": 2167,
+            "arabic": "اِسْتَمْتَع",
+            "gloss": "to enjoy"
+          },
+          {
+            "id": 2445,
+            "arabic": "اِسْتَمَعَ",
+            "gloss": "to listen"
+          }
+        ],
+        "captures": 1,
+        "repeated_edge": false
+      }
+    ],
+    "unresolved": [
+      {
+        "failed": {
+          "id": 1315,
+          "arabic": "حَرَثَ",
+          "gloss": "to plow"
+        },
+        "text": "Inherit",
+        "date": "2026-05-27 18:36:39.094327"
+      },
+      {
+        "failed": {
+          "id": 2190,
+          "arabic": "وَضْع",
+          "gloss": "situation, state"
+        },
+        "text": "Clear",
+        "date": "2026-05-27 19:03:12.059051"
+      },
+      {
+        "failed": {
+          "id": 3135,
+          "arabic": "جُحْرِي",
+          "gloss": "of or relating to a burrow"
+        },
+        "text": "Wound",
+        "date": "2026-05-27 19:04:13.582178"
+      },
+      {
+        "failed": {
+          "id": 387,
+          "arabic": "نَامَ",
+          "gloss": "to sleep"
+        },
+        "text": "Fasting",
+        "date": "2026-05-29 20:34:09.621382"
+      },
+      {
+        "failed": {
+          "id": 2570,
+          "arabic": "رِبْطَة",
+          "gloss": "tie"
+        },
+        "text": "Frog",
+        "date": "2026-05-30 11:22:56.779926"
+      },
+      {
+        "failed": {
+          "id": 139,
+          "arabic": "سَادَةٌ",
+          "gloss": "gentlemen"
+        },
+        "text": "Hunter",
+        "date": "2026-05-30 11:31:00.696201"
+      },
+      {
+        "failed": {
+          "id": 346,
+          "arabic": "حِساب",
+          "gloss": "bill"
+        },
+        "text": "Computer",
+        "date": "2026-06-01 05:37:15.548067"
+      },
+      {
+        "failed": {
+          "id": 3512,
+          "arabic": "بَثّ",
+          "gloss": "to broadcast, to spread"
+        },
+        "text": "Search",
+        "date": "2026-06-01 13:39:31.424163"
+      },
+      {
+        "failed": {
+          "id": 3716,
+          "arabic": "إِذَاعَة",
+          "gloss": "radio, broadcasting"
+        },
+        "text": "Tool",
+        "date": "2026-06-01 13:39:31.424163"
+      },
+      {
+        "failed": {
+          "id": 588,
+          "arabic": "ظَهَرَ",
+          "gloss": "to appear, seem"
+        },
+        "text": "Flowers",
+        "date": "2026-06-01 13:40:42.927398"
+      },
+      {
+        "failed": {
+          "id": 2835,
+          "arabic": "أَنْذَرَ",
+          "gloss": "to warn, to caution"
+        },
+        "text": "Flow down",
+        "date": "2026-06-01 13:41:31.374887"
+      },
+      {
+        "failed": {
+          "id": 3551,
+          "arabic": "مَبْدَأ",
+          "gloss": "principle; beginning"
+        },
+        "text": "Temple",
+        "date": "2026-06-01 19:14:10.675315"
+      },
+      {
+        "failed": {
+          "id": 3469,
+          "arabic": "التَجَأ",
+          "gloss": "to seek refuge"
+        },
+        "text": "Crown",
+        "date": "2026-06-01 19:15:39.778234"
+      },
+      {
+        "failed": {
+          "id": 3573,
+          "arabic": "رَبِح",
+          "gloss": "profited"
+        },
+        "text": "Spring",
+        "date": "2026-06-01 19:34:29.361780"
+      },
+      {
+        "failed": {
+          "id": 137,
+          "arabic": "سِيرَةٌ",
+          "gloss": "biography"
+        },
+        "text": "Car",
+        "date": "2026-06-03 07:47:28.716830"
+      },
+      {
+        "failed": {
+          "id": 1434,
+          "arabic": "ضَلَّ",
+          "gloss": "to stray, err"
+        },
+        "text": "Lead",
+        "date": "2026-06-03 12:03:53.987099"
+      },
+      {
+        "failed": {
+          "id": 2533,
+          "arabic": "أَعَدَّ",
+          "gloss": "to prepare"
+        },
+        "text": "Give",
+        "date": "2026-06-13 13:05:54.087851"
+      },
+      {
+        "failed": {
+          "id": 1081,
+          "arabic": "نَصَتَ",
+          "gloss": "to listen"
+        },
+        "text": "Forget",
+        "date": "2026-07-27 05:26:29.684022"
+      },
+      {
+        "failed": {
+          "id": 1248,
+          "arabic": "رِيقٌ",
+          "gloss": "saliva, spittle"
+        },
+        "text": "Delicate",
+        "date": "2026-07-27 18:01:43.311578"
+      },
+      {
+        "failed": {
+          "id": 2712,
+          "arabic": "سِفَارَة",
+          "gloss": "embassy"
+        },
+        "text": "Ambassador",
+        "date": "2026-07-29 20:27:55.761220"
+      },
+      {
+        "failed": {
+          "id": 993,
+          "arabic": "سَرَدَ",
+          "gloss": "to narrate, recount"
+        },
+        "text": "Doubt",
+        "date": "2026-07-30 08:33:08.835947"
+      },
+      {
+        "failed": {
+          "id": 4196,
+          "arabic": "تَقْبِيل",
+          "gloss": "by kissing"
+        },
+        "text": "Path",
+        "date": "2026-07-31 19:43:14.222526"
+      },
+      {
+        "failed": {
+          "id": 849,
+          "arabic": "بُلْبُلٌ",
+          "gloss": "nightingale, bulbul"
+        },
+        "text": "Pepper",
+        "date": "2026-08-01 13:26:01.213902"
+      },
+      {
+        "failed": {
+          "id": 194,
+          "arabic": "رَيٌّ",
+          "gloss": "watering"
+        },
+        "text": "His view",
+        "date": "2026-08-29 08:16:41.578580"
+      },
+      {
+        "failed": {
+          "id": 1481,
+          "arabic": "رَكَضَ",
+          "gloss": "to run"
+        },
+        "text": "Dance",
+        "date": "2026-08-31 05:03:16.226681"
+      },
+      {
+        "failed": {
+          "id": 2073,
+          "arabic": "وَجَدَ",
+          "gloss": "to find"
+        },
+        "text": "Exist",
+        "date": "2026-08-31 05:04:31.505990"
+      },
+      {
+        "failed": {
+          "id": 1081,
+          "arabic": "نَصَتَ",
+          "gloss": "to listen"
+        },
+        "text": "Forgot",
+        "date": "2026-09-02 06:47:09.897495"
+      },
+      {
+        "failed": {
+          "id": 2267,
+          "arabic": "بَريدِيَّة",
+          "gloss": "postal"
+        },
+        "text": "Gunpowder",
+        "date": "2026-09-04 07:00:09.419464"
+      },
+      {
+        "failed": {
+          "id": 1081,
+          "arabic": "نَصَتَ",
+          "gloss": "to listen"
+        },
+        "text": "Forget",
+        "date": "2026-09-14 07:21:04.823029"
+      }
+    ],
+    "memo_seed_candidates": [
+      {
+        "id": 251,
+        "arabic": "صَباح",
+        "gloss": "morning"
+      },
+      {
+        "id": 352,
+        "arabic": "وَجْه",
+        "gloss": "face"
+      },
+      {
+        "id": 1548,
+        "arabic": "سِّبَاحَةَ",
+        "gloss": "swimming"
+      },
+      {
+        "id": 2515,
+        "arabic": "وَجَع",
+        "gloss": "pain"
+      }
+    ]
+  }
+}

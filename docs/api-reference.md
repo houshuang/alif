@@ -194,3 +194,17 @@ Content is bundled; see `parallel-reading.md`.
 - `GET /api/clips` returns `{clips, core}`. Each clip has its timed `lines` and `progress` (`stage`, `pass_count`, `retest_due`, `next_check_at`).
 - `GET /api/clips/{clip_id}/video` streams the MP4 with HTTP Range support.
 - `POST /api/clips/{clip_id}/event` records `{event: "stage", stage}`, `{event: "blind_rating", rating}` or `{event: "pass"}`. A pass schedules the next check after 1, 3, 7, 21, then 60 days. Events log as `clip_stage`, `clip_blind_rating` and `clip_pass`.
+
+### Sentence reading timing
+
+`POST /api/review/submit-sentence` and sentence entries in `/api/review/sync`
+accept optional `reading_timing: {version: 1, elapsed_ms: integer|null,
+exclusions: string[]}`. Client exclusions are `manual`, `background`, `navigation`,
+`clock_gap`, `clock_error`, `assistance`, `marked_word`, or `not_started`.
+For clean eligibility send explicit `lookup_count: 0`, `audio_play_count: 0`,
+`parent_card_type: "sentence"`, and complete validated protocol-v3 token evidence.
+The server stores the observation with its own `eligible` decision and additional
+contradiction/missing-evidence exclusions in `sentence_review_log.reading_timing_json`.
+Legacy `response_ms`, review ratings and scheduling retain their meaning; old
+clients need no new fields. Unknown/malformed timing in a queued sync review is
+recorded as excluded without discarding the underlying review.

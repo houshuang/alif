@@ -1,5 +1,13 @@
 # Alif — Research Index
 
+## Reading automaticity — November 3, 2026
+
+[Audit and clean reading timing](automaticity-2026-11-03/README.md): September–November
+engagement, primary retention by scheduling gap, the clean no-help sentence proxy (37/75
+last week), and 39 observed confusion components (بالغ/بلغ, هدف/هتف, استقبال/مستقبل/استقبل).
+Timing and the docked word help shipped 2026-11-21; red-word capture is deferred. Decision:
+experiment-log `2026-11-21 "Clean sentence reading timing"`.
+
 ## Novel sprint — October 4, 2026
 
 [Finish *Men in the Sun* by 31 December](novel-sprint-2026-10/README.md): the goal, the weekly

@@ -200,6 +200,9 @@ describe("submitSentenceReview", () => {
       missed_lemma_ids: [],
       confused_lemma_ids: [],
       response_ms: 1500,
+      reading_timing: { version: 1, elapsed_ms: 1000, exclusions: [] },
+      lookup_count: 0,
+      audio_play_count: 0,
       session_id: "sess-1",
       review_mode: "reading",
     });
@@ -212,6 +215,9 @@ describe("submitSentenceReview", () => {
     expect(queue.length).toBeGreaterThanOrEqual(1);
     const entry = queue.find((e: any) => e.payload.sentence_id === 10);
     expect(entry).toBeDefined();
+    expect(entry.payload.reading_timing).toEqual({ version: 1, elapsed_ms: 1000, exclusions: [] });
+    expect(entry.payload.lookup_count).toBe(0);
+    expect(entry.payload.audio_play_count).toBe(0);
     expect(entry.payload.comprehension_signal).toBe("understood");
 
     // Check marked as reviewed

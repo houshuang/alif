@@ -118,6 +118,31 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21: Clean sentence reading timing and the docked word help (PR #293, part 1)
+
+Lands the measurement and UI half of the 2026-11-03 automaticity work, rebased onto
+current main. [Production audit](automaticity-2026-11-03/README.md): September–November
+engagement, primary retention by scheduling gap, the clean sentence proxy and 39 observed
+confusion components. Last-week clean/no-help proxy on 2026-11-03: 37/75 (49.3%); that
+morning 17/28 (60.7%). These are legacy proxies, not interruption-safe fluency measurements.
+
+- Versioned first-reveal `reading_timing` (manual discard, interruption/help exclusions),
+  stored with the server's eligibility in `sentence_review_log.reading_timing_json`
+  (migration `f3b5d7e9a1c4`, after `c8e1a3f5b7d9`; the original `e1a3c5d7f9b2` collided
+  with `add_clip_progress`). No effect on ratings, FSRS, intake or selection.
+- The timer is held while the Today card, a pending quick check or a stopped session is on
+  screen, and a card revisited with undo is excluded (`navigation`).
+- Word help docks above the actions, with a full-details modal including two earlier
+  sentences with the word.
+- Deferred until the `fragment_followup_v1` readout (after 2026-12-04), because captures
+  feed `_recent_named_confusion_pairs` and so sentence selection: named capture for red
+  words and the server rule that drops captures for unmarked words. Capture stays
+  yellow-only with main's rules; Mixed up is a plain toggle whose "on" opens the naming
+  popover. The deferred code remains on branch `sh/reading-automaticity`.
+- No historical backfill. Expectation: clean-eligible timings accumulate from deploy; first
+  look after ~2 weeks of reading.
+
+
 ## 2026-11-21 (2): A fresh miss on an established word goes to the missed-word lane, not to leech suspension
 
 **Why.** On 20 Nov, 11 words were suspended as leeches (usual 0–3 per day). The leech
