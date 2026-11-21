@@ -118,6 +118,49 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21: Passage generation stops while passage review is off; Codex calls without a schema repaired
+
+**Found in a health check of production after the 18–20 Nov changes** (read-only; the lanes,
+phrase follow-ups, dense writer and judge all record as designed).
+
+**1. Passages were still being generated.** `MAINTENANCE_PASSAGE_REVIEW_ENABLED = False`
+(2026-08-28) keeps passages out of review, but warm-cache phase 3e went on generating them:
+764 `source="passage"` sentences created since 1 September, none shown. On 20 Nov alone 60
+sentences, plus the day's only three tracebacks (`PassageGenerationError`), each story a
+medium-effort Codex draft and a high-effort Codex edit.
+Change: `passage_generator.maintenance_passage_generation_enabled()` returns the review
+switch. Phase 3e does not generate and `maintain_short_story_supply.py` returns
+`{"status": "suspended"}` while it is off. Manual seeding scripts are unchanged. Stored
+stories stay; setting the review switch back to `True` restarts generation with it.
+Nothing changes for the learner.
+
+**2. Codex rejected every JSON call that named no schema.** `codex_cli.py` sent such callers
+a placeholder `{"type": "object"}`; the structured-output API answers 400
+(`'schema.properties' is required for object schemas`). Root extraction
+(`enrichment_roots`) failed on Codex 18 of 18 times on 20–21 Nov and succeeded on the
+Claude CLI fallback, so stored data is unaffected; the cost was one wasted call each.
+The cause was invisible because the logged error was the first 400 characters of stderr,
+which is the Codex banner and the echoed prompt.
+Change: with `json_mode=True` and no schema, Codex gets a plain call ("Respond with JSON
+only") and the reply is parsed as an object or an array, as the Claude CLI path returns.
+Failure messages now start with Codex's own `ERROR:` lines.
+Check after deploy: `enrichment_roots` rows in `llm_calls_*.jsonl` should be
+`codex_cli/gpt-6.1-sol` with `success=true`.
+
+**Left open from the same check (no change).**
+- Word miss rate on 20 Nov was 30% against 20% in the month before, in every lateness
+  group including words not due (16% → 28%, n=142). Not fatigue (no rise through the day)
+  and not the new writer (31% on sentences made after 19 Nov 09:45, 29% on older ones).
+  One day of data; read it first at the 4 December readout.
+- 11 leech suspensions on 20 Nov (usual 0–3). The window is the last 8 non-quiz reviews
+  of any age, yellow counts as a failure, and `review_mode="fragment"` rows count: #3171
+  was suspended on its first miss in three months, #2734 on a missed phrase card. A
+  suspended word leaves the missed-word lane. Whether the lane should come before the
+  leech rule is the learner's decision.
+- The judge reported `contrived=true` on 117 of 234 sentences on 20 Nov.
+- Three phrase follow-ups have `response_ms` of 55 s, 56 min and 111 min (app left open):
+  use the median for the readout's time endpoint.
+
 ## 2026-11-20 (2): Phrase follow-ups replace the retry-card trial (`fragment_followup_v1`)
 
 **Why.** The learner's idea was a phrase in place of a full sentence when a missed word
