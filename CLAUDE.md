@@ -384,7 +384,7 @@ yellow-only until the follow-up trial reads out (red capture is deferred).
 See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.
 
 Reading word help is docked above the answer buttons, outside the sentence scroll.
-Cap its height (32% viewport, max 260pt), preserve independent scrolling and the
+Cap the card at 32% viewport (max 256pt), scroll only the card, preserve independent scrolling and the
 minimize/restore behavior, and never cover the final lines with an absolute overlay.
 
 Dock content: meaning, parts, at most three forms, up to three same-root words, the root's

@@ -16,7 +16,7 @@ On sentence and passage reading cards, Arabic, English, and transliteration shar
 one scroll area. The selected word explanation and optional confusion entry sit
 in a separate dock immediately above the bottom actions, so tapping a word in a
 long sentence never requires scrolling to the end to find its explanation. The
-dock is capped at 32% of the viewport height (260 points maximum) and scrolls
+word card is capped at 32% of the viewport height (256 points maximum) and scrolls
 independently; minimizing collapses it to the restore control. It reserves its
 space rather than covering text. The dock card shows the dictionary form with gloss,
 pronunciation and POS, the parts of the sentence form, at most three forms (verbs: past,
