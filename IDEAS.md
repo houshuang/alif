@@ -2136,9 +2136,11 @@ The shared letters ت-ر-ك confused the enrichment. Separate issue from decompo
 
 ### Walk episodes (2026-11-21)
 - [PILOT] Two-host conversation from firm words only, weak words repeated, previous day replayed (`generate_walk_episode.py`; experiment log 2026-11-21 (2)).
-- [IDEA] Private podcast feed (RSS behind the API capability) so episodes arrive in a podcast app with lock-screen controls and offline play.
-- [IDEA] One-tap feedback after an episode (too easy / right / too hard) that moves the firm-word threshold.
-- [IDEA] Daily automatic episode: topic queue chosen by the learner, one topic for three or four days.
+- [DONE 2026-11-21] Private podcast feed (RSS behind the API capability) so episodes arrive in a podcast app with lock-screen controls and offline play.
+- [DONE 2026-11-21] One-tap feedback after an episode (too easy / right / too hard) that moves the firm-word threshold.
+- [DONE 2026-11-21] Daily automatic episode: topic queue chosen by the learner, three episodes per topic.
+- [IDEA] Count a feed download as listening: a podcast app gives no completion signal, so episodes heard there earn no `times_heard` and only the rating buttons tell the daily job the learner is still listening.
+- [IDEA] Feedback on pace separately from vocabulary (speech speed and pause length are fixed constants today).
 - [IDEA] News ladder: the day's real headlines rewritten in known vocabulary, later a real news clip played after its simplified version.
 - [IDEA] Read the transcript after the walk (reading-while-listening); the Podcast detail view already shows the turns.
 - [IDEA] Gemini two-speaker speech as a cheaper engine (stock voices only); compare with the cloned ElevenLabs voices.

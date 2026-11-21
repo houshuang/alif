@@ -102,3 +102,5 @@ learner to observe; the normal background-download flow can need two cold launch
 ## Clips
 
 `app/clips.tsx` is the Egyptian Clips screen, opened from More. It lists clips slowest first with a core phrase table, then practises one clip in four steps: Words (new words and phrases, each playing its phrase from the clip), Listen (2–6 word phrases with word-by-word highlighting, tap to play or loop, and a mic button that repeats a phrase three times with speaking gaps), Blind (no text, picture covered because many videos have burned-in captions) and TikTok (the original, then a pass that schedules re-tests). Speeds run from 0.5× to 1×. Uses the `expo-av` `Video` already in the native build, so it ships over the air.
+
+`app/podcast.tsx` additions (2026-11-21): a feed icon in the header shares the private podcast-feed URL (copied to the clipboard on web); a "Next topic" field adds to the walk topic queue and queued topics show as chips that remove on tap; walk episodes show three rating buttons (Too easy / About right / Too hard) in the detail view, posting to `/api/podcasts/feedback/{filename}`.
