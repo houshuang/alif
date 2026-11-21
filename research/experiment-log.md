@@ -120,6 +120,8 @@ This changes the model, not the existing Arabic quality calibration.
 
 ## 2026-11-21: Clean sentence reading timing and the docked word help (PR #293, part 1)
 
+**Deployed 2026-11-21** (#338, `16d19fa5`): backend restarted, migration `f3b5d7e9a1c4` applied in production (backup `alif_pre_reading_timing_20261121_095625.db`), iOS OTA published. The dock also shows three forms, up to three same-root words, the root's meaning and the memory note, and only the card scrolls inside a 32% / 256 pt cap.
+
 Lands the measurement and UI half of the 2026-11-03 automaticity work, rebased onto
 current main. [Production audit](automaticity-2026-11-03/README.md): September–November
 engagement, primary retention by scheduling gap, the clean sentence proxy and 39 observed
