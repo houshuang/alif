@@ -384,10 +384,11 @@ yellow-only until the follow-up trial reads out (red capture is deferred).
 See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.
 
 Reading word help is docked above the answer buttons, outside the sentence scroll.
-Cap its height (42% viewport, max 340pt), preserve independent scrolling and the
+Cap its height (32% viewport, max 260pt), preserve independent scrolling and the
 minimize/restore behavior, and never cover the final lines with an absolute overlay.
 
-Keep the dock short: meaning, parts, at most three forms and up to three same-root words.
+Dock content: meaning, parts, at most three forms, up to three same-root words, the root's
+meaning and the memory note; it scrolls inside its height cap rather than growing.
 Open richer word details in a tap-dismissable modal, not an expanding inline panel.
 Mixed up is a plain toggle; turning it on for a yellow word opens the naming popover.
 Reason icons expose hover/focus legends and retain 44pt targets.

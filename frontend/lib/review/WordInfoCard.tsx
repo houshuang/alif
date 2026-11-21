@@ -618,9 +618,7 @@ export function RevealedView({
               style={rowStyles.rootKey}
             >
               <Text style={rowStyles.rootLetters}>{result.root}</Text>
-              {result.root_meaning && !(dock && family.length > 0) ? (
-                <Text style={rowStyles.rootMeaning} numberOfLines={dock ? 1 : undefined}>{result.root_meaning}</Text>
-              ) : null}
+              {result.root_meaning && !dock ? <Text style={rowStyles.rootMeaning}>{result.root_meaning}</Text> : null}
             </Pressable>
             {family.length > 0 && <View style={rowStyles.sep} />}
             {family.map((s) => (
@@ -634,11 +632,14 @@ export function RevealedView({
                 <Text style={rowStyles.siblingEn}>{shortGloss(s.gloss_en) || "?"}</Text>
               </Pressable>
             ))}
+            {dock && result.root_meaning ? (
+              <Text style={[rowStyles.rootMeaning, rowStyles.rootMeaningLine]}>{result.root_meaning}</Text>
+            ) : null}
           </ScrollView>
         </PanelRow>
       )}
 
-      {!expanded && !dock && note && (
+      {!expanded && note && (
         <PanelRow label={<Ionicons name="bulb-outline" size={13} color="#c9a54a" />}>
           <Text style={[rowStyles.text, rowStyles.note]} numberOfLines={3}>{ltr(note)}</Text>
         </PanelRow>
@@ -1181,6 +1182,7 @@ const rowStyles = StyleSheet.create({
     fontWeight: "600",
   },
   familyWrap: { flexDirection: "row", flexWrap: "wrap", rowGap: 4 },
+  rootMeaningLine: { width: "100%" },
   family: {
     alignItems: "center",
     gap: 10,

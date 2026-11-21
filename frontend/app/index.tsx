@@ -3389,15 +3389,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       </ScrollView>
 
       {!isListening && (lookupSurfaceForm != null || lookupLoading) && (
-      <ScrollView
-        style={[styles.wordDock, { maxHeight: Math.min(340, viewportHeight * 0.42) }]}
-        contentContainerStyle={styles.wordDockContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={true}
-        nestedScrollEnabled
-      >
-        <View style={styles.lookupRow}>
-          <View style={styles.lookupContent}>
+      // Only the word card scrolls inside the height cap; the reason icons stay put.
+      <View style={styles.wordDock}>
+       <View style={[styles.wordDockContent, styles.wordDockInner]}>
+        <View style={[styles.lookupRow, styles.wordDockInner]}>
+          <ScrollView
+            style={[styles.lookupContent, { maxHeight: Math.min(256, viewportHeight * 0.32) }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled
+          >
             {!isListening && !lookupMinimized && (
               <WordInfoCard
                 minimal
@@ -3440,7 +3441,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 <Text style={styles.restoreLookupText}>Word explanation</Text>
               </Pressable>
             )}
-          </View>
+          </ScrollView>
 
           {!lookupMinimized && !isListening
             && activeAssistedRecognitionIndex != null
@@ -3504,7 +3505,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 />
               )}
         </>)}
-      </ScrollView>
+       </View>
+      </View>
       )}
 
       <View style={styles.bottomActions}>
@@ -4887,6 +4889,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
+  wordDockInner: { flexShrink: 1, minHeight: 0 },
   wordDockContent: { paddingTop: 4, width: "100%", maxWidth: 500, alignSelf: "center" },
   lookupRow: {
     flexDirection: "row", alignItems: "flex-start", width: "100%", gap: 6,
