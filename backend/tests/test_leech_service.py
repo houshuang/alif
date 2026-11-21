@@ -931,3 +931,91 @@ def test_reintro_admission_closes_under_box2_due_debt(db_session, monkeypatch):
     db_session.commit()
 
     assert check_leech_reintroductions(db_session) == []
+
+
+# --- an open miss goes to the missed-word lane before the leech rule ---
+
+
+def _add_dated_reviews(db, lemma_id: int, reviews: list[tuple[int, int] | tuple[int, int, str]]):
+    """(days ago, rating[, review_mode]) rows."""
+    now = datetime.now(timezone.utc)
+    for days_ago, rating, *mode in reviews:
+        db.add(ReviewLog(
+            lemma_id=lemma_id,
+            rating=rating,
+            reviewed_at=now - timedelta(days=days_ago),
+            review_mode=mode[0] if mode else "reading",
+            is_acquisition=False,
+        ))
+    db.flush()
+
+
+def _established_word(db, state="lapsed"):
+    lemma = _create_lemma(db)
+    db.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id, knowledge_state=state, times_seen=20, times_correct=12,
+    ))
+    return lemma
+
+
+# Five failures older than the lane's 30-day window: the leech window alone says "leech".
+OLD_FAILURES = [(200, 1), (180, 3), (150, 2), (120, 1), (100, 3), (80, 1), (60, 3)]
+
+
+def test_fresh_miss_on_established_word_is_not_suspended(db_session):
+    lemma = _established_word(db_session)
+    _add_dated_reviews(db_session, lemma.lemma_id, OLD_FAILURES + [(0, 1)])
+    db_session.commit()
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+    assert is_leech(ulk, db=db_session)
+    assert check_single_word_leech(db_session, lemma.lemma_id) is False
+    assert check_and_manage_leeches(db_session) == []
+    assert ulk.knowledge_state == "lapsed"
+
+
+def test_one_missed_follow_up_still_waits_for_the_lane(db_session):
+    lemma = _established_word(db_session)
+    _add_dated_reviews(
+        db_session, lemma.lemma_id,
+        OLD_FAILURES + [(4, 1), (4, 3, "quiz"), (0, 1, "fragment")],
+    )
+    db_session.commit()
+
+    assert check_single_word_leech(db_session, lemma.lemma_id) is False
+
+
+def test_third_miss_in_a_run_is_suspended(db_session):
+    lemma = _established_word(db_session)
+    _add_dated_reviews(db_session, lemma.lemma_id, OLD_FAILURES + [(6, 1), (3, 2), (0, 1)])
+    db_session.commit()
+
+    assert check_single_word_leech(db_session, lemma.lemma_id) is True
+
+
+def test_a_closed_miss_starts_a_new_run(db_session):
+    from app.services.missed_word_recovery import open_misses
+
+    lemma = _established_word(db_session)
+    _add_dated_reviews(
+        db_session, lemma.lemma_id,
+        [(20, 1), (18, 1), (15, 3), (12, 3), (0, 1)],
+    )
+    db_session.commit()
+
+    miss = open_misses(db_session, datetime.now(timezone.utc), lemma_id=lemma.lemma_id)[lemma.lemma_id]
+    assert miss.misses_in_run == 1
+
+
+def test_open_miss_does_not_protect_a_reintroduction_episode(db_session):
+    lemma = _create_lemma(db_session)
+    now = datetime.now(timezone.utc)
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id, knowledge_state="acquiring", times_seen=20, times_correct=8,
+        acquisition_box=1, acquisition_episode_kind="leech_reintro",
+        acquisition_started_at=now - timedelta(days=10),
+    ))
+    _add_dated_reviews(db_session, lemma.lemma_id, [(5, 1), (4, 1), (3, 1), (2, 1), (1, 1)])
+    db_session.commit()
+
+    assert check_single_word_leech(db_session, lemma.lemma_id) is True

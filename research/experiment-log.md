@@ -118,6 +118,41 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-21 (2): A fresh miss on an established word goes to the missed-word lane, not to leech suspension
+
+**Why.** On 20 Nov, 11 words were suspended as leeches (usual 0–3 per day). The leech
+window is the last 8 non-quiz reviews of any age, and yellow counts as a failure, so one
+new miss can tip a word whose older history holds a few yellows: #3171 نَبَّأ was suspended
+on its first miss in three months, #2199 مَفْهُوم on a yellow after two correct reviews,
+#2734 أَلْقَى on a missed phrase follow-up. A suspended word has no FSRS due date, so it
+leaves `missed_word_recovery_v1`, waits 3–14 days and restarts in acquisition. The two
+rules treated the same miss in opposite ways. Learner decision (2026-11-21): a fresh miss
+on an established word goes to the lane.
+
+**Change.** `leech_service.recovery_lane_has_priority()`: a word with an FSRS card
+(`learning`/`known`/`lapsed`, not in a `leech_reintro` episode) that has an open miss is
+not suspended until the run of misses has `LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS = 3`
+sentence or phrase misses, that is the first miss and two missed follow-ups.
+`OpenMiss.misses_in_run` counts them; the run ends when the miss is closed (two correct
+sentence reviews, three after a missed word card). Word-card answers do not count.
+Unchanged: the window and thresholds, acquiring words, reintroduction episodes, and
+suspension of a word whose window is below 50% with no open miss.
+
+**The threshold of three is my choice, not the learner's.** Two would suspend on the
+first missed follow-up, which is what happened to #2734. Lower it to 2 or raise it in
+`leech_service.py` if three lets words circle too long.
+
+**Expected.** Fewer suspensions on high-volume days; those words appear as missed-word
+cards within a day or two. A word that keeps failing is still suspended, two follow-ups
+later. Lane load rises slightly (about 10 words on a day like 20 Nov, against 251 open
+misses).
+
+**Check at the 4 December readout.** `leech_suspended` events per active day; for words
+the rule held back (leech window < 50% with an open miss, from `review_log`), the share
+that closed the miss against the share suspended at the third miss.
+
+**Roll back.** Set `LEECH_MISSES_BEFORE_SUSPENDING_OPEN_MISS = 1`.
+
 ## 2026-11-21: Passage generation stops while passage review is off; Codex calls without a schema repaired
 
 **Found in a health check of production after the 18–20 Nov changes** (read-only; the lanes,
