@@ -2882,7 +2882,11 @@ def _warm_sentence_cache_impl(
                 if due <= now:
                     high_stability_due += 1
             window_cap = _maintenance_passage_window_cap(high_stability_due)
-            should_generate_passage = recent_count < window_cap
+            from app.services.passage_generator import maintenance_passage_generation_enabled
+
+            should_generate_passage = (
+                maintenance_passage_generation_enabled() and recent_count < window_cap
+            )
             logger.info(
                 "Warm cache %s: phase 3e — %d due comfortable words, window cap %d, "
                 "%d generated this window, generate=%s",

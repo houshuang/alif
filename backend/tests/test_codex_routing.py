@@ -415,3 +415,69 @@ def test_revoked_codex_login_starts_cool_down():
         "401 Unauthorized: Encountered invalidated oauth token for user"
     )
     assert codex_module.codex_cli_temporarily_disabled()
+
+
+# ─── json_mode without a schema ─────────────────────────────────────────────
+# `__wrapped__` is the function under the provider guard's stub; the fake runner
+# keeps these tests off the real CLI.
+
+
+def test_json_mode_without_schema_makes_a_plain_call_and_parses_an_array(monkeypatch):
+    from app.services import codex_cli
+
+    monkeypatch.setattr(codex_cli, "codex_cli_available", lambda: True)
+    calls = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return SimpleNamespace(
+            returncode=0,
+            stdout='```json\n[{"lemma_id": 1, "root": "ك.ت.ب"}]\n```',
+            stderr="",
+        )
+
+    result = codex_cli.generate_via_codex_cli.__wrapped__(
+        prompt="roots", json_mode=True, json_schema=None, runner=fake_runner,
+    )
+
+    assert result == [{"lemma_id": 1, "root": "ك.ت.ب"}]
+    assert "--output-schema" not in calls[0][0]
+    assert "JSON only" in calls[0][1]["input"]
+
+
+def test_json_mode_without_schema_rejects_prose(monkeypatch):
+    from app.services import codex_cli
+
+    monkeypatch.setattr(codex_cli, "codex_cli_available", lambda: True)
+
+    def fake_runner(cmd, **kwargs):
+        return SimpleNamespace(returncode=0, stdout="I cannot do that.", stderr="")
+
+    with pytest.raises(codex_cli.CodexCLIError, match="unparseable JSON"):
+        codex_cli.generate_via_codex_cli.__wrapped__(
+            prompt="roots", json_mode=True, json_schema=None, runner=fake_runner,
+        )
+
+
+def test_failure_message_carries_the_error_line_not_only_the_banner(monkeypatch):
+    from app.services import codex_cli
+
+    monkeypatch.setattr(codex_cli, "codex_cli_available", lambda: True)
+    stderr = (
+        "OpenAI Codex v0.159.2\n--------\n" + "prompt echo\n" * 200
+        + 'ERROR: {"error":{"message":"Invalid schema for response_format"}}\n'
+        + 'ERROR: {"error":{"message":"Invalid schema for response_format"}}\n'
+    )
+
+    def fake_runner(cmd, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr=stderr)
+
+    with pytest.raises(codex_cli.CodexCLIError) as excinfo:
+        codex_cli.generate_via_codex_cli.__wrapped__(
+            prompt="x", json_schema={"type": "object", "properties": {"a": {"type": "string"}}},
+            runner=fake_runner,
+        )
+
+    message = str(excinfo.value)
+    assert message.startswith("codex CLI exit 1: ERROR:")
+    assert message.count("Invalid schema") == 1

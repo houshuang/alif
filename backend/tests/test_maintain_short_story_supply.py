@@ -161,6 +161,7 @@ def test_maintain_supply_records_completed_run_and_forwards_cooldown(
         }
 
     monkeypatch.setattr(maintainer, "seed", fake_seed)
+    monkeypatch.setattr(maintainer, "maintenance_passage_generation_enabled", lambda: True)
 
     result = maintainer.maintain_supply(minimum_selectable=3, budget=1)
 
@@ -204,3 +205,26 @@ def test_status_only_reports_supply_deficit(monkeypatch, capsys):
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "degraded"
     assert report["selectable_deficit"] == 3
+
+
+def test_maintain_supply_generates_nothing_while_passage_review_is_off(monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("no generation while passages are out of review")
+
+    monkeypatch.setattr(maintainer, "seed", fail)
+    monkeypatch.setattr(maintainer, "_try_acquire_material_update_lock", fail)
+    monkeypatch.setattr(maintainer, "maintenance_passage_generation_enabled", lambda: False)
+
+    assert maintainer.maintain_supply(minimum_selectable=3, budget=1) == {
+        "status": "suspended",
+        "reason": "passage_review_disabled",
+    }
+
+
+def test_passage_generation_follows_the_review_switch(monkeypatch):
+    from app.services import passage_generator, sentence_selector
+
+    monkeypatch.setattr(sentence_selector, "MAINTENANCE_PASSAGE_REVIEW_ENABLED", False)
+    assert passage_generator.maintenance_passage_generation_enabled() is False
+    monkeypatch.setattr(sentence_selector, "MAINTENANCE_PASSAGE_REVIEW_ENABLED", True)
+    assert passage_generator.maintenance_passage_generation_enabled() is True

@@ -29,6 +29,7 @@ from app.services.material_generator import (
 from app.services.passage_generator import (
     PASSAGE_EXPERIMENT_VERSION,
     _due_maintenance_targets,
+    maintenance_passage_generation_enabled,
 )
 from scripts.seed_short_story_experiment import seed
 
@@ -361,6 +362,8 @@ def maintain_supply(
     budget: int = DEFAULT_BUDGET,
     attempts_per_story: int = DEFAULT_ATTEMPTS_PER_STORY,
 ) -> dict[str, Any]:
+    if not maintenance_passage_generation_enabled():
+        return {"status": "suspended", "reason": "passage_review_disabled"}
     now = datetime.now(timezone.utc)
     lock_handle = _try_acquire_material_update_lock()
     if lock_handle is None:

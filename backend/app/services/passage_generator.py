@@ -60,6 +60,19 @@ PASSAGE_CODEX_EDITOR_REASONING_EFFORT = os.environ.get(
     "ALIF_PASSAGE_CODEX_EDITOR_REASONING_EFFORT",
     "high",
 )
+
+
+def maintenance_passage_generation_enabled() -> bool:
+    """Automatic passage generation follows the review switch.
+
+    While `MAINTENANCE_PASSAGE_REVIEW_ENABLED` is off nothing generated can be
+    shown, so the warm cache and the supply cron do not generate either.
+    """
+    from app.services import sentence_selector
+
+    return bool(sentence_selector.MAINTENANCE_PASSAGE_REVIEW_ENABLED)
+
+
 PASSAGE_TARGET_POOL_SIZE = 96
 # The learner now has a large enough stable vocabulary that the old 320-word
 # sample routinely omitted ordinary scene glue (resident, alarm, staff, job),

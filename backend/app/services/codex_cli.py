@@ -170,6 +170,45 @@ def _parse_json_object(text: str) -> dict | None:
     return None
 
 
+def _parse_json_value(text: str) -> dict | list | None:
+    """Parse a JSON object or array from free text (code fences, lead-in prose)."""
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, (dict, list)) else None
+    except json.JSONDecodeError:
+        pass
+    spans = []
+    for open_ch, close_ch in (("{", "}"), ("[", "]")):
+        s, e = text.find(open_ch), text.rfind(close_ch)
+        if s != -1 and e > s:
+            spans.append((s, e))
+    for s, e in sorted(spans):
+        try:
+            parsed = json.loads(text[s:e + 1])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    return None
+
+
+def _stderr_summary(stderr: str | None) -> str:
+    """Codex's own ERROR lines first, then the start of stderr.
+
+    stderr opens with a banner and an echo of the prompt, so its first 400
+    characters never contain the failure reason.
+    """
+    text = stderr or ""
+    errors = " ".join(
+        line.strip() for line in dict.fromkeys(text.splitlines())
+        if line.lstrip().startswith("ERROR")
+    )
+    head = text[:400]
+    return f"{errors[:600]} | {head}" if errors else head
+
+
 class CodexCLIError(RuntimeError):
     pass
 
@@ -255,12 +294,26 @@ def generate_via_codex_cli(
             model=model, reasoning_effort=reasoning_effort, runner=runner,
         )
 
+    if json_schema is None:
+        # The structured-output API rejects a schema without properties, so a
+        # caller that names no schema gets a plain call and its JSON is parsed
+        # from the reply (an object or an array, as the Claude CLI path returns).
+        reply = _generate_via_codex_cli_text(
+            prompt=f"{prompt}\n\nRespond with JSON only, no other text.",
+            system_prompt=system_prompt, timeout=timeout,
+            model=model, reasoning_effort=reasoning_effort, runner=runner,
+        )["content"]
+        parsed = _parse_json_value(reply)
+        if parsed is None:
+            raise CodexCLIError(f"codex CLI returned unparseable JSON: {reply[:300]}")
+        return parsed
+
     # Structured-JSON path: write the schema to a temp file, point Codex at it.
     schema_path: str | None = None
     output_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".schema.json", delete=False) as sf:
-            schema_for_codex = strict_response_schema(json_schema or _PERMISSIVE_JSON_SCHEMA)
+            schema_for_codex = strict_response_schema(json_schema)
             json.dump(schema_for_codex, sf, ensure_ascii=False)
             schema_path = sf.name
         with tempfile.NamedTemporaryFile("w", suffix=".output.json", delete=False) as of:
@@ -297,8 +350,7 @@ def generate_via_codex_cli(
             raise CodexCLIError(f"codex CLI subprocess error: {exc}") from exc
 
         if proc.returncode != 0:
-            stderr = (proc.stderr or "")[:400]
-            raise CodexCLIError(f"codex CLI exit {proc.returncode}: {stderr}")
+            raise CodexCLIError(f"codex CLI exit {proc.returncode}: {_stderr_summary(proc.stderr)}")
 
         text = Path(output_path).read_text(encoding="utf-8", errors="replace") if output_path else ""
         if not text.strip():
@@ -358,7 +410,7 @@ def _generate_via_codex_cli_text(
         except (FileNotFoundError, OSError) as exc:
             raise CodexCLIError(f"codex CLI subprocess error: {exc}") from exc
         if proc.returncode != 0:
-            raise CodexCLIError(f"codex CLI exit {proc.returncode}: {(proc.stderr or '')[:400]}")
+            raise CodexCLIError(f"codex CLI exit {proc.returncode}: {_stderr_summary(proc.stderr)}")
         text = Path(output_path).read_text(encoding="utf-8", errors="replace") if output_path else ""
         if not text.strip():
             text = proc.stdout or ""
@@ -370,7 +422,3 @@ def _generate_via_codex_cli_text(
             except OSError:
                 pass
 
-
-# A permissive default for the rare json_mode=True / no-schema caller. Codex
-# requires a schema; we accept any object.
-_PERMISSIVE_JSON_SCHEMA = {"type": "object"}
