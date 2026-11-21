@@ -19,6 +19,7 @@ export interface ExtraAction {
 }
 
 interface ActionMenuProps {
+  onOpen?: () => void;
   focusedLemmaId: number | null;
   focusedLemmaAr: string | null;
   sentenceId: number | null;
@@ -39,6 +40,7 @@ interface ActionMenuProps {
 type ToastState = { message: string; key: number } | null;
 
 export default function ActionMenu({
+  onOpen,
   focusedLemmaId,
   focusedLemmaAr,
   sentenceId,
@@ -78,6 +80,7 @@ export default function ActionMenu({
   );
 
   function handleOpenMenu() {
+    onOpen?.();
     setSentenceFlagExpanded(false);
     setMenuVisible(true);
   }

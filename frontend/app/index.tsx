@@ -10,6 +10,7 @@ import {
   Platform,
   AppState,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ReviewLaunchReadyContext } from "../lib/launch-ready";
@@ -69,6 +70,8 @@ import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
+import { useReadingTimer } from "../lib/review/use-reading-timer";
+import { WordDetailsModal } from "../lib/review/WordDetailsModal";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
@@ -400,9 +403,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const mode = fixedMode;
   const online = useNetStatus();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation();
   const [lookupMinimized, setLookupMinimized] = useState(false);
+  const [confusionPopoverOpen, setConfusionPopoverOpen] = useState(false);
+  const [largeWordOpen, setLargeWordOpen] = useState(false);
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
@@ -495,6 +501,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const [storyInfoVisible, setStoryInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
+  const readingTimingRef = useRef<ReturnType<typeof useReadingTimer> | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
   const prefetchTriggered = useRef(false);
@@ -504,6 +511,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const introScrollRef = useRef<ScrollView>(null);
 
   const resetSentenceCardUi = useCallback((nextState?: CardState) => {
+    setConfusionPopoverOpen(false); setLargeWordOpen(false);
     lookupRequestRef.current += 1;
     setCardState(nextState ?? (mode === "listening" ? "audio" : "front"));
     setMissedIndices(new Set());
@@ -543,6 +551,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     tappedCursor >= 0 && tappedCursor < tappedOrder.length
       ? tappedOrder[tappedCursor]
       : null;
+  useEffect(() => { setConfusionPopoverOpen(false); setLargeWordOpen(false); }, [focusedReviewWordIndex, cardIndex, lookupMinimized]);
   const activeAssistedRecognitionIndex = useMemo(
     () =>
       failureCauseIndex(
@@ -1057,6 +1066,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const toggleMissed = useCallback((index: number) => {
+    readingTimingRef.current?.mark();
     // Triple-tap cycle: off → missed (red) → confused (yellow) → off
     const isConfused = confusedIndices.has(index);
     const isMissed = missedIndices.has(index);
@@ -1162,6 +1172,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, [applyTappedEntry]);
 
   const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
+    readingTimingRef.current?.assist();
     setLookupMinimized(false);
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
@@ -1408,6 +1419,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!sentenceSession) return;
     const item = sentenceSession.items[sentenceItemIndex];
     const responseMs = Date.now() - showTime.current;
+    const readingTiming = mode === "reading" ? readingTimingRef.current?.finish() : undefined;
 
     const missedLemmaIds: number[] = [];
     for (const idx of missedIndices) {
@@ -1585,10 +1597,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         confusion_candidate_lemma_ids: hasConfusionCandidates ? confusionCandidateMap : undefined,
         confusion_captures: Object.values(confusionCaptures).length > 0 ? Object.values(confusionCaptures) : undefined,
         response_ms: responseMs,
+        reading_timing: readingTiming,
         session_id: sentenceSession.session_id,
         review_mode: mode,
-        audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
-        lookup_count: lookupCount > 0 ? lookupCount : undefined,
+        audio_play_count: audioPlayCount,
+        lookup_count: lookupCount,
         parent_card_type: isPassageCard(item) ? "passage" : "sentence",
         rating2_prompt_shown_sentence_word_ids:
           rating2PromptShownSentenceWordIds.size > 0
@@ -1965,6 +1978,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       else if (cardState === "arabic") setCardState("answer");
     } else {
       if (cardState === "front") {
+        readingTimingRef.current?.finish();
         setCardState("back");
         setLookupShowMeaning(true);
       }
@@ -2102,6 +2116,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   const showingGrammarLesson = grammarLessons.length > 0 && grammarLessonIndex < grammarLessons.length;
   const showingReintro = reintroCards.length > 0 && reintroIndex < reintroCards.length;
+  const timing = useReadingTimer(sentenceSession ? `${sentenceSession.session_id}:${cardIndex}` : null,
+    mode === "reading" && !loading && !isSessionDone && !inWrapUp && !todayCard
+    && !checkpointPending && !sessionStopped
+    && !showingGrammarLesson && !showingReintro && currentSlot?.type === "sentence");
+
+  readingTimingRef.current = timing;
+
   // Only the revealed reading card borrows the tab bar's space. Restore tabs
   // on card changes, auxiliary screens, and navigation away.
   const compactReveal = mode === "reading" && cardState === "back"
@@ -3216,12 +3237,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const assistedWordInitiallyShowedTashkeel = assistedWord
     ? assistedWord.show_tashkeel !== false && assistedWordHasStoredTashkeel
     : true;
-  // The confusion candidates and the free-text box stay hidden until the learner
-  // says the word was mixed up with another one — otherwise a single yellow word
-  // stacks three panels below the sentence.
-  const mixedUpSelected =
-    activeAssistedRecognitionIndex != null
-    && (failureCausesByIndex[activeAssistedRecognitionIndex] ?? []).includes("mixed_up");
   const ensureFocusedCause = (cause: WordFailureCause) => {
     if (focusedWordIndex == null) return;
     setFailureCausesByIndex((prev) => {
@@ -3277,6 +3292,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   };
 
   const handleTashkeelToggle = () => {
+    if (cardState === "front") readingTimingRef.current?.assist();
     const side = cardState === "back" || cardState === "answer"
       ? "back"
       : "front";
@@ -3301,6 +3317,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         onBack={canGoBack ? handleGoBack : null}
         actionMenu={
           <ActionMenu
+            onOpen={() => readingTimingRef.current?.assist()}
             focusedLemmaId={lookupLemmaId}
             focusedLemmaAr={lookupResult?.lemma_ar ?? null}
             sentenceId={item.sentence_id}
@@ -3330,7 +3347,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       />
 
       <ScrollView
-        style={{ flex: 1 }}
+        style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[styles.sentenceArea, !isListening && styles.readingSentenceArea]}
         showsVerticalScrollIndicator={false}
       >
@@ -3353,6 +3370,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         ) : (
           <SentenceReadingCard
+            timingIgnored={timing.ignored}
+            onIgnoreTiming={timing.ignore}
             item={item}
             cardState={cardState as ReadingCardState}
             missedIndices={missedIndices}
@@ -3367,16 +3386,29 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
 
+      </ScrollView>
+
+      {!isListening && (lookupSurfaceForm != null || lookupLoading) && (
+      <ScrollView
+        style={[styles.wordDock, { maxHeight: Math.min(340, viewportHeight * 0.42) }]}
+        contentContainerStyle={styles.wordDockContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled
+      >
         <View style={styles.lookupRow}>
           <View style={styles.lookupContent}>
             {!isListening && !lookupMinimized && (
               <WordInfoCard
+                minimal
+                onOpenDetails={() => setLargeWordOpen(true)}
                 result={lookupResult}
                 loading={lookupLoading}
                 surfaceForm={lookupSurfaceForm}
                 markState={focusedWordMark}
                 showMeaning={lookupShowMeaning}
                 onShowMeaning={() => {
+                  readingTimingRef.current?.assist();
                   setLookupShowMeaning(true);
                   if (tappedCursor >= 0 && tappedCursor < tappedOrder.length) {
                     const idx = tappedOrder[tappedCursor];
@@ -3397,7 +3429,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 confusionData={confusionData}
                 onPickConfusion={handlePickConfusion}
                 pickedConfusionLemmaId={pickedConfusionLemmaId}
-                showConfusionCandidates={mixedUpSelected}
+                showConfusionCandidates={false}
               />
             )}
 
@@ -3412,6 +3444,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
           {!lookupMinimized && !isListening
             && activeAssistedRecognitionIndex != null
+            && activeAssistedRecognitionIndex === focusedReviewWordIndex
             && assistedWord != null
             && (
               <AssistedRecognitionCauses
@@ -3429,39 +3462,50 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                   assistedWordHasStoredTashkeel
                   && !assistedWordInitiallyShowedTashkeel
                 }
+                onMixedUpPress={focusedWordMark === "did_not_recognize" ? () => {
+                  // A plain toggle: off again on a second tap, which also drops
+                  // the named word. Turning it on opens the optional naming popover.
+                  const selected = (failureCausesByIndex[activeAssistedRecognitionIndex] ?? []).includes("mixed_up");
+                  handleToggleAssistedCause("mixed_up");
+                  setConfusionPopoverOpen(!selected);
+                } : undefined}
+                mixedUpExpanded={confusionPopoverOpen}
                 onToggle={handleToggleAssistedCause}
               />
           )}
         </View>
         {!isListening && !lookupMinimized && (<>
-              {/* focusedWordMark check keeps the capture bound to the word the
-                  chips describe — assistedRecognitionIndex() only equals the
-                  focused word while that word is yellow. */}
-              {mixedUpSelected
+              {/* Named capture stays bound to the focused yellow token. */}
+              {activeAssistedRecognitionIndex === focusedReviewWordIndex
                 && focusedWordMark === "did_not_recognize"
                 && lookupLemmaId != null && (
                 <ConfusionPicker
+                  key={`${sentenceSession.session_id}:${cardIndex}:${focusedReviewWordIndex}`}
+                  visible={confusionPopoverOpen}
+                  onClose={() => setConfusionPopoverOpen(false)}
                   failedLemmaId={lookupLemmaId}
                   confusionData={confusionData}
                   existing={confusionCaptures[lookupLemmaId]}
                   onSave={(capture) => {
+                    ensureFocusedCause("mixed_up");
                     setConfusionCaptures((prev) => ({
                       ...prev,
                       [capture.failed_lemma_id]: capture,
                     }));
                   }}
-                  onClear={() =>
+                  onClear={() => {
                     setConfusionCaptures((prev) => {
                       if (!prev[lookupLemmaId]) return prev;
                       const next = { ...prev };
                       delete next[lookupLemmaId];
                       return next;
-                    })
-                  }
+                    });
+                  }}
                 />
               )}
         </>)}
       </ScrollView>
+      )}
 
       <View style={styles.bottomActions}>
         {isListening ? (
@@ -3483,6 +3527,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
       </View>
+
+      <WordDetailsModal key={lookupResult?.lemma_id ?? "none"} visible={largeWordOpen} onClose={() => setLargeWordOpen(false)}
+        result={lookupResult} surfaceForm={lookupSurfaceForm} surfaceTranslit={lookupSurfaceTranslit}
+        markState={focusedWordMark} confusionData={confusionData}
+        capture={lookupLemmaId != null ? confusionCaptures[lookupLemmaId] : undefined} currentSentenceId={item.sentence_id}
+        onWord={id => router.push(`/word/${id}`)} onRoot={id => router.push(`/root/${id}`)}
+        onPattern={wazn => router.push(`/pattern/${encodeURIComponent(wazn)}`)} />
 
       {showSentenceInfo && (
         <SentenceInfoModal
@@ -3558,6 +3609,8 @@ function PassagePairedReveal({
 }
 
 function SentenceReadingCard({
+  timingIgnored,
+  onIgnoreTiming,
   item,
   cardState,
   missedIndices,
@@ -3566,6 +3619,8 @@ function SentenceReadingCard({
   overridden,
   onToggleTashkeel,
 }: {
+  timingIgnored: boolean;
+  onIgnoreTiming: () => void;
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
@@ -3610,10 +3665,17 @@ function SentenceReadingCard({
         })}
       </Text>}
 
-      <View style={[styles.cardToggles, { marginTop: 0, marginBottom: 0 }]}>
+      <View style={[styles.cardToggles, { marginTop: 0, marginBottom: 0, height: 22, alignItems: "center" }]}>
+        <Pressable onPress={onIgnoreTiming} style={[styles.timingControl, { height: 22 }]} hitSlop={11}
+          accessibilityRole="button" accessibilityLabel={timingIgnored ? "Timing ignored for this sentence" : "Ignore timing for this sentence"}
+          accessibilityHint="Use after a distraction. Your review still counts."
+          accessibilityState={{ disabled: timingIgnored }} disabled={timingIgnored}>
+          <Ionicons name={timingIgnored ? "time-outline" : "timer-outline"} size={14}
+            color={colors.textSecondary} style={{ opacity: timingIgnored ? 0.3 : 0.65 }} />
+        </Pressable>
         <Pressable
           onPress={onToggleTashkeel}
-          style={styles.toggleDot}
+          style={[styles.toggleDot, { paddingVertical: 4 }]}
           hitSlop={12}
         >
           <View style={[styles.toggleDotInner, { opacity: overridden ? 1.0 : 0.3 }]} />
@@ -3627,7 +3689,7 @@ function SentenceReadingCard({
           !showAnswer && styles.answerSectionHidden,
         ]}
       >
-          <View style={[styles.divider, { marginVertical: 6 }]} />
+          <View style={[styles.divider, { marginVertical: 2 }]} />
           {pairedReveal ? (
             <PassagePairedReveal
               item={item}
@@ -3646,7 +3708,7 @@ function SentenceReadingCard({
           ) : (
             <Text style={styles.sentenceEnglish}> </Text>
           )}
-          {!pairedReveal && <View style={styles.translitSlot}>
+          {!pairedReveal && (!showAnswer || translitLines.length > 0) && <View style={styles.translitSlot}>
             <Text style={[styles.sentenceTranslit, { fontSize: 14, lineHeight: 19, marginTop: 4 }, !showAnswer && styles.hiddenText]}>
               {showAnswer && translitLines.length > 0 ? translitLines.join("\n") : " "}
             </Text>
@@ -4766,6 +4828,7 @@ function GrammarLessonCard({
 // --- Styles ---
 
 const styles = StyleSheet.create({
+  timingControl: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   container: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -4819,6 +4882,12 @@ const styles = StyleSheet.create({
   },
   readingArabicRevealed: { lineHeight: 56 },
   readingSentenceArea: { paddingTop: 4, paddingBottom: 8 },
+  wordDock: {
+    flexGrow: 0, flexShrink: 1, marginTop: 4,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  wordDockContent: { paddingTop: 4, width: "100%", maxWidth: 500, alignSelf: "center" },
   lookupRow: {
     flexDirection: "row", alignItems: "flex-start", width: "100%", gap: 6,
   },

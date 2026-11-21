@@ -78,3 +78,12 @@ Listening state for one Dialect Lines line: `line_id` (primary key, e.g. `layl30
 ## ClipProgress (`clip_progress`)
 
 Practice state for one dialect listening clip: `clip_id` (primary key), `stage` (1 Listen, 2 Shadow, 3 Blind, 4 TikTok), `pass_count`, `last_passed_at`, `next_check_at`, `updated_at`. It has no link to lemmas, FSRS or acquisition.
+
+### Sentence reading timing (2026-11-03)
+
+`sentence_review_log.reading_timing_json` is nullable JSON: `{version: 1,
+elapsed_ms: number|null, exclusions: string[], eligible: boolean}`. It measures
+front reading to first reveal/answer, separately from whole-card `response_ms`.
+Eligibility is server-computed; legacy NULL is unknown. Excluded observations
+remain auditable, and receipt undo deletes them with the sentence log.
+Migration: `f3b5d7e9a1c4`, after `c8e1a3f5b7d9`.
