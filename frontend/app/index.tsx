@@ -414,6 +414,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [largeWordOpen, setLargeWordOpen] = useState(false);
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
+  const confusionPractice = useConfusionPractice(sentenceSession?.session_id ?? null, mode === "reading");
   const [cardIndex, setCardIndex] = useState(0);
   const [cardState, setCardState] = useState<CardState>("front");
   const [loading, setLoading] = useState(true);
@@ -824,10 +825,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [inWrapUp, wrapUpIndex, wrapUpCards, wrapUpVariant, sentenceSession?.session_id]);
 
+  // Keep the owning session alive while a confusion lesson or match is visible.
+  // Changing session IDs resets that practice, even if its modal is still open.
   // Batches are an implementation detail. Only an explicit Wrap Up stops practice.
   useEffect(() => {
     const done = results && results.total >= totalCards && totalCards > 0;
-    if (!done || inWrapUp || sessionStopped || loading || submittingReview || continuingRef.current) return;
+    if (!done || inWrapUp || sessionStopped || loading || submittingReview || continuingRef.current
+      || confusionPractice.active || confusionPractice.matching) return;
     continuingRef.current = true;
     if (mode === "reading" && totalCards >= TODAY_CARD_MIN_BATCH) {
       // Shown at once so it never replaces a card the learner has started;
@@ -843,18 +847,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (sentenceSession) await dropCachedSession(mode, sentenceSession.session_id).catch(() => {});
       await loadSession();
     })().finally(() => { continuingRef.current = false; });
-  }, [results, totalCards, inWrapUp, sessionStopped, loading, submittingReview, sentenceSession, mode]);
+  }, [results, totalCards, inWrapUp, sessionStopped, loading, submittingReview, sentenceSession, mode, confusionPractice.active, confusionPractice.matching]);
 
   // Check only between cards; never replace a sentence the learner is reading.
   // A layout effect, so a due check is decided before the next card is painted.
   // The next batch loads behind the Today card, so wait until it is dismissed:
-  // a word card would otherwise render in its place.
+  // a word card would otherwise render in its place. Confusion practice owns
+  // the same boundary; defer word checks until it closes, then reconsider them.
   useLayoutEffect(() => {
     const done = results && results.total >= totalCards;
-    if (!loading && !submittingReview && !sessionStopped && !todayCard && !done && cardIndex < totalCards) {
+    if (!loading && !submittingReview && !sessionStopped && !todayCard && !done && cardIndex < totalCards
+      && !confusionPractice.active && !confusionPractice.matching) {
       if (!maybeShowFollowup()) maybeFireCheckpoint();
     }
-  }, [loading, submittingReview, cardIndex, sentenceSession?.session_id, todayCard === null]);
+  }, [loading, submittingReview, cardIndex, sentenceSession?.session_id, todayCard === null, confusionPractice.active, confusionPractice.matching]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {
@@ -2120,7 +2126,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   const showingGrammarLesson = grammarLessons.length > 0 && grammarLessonIndex < grammarLessons.length;
   const showingReintro = reintroCards.length > 0 && reintroIndex < reintroCards.length;
-  const confusionPractice = useConfusionPractice(sentenceSession?.session_id ?? null, mode === "reading");
   const timing = useReadingTimer(sentenceSession ? `${sentenceSession.session_id}:${cardIndex}` : null,
     mode === "reading" && !loading && !isSessionDone && !inWrapUp && !todayCard
     && !checkpointPending && !sessionStopped && !confusionPractice.active && !confusionPractice.matching
