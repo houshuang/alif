@@ -144,7 +144,7 @@ practice; the card is logged as `card_shown` with `card_type="progress"` and giv
 review credit. Phrase follow-ups and quick checks wait until Continue (2026-11-20): the next
 batch loads behind the card, and a word card used to render in its place.
 
-### Confusion-pair teaching (local implementation)
+### Confusion-pair teaching (deployed 2026-11-23)
 
 Reason icons have visible short names and a 350ms long-press legend (2.5s;
 long-press never toggles the cause). More → Confusion pairs separates confirmed

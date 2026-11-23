@@ -132,7 +132,7 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 
 - `walk_episodes.py` — Shared logic for walk episodes (podcast files with `format_type="walk"`): state file `data/podcasts/walk-state.json` (firm-word threshold, topic queue, current series, last script), `record_feedback()` (rating → threshold step, logged as `podcast_feedback`), `next_topic()` (learner queue first, then the built-in `SEED_TOPICS`), `generation_decision()` (one episode per day; none after `MAX_UNACKNOWLEDGED = 4` episodes in a row with neither completion nor feedback), `build_feed()` (RSS of walk and bridge episodes; the daily rule counts walk episodes only). No lemma, FSRS or acquisition effects. The generator is `scripts/generate_walk_episode.py`.
 
-### Confusion learning (local implementation)
+### Confusion learning (deployed 2026-11-23)
 
 `confusion_learning.py` uses shared lexical retrieval to link captures, preserves
 ambiguous manual entries for confirmation, prepares and independently checks

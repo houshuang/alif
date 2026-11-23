@@ -88,7 +88,7 @@ Eligibility is server-computed; legacy NULL is unknown. Excluded observations
 remain auditable, and receipt undo deletes them with the sentence log.
 Migration: `f3b5d7e9a1c4`, after `c8e1a3f5b7d9`.
 
-### Confusion-pair learning (local implementation)
+### Confusion-pair learning (deployed 2026-11-23)
 
 Migration `a2d4f6c8b019` adds `confusion_pairs` (unique ordered canonical members,
 checked lesson and generation claim), `confusion_links` (one resolution per

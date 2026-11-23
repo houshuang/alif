@@ -221,7 +221,7 @@ recorded as excluded without discarding the underlying review.
 
 `GET /api/podcasts` items now include `feedback`.
 
-### Confusion-pair learning (local implementation)
+### Confusion-pair learning (deployed 2026-11-23)
 
 `GET /api/confusions` lists confirmed pairs, checked lessons, computed progress
 and unresolved manual captures. `POST /api/confusions/refresh` performs idempotent
