@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WordFailureCause } from "../types";
@@ -35,6 +35,9 @@ export function AssistedRecognitionCauses({
    *  confusion picker once "Mixed up" is selected. */
   children?: React.ReactNode;
 }) {
+  const legendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+  useEffect(() => () => { if (legendTimer.current) clearTimeout(legendTimer.current); }, []);
   const [legend, setLegend] = useState<string | null>(null);
   const legends: Record<WordFailureCause, string> = { retrieval_lapse: "Forgot — I could not recall this word", mixed_up: "Mixed up — I mistook this for another word", unfamiliar_form: "New form — familiar word, unfamiliar form", missing_tashkeel: "No tashkeel — missing vowel marks made it hard" };
   const causes = missingTashkeelApplicable
@@ -61,14 +64,21 @@ export function AssistedRecognitionCauses({
               key={cause.value}
               accessibilityRole="checkbox"
               accessibilityLabel={`${cause.label}${otherWordSurface ? `: ${otherWordSurface}` : ""}`}
-              accessibilityHint="Optional reason this word was hard"
+              accessibilityHint="Optional reason this word was hard. Hold to show its explanation."
               accessibilityState={cause.value === "mixed_up" && onMixedUpPress ? { checked: active, expanded: mixedUpExpanded } : { checked: active }}
               aria-checked={active}
               onHoverIn={() => setLegend(cause.value)}
               onHoverOut={() => setLegend(null)}
               onFocus={() => setLegend(cause.value)}
               onBlur={() => setLegend(null)}
-              onPress={() => { setLegend(null); cause.value === "mixed_up" && onMixedUpPress ? onMixedUpPress() : onToggle(cause.value); }}
+              delayLongPress={350}
+              onPressIn={() => { longPressed.current = false; }}
+              onLongPress={() => {
+                longPressed.current = true; setLegend(cause.value);
+                if (legendTimer.current) clearTimeout(legendTimer.current);
+                legendTimer.current = setTimeout(() => setLegend(null), 2500);
+              }}
+              onPress={() => { if (longPressed.current) { longPressed.current = false; return; } setLegend(null); cause.value === "mixed_up" && onMixedUpPress ? onMixedUpPress() : onToggle(cause.value); }}
               style={[
                 styles.chip,
                 compact && styles.iconButton,
@@ -78,11 +88,11 @@ export function AssistedRecognitionCauses({
               {compact && legend === cause.value && <View pointerEvents="none" style={styles.legend}>
                 <Text style={styles.legendText}>{legends[cause.value]}</Text>
               </View>}
-              {compact ? <Ionicons
+              {compact ? <View style={styles.namedIcon}><Ionicons
                 name={cause.value === "retrieval_lapse" ? "refresh-outline"
                   : cause.value === "mixed_up" ? "shuffle-outline"
                   : cause.value === "unfamiliar_form" ? "layers-outline" : "text-outline"}
-                size={20} color={active ? accent : colors.textSecondary} /> : <Text
+                size={20} color={active ? accent : colors.textSecondary} /><Text style={styles.iconName}>{cause.label}</Text></View> : <Text
                 style={[styles.chipText, active && { color: accent, fontWeight: "700" }]}
                 numberOfLines={1}
               >
@@ -98,6 +108,8 @@ export function AssistedRecognitionCauses({
 }
 
 const styles = StyleSheet.create({
+  namedIcon: { alignItems: "center", gap: 1 },
+  iconName: { fontSize: 10, color: colors.textSecondary, textAlign: "center" },
   legend: { position: "absolute", right: 49, width: 210, padding: 9, borderRadius: 6,
     backgroundColor: colors.surfaceLight, borderWidth: 1, borderColor: colors.border, zIndex: 100 },
   legendText: { color: colors.text, fontSize: 12, lineHeight: 17 },

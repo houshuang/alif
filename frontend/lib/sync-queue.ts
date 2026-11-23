@@ -7,6 +7,7 @@ const QUEUE_KEY = "@alif/sync-queue";
 const RETRY_WARNING_THRESHOLD = 8;
 
 export type QueueEntryType =
+  | "confusion_attempt"
   | "sentence"
   | "story_complete"
   | "introduce_word"
@@ -117,6 +118,11 @@ const INDIVIDUAL_ACTIONS: Record<string, {
   reading_pilot_event: {
     url: () => `${BASE_URL}/api/books/reading-pilot/events`,
     body: (p) => p,
+  },
+  confusion_attempt: {
+    url: (p) => `${BASE_URL}/api/confusions/${p.pair_id}/attempts`,
+    body: (p) => ({ client_attempt_id: p.client_attempt_id, session_id: p.session_id,
+      question_index: p.question_index, chosen_lemma_id: p.chosen_lemma_id, assisted: p.assisted }),
   },
   introduce_word: {
     url: () => `${BASE_URL}/api/learn/introduce`,
@@ -318,7 +324,7 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
     }
     // Experiment evidence must not wake a hidden review screen's session
     // refresh listener or invalidate vocabulary caches after every reveal.
-    if (queue.some(entry => removable.has(entry.client_review_id) && entry.type !== "parallel_reading_event")) {
+    if (queue.some(entry => removable.has(entry.client_review_id) && entry.type !== "parallel_reading_event" && entry.type !== "confusion_attempt")) {
       await invalidateDataCaches();
       syncEvents.emit("synced");
     }

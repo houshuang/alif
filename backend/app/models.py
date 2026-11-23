@@ -787,3 +787,39 @@ class QuranicVerseWord(Base):
 
     verse = relationship("QuranicVerse", back_populates="words")
     lemma = relationship("Lemma")
+
+
+class ConfusionPair(Base):
+    __tablename__ = "confusion_pairs"
+    __table_args__ = (UniqueConstraint("lemma_a_id", "lemma_b_id", name="uq_confusion_pair_members"),)
+    id = Column(Integer, primary_key=True)
+    lemma_a_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
+    lemma_b_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
+    lesson_json = Column(JSON, nullable=True)
+    generation_state = Column(String(20), nullable=False, default="pending")
+    generation_started_at = Column(DateTime, nullable=True)
+    generation_error = Column(Text, nullable=True)
+
+
+class ConfusionLink(Base):
+    __tablename__ = "confusion_links"
+    capture_id = Column(Integer, ForeignKey("confusion_captures.id", ondelete="CASCADE"), primary_key=True)
+    pair_id = Column(Integer, ForeignKey("confusion_pairs.id"), nullable=True, index=True)
+    state = Column(String(20), nullable=False)  # linked / needs_confirmation / not_a_word
+    candidates_json = Column(JSON, nullable=True)
+    resolution_method = Column(String(20), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+class ConfusionAttempt(Base):
+    __tablename__ = "confusion_attempts"
+    id = Column(Integer, primary_key=True)
+    client_attempt_id = Column(String(80), nullable=False, unique=True)
+    pair_id = Column(Integer, ForeignKey("confusion_pairs.id"), nullable=False, index=True)
+    session_id = Column(String(80), nullable=False)
+    question_index = Column(Integer, nullable=False)
+    chosen_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    target_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False)
+    correct = Column(Boolean, nullable=False)
+    assisted = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)

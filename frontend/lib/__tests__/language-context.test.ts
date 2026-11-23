@@ -42,6 +42,7 @@ const EXPECTED: Record<string, AppLanguage | "shared"> = {
   chats: "ar",
   clips: "ar",
   dialect: "ar",
+  confusions: "ar",
   learn: "ar",
   "book-import": "ar",
   "book-page": "ar",

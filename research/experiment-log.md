@@ -118,6 +118,21 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-23: Confusion-pair teaching and separate recovery evidence (local implementation)
+
+Requested: touch explanations for reason icons, lessons and same-session distinction
+practice for captured pairs, including manually entered confusors, and pair-level
+recovery. Canonical unordered pairs aggregate reports from either direction.
+Clear lexical matches can link automatically; ambiguous manual entries require
+confirmation. Non-word notes such as “forgot” are retained as reports, not pairs.
+Lessons are generated and independently checked before use. Practice outcomes
+are separate from FSRS and the existing fragment-followup experiment. Immediate
+success can mark a pair partially resolved; resolved requires delayed, clean
+reading evidence for both members on separate days. A fresh confusion reopens it.
+The absence of a confusion report alone is never evidence of recovery.
+This is not deployed. Additional teaching exposure must be accounted for in the
+fragment-followup readout; the existing red-capture hold is preserved.
+
 ## 2026-11-21 (4): Bridge episodes pilot — authentic audio with a spoken bridge
 
 **Learner's idea (this date).** Take an authentic fusha podcast or audiobook on a subject he cares about, split

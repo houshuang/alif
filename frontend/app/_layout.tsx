@@ -355,6 +355,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="clips" options={{ href: null, title: "Clips", headerShown: false, tabBarStyle: { display: "none" } }} />
         <Tabs.Screen name="scanner" options={{ href: null, title: "Scanner" }} />
         <Tabs.Screen name="chats" options={{ href: null, title: "Chats" }} />
+        <Tabs.Screen name="confusions" options={{ href: null, title: "Confusion pairs" }} />
         <Tabs.Screen name="learn" options={{ href: null, title: "New Words" }} />
         <Tabs.Screen name="word/[id]" options={{ href: null, title: "Word Detail" }} />
         <Tabs.Screen name="story/[id]" options={{ href: null, title: "Story" }} />
