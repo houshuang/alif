@@ -54,8 +54,11 @@ confusor can ask for a match at the next submission boundary, with an optional
 the background even while older lessons are available. At a reading-sentence
 submission boundary, after two normal cards, a lesson and two exercises may appear. Later two-card
 gaps offer the next exercises. They also remain visible if the boundary leads
-to Today/wrap-up/session end; the next reading timer stays held. Background
-preparation never opens a modal in the middle of reading. Close skips that pair
+to Today/wrap-up/session end; the next reading timer stays held. Word checks and
+phrase follow-ups wait until the confusion card closes. Automatic batch rollover
+also waits, preserving the owning session and pending lesson; closing practice
+reconsiders the deferred check or rollover without another sentence submission.
+Background preparation never opens a modal in the middle of reading. Close skips that pair
 for the rest of the current session, without scoring a failure. The library can
 run all six exercises consecutively. Choice order varies; meanings and full
 sentence translation appear only after an answer. Help records an assisted,

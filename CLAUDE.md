@@ -396,6 +396,8 @@ Mixed up is a plain toggle; turning it on for a yellow word opens the naming pop
 Reason icons expose hover/focus legends and retain 44pt targets.
 
 Confusion-pair learning (deployed 23 November 2026): see `docs/confusion-learning.md`.
+An open pair lesson or manual match holds word checks and automatic batch rollover
+until it closes, so changing the sentence session cannot discard pending practice.
 `confusion_learning.py` and `/api/confusions` resolve captures, generate checked
 contrasts, and retain separate practice/clean-context evidence. Pair exercises
 never mutate FSRS; account for teaching exposure in the fragment-followup trial.
