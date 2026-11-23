@@ -87,3 +87,12 @@ front reading to first reveal/answer, separately from whole-card `response_ms`.
 Eligibility is server-computed; legacy NULL is unknown. Excluded observations
 remain auditable, and receipt undo deletes them with the sentence log.
 Migration: `f3b5d7e9a1c4`, after `c8e1a3f5b7d9`.
+
+### Confusion-pair learning (local implementation)
+
+Migration `a2d4f6c8b019` adds `confusion_pairs` (unique ordered canonical members,
+checked lesson and generation claim), `confusion_links` (one resolution per
+capture, with delete cascade for undo), and `confusion_attempts` (idempotent
+session/question/choice/assistance/server-grade events). Index -1 is unscored
+teaching exposure. Progress is computed from reports and current clean review
+evidence rather than a second SRS state. See `confusion-learning.md`.

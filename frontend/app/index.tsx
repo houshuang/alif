@@ -70,6 +70,9 @@ import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
+import { ConfusorPrompt } from "../lib/review/ManualConfusionMatch";
+import ConfusionPractice from "../lib/review/ConfusionPractice";
+import { useConfusionPractice } from "../lib/review/use-confusion-practice";
 import { useReadingTimer } from "../lib/review/use-reading-timer";
 import { WordDetailsModal } from "../lib/review/WordDetailsModal";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
@@ -1644,6 +1647,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
+    confusionPractice.submitted();
     advanceAfterSubmit(signal);
   }
 
@@ -2116,9 +2120,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   const showingGrammarLesson = grammarLessons.length > 0 && grammarLessonIndex < grammarLessons.length;
   const showingReintro = reintroCards.length > 0 && reintroIndex < reintroCards.length;
+  const confusionPractice = useConfusionPractice(sentenceSession?.session_id ?? null, mode === "reading");
   const timing = useReadingTimer(sentenceSession ? `${sentenceSession.session_id}:${cardIndex}` : null,
     mode === "reading" && !loading && !isSessionDone && !inWrapUp && !todayCard
-    && !checkpointPending && !sessionStopped
+    && !checkpointPending && !sessionStopped && !confusionPractice.active && !confusionPractice.matching
     && !showingGrammarLesson && !showingReintro && currentSlot?.type === "sentence");
 
   readingTimingRef.current = timing;
@@ -2138,6 +2143,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, [compactReveal, navigation]));
 
   // Wrap-up quiz flow
+  // A submission boundary can lead to Today, wrap-up or session end. Keep the
+  // pair exercise visible over all of them, before rendering the next reading card.
+  if (confusionPractice.matching && sentenceSession) {
+    return <View style={styles.container}><ConfusorPrompt capture={confusionPractice.matching}
+      onSaved={confusionPractice.matchSaved} onClose={confusionPractice.skipMatch} /></View>;
+  }
+  if (confusionPractice.active && sentenceSession) {
+    return <View style={styles.container}>
+      <ConfusionPractice key={`${confusionPractice.active.pair.id}:${confusionPractice.active.start}`}
+        pair={confusionPractice.active.pair} start={confusionPractice.active.start} sessionId={sentenceSession.session_id}
+        onClose={confusionPractice.skip} onComplete={confusionPractice.complete} />
+    </View>;
+  }
+
   if (inWrapUp && wrapUpCards.length > 0) {
     const wc = wrapUpCards[wrapUpIndex];
     const wcDisplay = bestVocalizedDisplayForm({

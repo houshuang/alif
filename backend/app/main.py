@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots, podcast, polyglot_proxy, discover, clips, preread, dialect
+from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots, podcast, polyglot_proxy, discover, clips, preread, dialect, confusions
 
 
 @asynccontextmanager
@@ -116,6 +116,7 @@ app.include_router(discover.router)
 app.include_router(preread.router)
 app.include_router(clips.router)
 app.include_router(dialect.router)
+app.include_router(confusions.router)
 
 # Serve voice samples for comparison testing
 from pathlib import Path as _Path

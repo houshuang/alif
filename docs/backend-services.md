@@ -131,3 +131,12 @@ attention_policy.py centralizes canonical maintenance eligibility, recursive SQL
 `app/routers/clips.py` serves the catalogue `data/clips/clips.json` and videos in `data/clips/video/`. On production `data/clips` is a symlink to `/srv/media/egy-clips`. This content is third-party material for private use, so it stays out of Git and is reachable only through the private API capability. Each line carries phrases with word timings, each clip has a `vocab` list and a `wps` speech rate, and the catalogue is ordered slowest first. Clips do not produce lemma, FSRS or acquisition evidence: Egyptian forms are outside the MSA lemma inventory.
 
 - `walk_episodes.py` — Shared logic for walk episodes (podcast files with `format_type="walk"`): state file `data/podcasts/walk-state.json` (firm-word threshold, topic queue, current series, last script), `record_feedback()` (rating → threshold step, logged as `podcast_feedback`), `next_topic()` (learner queue first, then the built-in `SEED_TOPICS`), `generation_decision()` (one episode per day; none after `MAX_UNACKNOWLEDGED = 4` episodes in a row with neither completion nor feedback), `build_feed()` (RSS of walk and bridge episodes; the daily rule counts walk episodes only). No lemma, FSRS or acquisition effects. The generator is `scripts/generate_walk_episode.py`.
+
+### Confusion learning (local implementation)
+
+`confusion_learning.py` uses shared lexical retrieval to link captures, preserves
+ambiguous manual entries for confirmation, prepares and independently checks
+contrast lessons without a DB write lock, and computes pair-level recovery from
+practice plus delayed clean reading. `routers/confusions.py` supplies intake,
+matching, preparation and idempotent server-graded attempts. No FSRS mutations.
+See `confusion-learning.md` for the full contract and trial-exposure accounting.

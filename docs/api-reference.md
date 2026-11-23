@@ -220,3 +220,15 @@ recorded as excluded without discarding the underlying review.
 | DELETE | `/api/podcasts/walk/topics/{index}` | Removes a queued topic; returns the status object. |
 
 `GET /api/podcasts` items now include `feedback`.
+
+### Confusion-pair learning (local implementation)
+
+`GET /api/confusions` lists confirmed pairs, checked lessons, computed progress
+and unresolved manual captures. `POST /api/confusions/refresh` performs idempotent
+intake; `GET /api/confusions/search?q=...` retrieves existing vocabulary choices.
+`POST /api/confusions/captures/{id}/confirm` accepts `{lemma_id: number|null}`;
+null marks a non-word forgetting note. `POST /api/confusions/{id}/prepare` queues
+bounded checked lesson generation. `POST /api/confusions/{id}/attempts` takes
+`{client_attempt_id,session_id,question_index,chosen_lemma_id,assisted}` and grades
+against the stored lesson. `question_index=-1` records unscored teaching exposure.
+Replay is idempotent; conflicting replay returns 409. See `confusion-learning.md`.

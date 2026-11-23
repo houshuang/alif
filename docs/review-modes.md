@@ -143,3 +143,15 @@ words, words that moved up a box, graduations, and the known total. Continue ret
 practice; the card is logged as `card_shown` with `card_type="progress"` and gives no
 review credit. Phrase follow-ups and quick checks wait until Continue (2026-11-20): the next
 batch loads behind the card, and a word card used to render in its place.
+
+### Confusion-pair teaching (local implementation)
+
+Reason icons have visible short names and a 350ms long-press legend (2.5s;
+long-press never toggles the cause). More → Confusion pairs separates confirmed
+pairs and manually entered descriptions needing matching. Checked contrast
+lessons and two-exercise blocks can appear at sentence-submission boundaries,
+with two normal reading cards between blocks. The next reading timer is held;
+closing skips the pair for the session. Exercises and delayed clean-context
+recognition produce separate pair progress, never word-level FSRS credit.
+See [confusion learning](confusion-learning.md) for intake, status thresholds,
+offline durability and the existing follow-up experiment interaction.

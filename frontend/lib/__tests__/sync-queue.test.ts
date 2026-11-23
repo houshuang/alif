@@ -125,3 +125,17 @@ it("sends parallel evidence to the isolated journal endpoint and retains it on f
   expect(invalidateDataCaches).not.toHaveBeenCalled();
   expect(mockFetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/books/parallel/events"), expect.objectContaining({ method: "POST", body: JSON.stringify(payload) }));
 });
+
+it("keeps pair practice durable and sends it separately from FSRS reviews", async () => {
+  const answer = { client_attempt_id: "pair-answer-1", session_id: "reading-session", question_index: 2, chosen_lemma_id: 10, assisted: false };
+  await enqueueReview("confusion_attempt", { ...answer, pair_id: 7 }, answer.client_attempt_id);
+  mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+  expect((await flushQueue()).failed).toBe(1);
+  expect(await pendingCount()).toBe(1);
+  mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correct: true }) });
+  expect((await flushQueue()).synced).toBe(1);
+  expect(await pendingCount()).toBe(0);
+  expect(mockFetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/confusions/7/attempts"), expect.objectContaining({ body: JSON.stringify(answer) }));
+  expect(syncEvents.emit).not.toHaveBeenCalledWith("synced");
+  expect(invalidateDataCaches).not.toHaveBeenCalled();
+});

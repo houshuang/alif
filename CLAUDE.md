@@ -394,3 +394,9 @@ meaning and the memory note; it scrolls inside its height cap rather than growin
 Open richer word details in a tap-dismissable modal, not an expanding inline panel.
 Mixed up is a plain toggle; turning it on for a yellow word opens the naming popover.
 Reason icons expose hover/focus legends and retain 44pt targets.
+
+Confusion-pair learning (local, not deployed): see `docs/confusion-learning.md`.
+`confusion_learning.py` and `/api/confusions` resolve captures, generate checked
+contrasts, and retain separate practice/clean-context evidence. Pair exercises
+never mutate FSRS; account for teaching exposure in the fragment-followup trial.
+Manual ambiguity requires confirmation; “forgot” notes are not lexical pairs.

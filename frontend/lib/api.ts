@@ -1585,3 +1585,50 @@ export async function recordDialectEvent(
     body: JSON.stringify(event),
   });
 }
+
+// Pair teaching is distinct from FSRS reviews; cache lessons for offline practice.
+export async function refreshConfusions(): Promise<import("./confusion-learning").ConfusionLibrary> {
+  const { CONFUSION_LIBRARY_KEY } = await import("./confusion-learning");
+  const storage = (await import("@react-native-async-storage/async-storage")).default;
+  try {
+    const data = await fetchApi<import("./confusion-learning").ConfusionLibrary>("/api/confusions/refresh", { method: "POST", timeoutMs: 12000 });
+    await storage.setItem(CONFUSION_LIBRARY_KEY, JSON.stringify(data));
+    return data;
+  } catch (e) {
+    const saved = await storage.getItem(CONFUSION_LIBRARY_KEY);
+    if (saved) return { ...JSON.parse(saved), offline: true };
+    throw e;
+  }
+}
+export async function listConfusions(): Promise<import("./confusion-learning").ConfusionLibrary> {
+  const data = await fetchApi<import("./confusion-learning").ConfusionLibrary>("/api/confusions");
+  const { CONFUSION_LIBRARY_KEY } = await import("./confusion-learning");
+  const storage = (await import("@react-native-async-storage/async-storage")).default;
+  await storage.setItem(CONFUSION_LIBRARY_KEY, JSON.stringify(data));
+  return data;
+}
+export async function prepareConfusion(id: number): Promise<import("./confusion-learning").ConfusionPair> {
+  return fetchApi(`/api/confusions/${id}/prepare`, { method: "POST" });
+}
+export async function confirmConfusor(captureId: number, lemmaId: number | null) {
+  return fetchApi(`/api/confusions/captures/${captureId}/confirm`, { method: "POST", body: JSON.stringify({ lemma_id: lemmaId }) });
+}
+export async function searchConfusors(q: string): Promise<import("./confusion-learning").PairWord[]> {
+  return fetchApi(`/api/confusions/search?q=${encodeURIComponent(q)}`);
+}
+export async function recordConfusionAttempt(pairId: number, payload: {client_attempt_id: string; session_id: string; question_index: number; chosen_lemma_id: number | null; assisted: boolean}, offline = false): Promise<{queued: boolean}> {
+  if (offline) {
+    const { enqueueReview } = await import("./sync-queue");
+    await enqueueReview("confusion_attempt", { ...payload, pair_id: pairId }, payload.client_attempt_id);
+    return { queued: true };
+  }
+  try {
+    await fetchApi(`/api/confusions/${pairId}/attempts`, { method: "POST", body: JSON.stringify(payload), timeoutMs: 8000 });
+    return { queued: false };
+  } catch (error) {
+    if (error instanceof Error && /API error (400|404|409|422)/.test(error.message)) throw error;
+    const { enqueueReview } = await import("./sync-queue");
+    await enqueueReview("confusion_attempt", { ...payload, pair_id: pairId }, payload.client_attempt_id);
+    return { queued: true };
+  }
+}
