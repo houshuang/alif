@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import { colors, fonts, fontFamily } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicText } from "../lib/theme";
 import { getStories, generateStory, getStoryDetail, importStory, deleteStory, suspendStory, archiveStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { clearStoryLookups } from "../lib/offline-store";
 import { netStatus } from "../lib/net-status";
@@ -957,13 +957,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   storyTitleAr: {
-    fontSize: fonts.arabicMedium,
+    ...arabicText(fonts.arabicMedium, 30),
     color: colors.arabic,
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
     textAlign: "right",
     marginTop: 4,
-    lineHeight: 30,
   },
   progressBar: {
     height: 4,
@@ -1099,6 +1097,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   importTextInput: {
+    // arabic-line-ok: a multiline TextInput with its own 14pt vertical padding.
     backgroundColor: colors.surfaceLight,
     color: colors.arabic,
     fontSize: fonts.arabicList,

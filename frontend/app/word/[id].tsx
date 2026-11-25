@@ -773,13 +773,11 @@ const styles = StyleSheet.create({
     marginLeft: "auto",
   },
   reviewSentence: {
-    fontSize: fonts.arabicList,
+    ...arabicText(fonts.arabicList, 28),
     color: colors.arabic,
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
     textAlign: "right",
     marginTop: 4,
-    lineHeight: 28,
   },
   reviewTranslation: {
     fontSize: fonts.small,

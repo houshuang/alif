@@ -2950,10 +2950,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     }}
                   >
                     <Text style={{
-                      fontSize: verseFlipped ? 30 : 36,
-                      lineHeight: verseFlipped ? 58 : 68,
+                      ...arabicText(verseFlipped ? 30 : 36, verseFlipped ? 58 : 68),
                       color: colors.arabic,
-                      fontFamily: fontFamily.arabic,
                       writingDirection: "rtl",
                     }}>
                       {w.surface_form}
@@ -2964,10 +2962,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             ) : (
               <Text style={{
-                fontSize: verseFlipped ? 30 : 36,
-                lineHeight: verseFlipped ? 58 : 68,
+                ...arabicText(verseFlipped ? 30 : 36, verseFlipped ? 58 : 68),
                 color: colors.arabic,
-                fontFamily: fontFamily.arabic,
                 writingDirection: "rtl",
                 textAlign: "center",
                 marginBottom: 20,
@@ -4972,13 +4968,10 @@ const styles = StyleSheet.create({
   },
 
   sentenceArabic: {
-    fontSize: fonts.arabicSentence,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(fonts.arabicSentence, 72),
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 72,
-    paddingTop: 8,
     includeFontPadding: true,
   },
   cardToggles: {

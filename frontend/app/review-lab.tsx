@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors, fontFamily, fonts } from "../lib/theme";
+import { colors, fontFamily, fonts, arabicText } from "../lib/theme";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { WordLookupResult, SentenceWordMeta } from "../lib/types";
 
@@ -511,12 +511,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   sentenceArabic: {
-    fontSize: fonts.arabicSentence,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(fonts.arabicSentence, 64),
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 64,
   },
   missedWord: {
     color: colors.missed,

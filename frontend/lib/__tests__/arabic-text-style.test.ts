@@ -29,7 +29,7 @@ describe("arabicText", () => {
 });
 
 describe("Arabic styles go through arabicText", () => {
-  it("has no hand-set lineHeight on Arabic text of 18pt or more", () => {
+  it("has no hand-set lineHeight on Arabic text", () => {
     const offenders: string[] = [];
     for (const dir of SOURCE_DIRS) {
       for (const file of sourceFiles(path.join(ROOT, dir))) {
@@ -37,8 +37,7 @@ describe("Arabic styles go through arabicText", () => {
         for (const m of src.matchAll(/\{[^{}]*\}/g)) {
           const obj = m[0];
           if (!/fontFamily:\s*(fontFamily\.arabic|arabicFont)/.test(obj)) continue;
-          const size = obj.match(/fontSize:\s*(\d+)/);
-          if (!size || Number(size[1]) < 18 || !/lineHeight:/.test(obj)) continue;
+          if (!/lineHeight:/.test(obj) || obj.includes("arabic-line-ok:")) continue;
           const line = src.slice(0, m.index).split("\n").length;
           offenders.push(`${path.relative(ROOT, file)}:${line}`);
         }
