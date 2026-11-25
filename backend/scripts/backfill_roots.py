@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
+from app.services.lemma_enrichment import ROOTS_JSON_SCHEMA
 from app.services.morphology import backfill_root_meanings, find_or_create_root, is_valid_root
 
 
@@ -30,7 +31,7 @@ Rules:
 - For particles, pronouns, and words without a clear root, return null
 - Use the standard root consonants (not surface letters affected by morphological patterns)
 
-Return a JSON array: [{"lemma_id": 1, "root": "ك.ت.ب"}]
+Return JSON: {"roots": [{"lemma_id": 1, "root": "ك.ت.ب"}]}
 Use null for root if the word has no meaningful root."""
 
 
@@ -110,6 +111,7 @@ def backfill(dry_run=False, limit=500):
                 prompt=prompt,
                 system_prompt=SYSTEM_PROMPT,
                 json_mode=True,
+                json_schema=ROOTS_JSON_SCHEMA,
                 temperature=0.1,
             )
         except AllProvidersFailed as e:

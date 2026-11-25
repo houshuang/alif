@@ -199,7 +199,7 @@ Rules:
 - Most roots are 3 consonants (trilateral), some are 4 (quadrilateral)
 - For particles, pronouns, and words without a clear root, return null
 
-Return a JSON array: [{"lemma_id": 1, "root": "ك.ت.ب"}]
+Return JSON: {"roots": [{"lemma_id": 1, "root": "ك.ت.ب"}]}
 Use null for root if the word has no meaningful root."""
 
 EXAMPLES_SYSTEM_PROMPT = """You are an Arabic language teaching assistant. Generate very short example sentences (3-5 words) for Arabic vocabulary words. Each sentence should:
@@ -229,6 +229,25 @@ def _normalize_root(root_str: str | None) -> str | None:
     return '.'.join(chars)
 
 
+ROOTS_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "roots": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lemma_id": {"type": "integer"},
+                    "root": {"type": ["string", "null"]},
+                },
+                "required": ["lemma_id", "root"],
+            },
+        }
+    },
+    "required": ["roots"],
+}
+
+
 def _generate_roots_batch(lemmas: list[Lemma]) -> dict[int, str]:
     """Extract consonantal roots for a batch of lemmas. Returns {lemma_id: dotted_root_str}."""
     from app.services.llm import generate_completion, AllProvidersFailed
@@ -244,9 +263,10 @@ def _generate_roots_batch(lemmas: list[Lemma]) -> dict[int, str]:
         result = generate_completion(
             prompt=f"Extract the Arabic consonantal root for each word:\n\n"
                    + "\n".join(lines)
-                   + '\n\nReturn JSON array: [{"lemma_id": 1, "root": "ك.ت.ب"}] (use null for root if no root)',
+                   + '\n\nReturn JSON: {"roots": [{"lemma_id": 1, "root": "ك.ت.ب"}]} (use null for root if no root)',
             system_prompt=ROOTS_SYSTEM_PROMPT,
             json_mode=True,
+            json_schema=ROOTS_JSON_SCHEMA,
             temperature=0.1,
             model_override="claude_haiku",
             task_type="enrichment_roots",
