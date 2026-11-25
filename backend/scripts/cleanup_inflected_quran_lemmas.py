@@ -60,13 +60,13 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.database import SessionLocal  # noqa: E402
-from app.models import Lemma, Root, UserLemmaKnowledge  # noqa: E402
+from app.models import Lemma, UserLemmaKnowledge  # noqa: E402
 from app.services.activity_log import log_activity  # noqa: E402
 from app.services.lemma_quality import run_quality_gates  # noqa: E402
 from app.services.morphology import (  # noqa: E402
     CAMEL_AVAILABLE,
+    find_or_create_root,
     get_best_lemma_mle,
-    is_valid_root,
 )
 from app.services.sentence_validator import (  # noqa: E402
     build_lemma_lookup,
@@ -247,12 +247,8 @@ def _apply_promote(db, lemma: Lemma, info: dict, verbose: bool) -> int | None:
     if root_str:
         import re as _re
         cleaned = _re.sub(r'[^؀-ۿ.]', '', root_str)
-        if cleaned and is_valid_root(cleaned):
-            root = db.query(Root).filter(Root.root == cleaned).first()
-            if not root:
-                root = Root(root=cleaned)
-                db.add(root)
-                db.flush()
+        root = find_or_create_root(db, cleaned) if cleaned else None
+        if root is not None:
             root_id = root.root_id
     if not root_id and lemma.root_id:
         root_id = lemma.root_id

@@ -12,6 +12,7 @@ from typing import Any
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
+from app.services.morphology import find_or_create_root
 
 logger = logging.getLogger(__name__)
 
@@ -687,7 +688,6 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
         # ── Step 5: Root association (batched LLM call) ──
         need_roots = [l for l in lemmas if not l.root_id and l.pos in ('noun', 'verb', 'adjective', 'adj', None)]
         if need_roots:
-            existing_roots = {r.root: r for r in db.query(Root).all()}
             batch_size = 20
             root_results: dict[int, str] = {}
             for i in range(0, len(need_roots), batch_size):
@@ -703,13 +703,9 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                 root_str = root_results.get(lemma.lemma_id)
                 if not root_str:
                     continue
-                if root_str in existing_roots:
-                    root_obj = existing_roots[root_str]
-                else:
-                    root_obj = Root(root=root_str)
-                    db.add(root_obj)
-                    db.flush()
-                    existing_roots[root_str] = root_obj
+                root_obj = find_or_create_root(db, root_str)
+                if root_obj is None:
+                    continue
                 lemma.root_id = root_obj.root_id
                 summary["roots"] += 1
             db.commit()
