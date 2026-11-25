@@ -118,6 +118,37 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25: Same-root words on every word card; split root families merged
+
+**Learner, 25 Nov:** likes same-root words on word cards; asked which cards lack them
+and why. Two causes found.
+
+**Display.** The word card (wrap-up, quick check, phrase follow-up) showed known
+same-root words only with `extra_support`, i.e. when the open miss already included a
+missed word card (item 6 of the 2026-11-20 missed-word recovery entry). That was an
+escalation rule, not an experiment arm: it applied in both arms of
+`fragment_followup_v1`. Now the card shows up to four known/learning same-root words
+whenever there are any. Both arms get the same change, so the arm comparison stays
+fair, but the word card now gives more help than before 25 Nov in both arms; read the
+fragment readout (after 2026-12-04) with that in mind. Earlier the same day: Arabic in
+that list was clipped (18 pt in a 20 pt line), fixed in PR #345.
+
+**Data.** `roots` is keyed by exact string and ten code paths created roots directly,
+so one root was stored once per hamza seat. Production had 31 such groups (114 lemmas),
+e.g. أ.م.ن / ا.م.ن / ء.م.ن, so مُؤْمِن did not list اِئْتِمَان. Some roots had a hollow or
+weak radical written as alif (ج.ا.ز "jazz", ر.ا.ح for ر.و.ح, ا.ت.ج.ه for و.ج.ه).
+Fix: `morphology.find_or_create_root()` (reuses any hamza spelling, refuses a plain-alif
+radical) in every root-creating path; `scripts/merge_split_roots.py` applies the reviewed
+plan `root_merge_plan_2026_11_25.py`: 40 merges, 3 renames, 7 repoints (3 words to no
+root: loanword, interjection, name-derived), 23 single-word fixes (rootless words such as
+وَفْقاً, أَخِيرًا, حَوْل, عَبْرَ get their root; misfiled ones such as غَالِي → غ.ل.و,
+اسْتٌ → س.ت.ه, بِلا → none). Fable reviewed the plan and caught three errors in my draft
+(غَلَاء under "boil"; الآن under أ.ي.ن "where" instead of أ.و.ن; رِئَة "lung" must stay
+apart from ر.أ.ي "see"). Applied to a production copy: one hamza collision left (the
+intended رِئَة), no dangling root ids. Not changed: عِنْد and رُبَّمَا stay rootless
+(siblings would mislead); 672 studied words are the only lemma of their root because
+siblings were never imported.
+
 ## 2026-11-25: Spaced confusion-pair practice in reading
 
 **Release:** PR #344 (`112c4695`), backend and web restarted; iOS OTA group

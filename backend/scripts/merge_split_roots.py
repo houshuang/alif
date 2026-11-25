@@ -3,7 +3,7 @@
 
 Applies the reviewed plan in `root_merge_plan_2026_11_25.py`: hamza-seat
 duplicates are merged into one row, misspelled roots are repointed, and a few
-rootless words get their root. Dry run by default; `--apply` writes everything
+rootless or misfiled words get their root. Dry run by default; `--apply` writes everything
 in one transaction and logs an ActivityLog entry. Back up the database first.
 
 Usage:
@@ -28,7 +28,7 @@ from app.database import SessionLocal
 from app.models import Lemma, Root, Sentence
 from app.services.activity_log import log_activity
 from app.services.morphology import is_valid_root, root_spellings
-from root_merge_plan_2026_11_25 import ASSIGN, MERGES, RENAMES, REPOINT
+from root_merge_plan_2026_11_25 import LEMMA_ROOTS, MERGES, NEW_ROOT_MEANINGS, RENAMES, REPOINT
 
 
 class PlanError(RuntimeError):
@@ -67,13 +67,25 @@ def _delete(db: Session, row: Root) -> None:
     db.delete(row)
 
 
+def _get_or_create(db: Session, root_str: str, fallback_meaning: str = "") -> tuple[Root, bool]:
+    row = _root(db, root_str)
+    if row is not None:
+        return row, False
+    if not is_valid_root(root_str):
+        raise PlanError(f"invalid target {root_str!r}")
+    row = Root(root=root_str, core_meaning_en=NEW_ROOT_MEANINGS.get(root_str, fallback_meaning))
+    db.add(row)
+    db.flush()
+    return row, True
+
+
 def _words(db: Session, row: Root) -> str:
     return ", ".join(l.lemma_ar for l in _lemmas(db, row.root_id)) or "(none)"
 
 
 def run(db: Session) -> dict:
     """Apply the plan to the session (caller commits or rolls back)."""
-    stats = {"merged": 0, "renamed": 0, "repointed": 0, "unrooted": 0, "assigned": 0,
+    stats = {"merged": 0, "renamed": 0, "repointed": 0, "unrooted": 0, "lemmas_set": 0, "roots_created": 0,
              "lemmas_moved": 0, "sentences_moved": 0}
 
     for old, new in MERGES:
@@ -107,40 +119,35 @@ def run(db: Session) -> dict:
             stats["unrooted"] += n_lem
             _delete(db, row)
             continue
-        if not is_valid_root(target):
-            raise PlanError(f"invalid target {target!r}")
-        existing = _root(db, target)
-        if existing is None and old in root_spellings(target):
+        if _root(db, target) is None and old in root_spellings(target):
             print(f"RENAME {old} -> {target} [{_words(db, row)}]")
             row.root = target
             stats["renamed"] += 1
             continue
-        if existing is None:
-            existing = Root(root=target, core_meaning_en=row.core_meaning_en or "")
-            db.add(existing)
-            db.flush()
-            print(f"MOVE   {old} [{_words(db, row)}] -> {target} (new root)")
-        else:
-            print(f"MOVE   {old} [{_words(db, row)}] -> {target} [{_words(db, existing)}]")
+        existing, created = _get_or_create(db, target, row.core_meaning_en or "")
+        stats["roots_created"] += created
+        where = "(new root)" if created else f"[{_words(db, existing)}]"
+        print(f"MOVE   {old} [{_words(db, row)}] -> {target} {where}")
         n_lem, n_sent = _move(db, row, existing.root_id)
         stats["lemmas_moved"] += n_lem
         stats["sentences_moved"] += n_sent
         stats["repointed"] += 1
         _delete(db, row)
 
-    for lemma_id, lemma_ar, target in ASSIGN:
+    for lemma_id, lemma_ar, target in LEMMA_ROOTS:
         lemma = db.get(Lemma, lemma_id)
         if lemma is None or lemma.lemma_ar != lemma_ar:
             raise PlanError(f"lemma {lemma_id} is not {lemma_ar!r}")
-        if lemma.root_id is not None:
-            print(f"SKIP   {lemma_ar} already has a root")
-            continue
-        root = _root(db, target)
-        if root is None:
-            raise PlanError(f"assign target {target!r} not found")
-        print(f"ASSIGN {lemma_ar} -> {target} [{_words(db, root)}]")
-        lemma.root_id = root.root_id
-        stats["assigned"] += 1
+        if target is None:
+            print(f"UNROOT {lemma_ar}")
+            lemma.root_id = None
+        else:
+            root, created = _get_or_create(db, target)
+            stats["roots_created"] += created
+            where = "(new root)" if created else f"[{_words(db, root)}]"
+            print(f"SET    {lemma_ar} -> {target} {where}")
+            lemma.root_id = root.root_id
+        stats["lemmas_set"] += 1
 
     db.flush()
     return stats
