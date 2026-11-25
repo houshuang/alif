@@ -1191,9 +1191,7 @@ const rowStyles = StyleSheet.create({
   },
   rootLetters: {
     color: "#7cb8ff",
-    fontFamily: fontFamily.arabic,
-    fontSize: 17,
-    lineHeight: 28,
+    ...arabicText(17, 28),
   },
   rootMeaning: {
     color: "#7cb8ff",
@@ -1216,9 +1214,7 @@ const rowStyles = StyleSheet.create({
   },
   siblingAr: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 17,
-    lineHeight: 28,
+    ...arabicText(17, 28),
   },
   siblingEn: {
     color: "#c8c8dc",

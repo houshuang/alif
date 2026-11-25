@@ -13,7 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { colors, fontFamily, fonts } from "../lib/theme";
+import { colors, fontFamily, fonts, arabicText } from "../lib/theme";
 import {
   snapDiscover,
   addDiscoveredWord,
@@ -929,10 +929,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   arabicText: {
+    ...arabicText(fonts.arabicMedium, 44),
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: fonts.arabicMedium,
-    lineHeight: 44,
     writingDirection: "rtl",
     textAlign: "right",
   },
