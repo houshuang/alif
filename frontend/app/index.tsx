@@ -2269,10 +2269,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                       .filter(f => f.state === "known" || f.state === "learning")
                       .slice(0, 4)
                       .map(f => (
-                        <Text key={f.lemma_id} style={styles.eiInfoText}>
-                          <Text style={{ fontFamily: fontFamily.arabic, fontSize: 18, color: colors.arabic }}>{f.lemma_ar}</Text>
-                          {"  " + ltr(f.gloss_en ?? "")}
-                        </Text>
+                        <View key={f.lemma_id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Text style={{ fontFamily: fontFamily.arabic, fontSize: 18, lineHeight: 30, color: colors.arabic, writingDirection: "rtl" }}>{f.lemma_ar}</Text>
+                          <Text style={[styles.eiInfoText, { flex: 1 }]}>{ltr(f.gloss_en ?? "")}</Text>
+                        </View>
                       ))}
                   </View>
                 )}
