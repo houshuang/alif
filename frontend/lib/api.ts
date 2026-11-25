@@ -53,6 +53,9 @@ import {
   DialectEvent,
   ClipEvent,
   ClipProgress,
+  BookFrequencyProgress,
+  BookFrequencyState,
+  BookFrequencyWords,
 } from "./types";
 import { netStatus } from "./net-status";
 import { syncEvents } from "./sync-events";
@@ -392,6 +395,27 @@ export async function getAnalytics(): Promise<Analytics> {
     if (cached) return cached;
     throw e;
   }
+}
+
+export async function getBookFrequency(): Promise<BookFrequencyProgress> {
+  try {
+    const data = await fetchApi<BookFrequencyProgress>("/api/stats/book-frequency");
+    cacheData("book-frequency", data).catch(() => {});
+    return data;
+  } catch (e) {
+    const cached = await getCachedData<BookFrequencyProgress>("book-frequency");
+    if (cached) return cached;
+    throw e;
+  }
+}
+
+export async function getBookFrequencyWords(
+  fromRank: number,
+  toRank: number,
+  state?: BookFrequencyState
+): Promise<BookFrequencyWords> {
+  const query = `from_rank=${fromRank}&to_rank=${toRank}${state ? `&state=${state}` : ""}`;
+  return fetchApi<BookFrequencyWords>(`/api/stats/book-frequency/words?${query}`);
 }
 
 export async function getNextWords(

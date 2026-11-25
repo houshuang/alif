@@ -4487,7 +4487,7 @@ function SessionComplete({
           />
           {data.daily_goal.slow_lane_budget > 0 && (
             <SessionGoalRow
-              label="Slow lane"
+              label="Rare words"
               done={data.daily_goal.slow_lane_done}
               target={data.daily_goal.slow_lane_budget}
               pct={Math.min(100, (data.daily_goal.slow_lane_done / Math.max(data.daily_goal.slow_lane_budget, 1)) * 100)}

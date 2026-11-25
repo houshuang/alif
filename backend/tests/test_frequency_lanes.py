@@ -143,3 +143,56 @@ def test_book_frequency_progress_counts_missing_words_in_the_band(db_session):
     band = book_frequency_progress(db_session)["bands"][0]
     assert (band["total"], band["firm"], band["in_review"], band["not_started"], band["not_in_alif"]) == (4, 1, 1, 1, 1)
     assert band["firm_pct"] == 25.0
+
+
+def _book_band_fixture(db):
+    firm = _lemma(db, "ثابت", "book")
+    weak = _lemma(db, "ضعيف", "book")
+    weak.pos = "adj"
+    acquiring = _lemma(db, "متعلم", "book")
+    unstarted = _lemma(db, "جديد", "book")
+    db.add(UserLemmaKnowledge(
+        lemma_id=firm.lemma_id, knowledge_state="known", fsrs_card_json={"stability": 45.0}))
+    db.add(UserLemmaKnowledge(
+        lemma_id=weak.lemma_id, knowledge_state="known", fsrs_card_json={"stability": 4.0}))
+    db.add(UserLemmaKnowledge(lemma_id=acquiring.lemma_id, knowledge_state="acquiring"))
+    _book_entry(db, 1, firm)
+    _book_entry(db, 5, None, key="مفقود")
+    _book_entry(db, 3, unstarted)
+    _book_entry(db, 2, weak)
+    _book_entry(db, 4, acquiring)
+    _book_entry(db, 501, None, key="بعيد")
+    db.commit()
+    return weak
+
+
+def test_book_frequency_words_lists_non_firm_words_by_rank(db_session):
+    from app.services.frequency_lanes import book_frequency_progress, book_frequency_words
+
+    weak = _book_band_fixture(db_session)
+
+    words = book_frequency_words(db_session, 1, 500)
+    assert [(w["rank"], w["state"]) for w in words] == [
+        (2, "in_review"), (3, "not_started"), (4, "acquiring"), (5, "not_in_alif")]
+    assert words[0] == {
+        "rank": 2, "lemma_id": weak.lemma_id, "lemma_ar": "ضعيف", "gloss_en": "ضعيف",
+        "pos": "adj", "count": 10, "state": "in_review",
+    }
+    assert (words[3]["lemma_id"], words[3]["lemma_ar"], words[3]["gloss_en"]) == (None, "مفقود", None)
+
+    band = book_frequency_progress(db_session)["bands"][0]
+    for state in ("firm", "in_review", "acquiring", "suspended", "not_started", "not_in_alif"):
+        assert len(book_frequency_words(db_session, 1, 500, state)) == band[state]
+    assert [w["rank"] for w in book_frequency_words(db_session, 501, 1000)] == [501]
+
+
+def test_book_frequency_words_endpoint(client, db_session):
+    _book_band_fixture(db_session)
+
+    body = client.get("/api/stats/book-frequency/words?from_rank=1&to_rank=500").json()
+    assert [w["rank"] for w in body["words"]] == [2, 3, 4, 5]
+
+    firm = client.get("/api/stats/book-frequency/words?from_rank=1&to_rank=500&state=firm").json()
+    assert [w["rank"] for w in firm["words"]] == [1]
+
+    assert client.get("/api/stats/book-frequency/words?state=nonsense").status_code == 422

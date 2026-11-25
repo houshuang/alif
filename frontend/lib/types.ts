@@ -737,6 +737,44 @@ export interface FrequencyCoreProgress {
   next_gaps: FrequencyCoreGap[];
 }
 
+export type BookFrequencyState =
+  | "firm"
+  | "in_review"
+  | "acquiring"
+  | "suspended"
+  | "not_started"
+  | "not_in_alif";
+
+export interface BookFrequencyBand extends Record<BookFrequencyState, number> {
+  from_rank: number;
+  to_rank: number;
+  total: number;
+  firm_pct: number;
+}
+
+export interface BookFrequencyProgress {
+  version: string;
+  active: boolean;
+  bands: BookFrequencyBand[];
+}
+
+export interface BookFrequencyWord {
+  rank: number;
+  lemma_id: number | null;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  count: number;
+  state: BookFrequencyState;
+}
+
+export interface BookFrequencyWords {
+  from_rank: number;
+  to_rank: number;
+  state: BookFrequencyState | null;
+  words: BookFrequencyWord[];
+}
+
 export interface Analytics {
   stats: {
     total_words: number;
