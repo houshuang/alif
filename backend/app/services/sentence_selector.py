@@ -55,6 +55,7 @@ from app.services.frequency_lanes import (
     lane_ranks,
     select_slow_lane_sample,
 )
+from app.services.frequent_intake import interleave_frequent
 from app.services.sentence_eligibility import reviewable_sentence_clauses
 from app.services.surface_form_experiment import (
     EXACT_SURFACE_MAX_SLOTS_PER_SESSION,
@@ -1633,7 +1634,57 @@ def introduce_reserved_words(db: Session, now: datetime | None = None, limit: in
         .count()
     )
     slots = _reserved_intro_slots(db, now, limit, acquiring_count)
-    return _auto_introduce_words(db, slots, {}, now, skip_material_gen=True)
+    introduced = _auto_introduce_words(db, slots, {}, now, skip_material_gen=True)
+    return introduced + introduce_frequent_words(db, now)
+
+
+def introduce_frequent_words(db: Session, now: datetime | None = None) -> list[int]:
+    """Start frequent words under ``frequent_word_intake_v1``.
+
+    The allowance is checked again inside ``start_acquisition``; this pass only
+    picks the candidates, most frequent first, a few per reviewed session.
+    """
+    from app.services.frequent_intake import (
+        FREQUENT_NEW_PER_PASS,
+        frequent_lemma_ids,
+        frequent_new_room,
+    )
+    from app.services.word_selector import introduce_word, select_next_words
+
+    now = now or datetime.now(timezone.utc)
+    room = min(frequent_new_room(db, now), FREQUENT_NEW_PER_PASS)
+    if room <= 0 or _get_accuracy_intro_slots(db, now) == 0:
+        return []
+    candidates = [
+        c
+        for c in select_next_words(db, count=room + 20)
+        if c.get("word_category") not in ("proper_name", "onomatopoeia")
+        and not is_function_word_lemma(c.get("lemma_ar_bare"), c.get("function_word_override"))
+    ]
+    frequent = frequent_lemma_ids(db, {c["lemma_id"] for c in candidates})
+    introduced: list[int] = []
+    for cand in candidates:
+        if len(introduced) >= room:
+            break
+        lid = cand["lemma_id"]
+        if lid not in frequent:
+            continue
+        try:
+            result = introduce_word(db, lid, source="frequency_core", due_immediately=True)
+        except Exception:
+            logger.warning(f"Failed to introduce frequent word {lid}")
+            continue
+        if result.get("state") == "acquiring" and not result.get("already_known"):
+            introduced.append(lid)
+    if introduced:
+        from app.services.interaction_logger import log_interaction
+
+        log_interaction(
+            event="frequent_word_intake",
+            count=len(introduced),
+            lemma_ids=introduced,
+        )
+    return introduced
 
 
 def build_session(
@@ -2812,6 +2863,7 @@ def build_session(
         ),
         key=lambda lid: (-overdue_days_map.get(lid, 0.0), lid),
     )
+    acquiring_due_order = interleave_frequent(db, acquiring_due_order)
     acquiring_cards_already = sum(
         1 for c in selected
         if _candidate_due_acquiring_ids(c, c.due_words_covered, knowledge_by_id)

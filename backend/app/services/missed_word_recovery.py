@@ -35,7 +35,7 @@ MISSED_RECOVERY_WORD_CARD_MISS_EXTRA = 1
 # Share of a session's base cards that may be reserved for open misses and for
 # words still being learned. The rest stays with the ordinary dense selection.
 MISSED_RECOVERY_SLOT_FRACTION = 0.3
-ACQUIRING_RESERVED_SLOT_FRACTION = 0.3
+ACQUIRING_RESERVED_SLOT_FRACTION = 0.4
 
 
 @dataclass(frozen=True)

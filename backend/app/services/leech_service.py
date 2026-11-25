@@ -82,6 +82,17 @@ def _get_reintro_delay(
     return delay
 
 
+def _is_frequent_leech(db: Session, core_rank: int | None) -> bool:
+    from app.services.frequent_intake import frequent_intake_active
+    from app.services.frequency_lanes import BOOK_MAIN_LANE_MAX_RANK
+
+    return (
+        core_rank is not None
+        and core_rank <= BOOK_MAIN_LANE_MAX_RANK
+        and frequent_intake_active(db)
+    )
+
+
 def _get_lemma(db: Session, lemma_id: int) -> Lemma | None:
     return db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
 
@@ -247,6 +258,13 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         start_acquisition,
     )
 
+    from app.services.frequent_intake import (
+        FREQUENT_LEECH_MAX_DELAY_DAYS,
+        frequent_box1_load,
+        frequent_intake_active,
+        frequent_reintro_room,
+    )
+
     now = datetime.now(timezone.utc)
 
     # Fetch all suspended leeches (those with leech_suspended_at set)
@@ -276,6 +294,8 @@ def check_leech_reintroductions(db: Session) -> list[int]:
         lemma = _get_lemma(db, ulk.lemma_id)
         core_rank = _get_core_rank(db, ulk.lemma_id)
         delay = _get_reintro_delay(lc, lemma, core_rank=core_rank)
+        if _is_frequent_leech(db, core_rank):
+            delay = min(delay, timedelta(days=FREQUENT_LEECH_MAX_DELAY_DAYS))
         suspended_at = ulk.leech_suspended_at
         if suspended_at.tzinfo is None:
             suspended_at = suspended_at.replace(tzinfo=timezone.utc)
@@ -299,6 +319,28 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     eligible.sort(key=lambda row: row[:4])
     if not eligible:
         return []
+
+    # frequent_word_intake_v1: suspended words inside the top book ranks have
+    # their own daily allowance and Box-1 ceiling, most frequent first, so a
+    # Box 1 loaded with reading picks cannot keep them out.
+    frequent_selected: list = []
+    if frequent_intake_active(db):
+        frequent_eligible = sorted(
+            (row for row in eligible if _is_frequent_leech(db, row[6])),
+            key=lambda row: (row[6], row[3]),
+        )
+        if frequent_eligible:
+            frequent_selected = frequent_eligible[: frequent_reintro_room(db, now)]
+            frequent_ids = {row[3] for row in frequent_eligible}
+            eligible = [row for row in eligible if row[3] not in frequent_ids]
+            deferred_frequent = len(frequent_eligible) - len(frequent_selected)
+            if deferred_frequent:
+                log_interaction(
+                    event="frequent_leech_reintro_deferred",
+                    eligible=len(frequent_eligible),
+                    deferred=deferred_frequent,
+                    box1_load=frequent_box1_load(db),
+                )
 
     box1_actionable, box2_due = _recovery_backlog_counts(db, now)
     box1_limit = leech_reintro_box1_admission_limit()
@@ -326,6 +368,7 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     remaining_capacity = min(daily_capacity, box1_capacity)
     selected = [] if admission_reasons else eligible[:remaining_capacity]
     deferred_count = len(eligible) - len(selected)
+    selected = frequent_selected + selected
     deferred_reasons = list(admission_reasons)
     if not admission_reasons and deferred_count:
         if daily_capacity < len(eligible):

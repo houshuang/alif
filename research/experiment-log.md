@@ -78,7 +78,7 @@ This changes the model, not the existing Arabic quality calibration.
 
 **FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
-**Session building / selection / comprehensibility** — `2026-11-25 (5) "Book-text frequency steers lanes, relief and intake"` · `2026-09-03 "Low-energy maintenance v1"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
+**Session building / selection / comprehensibility** — `2026-11-25 (5) "Book-text frequency steers lanes, relief and intake"` · `2026-11-25 (6) "Frequent words get their own intake allowance"` · `2026-09-03 "Low-energy maintenance v1"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
 **Sentence generation pipeline** — `2026-03-21 "Unify Sentence Generation Through Verified Pipeline"` (single-pipeline invariant) · `2026-05-10 "Batch material now has a mandatory quality gate"` · `2026-04-20 "Self-correcting batch sentence generation"` (⚠ later gated OFF — current default is legacy batch, `ALIF_USE_LEGACY_BATCH=1`) · `2026-05-04 "Backoff-aware multi-target"` · `2026-05-03 "Generation-pipeline investigation — three concurrent bugs"`.
 
@@ -118,6 +118,59 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+
+## 2026-11-25 (6): Frequent words get their own intake allowance (`frequent_word_intake_v1`)
+
+**Why.** `book_frequency_v1` (entry 5) put the top book bands first in intake order, but
+production showed that order was not the limit. Between 2026-11-15 and 2026-11-25 every
+acquisition start was a learner pick (Snap 56, pre-read 77, textbook scan 4): no word came
+in through the ordinary budget and no leech was reintroduced. The reason is structural.
+Learner picks bypass the budgets and load Box 1 (87 words in Box 1 on 2026-11-25, 66 of the
+103 acquiring words outside the top 2,000 book ranks or unranked). The ordinary true-new
+budget closes at 5 actionable Box-1 words and leech reintroduction at an occupancy of 4, so
+both stayed shut. 83 suspended words inside the top 2,000 book ranks (33 in the top 1,000,
+رأى at rank 26) had waited since July; 16 of the 33 had been suspended once, most after
+five reviews.
+
+**Learner decision (2026-11-25).** Raise intake, be more aggressive about frequent
+leeches, take in the missing book words and the remaining Al-Kitaab Part 1 / Madinah Book 1
+words.
+
+**Change.** A frequent word is a lemma with book rank <= 2,000 or an open reading target in
+a textbook-completion program (`alkitaab_part1`, `madinah_book1`). While the book list is
+active and `ALIF_FREQUENT_WORD_INTAKE` is not `0`:
+
+- `start_acquisition()` admits a frequent word that the ordinary budget refused, up to 12
+  true-new starts a UTC day (learner picks do not count against the 12) and only while
+  fewer than 40 frequent words sit in Box 1. The 40 is the real throttle: intake follows
+  how fast frequent words leave Box 1.
+- The intake pass after each reviewed session starts up to 4 frequent words, most frequent
+  first (`introduce_frequent_words`), unless the two-day accuracy floor has closed intake.
+- Suspended frequent leeches return up to 6 a day, most frequent first, under the same
+  Box-1 ceiling, and wait at most 3 days after a suspension whatever their leech count.
+- The reserved acquiring cards alternate frequent words and other words
+  (`interleave_frequent`), and their share of a session's base cards rises from 30% to 40%.
+- Textbook targets rank after the top 1,000 book words and before the 1,001–2,000 band.
+- A sustained break still closes everything (strict main-lane FSRS due >= 750).
+
+Unchanged: the ordinary budget and ladder for all other words, the leech verdict itself,
+learner picks, the 8/day ordinary reintroduction cap.
+
+**Expected.** At 30–100 primary cards a day the reserved cards give frequent acquiring
+words roughly 6–20 cards a day, so 5–10 frequent words a day should leave Box 1 and the
+allowance should settle near that rate, not at 18. About 510 words stand between today and
+"every top-2,000 word introduced" (226 not started, 200 without a lemma, 83 suspended);
+at 8 a day that is nine weeks, the top 1,000 (76 + 33 + 33) under three.
+
+**Readout (2026-12-09, 2026-12-23).** Frequent starts and reintroductions per active day;
+frequent Box-1 load against the 40; graduation rate of frequent words; share of
+reintroduced frequent leeches suspended again within their first episode (if above half,
+the treatment is not working and the words need clearer entries, not more repetitions);
+band figures from `/api/stats/book-frequency`; primary-card accuracy (stop signal: below
+80% over a week); strict main-lane FSRS due, which must not
+grow now that reserved cards can take 70% of a session (30% misses, 40% acquiring).
+
+**Rollback.** `ALIF_FREQUENT_WORD_INTAKE=0` and a restart; started words stay acquiring.
 
 ## 2026-11-25 (5): Book-text frequency steers lanes, relief and intake (`book_frequency_v1`)
 
