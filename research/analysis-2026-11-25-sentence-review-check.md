@@ -94,6 +94,23 @@ interval quickly, and the data does not say it should after one success.
 100 acquiring words, 85 in Box 1 (84 due), 37 never reviewed; 47 started 16 Nov and 32 on
 24 Nov, almost all from Snap and Pre-read. Graduations: 52 in the week of 16 Nov, 3 since.
 
+## Addendum: reading 45 missed words in the new sentences
+
+A random 45 of the 108 misses on words with stability ≥ 30 days in sentences written
+since 18 Nov. The Arabic is correct and the missed word nearly always appears in a plain
+form and its usual sense (الْغَابَةِ, الْحُوتُ, حَضَرَ, خَلَطَ, حَجْمَ). What differs from older
+cards is the company: 33 of the 45 sat on cards with two to six misses, and the other
+content words are themselves rarely seen due words (a burrowing animal's eyesight and
+sense of smell; worms in a bag at customs; a locally made shield), so the sentence gives
+little help in recalling any one of them. About five cases use an unusual sense or
+construction (خَيْرٌ in "there is goodness in the group's future", مَدَّ الْبَصَرِ, الْأُنْثَى
+as "the female", الْأَهْلِيِّ twice). The lower recall is therefore mostly a stricter test
+of words that earlier, easier contexts let through, not faulty sentences.
+
+Lemma records seen while reading that need a look: طَابِق gloss "floor?"; آذىً stored
+with a madda against the usual أَذًى; هِنْد "India" is a noun, not a proper name; مَدّ is
+labelled a preposition "for duration of".
+
 ## Proposed trials (none started)
 
 1. Interval after a closed miss: when a missed word with long prior stability has its two

@@ -263,7 +263,7 @@ export default function WordInfoCard({
       )}
     </View>
   ) : null;
-  const yellow = markState === "did_not_recognize";
+  const canName = markState !== null;
 
   return (
     <Animated.View
@@ -288,9 +288,9 @@ export default function WordInfoCard({
             onNavigateToRoot={onNavigateToRoot}
             surfaceTranslit={surfaceTranslit}
             confusionData={confusionData}
-            onPickConfusion={yellow ? onPickConfusion : undefined}
-            pickedConfusionLemmaId={yellow ? pickedConfusionLemmaId ?? null : null}
-            showConfusionCandidates={yellow && showConfusionCandidates}
+            onPickConfusion={canName ? onPickConfusion : undefined}
+            pickedConfusionLemmaId={canName ? pickedConfusionLemmaId ?? null : null}
+            showConfusionCandidates={canName && showConfusionCandidates}
             nav={nav}
           />
         </ScrollView>

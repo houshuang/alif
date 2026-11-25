@@ -125,6 +125,26 @@ def followup_trial_arm(lemma_id: int, missed_at: datetime) -> str:
     return PHRASE_ARM if digest[0] % 2 == 0 else SENTENCE_ARM
 
 
+VERB_FORMS_PROTOCOL = "verb_phrase_forms_v1"
+VARIED_FORMS_ARM = "varied"
+STANDARD_FORMS_ARM = "standard"
+
+
+def verb_forms_arm(lemma_id: int) -> str:
+    """Stable arm of the verb-form trial for one verb (`verb_phrase_forms_v1`).
+
+    Phrases for a `varied` verb must include present-tense forms; a `standard`
+    verb keeps the ordinary prompt, which in practice yields past-tense forms.
+    Hashed by lemma because phrases are stocked per word, not per miss.
+    """
+    digest = hashlib.sha256(f"{VERB_FORMS_PROTOCOL}:{lemma_id}".encode("utf-8")).digest()
+    return VARIED_FORMS_ARM if digest[0] % 2 == 0 else STANDARD_FORMS_ARM
+
+
+def wants_varied_forms(lemma_id: int, pos: str | None) -> bool:
+    return (pos or "").lower() == "verb" and verb_forms_arm(lemma_id) == VARIED_FORMS_ARM
+
+
 def fragments_wanted(db: Session, lemma_id: int, now: datetime) -> bool:
     """Whether this word's latest miss puts it in an arm that shows phrases."""
     recent = latest_sentence_miss(db, lemma_id, now)
@@ -266,6 +286,7 @@ def _build_prompt(targets: list[dict], companions: list[dict]) -> str:
 
     target_lines = "\n".join(
         f'- lemma_id {t["lemma_id"]}: {t["arabic"]} ({t["pos"] or "word"}) = {t["english"]}'
+        + (" [VARY TENSE]" if t.get("vary_forms") else "")
         for t in targets
     )
     return f"""For each TARGET WORD write {FRAGMENT_CANDIDATES_PER_WORD} different Arabic phrases of 2 or 3 words that contain it.
@@ -280,6 +301,7 @@ RULES:
 - 2 or 3 Arabic words per phrase; 4 only when one of them is a preposition or other particle.
 - Each phrase is a complete small unit: a noun with its adjective, a verb with its subject or object, an iḍāfa pair, or a minimal sentence.
 - Use the target in the meaning and part of speech given. Verbs should appear conjugated, nouns may take the article, a possessive suffix or a plural when that is natural.
+- For a verb marked [VARY TENSE]: at least two of its phrases use the present tense (المضارع) and the others the past, and no two phrases repeat the same person and number.
 - The other words must not give the target's meaning away by definition, and must not be rarer than the target.
 - Typical, everyday collocations; nothing poetic or odd.
 - Full diacritics on every Arabic word.
@@ -333,6 +355,7 @@ def generate_fragments_for_lemmas(lemma_ids: list[int]) -> dict:
             targets.append({
                 "lemma_id": lemma_id, "arabic": lemma.lemma_ar,
                 "english": lemma.gloss_en, "pos": lemma.pos or "",
+                "vary_forms": wants_varied_forms(lemma_id, lemma.pos),
             })
             if len(targets) >= FRAGMENT_MAX_WORDS_PER_CALL:
                 break

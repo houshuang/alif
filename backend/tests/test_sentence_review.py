@@ -1685,6 +1685,31 @@ class TestConfusionCapture:
         assert row.confused_with_lemma_id is None
         assert row.rating == 1  # no_idea → Again
 
+    def test_red_marked_word_keeps_rating_one_and_unmarked_word_is_dropped(self, client, db_session):
+        from app.models import ConfusionCapture
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "كاتب", "writer")
+        _seed_word(db_session, 3, "مكتب", "office")
+        _seed_sentence(db_session, 1, "الكتاب في المكتب", "the book is in the office",
+                       target_lemma_id=1, word_ids=[1, 3])
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "partial",
+            "missed_lemma_ids": [1],
+            "confusion_captures": [
+                {"failed_lemma_id": 1, "capture_method": "suggested_pick", "confused_with_lemma_id": 2},
+                {"failed_lemma_id": 3, "capture_method": "suggested_pick", "confused_with_lemma_id": 2},
+            ],
+            "session_id": "red-cap",
+        })
+        assert resp.status_code == 200, resp.text
+
+        rows = db_session.query(ConfusionCapture).filter_by(session_id="red-cap").all()
+        assert [(row.failed_lemma_id, row.rating) for row in rows] == [(1, 1)]
+
     def test_invalid_capture_skipped(self, client, db_session):
         from app.models import ConfusionCapture
         _seed_word(db_session, 1, "كتاب", "book")

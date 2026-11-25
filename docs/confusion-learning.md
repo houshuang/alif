@@ -5,7 +5,8 @@ stored in ascending ID order; reports in either direction share one pair. This i
 separate from FSRS, word acquisition, sentence ratings and the fragment follow-up
 scheduler. It adds teaching exposure, a co-intervention during the last days of the
 `fragment_followup_v1` trial (ended 2026-11-25) and in any later trial on missed words.
-The existing hold on red-word named capture remains intact.
+Red-marked words can be named since 2026-11-25 (the hold protected the trial); their
+captures carry rating 1 and enter pairs, lessons and sentence selection like yellow ones.
 
 ## Intake and manual text
 

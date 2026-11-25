@@ -45,10 +45,11 @@ listening keeps its existing tabs and spacing.
 Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
 Mixed up, layers = New form. The conditional No tashkeel reason remains available.
 Each icon has a 44-point target, an accessibility label and a hover/focus legend.
-Each reason is a toggle. Turning Mixed up on for a yellow word opens a dismissible
+Each reason is a toggle. Turning Mixed up on for a red or yellow word opens a dismissible
 popover with an Arabic/English field and up to four suggestions; naming the word is
 optional. Saving closes the popover; a second tap on Mixed up turns it off and drops
-the named word. Red-word capture is deferred until the follow-up trial reads out. There is no
+the named word. Red words can be named since 2026-11-25; a capture stores the word's own
+rating (1 red, 2 yellow) and one for a word with no mark is dropped. There is no
 duplicate bottom row and candidate lists never expand the reading layout.
 
 The minus button minimizes the selected word explanation and its reason rail.
