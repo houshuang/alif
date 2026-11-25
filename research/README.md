@@ -23,6 +23,8 @@ transcription/scoring pipeline). Decision: experiment-log `2026-10-04 "Novel spr
 
 ## Vocabulary and attention investigation — September 19, 2026
 
+[Sentence review check, 25 November](analysis-2026-11-25-sentence-review-check.md): one week after the missed-word lane and dense cards: red misses return in 19 hours instead of two weeks, recall on due words is lower (mostly backlog, partly unexplained), interim numbers for the phrase follow-up trial, what the reading timing and cause marks are used for, and three proposed trials.
+
 [Missed words after the denser cards](analysis-2026-11-20-missed-word-recovery.md): first review-side reading after the 18–19 Nov generation changes (due words per card 2.4 → 4.05 at the same time per card), the two-week wait before a missed established word returns, word cards falling behind dense cards, and acquiring words crowded out. Led to the 2026-11-20 experiment-log entry (missed-word lane, acquiring reserve, fragment retry A/B).
 
 [Which models run, and a test of newer ones](analysis-2026-11-18-model-check.md): the models behind each job, a three-way sentence-writer comparison on the production dense-sentence path (GPT-6.1 Sol stored 55 of 96, Sonnet 39, Opus 40), a four-model page-scan comparison (current model kept), and the fallback-pin update. Follow-up 2026-11-19: most sentences lost at the mapping check were caused by wrong part-of-speech labels on entries, not missing words; 448 labels corrected, stored dense sentences up from 31 to 41 of 48 (GPT) and 25 to 36 (Sonnet); dense sentences moved to GPT-6.1 Sol.
