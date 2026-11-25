@@ -3393,6 +3393,9 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 
 ## Word-credit follow-ups (2026-11-25, from `research/analysis-2026-11-25-word-credit.md`)
 
+- **New verb lemmas catch other words through their stored forms (found 2026-11-25 while remapping).** After the word import the strict resolver sends حُلْواً "sweet" to the new verb حَلَّ, تَكُونُ to تَكَوَّنَ, يَقُلْ to قَلَّ, نَفْسِي "myself" to نَفْسِيّ, and خَالِي "my uncle" to خالِي "empty", none flagged as a tie. App sentences are protected by the mapping verifier; the book-frequency count and any strict caller are not. Idea: make a conjugated-form key lose to an existing lemma reached by a regular clitic or case-ending parse when the surface's vowels contradict the form, and report such cases as ties. `scripts/remap_to_new_lemmas.py` has a headword spelling check that could be reused.
+- **Remap the verb cases too.** `remap_to_new_lemmas.py` moved only nouns and adjectives. Stored words on a wrong verb (خاف on خَفِيَ, غاب on غَبِيَ, تكلّم on كَلَّمَ, أشبه on شَبَّ) and أُخْرَى / آخَرُونَ on آخِر "last" stay until a vetted pair list or a contextual check handles them.
+
 - Second batch of common words with no lemma: about 390 words at 12–16 occurrences in the book sample (`research/word-credit-2026-11-25/words_without_entry.tsv`), then the long tail. Curate by hand as on 2026-11-25; CAMeL's lemma is wrong often enough that an unreviewed import would add junk.
 - Remap stored sentences after new lemmas: `sentence_words` rows still point at the old entry (مجتمع on اجتمع, فكرة on كرة). Needs a remap by exact surface identity plus re-verification, in batches small enough that sessions keep enough reviewable sentences.
 - Resolver errors where the right lemma exists: عاد credited to وَعَدَ, بدأ to أبدًا, وجد to جادّ, ورأى to رَأْيٌ, يرون to رانَ. Find the rule that lets a clitic parse or a stored form of another lemma beat the lemma's own conjugation.
