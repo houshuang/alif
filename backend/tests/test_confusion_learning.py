@@ -152,3 +152,67 @@ def test_manual_confirmation_is_teaching_only_not_a_selector_mutation(client,db_
     db_session.expire_all()
     assert db_session.get(ConfusionCapture,cap.id).resolved_lemma_id is None
     assert db_session.get(ConfusionLink,cap.id).resolution_method=="manual"
+
+
+def run(db, p, a, b, session, day, hour=9, *, correct=True):
+    for i, w in enumerate([a, b]):
+        db.add(ConfusionAttempt(client_attempt_id=f"{session}-{i}", pair_id=p.id, session_id=session, question_index=i,
+            chosen_lemma_id=w.lemma_id if correct else None, target_lemma_id=w.lemma_id, correct=correct,
+            assisted=not correct, created_at=datetime(2026, 11, day, hour, i)))
+    db.commit()
+
+
+def schedule_at(db, p, day, hour=12):
+    from app.services import confusion_learning
+    real = confusion_learning.now
+    confusion_learning.now = lambda: datetime(2026, 11, day, hour)
+    try:
+        return pair_progress(db, p)
+    finally:
+        confusion_learning.now = real
+
+
+def test_clean_runs_space_out_and_same_day_runs_do_not_advance(db_session):
+    p, a, b = fixture_pair(db_session)
+    assert schedule_at(db_session, p, 2)["due_now"] and schedule_at(db_session, p, 2)["practice_step"] == 0
+    run(db_session, p, a, b, "s1", 2)
+    s = schedule_at(db_session, p, 2, 18)
+    assert (s["practice_step"], s["due_now"], s["practice_start"]) == (1, False, 0)  # Two-question fixture wraps to the start.
+    run(db_session, p, a, b, "s2", 2, 15)  # Same afternoon: no credit.
+    assert schedule_at(db_session, p, 3, 12)["practice_step"] == 1
+    assert schedule_at(db_session, p, 3, 12)["due_now"]
+    run(db_session, p, a, b, "s3", 3, 12)
+    s = schedule_at(db_session, p, 10)
+    assert (s["practice_step"], s["due_now"], s["next_due"]) == (2, False, "2026-11-17T12:01:00")
+    assert schedule_at(db_session, p, 17, 13)["due_now"]
+
+
+def test_three_spaced_runs_then_retired_until_error(db_session):
+    p, a, b = fixture_pair(db_session)
+    for session, day in [("s1", 2), ("s2", 3), ("s3", 18)]:
+        run(db_session, p, a, b, session, day)
+    assert schedule_at(db_session, p, 20)["practice_step"] == 3
+    # The 60-day wait would end in January; a fourth clean run after it retires the pair.
+    from app.services.confusion_learning import practice_schedule
+    attempts = db_session.query(ConfusionAttempt).all()
+    late = [ConfusionAttempt(session_id="s4", created_at=datetime(2027, 1, 20, 9, i), correct=True, assisted=False) for i in range(2)]
+    retired = practice_schedule(attempts + late, datetime.min, at=datetime(2027, 6, 1))
+    assert retired["practice_retired"] and not retired["due_now"]
+    run(db_session, p, a, b, "miss", 20, correct=False)
+    s = schedule_at(db_session, p, 20, 13)
+    assert (s["practice_step"], s["due_now"]) == (0, True)
+
+
+def test_only_two_new_pairs_a_day_but_reviews_are_not_limited(client, db_session):
+    from app.routers.confusions import limit_new_pairs
+    p, a, b = fixture_pair(db_session)
+    db_session.add(ConfusionAttempt(client_attempt_id="view-old", pair_id=p.id, session_id="x", question_index=-1,
+        target_lemma_id=a.lemma_id, correct=False, assisted=True, created_at=datetime(2026, 11, 25, 8)))
+    db_session.commit()
+    fake = lambda i, report, state="ready": dict(id=i, due_now=True, last_report=report, generation_state=state, lesson={})
+    pairs = [dict(id=p.id, due_now=True, last_report="2026-11-01", generation_state="ready", lesson={}),
+             fake(901, "2026-11-20"), fake(902, "2026-11-24", "failed"), fake(903, "2026-11-23"), fake(904, "2026-11-22")]
+    limit_new_pairs(db_session, pairs, at=datetime(2026, 11, 25, 12))
+    assert {x["id"] for x in pairs if x["due_now"]} == {p.id, 903}
+    limit_new_pairs(db_session, pairs := [fake(905, "2026-11-23"), fake(906, "2026-11-22")], at=datetime(2026, 11, 26, 12))
+    assert all(x["due_now"] for x in pairs)

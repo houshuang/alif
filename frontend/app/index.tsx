@@ -2157,7 +2157,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   if (confusionPractice.active && sentenceSession) {
     return <View style={styles.container}>
       <ConfusionPractice key={`${confusionPractice.active.pair.id}:${confusionPractice.active.start}`}
-        pair={confusionPractice.active.pair} start={confusionPractice.active.start} sessionId={sentenceSession.session_id}
+        pair={confusionPractice.active.pair} start={confusionPractice.active.start} showLesson={confusionPractice.active.showLesson} sessionId={sentenceSession.session_id}
         onClose={confusionPractice.skip} onComplete={confusionPractice.complete} />
     </View>;
   }

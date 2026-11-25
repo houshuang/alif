@@ -402,3 +402,6 @@ until it closes, so changing the sentence session cannot discard pending practic
 contrasts, and retain separate practice/clean-context evidence. Pair exercises
 never mutate FSRS; account for teaching exposure in the fragment-followup trial.
 Manual ambiguity requires confirmation; “forgot” notes are not lexical pairs.
+Reading shows only server-due pairs (2026-11-25): one two-question run per pair per session,
+waits of 20 h / 14 d / 60 d after clean runs then retired, any error or report resets, at most
+two new pairs a day. Do not go back to offering every unresolved pair each session.

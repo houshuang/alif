@@ -2,11 +2,12 @@
 from datetime import timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app.models import ConfusionAttempt, ConfusionCapture, ConfusionLink, ConfusionPair, Lemma
-from app.services.confusion_learning import (canonical, import_captures, link_capture, naive, now,
+from app.services.confusion_learning import (NEW_PAIRS_PER_DAY, canonical, import_captures, link_capture, naive, now,
     pair_progress, prepare_pair, serialize_pair, word_card)
 
 router = APIRouter(prefix="/api/confusions", tags=["confusions"])
@@ -18,9 +19,27 @@ def get_pair(db, pair_id):
     return pair
 
 
+def limit_new_pairs(db, pairs, at=None):
+    """Only NEW_PAIRS_PER_DAY never-shown pairs become due per UTC day; reviews are unlimited."""
+    today = (at or now()).date()
+    first_shown = dict(db.query(ConfusionAttempt.pair_id, func.min(ConfusionAttempt.created_at)).group_by(ConfusionAttempt.pair_id).all())
+    room = NEW_PAIRS_PER_DAY - sum(naive(t).date() == today for t in first_shown.values())
+    # Newest reports first, so a fresh report is the one taught today.
+    for pair in sorted(pairs, key=lambda p: p["last_report"] or "", reverse=True):
+        if pair["id"] in first_shown or not pair["due_now"]:
+            continue
+        # Slots also go to pairs still being prepared, so only lessons that will be shown get generated.
+        if room > 0 and pair["generation_state"] != "failed":
+            room -= 1
+        else:
+            pair["due_now"] = False
+    return pairs
+
+
 @router.get("")
 def list_confusions(db: Session = Depends(get_db)):
     pairs = [serialize_pair(db, p) for p in db.query(ConfusionPair).filter(ConfusionPair.id.in_(db.query(ConfusionLink.pair_id).filter(ConfusionLink.pair_id.isnot(None)))).order_by(ConfusionPair.id.desc()).all()]
+    limit_new_pairs(db, pairs)
     unresolved = []
     for link, cap in db.query(ConfusionLink, ConfusionCapture).join(ConfusionCapture, ConfusionCapture.id == ConfusionLink.capture_id).filter(ConfusionLink.pair_id.is_(None)).all():
         lemma = db.get(Lemma, cap.failed_lemma_id)

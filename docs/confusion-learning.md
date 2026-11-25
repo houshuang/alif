@@ -48,19 +48,42 @@ tanwin alif), but cannot change lexical base letters; the audit
 also checks internal lexical vowels and the lexeme. Two gloss-to-word questions
 precede the clozes, giving six questions. Meaning questions use stored glosses.
 
-Ready lessons are cached on device. New reports are prioritized over older prepared pairs. A newly entered ambiguous
+Ready lessons are cached on device. A newly entered ambiguous
 confusor can ask for a match at the next submission boundary, with an optional
-“Match later” exit; it never interrupts a sentence. A clear new pair prepares in
-the background even while older lessons are available. At a reading-sentence
-submission boundary, after two normal cards, a lesson and two exercises may appear. Later two-card
-gaps offer the next exercises. They also remain visible if the boundary leads
+“Match later” exit; it never interrupts a sentence. Background preparation never
+opens a modal in the middle of reading.
+
+### Spacing in reading (25 November 2026)
+
+The first release showed every unresolved pair in every session, in three
+two-question visits; one pair's lesson appeared 14 times in three days with every
+answer correct. Reading now shows only pairs the server marks `due_now`, each at
+most once per session, as one two-question run:
+
+- A run counts when a session has at least two scored answers, all after the latest
+  reset (a report, mixed-up mark or wrong/helped answer), and the previous wait has
+  passed. Waits after clean runs: 20 hours, 14 days, 60 days; a fourth clean run
+  retires the pair from reading practice. A second run on the same day earns nothing.
+- Any reset returns the pair to step 0 (due, with the lesson card). Later runs skip
+  the lesson and ask the next two questions (`practice_start`), so reviews reach the
+  sentence exercises.
+- New pairs: at most two first shown per UTC day, newest report first. A pair counts
+  as shown when its lesson is first displayed. Slots also cover lessons still being
+  prepared, so lessons are generated only for pairs that will be shown. Reviews are
+  not limited.
+- Finishing or closing a run rests the pair on the device for 20 hours (covers offline
+  use and the moment before the server sees the answers), unless it is reported again.
+  Closing scores nothing.
+
+The schedule is computed from stored attempts like the status, so undo recalculates
+it. The library screen can still run all six exercises at any time; those answers
+count. At a reading-sentence submission boundary, after two normal cards, a due run
+may appear. It also remains visible if the boundary leads
 to Today/wrap-up/session end; the next reading timer stays held. Word checks and
 phrase follow-ups wait until the confusion card closes. Automatic batch rollover
 also waits, preserving the owning session and pending lesson; closing practice
 reconsiders the deferred check or rollover without another sentence submission.
-Background preparation never opens a modal in the middle of reading. Close skips that pair
-for the rest of the current session, without scoring a failure. The library can
-run all six exercises consecutively. Choice order varies; meanings and full
+Choice order varies; meanings and full
 sentence translation appear only after an answer. Help records an assisted,
 unsuccessful attempt rather than correct recall.
 
@@ -104,6 +127,7 @@ clean-context count and clean dates. FSRS is never updated by this subsystem.
   scored questions. Pair views with no remaining capture links are hidden.
 
 Migration `a2d4f6c8b019` follows `f3b5d7e9a1c4`; no historical timing or FSRS backfill.
+Pair views also carry `due_now`, `practice_step`, `practice_start`, `practice_retired`, `next_due`.
 Routes: `GET /api/confusions`, `POST /refresh`, `GET /search?q=…`,
 `POST /captures/{id}/confirm`, `POST /{id}/prepare`, `POST /{id}/attempts` (all under
 `/api/confusions`). Local preview data and generated examples are private.
