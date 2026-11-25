@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_
 
 from app.services.attention_policy import LEARNER_PICK_SOURCES, admit_learner_pick, excluded_lemma_ids, is_maintained
+from app.services.frequent_intake import TEXTBOOK_TARGET_PROGRAMS
 from app.models import (
     ReadingTarget,
     FrequencyCoreEntry,
@@ -84,6 +85,9 @@ _FREQ_CORE_TOP_5000 = 120.0
 _BOOK_FREQ_TOP_500 = 340.0
 _BOOK_FREQ_TOP_1000 = 335.0
 _BOOK_FREQ_TOP_2000 = 330.0
+# Open targets of a textbook the learner is completing: after the top 1,000 book
+# words, before the 1,001-2,000 band.
+_TIER_TEXTBOOK_TARGET = 332.0
 
 # Gloss prefixes that indicate Wiktionary reference entries, not real words
 _SKIP_GLOSS_PREFIXES = (
@@ -631,9 +635,13 @@ def select_next_words(
     # text, earliest chapter). A lemma targeted by several programs/chapters
     # keeps its largest count and its earliest chapter.
     reading_target_counts: dict[int, tuple[int, int]] = {}
-    for lid, text_count, chapter in db.query(
-        ReadingTarget.lemma_id, ReadingTarget.text_count, ReadingTarget.chapter
+    textbook_target_lemmas: set[int] = set()
+    for lid, text_count, chapter, program in db.query(
+        ReadingTarget.lemma_id, ReadingTarget.text_count, ReadingTarget.chapter,
+        ReadingTarget.program,
     ).filter(ReadingTarget.retired_at.is_(None)):
+        if program in TEXTBOOK_TARGET_PROGRAMS:
+            textbook_target_lemmas.add(lid)
         prev = reading_target_counts.get(lid)
         chapter = chapter or 1
         if prev is None:
@@ -745,6 +753,13 @@ def select_next_words(
         if book_active and core_bonus > priority_bonus:
             priority_bonus = core_bonus
             priority_tier = f"book_frequency_{modern_ranks[lemma.lemma_id]}"
+        if (
+            book_active
+            and lemma.lemma_id in textbook_target_lemmas
+            and priority_bonus < _TIER_TEXTBOOK_TARGET
+        ):
+            priority_bonus = _TIER_TEXTBOOK_TARGET
+            priority_tier = "textbook_target"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0

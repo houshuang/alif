@@ -1124,6 +1124,26 @@ Before normal greedy set cover, the selector reserves up to five early selection
 the oldest overdue due words. This shrinks aged debt without letting old single-word
 cards dominate the entire session.
 
+**Frequent-word intake (`frequent_word_intake_v1`, 2026-11-25; `frequent_intake.py`).**
+Learner picks bypass the intake budgets and keep Box 1 loaded, which held the ordinary
+true-new budget and leech reintroduction shut. Frequent words (book rank <= 2,000, or an open
+reading target in `alkitaab_part1` / `madinah_book1`) therefore have their own allowance,
+measured against their own Box-1 load:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `FREQUENT_DAILY_NEW` | 12 | true-new frequent starts per UTC day after the ordinary budget refused; learner picks not counted |
+| `FREQUENT_NEW_PER_PASS` | 4 | frequent starts per intake pass (one pass per reviewed session) |
+| `FREQUENT_DAILY_REINTRO` | 6 | suspended frequent leeches reintroduced per UTC day, most frequent first |
+| `FREQUENT_BOX1_LIMIT` | 40 | frequent words in Box 1 at which both close |
+| `FREQUENT_LEECH_MAX_DELAY_DAYS` | 3 | longest wait after suspending a frequent leech |
+| `ACQUIRING_RESERVED_SLOT_FRACTION` | 0.4 (was 0.3) | base cards reserved for due acquiring words |
+
+The check sits in `start_acquisition()`, so every caller gets it. The reserved acquiring
+cards alternate frequent and other words. Strict main-lane FSRS due >= 750 closes the
+allowance; the two-day accuracy floor closes the intake pass. Rollback:
+`ALIF_FREQUENT_WORD_INTAKE=0`. Experiment log "2026-11-25 (6)".
+
 #### Established-Lapse Recovery Lane (2026-07-26)
 
 The live selector policy is `r1_established_lapse`. It starts with the exact S0
@@ -2098,7 +2118,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `RETEST_CREDIT_GAP` | 30 min | Quiz-mode (checkpoint/wrap-up) success within this gap of a rating-1 review cannot promote a box, graduate, or count in the leech window (rapid re-exposure experiment, 2026-07-25) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
-| Reserved base cards | 30% + 30% | Before the greedy pass, up to 30% of base cards go to open misses (`missed_word_recovery_v1`) and up to 30% to due acquiring words (`acquiring_reserved_v1`); card score is coverage ** 1.5, so without the reserve a full stock of 4–6-due-word cards takes every slot (2026-11-20). Default selector policy only |
+| Reserved base cards | 30% + 40% | Before the greedy pass, up to 30% of base cards go to open misses (`missed_word_recovery_v1`) and up to 40% to due acquiring words (30% until 2026-11-25; frequent and other words alternate) (`acquiring_reserved_v1`); card score is coverage ** 1.5, so without the reserve a full stock of 4–6-due-word cards takes every slot (2026-11-20). Default selector policy only |
 | `ESTABLISHED_LAPSE_MIN_PRE_STABILITY_DAYS` | 7 days | Latest non-acquisition rating-1 pre-card stability required for the one-slot established-lapse recovery lane |
 | Live selector policy | `r1_established_lapse` | S0 plus at most one workload-neutral later-slot established-lapse swap; rollback is `s0` |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
@@ -2404,7 +2424,7 @@ identical in both arms; only the wording of the stocked phrases differs.
 | `MISSED_RECOVERY_WINDOW_DAYS` | 30 | `missed_word_recovery.py` |
 | `MISSED_RECOVERY_REQUIRED_SUCCESSES` | 2 (+1 after a missed word card) | `missed_word_recovery.py` |
 | `MISSED_RECOVERY_SLOT_FRACTION` | 0.3 of base cards | `missed_word_recovery.py` |
-| `ACQUIRING_RESERVED_SLOT_FRACTION` | 0.3 of base cards | `missed_word_recovery.py` |
+| `ACQUIRING_RESERVED_SLOT_FRACTION` | 0.4 of base cards | `missed_word_recovery.py` |
 | `DUE_MENU_MISSED_PER_MENU` | 40 of 150 | `material_generator.py` |
 | `DUE_MENU_MISSED_MIN_FOR_EXTRA_CALL` | 6 | `material_generator.py` |
 | `RETEST_BACKLOG_NO_SPACING` | 3 | `frontend/lib/review/retest.ts` |

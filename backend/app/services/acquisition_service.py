@@ -647,7 +647,10 @@ def start_acquisition(
         intro_count = _daily_intro_count(db, today_start)
         effective_daily_cap = _recovery_mode_intro_budget(db, now, today_start)
         if intro_count >= effective_daily_cap:
-            cap_hit = True
+            from app.services.frequent_intake import admits_new_frequent_word
+
+            cap_hit = not admits_new_frequent_word(db, lemma_id, now)
+        if cap_hit:
             logger.info(
                 "Daily intro budget (%d/%d) reached; lemma %s stays in encountered "
                 "(source=%r, today_count=%d)",
