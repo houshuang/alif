@@ -11,6 +11,72 @@ import re
 logger = logging.getLogger(__name__)
 
 _ARABIC_LETTER_RE = re.compile(r'^[\u0621-\u064a]$')
+_HAMZA_SEATS = ("أ", "ء", "ئ", "ؤ", "إ", "آ")
+_ROOT_MARKS_RE = re.compile(r'[\u064B-\u0652\u0670\u0640\s]')
+
+
+def clean_root_string(root_str: str | None) -> str | None:
+    """Strip marks, write alif maqsura as ya and a root-initial hamza as أ.
+
+    Returns None when the result is not a valid 3-4 radical root.
+    """
+    if not root_str:
+        return None
+    parts = [_ROOT_MARKS_RE.sub("", p) for p in root_str.split(".")]
+    parts = ["ي" if p == "ى" else p for p in parts]
+    if parts and parts[0] in _HAMZA_SEATS + ("ا",):
+        parts[0] = "أ"
+    cleaned = ".".join(parts)
+    return cleaned if is_valid_root(cleaned) else None
+
+
+def root_spellings(root_str: str) -> list[str]:
+    """Every spelling of a root that differs only in how a hamza radical is written.
+
+    Plain alif is folded in only in the first position, where it can only be a
+    hamza. Elsewhere it usually stands for و or ي (بدا is ب.د.و, not ب.د.أ "begin").
+    """
+    options: list[tuple[str, ...]] = []
+    for i, p in enumerate(root_str.split(".")):
+        if p in _HAMZA_SEATS or (i == 0 and p == "ا"):
+            options.append(_HAMZA_SEATS + ("ا",) if i == 0 else _HAMZA_SEATS)
+        else:
+            options.append((p,))
+    spellings = [""]
+    for opts in options:
+        spellings = [f"{s}.{o}" if s else o for s in spellings for o in opts]
+    return spellings
+
+
+def find_or_create_root(db, root_str: str | None, core_meaning_en: str = ""):
+    """Return the Root row for root_str, reusing any hamza spelling already stored.
+
+    Every path that creates roots must use this, or the same root gets stored
+    once per hamza seat and its word family is split across rows. A root with a
+    non-initial plain alif returns None (that letter is never a radical, and it
+    may stand for و, ي or a hamza), so the lemma stays rootless, not misfiled.
+    """
+    from app.models import Root
+
+    cleaned = clean_root_string(root_str)
+    if cleaned is None:
+        return None
+    if "ا" in cleaned.split(".")[1:]:
+        logger.warning("No root for %r: plain alif is not a radical", cleaned)
+        return None
+    existing = (
+        db.query(Root)
+        .filter(Root.root.in_(root_spellings(cleaned)))
+        .order_by(Root.root_id)
+        .all()
+    )
+    if existing:
+        exact = next((r for r in existing if r.root == cleaned), None)
+        return exact or existing[0]
+    root = Root(root=cleaned, core_meaning_en=core_meaning_en)
+    db.add(root)
+    db.flush()
+    return root
 
 
 def is_valid_root(root_str: str) -> bool:

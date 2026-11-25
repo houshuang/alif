@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
-from app.services.morphology import is_valid_root, backfill_root_meanings
+from app.services.morphology import backfill_root_meanings, find_or_create_root, is_valid_root
 
 
 BATCH_SIZE = 20
@@ -149,11 +149,13 @@ def backfill(dry_run=False, limit=500):
                     total_done += 1
                     roots_created += 1
                     continue
-                root_obj = Root(root=root_str)
-                db.add(root_obj)
-                db.flush()
+                root_obj = find_or_create_root(db, root_str)
+                if root_obj is None:
+                    continue
+                if root_obj.root not in existing_roots:
+                    roots_created += 1
                 existing_roots[root_str] = root_obj
-                roots_created += 1
+                existing_roots[root_obj.root] = root_obj
 
             print(f"  {lid} {lemma.lemma_ar_bare}: {root_str}")
             if not dry_run:

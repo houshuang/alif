@@ -20,9 +20,9 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import FrequencyCoreEntry, Lemma, Root
+from app.models import FrequencyCoreEntry, Lemma
 from app.services.lemma_quality import run_quality_gates
-from app.services.morphology import get_word_features, is_valid_root
+from app.services.morphology import find_or_create_root, get_word_features
 from app.services.sentence_validator import (
     lookup_lemma,
     lookup_lemma_id,
@@ -560,12 +560,8 @@ def intake_frequency_core_gaps(
     for item, entries_to_map in create_groups.values():
         root_id = None
         root_str = item.get("root")
-        if root_str and is_valid_root(root_str):
-            root = db.query(Root).filter(Root.root == root_str).first()
-            if root is None:
-                root = Root(root=root_str, core_meaning_en="")
-                db.add(root)
-                db.flush()
+        root = find_or_create_root(db, root_str) if root_str else None
+        if root is not None:
             root_id = root.root_id
         lemma = Lemma(
             lemma_ar=item["lemma_ar"],

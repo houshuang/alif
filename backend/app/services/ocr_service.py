@@ -22,7 +22,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Lemma, Root, Sentence, UserLemmaKnowledge, PageUpload
+from app.models import Lemma, Sentence, UserLemmaKnowledge, PageUpload
 
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_eligibility import reviewable_sentence_clauses
@@ -127,7 +127,7 @@ def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge
     )
 
 
-from app.services.morphology import is_valid_root as _is_valid_root, backfill_root_meanings
+from app.services.morphology import backfill_root_meanings, find_or_create_root
 
 
 def validate_gloss(gloss: str | None) -> str | None:
@@ -1133,15 +1133,9 @@ def process_textbook_page(
 
                 # Find or create root (with validation)
                 root_id = None
-                if root_str and _is_valid_root(root_str):
-                    existing_root = db.query(Root).filter(Root.root == root_str).first()
-                    if existing_root:
-                        root_id = existing_root.root_id
-                    else:
-                        new_root = Root(root=root_str, core_meaning_en="")
-                        db.add(new_root)
-                        db.flush()
-                        root_id = new_root.root_id
+                root_obj = find_or_create_root(db, root_str) if root_str else None
+                if root_obj is not None:
+                    root_id = root_obj.root_id
 
                 word_cat = _storage_word_category(_category_by_bare, import_bare, bare)
                 pos = _normalize_import_pos(pos, word_cat)
@@ -1548,15 +1542,9 @@ def process_batch(
                 continue
 
             root_id = None
-            if root_str and _is_valid_root(root_str):
-                existing_root = db.query(Root).filter(Root.root == root_str).first()
-                if existing_root:
-                    root_id = existing_root.root_id
-                else:
-                    new_root = Root(root=root_str, core_meaning_en="")
-                    db.add(new_root)
-                    db.flush()
-                    root_id = new_root.root_id
+            root_obj = find_or_create_root(db, root_str) if root_str else None
+            if root_obj is not None:
+                root_id = root_obj.root_id
 
             word_cat = _storage_word_category(_category_by_bare, import_bare, bare)
             pos = _normalize_import_pos(pos, word_cat)

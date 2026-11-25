@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
-from app.services.morphology import is_valid_root, backfill_root_meanings
+from app.services.morphology import backfill_root_meanings, find_or_create_root, is_valid_root
 from app.services.ocr_service import validate_gloss
 from app.services.sentence_validator import (
     strip_diacritics as _sv_strip_diacritics,
@@ -210,15 +210,12 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
         # Handle root
         root_id = None
         if c["root"] and is_valid_root(c["root"]):
-            if c["root"] in existing_roots:
-                root_id = existing_roots[c["root"]].root_id
-            else:
-                root_obj = Root(root=c["root"])
-                db.add(root_obj)
-                db.flush()
-                existing_roots[c["root"]] = root_obj
+            root_obj = find_or_create_root(db, c["root"])
+            if root_obj is not None:
+                if root_obj.root not in existing_roots:
+                    existing_roots[root_obj.root] = root_obj
+                    roots_created += 1
                 root_id = root_obj.root_id
-                roots_created += 1
 
         lemma = Lemma(
             lemma_ar=c["arabic"],
