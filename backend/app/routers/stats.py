@@ -26,8 +26,8 @@ from app.schemas import (
 )
 from app.services.frequency_lanes import (
     due_lane_snapshot,
-    frequency_core_ranks,
-    is_main_lane_word,
+    book_frequency_progress,
+    lane_ranks,
 )
 from app.services.acquisition_service import (
     true_new_acquisition_episode_filter,
@@ -233,11 +233,11 @@ def _count_reviewed_today_by_lane(db: Session, today_start: datetime) -> tuple[i
     )
     if not rows:
         return 0, 0
-    core_ranks = frequency_core_ranks(db, reviewed_ids)
+    ranks = lane_ranks(db, reviewed_ids)
     main = 0
     slow = 0
     for ulk, lemma in rows:
-        if is_main_lane_word(ulk, lemma, core_ranks.get(ulk.lemma_id)):
+        if ranks.is_main(ulk, lemma):
             main += 1
         else:
             slow += 1
@@ -1225,6 +1225,12 @@ def get_analytics(
             db, datetime.now(timezone.utc), backlog_history=backlog_history
         ),
     )
+
+
+@router.get("/book-frequency")
+def get_book_frequency_progress(db: Session = Depends(get_db)) -> dict:
+    """Firm / in-review / missing counts per book-frequency band."""
+    return book_frequency_progress(db)
 
 
 @router.get("/cefr", response_model=CEFREstimate)

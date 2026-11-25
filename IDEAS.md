@@ -3358,3 +3358,13 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Yellow misses back the next day: not needed (21 of 22 correct at their next sentence on the current four-day schedule).
 - A monthly reading-speed figure from clean timed cards (about 28 words a minute in November 2026) once there are a few hundred.
 - Drop or hide the "New form" and "No tashkeel" reason marks: used on 1 of 363 misses in a week.
+
+## Book-frequency follow-ups (2026-11-25, from `research/analysis-2026-11-25-vocabulary-coverage.md`)
+
+- Create lemmas for book-list words Alif lacks (33 in the top 1,000, 200 in the top 2,000; أخرى, شركة, اقتصادي, موضوع), through the quality gates with an LLM check of the CAMeL lemma, then re-run `build_book_frequency.py`.
+- Give participles and verbal nouns that occur in real text their own lemmas (864 active participles, 856 passive participles and 838 verbal nouns currently resolve to the verb), and split nouns mapped to a look-alike verb (سبب on سَبَّبَ, جانب on جانَبَ).
+- A per-word speed measure from `reading_timing` so "firm and fast" can be reported per band.
+- Show the `/api/stats/book-frequency` bands in the app.
+- Take in the remaining Al-Kitaab Part 1 and Madinah Book 1 entries; find word lists for Al-Kitaab Parts 2–3 and Madinah Books 2–3 as upper-year benchmarks.
+- One-year outside measure: ACTFL reading and listening proficiency tests (single-skill, remotely proctored); CIMA needs writing and speaking.
+- A frequent word should not stay suspended as a leech: consider a shorter delay or a different treatment for book rank <= 1,000 (رأى was suspended).

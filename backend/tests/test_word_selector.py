@@ -905,3 +905,44 @@ class TestBatchQueryCount:
         # Verify it stays bounded and doesn't scale with candidate count.
         assert counter["count"] < 100, f"Expected <100 queries, got {counter['count']}"
         assert len(result) == 5
+
+
+def _book_rank(db, lemma, rank):
+    from app.models import BookFrequencyEntry
+
+    db.add(BookFrequencyEntry(
+        rank=rank, lemma_id=lemma.lemma_id, lemma_key=lemma.lemma_ar_bare,
+        count=10, version="book_frequency_v1",
+    ))
+    db.flush()
+
+
+def test_open_reading_target_does_not_shrink_the_requested_count(db_session):
+    """A loop variable named ``count`` once replaced the caller's count with the
+    last open target's token count, so one-token targets returned one word."""
+    from app.models import ReadingTarget
+
+    lemmas = [
+        _create_lemma(db_session, arabic, f"word {i}", freq=100 + i)
+        for i, arabic in enumerate(["باب", "نافذة", "كرسي", "طاولة", "سرير"])
+    ]
+    db_session.add(ReadingTarget(
+        lemma_id=lemmas[0].lemma_id, program="test", text_count=1, chapter=1,
+    ))
+    db_session.commit()
+
+    assert len(select_next_words(db_session, count=4)) == 4
+
+
+def test_top_book_band_word_leads_intake_over_stored_pick(db_session):
+    frequent = _create_lemma(db_session, "شائع", "common", freq=None)
+    old_scan = _create_lemma(db_session, "ممسحة", "mop", freq=50)
+    old_scan.source = "textbook_scan"
+    rare_book = _create_lemma(db_session, "مهجور", "rare", freq=10)
+    _book_rank(db_session, frequent, 800)
+    _book_rank(db_session, rare_book, 4200)
+    db_session.commit()
+
+    order = [w["lemma_id"] for w in select_next_words(db_session, count=3)]
+    assert order[0] == frequent.lemma_id
+    assert order.index(old_scan.lemma_id) < order.index(rare_book.lemma_id)

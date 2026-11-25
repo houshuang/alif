@@ -169,3 +169,30 @@ def test_reviewed_textbook_word_keeps_ordinary_cost_policy(db_session):
     db=db_session;l=word(db);l.knowledge.source='textbook_scan';failures(db);db.commit()
     refresh_attention(db,now=NOW)
     assert l.knowledge.attention_disposition=='reading_support'
+
+
+def _book_rank(db, lid, rank):
+    from app.models import BookFrequencyEntry
+    db.add(BookFrequencyEntry(rank=rank, lemma_id=lid, lemma_key=str(lid), count=5,
+                              version="book_frequency_v1"))
+    db.flush()
+
+
+def test_book_list_decides_broad_frequency_and_stages_unstarted_top_band_words(db_session):
+    # 1: costly, good fused rank but outside the book band -> relieved.
+    # 2: costly, poor fused rank but inside the book band -> kept.
+    # 3: no learner row, inside the book band -> staged for intake.
+    word(db_session, 1, rank=300); failures(db_session, 1)
+    word(db_session, 2, rank=40000); failures(db_session, 2)
+    word(db_session, 3, rank=None, with_card=False)
+    db_session.query(UserLemmaKnowledge).filter_by(lemma_id=3).delete()
+    _book_rank(db_session, 1, 2600); _book_rank(db_session, 2, 400); _book_rank(db_session, 3, 900)
+    db_session.commit()
+
+    refresh_attention(db_session, now=NOW); db_session.commit()
+    rows = {k.lemma_id: k for k in db_session.query(UserLemmaKnowledge)}
+    assert rows[1].attention_disposition == "reading_support"
+    assert rows[1].attention_reason.endswith("costly_lower_priority")
+    assert rows[2].attention_disposition == "maintain"
+    assert (rows[3].knowledge_state, rows[3].attention_disposition, rows[3].source) == (
+        "encountered", "maintain", "book_frequency")

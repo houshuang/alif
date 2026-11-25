@@ -28,7 +28,14 @@ READING_REASON = f"{POLICY_VERSION}:reading_recurrence"
 
 
 def modern_frequency_ranks(db: Session) -> dict[int, int]:
-    """Positive evidence only; Quran/fused rank cannot confer modern priority."""
+    """Positive evidence only; Quran/fused rank cannot confer modern priority.
+
+    Under book_frequency_v1 the book-text rank is the only modern evidence.
+    """
+    from app.services.frequency_lanes import book_frequency_active, book_frequency_ranks
+
+    if book_frequency_active(db):
+        return book_frequency_ranks(db)
     ranks = {lid: rank for lid, rank in db.query(Lemma.lemma_id, Lemma.frequency_rank)
              if rank is not None and rank > 0}
     for row in db.query(FrequencyCoreEntry).filter(FrequencyCoreEntry.excluded_reason.is_(None)):
@@ -130,11 +137,16 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         UserLemmaKnowledge.id, UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state,
         UserLemmaKnowledge.attention_disposition, UserLemmaKnowledge.attention_reason,
         UserLemmaKnowledge.source))}
+    from app.services.frequency_lanes import BOOK_MAIN_LANE_MAX_RANK, book_frequency_active
+
+    book_active = book_frequency_active(db)
+    broad_rank = BOOK_MAIN_LANE_MAX_RANK if book_active else BROAD_RANK
     ranks = modern_frequency_ranks(db)
     contexts = reading_contexts(db, lemmas, now)
     # Hindawi is selected inventory, not independent coverage. Use it only as
     # positive protection for existing vocabulary, never to bulk-enroll imports.
-    fiction_protected = {lid for lid, rank in db.query(
+    # The book list replaces it: a word it does not rank is rare in books.
+    fiction_protected = set() if book_active else {lid for lid, rank in db.query(
         FrequencyCoreEntry.lemma_id, FrequencyCoreEntry.hindawi_rank
     ).filter(FrequencyCoreEntry.excluded_reason.is_(None)) if rank and 0 < rank <= BROAD_RANK}
     recent = select(ReviewLog.lemma_id, ReviewLog.rating, func.row_number().over(
@@ -160,7 +172,7 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         if lemma.gates_completed_at is None:
             continue
         repeated = len(contexts.get(lid, ())) >= 2
-        broad = ranks.get(lid, BROAD_RANK + 1) <= BROAD_RANK
+        broad = ranks.get(lid, broad_rank + 1) <= broad_rank
         introduced = k is not None and k.knowledge_state not in {"new", "encountered"}
         expensive = len(cost[lid]) >= MIN_COST_REVIEWS and sum(r <= 2 for r in cost[lid]) >= MIN_FAILURES
         if lid in targeted:
@@ -183,7 +195,7 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
             disposition, reason = "reading_support", "await_reading_evidence"
         elif lid in fiction_protected:
             disposition, reason = "maintain", "fiction_evidence"
-        elif lid not in ranks:
+        elif lid not in ranks and not book_active:
             disposition, reason = "maintain", "unknown_frequency"
         elif expensive:
             disposition, reason = "reading_support", "costly_lower_priority"
@@ -192,7 +204,9 @@ def attention_plan(db: Session, now: datetime | None = None) -> dict:
         reasons[reason] += 1
         # Do not turn an untouched dictionary into a learner inventory. A
         # repeated reading need may stage one existing, validated lexical row.
-        if k is None and not repeated and lid not in targeted:
+        # Under book_frequency_v1 a top-band book word with no learner row is
+        # also staged, so intake can reach it.
+        if k is None and not repeated and lid not in targeted and not (book_active and broad):
             continue
         full_reason = f"{POLICY_VERSION}:{reason}"
         if k is None or k.attention_disposition != disposition or k.attention_reason != full_reason:
@@ -215,7 +229,8 @@ def refresh_attention(db: Session, *, apply: bool = True, now: datetime | None =
         for change in plan["changes"]:
             k = rows.get(change["lemma_id"])
             if k is None:
-                k = UserLemmaKnowledge(lemma_id=change["lemma_id"], knowledge_state="encountered", source="book")
+                source = "book_frequency" if change["reason"].endswith(":broad_frequency") else "book"
+                k = UserLemmaKnowledge(lemma_id=change["lemma_id"], knowledge_state="encountered", source=source)
                 db.add(k)
             k.attention_disposition = change["after"]
             k.attention_reason = change["reason"]

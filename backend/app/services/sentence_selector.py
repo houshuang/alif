@@ -50,10 +50,9 @@ from app.services.sentence_validator import (
 )
 from app.services.frequency_lanes import (
     effective_frequency_ranks,
-    frequency_core_ranks,
     frequency_priority_multiplier,
     frequency_priority_sort_key,
-    is_main_lane_word,
+    lane_ranks,
     select_slow_lane_sample,
 )
 from app.services.sentence_eligibility import reviewable_sentence_clauses
@@ -1195,14 +1194,14 @@ def _filter_due_ids_for_frequency_lanes(
         l.lemma_id: l
         for l in db.query(Lemma).filter(Lemma.lemma_id.in_(due_lemma_ids)).all()
     }
-    core_ranks = frequency_core_ranks(db, due_lemma_ids)
+    ranks = lane_ranks(db, due_lemma_ids)
     main_due: set[int] = set()
     slow_due: set[int] = set()
     for lid in due_lemma_ids:
         k = knowledge_by_id.get(lid)
         if not k:
             continue
-        if is_main_lane_word(k, lemmas.get(lid), core_ranks.get(lid)):
+        if ranks.is_main(k, lemmas.get(lid)):
             main_due.add(lid)
         else:
             slow_due.add(lid)

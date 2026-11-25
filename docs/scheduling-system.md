@@ -1079,6 +1079,21 @@ set cover:
 - **Sampling**: slow lane is capped at 10% of session budget, oldest-overdue
   first inside that budget.
 
+**Book-frequency lanes (`book_frequency_v1`, 2026-11-25).** While
+`book_frequency_entries` has rows and `ALIF_BOOK_FREQUENCY_LANES` is not `0`, the rule above
+is replaced: main lane = acquiring words, book rank <= `BOOK_MAIN_LANE_MAX_RANK` (2,000),
+ULK source `snap`/`preread`, or an attention reason ending in `reading_target`,
+`reading_recurrence` or `learner_pick`; every other due word is slow lane.
+`effective_frequency_ranks()` returns the book rank (absent words: 20,001). The same switch
+makes `modern_frequency_ranks()` the book rank, so `automatic_attention_v2` uses book rank
+<= 2,000 as "broad frequency", drops the Hindawi and unknown-rank protections, and stages
+top-band words that have no learner row (source `book_frequency`). Intake tiers under the
+switch: book rank <= 500 / 1,000 / 2,000 = 340 / 335 / 330, above learner pick (320) and
+reading target (300+). Leech reintroduction order uses the book rank. The fused core rank is
+not used for any of these while the switch is on, because it ranks in-vocabulary lemmas
+first. Gate audit: the recovery trigger counts main-lane FSRS due only, so it falls with the
+lane; the missed-word and acquiring reserves bypass the frequency lane as before.
+
 This does not delete old book/OCR debt. It prevents low-frequency artifact debt
 from crowding out high-frequency general-reading progress while still making the
 debt visible in the daily goal.

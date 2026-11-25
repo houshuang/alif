@@ -87,7 +87,16 @@ def _get_lemma(db: Session, lemma_id: int) -> Lemma | None:
 
 
 def _get_core_rank(db: Session, lemma_id: int) -> int | None:
-    """Authoritative merged frequency rank for a lemma (None if not in the core)."""
+    """Frequency rank used for leech priority (None when the word is unranked).
+
+    Under book_frequency_v1 this is the book-text rank, so a frequent word such
+    as رأى is reintroduced before rarer leeches and never gets the long
+    low-priority delay.
+    """
+    from app.services.frequency_lanes import book_frequency_active, book_frequency_ranks
+
+    if book_frequency_active(db):
+        return book_frequency_ranks(db, [lemma_id]).get(lemma_id)
     row = (
         db.query(FrequencyCoreEntry.core_rank)
         .filter(FrequencyCoreEntry.lemma_id == lemma_id)
