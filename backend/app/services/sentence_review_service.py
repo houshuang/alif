@@ -752,7 +752,18 @@ def submit_sentence_review(
                 continue
             confused_with_text = text
             confused_with_lid = None
-        rating_for_capture = 1 if comprehension_signal == "no_idea" else 2
+        # A named capture belongs to a word the learner marked; keep that
+        # word's own red/yellow outcome rather than the card's.
+        marked_red = failed_lid in missed_set
+        if (
+            not marked_red
+            and failed_lid not in confused_set
+            and comprehension_signal != "no_idea"
+        ):
+            continue
+        rating_for_capture = (
+            1 if marked_red or comprehension_signal == "no_idea" else 2
+        )
         db.add(ConfusionCapture(
             failed_lemma_id=failed_lid,
             sentence_id=primary_sentence_id,

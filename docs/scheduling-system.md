@@ -2378,6 +2378,12 @@ the session has one base card fewer per phrase. The phrase is the scheduled revi
 toward closing the miss, but the last required success must be a full sentence; a missed
 phrase is a new miss. No phrase in stock means the ordinary sentence card.
 
+**Verb forms in phrases (`verb_phrase_forms_v1`, 2026-11-25, running).** Each verb is
+hashed by lemma into `varied` or `standard` (`verb_forms_arm`). Phrases written for a
+`varied` verb must include at least two present-tense forms and no repeated person and
+number; `standard` verbs keep the ordinary prompt (past tense in practice). Scheduling is
+identical in both arms; only the wording of the stocked phrases differs.
+
 | Constant | Value | Location |
 |----------|-------|----------|
 | `MISSED_RECOVERY_WINDOW_DAYS` | 30 | `missed_word_recovery.py` |

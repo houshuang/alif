@@ -118,6 +118,58 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25 (4): Verb phrases vary the tense (`verb_phrase_forms_v1`, trial)
+
+**Why.** Verbs are the weakest class in sentence review: established verbs were missed
+32% of the time in their dictionary form and 39% in other forms, nouns 19% and 24%
+(20 Oct – 25 Nov, stability ≥ 7 days; `word_review_evidence`). Phrases are now the
+follow-up for every miss, and the stocked phrases for verbs are almost all past tense
+(sample of 14 verbs on 25 Nov: 4 present or future forms among 47 phrases).
+
+**Change.** `verb_forms_arm(lemma_id)` hashes each verb (`pos = "verb"`) into `varied`
+or `standard`. In the generation prompt a `varied` verb is marked `[VARY TENSE]`: at least
+two of its four candidate phrases use the present tense and no two repeat the same person
+and number. Validation, stocking, selection and scheduling are unchanged. Arm is by lemma,
+not by miss, because phrases are stocked per word.
+
+**Start.** Unshown phrases of `varied` verbs written before the deploy were removed and
+restocked (they were past-tense), so the arm differs from its first card. Shown phrases
+stay. Phrases a `varied` verb was shown before the deploy count as pre-trial.
+
+**Readout.** Unit: a sentence or phrase miss on a verb after the deploy. Primary endpoint:
+rating at the full sentence that closes the miss (the first full-sentence review after the
+first phrase follow-up). Split by whether that sentence shows the verb in the present
+tense, since that is where the arms should differ. Secondary: phrase hit rate by arm
+(expected lower in `varied`), share of generated phrases that pass validation by arm
+(present-tense forms may resolve less often), share of `varied` phrases that are in fact
+present tense (`word_fragments.target_surface`). Decide at 50 closed misses per arm; at
+about 25 verb misses a week that is roughly two months. Not randomized against anything
+else running; the confusion-pair practice is a co-intervention in both arms.
+
+**Roll back.** Make `wants_varied_forms()` return `False`; stocked phrases stay usable.
+
+## 2026-11-25 (3): Red-marked words can be named as mixed up
+
+**Why.** Naming what a word was mixed up with was limited to yellow words while the
+phrase follow-up trial ran, because captures feed sentence selection
+(`_recent_named_confusion_pairs`) and the trial was reading missed words (entry
+2026-11-21, timing). The trial ended today. 106 words with four or more misses since June
+carry a quarter of recent misses; 105 have a memory note and only 13 are in a confusion
+pair, and three quarters of all misses are red.
+
+**Change.** The naming popover and the word card's suggestions open for red marks as for
+yellow. The server stores the word's own rating on the capture (1 red, 2 yellow; before,
+the card's: 2 unless the whole card was "no idea") and drops a capture for a word that
+carries no mark on a partial card. Scheduling of the red word is unchanged (a lapse either
+way); `mixed_up_total_lapse_v1` still concerns yellow only.
+
+**Expected.** More captures, hence more confusion pairs entering practice (still at most
+two new pairs a day) and more contrast picks in selection. Check after two weeks: captures
+per week by rating, and how many of the 106 repeat words gain a pair.
+
+**Roll back.** Restore the `did_not_recognize` conditions in `frontend/app/index.tsx` and
+`WordInfoCard.tsx`; the server rule can stay.
+
 ## 2026-11-25 (2): Phrase follow-ups for every missed word; `fragment_followup_v1` trial ended early
 
 **Decision (learner, 2026-11-25).** End the phrase-against-sentence comparison before its

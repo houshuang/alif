@@ -3487,7 +3487,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                   assistedWordHasStoredTashkeel
                   && !assistedWordInitiallyShowedTashkeel
                 }
-                onMixedUpPress={focusedWordMark === "did_not_recognize" ? () => {
+                onMixedUpPress={focusedWordMark != null ? () => {
                   // A plain toggle: off again on a second tap, which also drops
                   // the named word. Turning it on opens the optional naming popover.
                   const selected = (failureCausesByIndex[activeAssistedRecognitionIndex] ?? []).includes("mixed_up");
@@ -3500,9 +3500,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           )}
         </View>
         {!isListening && !lookupMinimized && (<>
-              {/* Named capture stays bound to the focused yellow token. */}
+              {/* Named capture stays bound to the focused marked token, red or yellow. */}
               {activeAssistedRecognitionIndex === focusedReviewWordIndex
-                && focusedWordMark === "did_not_recognize"
+                && focusedWordMark != null
                 && lookupLemmaId != null && (
                 <ConfusionPicker
                   key={`${sentenceSession.session_id}:${cardIndex}:${focusedReviewWordIndex}`}

@@ -3348,3 +3348,13 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   generation; the CLI aliases upgrade silently, the pinned names do not.
 - If Gemini 3 Flash preview is withdrawn, move page scans to Gemini 4 Hydrogen, not to
   Gemini 3.6 Flash (most scan errors of the four tested).
+
+## Sentence review check, 25 November 2026
+- [DONE 2026-11-25] Phrase follow-ups for every missed word (trial ended early by learner decision).
+- [DONE 2026-11-25] Name what a red-marked word was mixed up with, not only a yellow one.
+- [RUNNING 2026-11-25] `verb_phrase_forms_v1`: phrases for half of the verbs must include present-tense forms.
+- Dense cards give little context: when four to six rarely seen due words share a sentence, none helps recall the others. Try a menu that mixes two or three due words with firm, frequent companions and compare recall on the due words.
+- Restoring part of the old interval after a closed miss: calculated and not recommended (recall 91% at 3–10 days, 75% at 30–90 days after a miss plus two correct reviews).
+- Yellow misses back the next day: not needed (21 of 22 correct at their next sentence on the current four-day schedule).
+- A monthly reading-speed figure from clean timed cards (about 28 words a minute in November 2026) once there are a few hundred.
+- Drop or hide the "New form" and "No tashkeel" reason marks: used on 1 of 363 misses in a week.

@@ -320,3 +320,27 @@ def test_generation_serves_the_phrase_followup_arm(db_session, monkeypatch):
     )
     assert wf.generate_fragments_for_lemmas([1])["stored"] == 1
     assert wf.stock_followup_fragments()["targets"] == 0  # one unshown phrase is in stock
+
+
+# ── verb_phrase_forms_v1 ────────────────────────────────────────────────────
+
+def test_verb_forms_arm_is_stable_and_only_marks_verbs():
+    arms = {wf.verb_forms_arm(lemma_id) for lemma_id in range(1, 60)}
+    assert arms == {wf.VARIED_FORMS_ARM, wf.STANDARD_FORMS_ARM}
+    varied = next(i for i in range(1, 60) if wf.verb_forms_arm(i) == wf.VARIED_FORMS_ARM)
+    standard = next(i for i in range(1, 60) if wf.verb_forms_arm(i) == wf.STANDARD_FORMS_ARM)
+    assert wf.verb_forms_arm(varied) == wf.VARIED_FORMS_ARM
+    assert wf.wants_varied_forms(varied, "verb") is True
+    assert wf.wants_varied_forms(varied, "noun") is False
+    assert wf.wants_varied_forms(standard, "verb") is False
+
+
+def test_prompt_marks_only_varied_verbs():
+    targets = [
+        {"lemma_id": 1, "arabic": "كَتَبَ", "english": "to write", "pos": "verb", "vary_forms": True},
+        {"lemma_id": 2, "arabic": "قَرَأَ", "english": "to read", "pos": "verb", "vary_forms": False},
+    ]
+    prompt = wf._build_prompt(targets, [])
+    lines = {line.split(":")[0]: line for line in prompt.splitlines() if line.startswith("- lemma_id")}
+    assert lines["- lemma_id 1"].endswith("[VARY TENSE]")
+    assert "[VARY TENSE]" not in lines["- lemma_id 2"]
