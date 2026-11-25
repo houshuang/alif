@@ -25,6 +25,10 @@ transcription/scoring pipeline). Decision: experiment-log `2026-10-04 "Novel spr
 
 [Vocabulary coverage against real books](analysis-2026-11-25-vocabulary-coverage.md): token-level coverage of books, Wikipedia and the learner's own pages (about 81%), why headword matching and the fused frequency core mislead, the due backlog and firm base by book rank, the participle grouping inconsistency. Basis for `book_frequency_v1`.
 
+[Which entry gets the credit](analysis-2026-11-25-word-credit.md): token by token, the entry Alif credits against the dictionary lemma. 810 common words had no entry (فكرة was credited to كرة "ball", verbal nouns and participles to their verbs); how the fold happens, what was created on 2026-11-25 and what is still open. Evidence in `word-credit-2026-11-25/`.
+
+[Can Alif measure per-word reading speed?](analysis-2026-11-25-reading-speed.md): not from sentence timings (one clock for nine words; reliability 0.27 at five sentences). What is measurable now, a usable definition for later, and the capture changes that would make it work. Evidence in `reading-speed-2026-11-25/`.
+
 [Sentence review check, 25 November](analysis-2026-11-25-sentence-review-check.md): one week after the missed-word lane and dense cards: red misses return in 19 hours instead of two weeks, recall on due words is lower (mostly backlog, partly unexplained), interim numbers for the phrase follow-up trial, what the reading timing and cause marks are used for, and three proposed trials.
 
 [Missed words after the denser cards](analysis-2026-11-20-missed-word-recovery.md): first review-side reading after the 18–19 Nov generation changes (due words per card 2.4 → 4.05 at the same time per card), the two-week wait before a missed established word returns, word cards falling behind dense cards, and acquiring words crowded out. Led to the 2026-11-20 experiment-log entry (missed-word lane, acquiring reserve, fragment retry A/B).

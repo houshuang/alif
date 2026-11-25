@@ -1,0 +1,1275 @@
+derived_form	form_type	verb_lemma_id	verb_ar	verb_gloss	book_tokens_min	book_tokens_max	tokens_unambiguous	tokens_stem_also_a_finite_verb_form	of_those_with_article_prep_or_tanwin	tokens_whose_hamza_spelling_differs_from_form	extra_tokens_reaching_verb_only_via_wide_camel	separate_lemma_exists	separate_variant_row	lookup_key_owner_lemma_id	lookup_key_source	verb_knowledge_state	verb_fsrs_stability_days	verb_book_rank	verb_book_count	top_surfaces	resolver_layers
+عِلْم	masdar	722	عَلِمَ	to know	140	313	0	313	140	0	0			722	lemma	known	55.1	11	497	علم:116 العلم:91 وعلم:19 علمًا:14	lemma:229 clitic:65 generated:19
+تَفْكِير	masdar	2084	فَكَّر	to think	130	130	130	0	0	0	3			2084	forms	known	290.4	14	471	التفكير:69 والتفكير:12 للتفكير:10 تفكير:8	forms:87 clitic:43
+شَانّ	active_participle	952	شَنَّ	to launch (war; campaign)	128	128	128	0	0	123	33			952	forms	known	217.4	185	145	بشأن:39 شأن:26 شأنها:18 شأنه:13	clitic:81 forms:47
+اِسْتِخْدَام	masdar	2575	اِسْتَخْدَمَ	to use	117	117	117	0	0	0	5			2575	forms	known	405.5	87	224	استخدام:47 باستخدام:16 الاستخدام:14 استخدامها:13	forms:66 clitic:51
+بَحْث	masdar	957	بَحَثَ	to search	105	131	0	131	105	0	0			957	lemma	known	106.2	62	264	البحث:58 بحثًا:20 بحث:18 للبحث:13	lemma:79 clitic:31 generated:21
+نَظَر	masdar	611	نَظَرَ	to look	104	190	0	190	104	0	0			611	lemma	known	178.3	21	401	النظر:51 نظر:29 نظرًا:18 ونظر:14	lemma:91 clitic:73 generated:26
+مَعْرِفَة	masdar	389	عَرَفَ	to know	100	100	100	0	0	0	27			389	forms	known	169.2	6	565	معرفة:34 المعرفة:26 بالمعرفة:7 معرفته:5	forms:64 clitic:36
+قَائِل	active_participle	408	قَالَ	to say	94	94	94	0	0	0	34			408	forms	known	107.6	1	1360	قائلًا:78 قَائِلًا:10 القائل:6	forms:94
+عَصْر	masdar	1324	عَصَرَ	to squeeze	84	149	0	149	84	0	0			1324	lemma	known	260.4	92	212	العصر:73 عصر:44 عصرنا:8 عصرًا:4	lemma:121 clitic:16 generated:12
+مَوْضُوع	passive_participle	4030	وَضَعَ	put, place	82	82	82	0	0	0	30			4030	forms	known	118.7	122	193	الموضوع:29 موضوع:29 لموضوع:3 بالموضوع:3	forms:67 clitic:15
+وُصُول	masdar	2143	وَصَلَ	to arrive	82	82	82	0	0	0	3			2143	forms	known	229.5	28	357	الوصول:36 وصولًا:10 وصول:6 وصوله:4	forms:61 clitic:21
+شُعُور	masdar	881	شَعَرَ	to feel	81	81	81	0	0	0	8			881	forms	known	120.5	43	316	الشعور:25 شعور:16 شعورًا:6 شعوره:6	forms:53 clitic:28
+اهْتِمَام	masdar	2237	اِهْتَمَّ	to care, to be interested	79	79	79	0	0	0	7			2237	forms	known	25.9	257	121	الاهتمام:19 اهتمام:14 اهتمامه:10 اهتمامًا:9	forms:47 clitic:32
+حُسْن	masdar	486	حَسُنَ	to be good	75	136	0	136	75	0	0			486	lemma	known	483.2	148	173	حسن:38 الحسن:29 حسنًا:21 وحسن:10	lemma:84 clitic:27 generated:25
+وَاقِع	active_participle	1743	وَقَعَ	to fall; to be located	75	85	70	15	5	0	21			1743	forms	known	9.8	64	262	الواقع:57 واقع:9 والواقع:5 واقعًا:5	forms:74 clitic:11
+سَعَادَة	masdar	2028	سَعِد	to be happy	75	75	75	0	0	0	3			2028	forms	known	12.4	235	127	السعادة:27 سعادة:10 بالسعادة:7 والسعادة:5	forms:46 clitic:29
+مَحْفُوظ	passive_participle	828	حَفِظَ	to preserve, save	73	73	73	0	0	0	9			828	forms	known	44.7	262	120	محفوظ:68 محفوظًا:3 لمحفوظ:1 المحفوظ:1	forms:72 clitic:1
+دَرّ	masdar	884	دَرَّ	to stream, to flow, to well	72	74	0	74	72	0	0			884	lemma	known	162.4	357	99	بدر:40 بَدْرٌ:16 بَدْرٍ:3 درهم:2	clitic:71 lemma:3
+حَقّ	masdar	866	حَقَّ	to be true, to be confirmed	67	106	0	106	67	0	0			866	lemma	known	1.2	108	203	الحق:25 حق:22 بحق:12 والحق:9	lemma:56 clitic:50
+مُجْتَمِع / مُجْتَمَع	active_participle+passive_participle	3555	اجْتَمَعَ	to gather; assemble	64	64	64	0	0	0	33			3555	forms	known	51.2	345	100	المجتمع:37 مجتمع:9 والمجتمع:4 للمجتمع:4	forms:50 clitic:14
+حُكْم	masdar	1439	حَكَمَ	to rule, judge	62	92	0	92	62	0	0			1439	lemma	known	321.1	147	174	الحكم:35 حكم:12 بحكم:11 حكمه:4	lemma:52 clitic:34 generated:6
+بَيْد	masdar	855	بَادَ	to perish	62	62	62	0	0	0	0			855	forms	known	70.7	493	76	بيد:26 بيده:17 بيدها:6 بَيْدَ:5	forms:35 clitic:27
+اِخْتِلَاف	masdar	3096	اِخْتَلَفَ	to differ, disagree	59	59	59	0	0	0	13			3096	forms	known	2.0	251	122	اختلاف:10 باختلاف:10 اختلافًا:10 الاختلاف:10	forms:36 clitic:23
+حُصُول	masdar	3059	حَصَلَ	to happen	58	58	58	0	0	0	0			3059	forms	known	1.5	168	155	الحصول:30 للحصول:11 لِلْحُصُولِ:2 بالحصول:2	forms:35 clitic:23
+مُرَاجَعَة	masdar	2534	رَاجَعَ	to review	54	54	54	0	0	0	0			2534	forms	known	1.3	600	64	مراجعة:52 المراجعة:1 المُراجِعة:1	forms:54
+غَالِب	active_participle	2582	غَلَب	to defeat	53	53	53	0	0	0	10			2582	forms	suspended	0.2	260	120	غالبًا:28 غالب:10 وغالبًا:7 الغالب:5	forms:43 clitic:10
+مُحَاوَلَة	masdar	2772	حَاوَلَ	to try	52	52	52	0	0	0	0			2772	forms	known	88.2	116	197	محاولة:28 المحاولة:7 ومحاولة:5 محاولةُ:2	forms:41 clitic:11
+مَوْجُود	passive_participle	2073	وَجَدَ	to find	50	50	50	0	0	0	56			2073	forms	known	126.9	27	365	الموجود:20 موجودًا:13 موجود:11 مَوْجُودًا:2	forms:48 clitic:2
+مُسْتَوًى	passive_participle	2899	استَوَى	leveled	50	50	50	0	0	0	18			2899	forms	known	11.4	687	57	مستوى:29 المستوى:10 بمستوى:3 مستوًى:3	forms:43 clitic:7
+إِعَادَة	masdar	2200	أَعَادَ	to repeat	49	52	49	3	0	0	0			2200	forms	known	1.8	340	101	إعادة:25 وإعادة:8 بإعادة:8 لإعادة:4	forms:29 clitic:23
+إِحْدَاث	masdar	2170	أَحْدَث	to happen	49	49	49	0	0	46	0			2170	forms	known	84.8	181	147	الأحداث:28 أحداث:13 إحداث:3 أحداثًا:2	forms:49
+تَعْرِيف	masdar	1608	عَرَّفَ	to introduce; to define; to make known	46	46	46	0	0	0	9			1608	forms	known	305.4	527	71	تعريف:16 التعريف:16 تعريفٍ:3 تعريفها:3	forms:36 clitic:10
+تَطَوُّر	masdar	2977	تَطَوَّرَ	to develop, evolve	45	88	0	88	45	0	0			2977	lemma	known	3.0	211	134	التطور:31 تطور:15 تطوره:4 وتطوره:4	lemma:57 clitic:28 generated:3
+خِدْمَة	masdar	2738	خَدَم	to serve	45	46	41	5	4	0	29			2738	forms	known	3.7	469	79	خدمة:23 الخدمة:10 لخدمة:3 وخدمة:2	forms:34 clitic:12
+مَزِيد	passive_participle	2563	زَادَ	to increase	45	45	45	0	0	0	2			2563	forms	known	84.0	113	198	المزيد:16 مزيد:8 مزيدًا:6 بمزيد:3	forms:35 clitic:10
+تَقْدِيمٌ	masdar	3081	قَدَّمَ	to submit, to present	45	45	45	0	0	0	1			3081	forms	known	166.8	445	83	تقديم:27 وتقديم:5 تقديمها:3 لتقديم:3	forms:29 clitic:16
+قَارِئ	active_participle	398	قَرَأَ	to read	44	44	44	0	0	0	25			398	forms	known	606.9	192	141	القارئ:31 قارئ:5 للقارئ:3 لقارئه:1	forms:39 clitic:5
+ٱِنْتِبَاه	masdar	3827	ٱِنْتَبَه	to pay attention; to wake up	43	43	43	0	0	0	2			3827	forms	suspended	0.3	689	57	انتباه:11 الانتباه:11 للانتباه:3 انتباهًا:2	forms:28 clitic:15
+انْتِشَار	masdar	3456	اِنْتَشَرَ	spread, dispersed	43	43	43	0	0	0	0			3456	forms	known	7.0	482	77	انتشار:14 الانتشار:8 وانتشار:5 انتشارها:5	forms:25 clitic:18
+زِيَادَة	masdar	2563	زَادَ	to increase	42	42	42	0	0	0	0			2563	forms	known	84.0	113	198	زيادة:21 وزيادة:9 الزيادة:5 بزيادة:1	forms:29 clitic:13
+إِجَابَة	masdar	2217	أَجَابَ	to answer	41	57	40	17	1	12	14			2217	forms	known	433.6	70	257	الإجابة:20 إجابة:9 فأجابتها:3 أجابتها:3	forms:34 clitic:23
+ذَهَاب	masdar	494	ذَهَبَ	to go	41	41	41	0	0	0	5			494	forms	known	175.1	80	238	الذهاب:22 بالذهاب:3 الذَّهاب:2 الذَّهَابُ:2	forms:32 clitic:9
+سَائِل	active_participle	391	سَأَلَ	to ask	41	41	41	0	0	0	2			391	forms	known	202.6	74	252	السائل:14 وسائل:14 سائل:6 سَائِلًا:2	forms:24 clitic:17
+بَدْء	masdar	402	بَدَأَ	to start	40	40	40	0	0	0	1			402	forms	known	146.9	47	294	البدء:12 بدء:11 بدءًا:9 بَدْءًا:2	forms:36 clitic:4
+ٱِسْتِمْرَار	masdar	2088	اِسْتَمَرّ	to continue	40	40	40	0	0	0	0			2088	forms	known	483.3	283	113	باستمرار:19 استمرار:6 الاستمرار:5 واستمرار:3	clitic:28 forms:12
+تَقْدِير	masdar	2781	قَدَّرَ	to appreciate	39	39	39	0	0	0	9			2781	forms	known	2.6	171	153	تقدير:14 وتقدير:7 تقديرًا:4 التقدير:3	forms:23 clitic:16
+دُخُول	masdar	407	دَخَلَ	to enter	39	39	39	0	0	0	4			407	forms	known	449.8	83	230	بدخول:9 دخول:6 دخولها:5 الدخول:5	clitic:26 forms:13
+اِمْتِدَاد	masdar	3116	اِمْتَدَّ	to extend	39	39	39	0	0	0	2			3116	forms	known	2.8	404	90	امتداد:25 الامتداد:3 امتداده:2 امتدادًا:2	forms:31 clitic:8
+سُلُوك	masdar	1056	سَلَكَ	to follow, travel	39	39	39	0	0	0	1			1056	forms	known	2.5	590	65	السلوك:10 سلوك:9 سلوكنا:5 سلوكها:3	forms:22 clitic:17
+قِيَام	masdar	2180	قَامَ	to perform	39	39	39	0	0	0	1			2180	forms	known	65.7	65	261	القيام:17 للقيام:5 والقيام:4 قيام:3	forms:25 clitic:14
+اِخْتِيَار	masdar	1273	اخْتَارَ	to choose	37	37	37	0	0	0	3			1273	forms	known	71.9	381	94	اختيار:18 الاختيار:7 اختياره:2 اختيارها:2	forms:27 clitic:10
+مَعْرُوف	passive_participle	389	عَرَفَ	to know	35	35	35	0	0	0	31			389	forms	known	169.2	6	565	المعروف:15 معروفًا:7 معروف:7 والمعروف:3	forms:29 clitic:6
+شَبَاب	masdar	876	شَبَّ	to become a young adult, to grow up	35	35	35	0	0	0	0			876	forms	known	4.7	110	202	الشباب:17 شبابه:5 شباب:4 شبابها:2	forms:22 clitic:13
+أَمَل / آمِل	masdar+active_participle	637	أَمَلَ	to hope for	34	76	0	76	34	0	0			637	lemma	known	1.6	134	184	أمل:19 الأمل:18 أملك:5 أملًا:5	lemma:51 clitic:19 generated:6
+اتِّجَاه	masdar	3289	اتَّجَه	to head	34	34	34	0	0	0	15			3289	forms	known	5.8	594	65	الاتجاه:11 اتجاه:7 باتجاه:6 اتجاهٍ:3	forms:25 clitic:9
+فَارّ	active_participle	3768	فَرّ	to flee	34	34	34	0	0	0	0	#1813 فَأْر [noun] mouse		1813	lemma	known	2.1	756	53	اَلْفارُ:6 الْفارَ:5 اَلْفَارُ:4 الْفَارِ:3	forms:32 clitic:2
+هَدْف	masdar	1025	هَدَفَ	to aim, target	33	48	0	48	33	0	0			1025	lemma	known	33.3	451	81	الهدف:20 هدف:8 بهدف:5 هدفًا:4	lemma:29 clitic:15 generated:4
+حُلْم	masdar	1268	حَلَمَ	to dream	32	48	0	48	32	0	0			1268	lemma	known	31.2	300	109	الحلم:14 حلمًا:7 حلم:6 الحُلْمِ:3	lemma:32 generated:8 clitic:8
+خَاتِمٌ	active_participle	2836	خَتَمَ	to seal, to finish	32	32	32	0	0	0	3			2836	forms	known	4.9	1118	36	الخاتم:12 الْخَاتَمِ:6 خاتمًا:4 الْخَاتَمَ:4	forms:31 clitic:1
+يَقِين	masdar	2830	أَيْقَنَ	to be certain	32	32	32	0	0	0	2			2830	forms	lapsed	0.2	1157	35	يقين:11 اليقين:11 يقينًا:3 بيقين:3	forms:28 clitic:4
+مُقَارَنَة	masdar	2606	قارَن	to compare	32	32	32	0	0	0	0			2606	forms	known	1.4	1033	39	مقارنةً:10 المقارنة:7 مقارنة:5 بالمقارنة:3	forms:23 clitic:9
+خَطَر	masdar	2628	خَطَر	to occur	31	52	0	52	31	0	0			2628	lemma	lapsed	0.3	341	101	خطر:14 الخطر:8 خطرًا:5 للخطر:4	lemma:29 clitic:18 generated:5
+عَجَب	masdar	712	عَجِبَ	to wonder, marvel	31	47	0	47	31	0	0			712	lemma	known	2.1	523	72	عجب:12 عجبًا:8 العجب:6 عَجَبًا:3	lemma:25 generated:13 clitic:9
+مُمَنٍّ	active_participle	1104	مَنَّى	to arouse desire	31	31	31	0	0	0	0			1104	forms	known	5.8	1028	39	ممن:25 ممَّن:5 مِمَّنْ:1	forms:31
+مُطْلِق / مُطْلَق	active_participle+passive_participle	3273	أَطْلَقَ	to release	31	31	31	0	0	0	0			3273	forms	suspended		228	130	مطلقًا:18 المطلق:8 مطلق:2 مُطلَق:1	forms:31
+مُوَاجَهَة	masdar	3600	وَاجَهَ	to face	30	30	30	0	0	0	0			3600	forms	known	332.4	631	62	مواجهة:18 لمواجهة:6 ومواجهة:1 ومواجهته:1	forms:19 clitic:11
+ضَحِك	masdar	4025	ضَحِكَ	to laugh	29	47	0	47	29	0	0			4025	lemma	known	278.8	354	99	الضحك:21 ضحك:13 فضحك:4 ضحكًا:2	lemma:35 clitic:10 generated:2
+صَبْر	masdar	858	صَبَرَ	to be patient	29	37	0	37	29	0	0			858	lemma	known	17.4	781	52	الصبر:10 صبرًا:5 بصبر:4 بالصبر:3	lemma:17 clitic:14 generated:6
+اِضْطِرَابٌ	masdar	3402	اِضْطَرَبَ	to be disturbed	29	29	29	0	0	0	14			3402	forms	known	8.6	768	52	الاضطراب:8 اضطراب:6 اضطرابًا:4 والاضطراب:3	forms:19 clitic:10
+عَادِل	active_participle	1043	عَدَلَ	to act justly	29	29	29	0	0	0	5			1043	forms	known	558.4	710	55	عادل:22 عادلًا:3 العادل:3 عادِلًا:1	forms:29
+تَقَدُّم	masdar	4863	تَقَدَّمَ	to apply for, sit (an exam); to advance, progress; to come forward; to submit	28	85	0	85	28	0	0			4863	lemma	acquiring		272	118	تقدم:26 التقدم:13 تقدُّمًا:6 التقدُّم:5	lemma:56 clitic:21 generated:8
+فَجْر	masdar	702	فَجَرَ	to cleave, to break up, to dig up	27	38	0	38	27	0	0			702	lemma	known	7.3	889	46	الفجر:20 فجر:10 للفجر:4 الْفَجْرُ:2	lemma:33 clitic:5
+سَلْعٌ	masdar	3779	سَلَعَ	to sell; to market	27	29	0	29	27	0	0			3779	lemma	encountered		1284	31	السلع:21 والسلع:2 بالسلع:1 سلعٌ:1	lemma:23 clitic:5 generated:1
+طَيَرَان	masdar	1428	طَارَ	to fly	27	27	27	0	0	0	1			1428	forms	known	207.2	371	96	الطيران:18 والطيران:3 للطيران:2 الطَّيَرانُ:1	forms:20 clitic:7
+قَادِم	active_participle	561	قَدَمَ	to precede	26	26	26	0	0	0	24			561	forms	known	4.1	88	223	القادم:8 قادمًا:6 قادم:6 قادمٌ:2	forms:25 clitic:1
+عَيْشٌ	masdar	2428	عَاشَ	to live	26	26	26	0	0	0	6			2428	forms	known	58.1	58	271	العيش:12 للعيش:4 عيش:2 عيشهم:2	forms:18 clitic:8
+مُقَام	passive_participle	2804	أَقَامَ	to reside, live, stay; to hold (an event); to set up	26	26	26	0	0	0	4			2804	forms	known	183.3	325	105	المقام:16 مقام:3 مقامه:2 ومقام:2	forms:21 clitic:5
+فَهْم	masdar	396	فَهِمَ	to understand	25	54	0	54	25	0	0			396	lemma	known	470.9	270	118	الفهم:19 لفهم:5 فهمه:5 فهمنا:5	clitic:25 lemma:22 generated:7
+ظَاهِر	active_participle+passive_participle	588	ظَهَرَ	to appear, seem	25	25	25	0	0	0	40			588	forms	known	82.5	39	323	الظاهر:11 ظاهرًا:5 ظاهر:3 والظاهر:2	forms:20 clitic:5
+فَرْد	masdar	2530	فَرَدَ	to spread/unfold	24	38	0	38	24	0	0			2530	lemma	known	67.6	303	109	الفرد:13 فرد:12 فردًا:4 فردٍ:3	lemma:31 generated:4 clitic:3
+مُمَارَسَة	masdar	625	مَارَسَ	to practice (to engage in)	24	24	24	0	0	0	21			625	forms	known	32.7	647	61	ممارسة:8 الممارسة:4 ممارستها:2 وممارسة:1	forms:15 clitic:9
+دَائِم	active_participle	942	دَامَ	to last, to endure	24	24	24	0	0	0	11			942	forms	known	6.5	457	81	الدائم:13 دائم:10 دَائِمٍ:1	forms:24
+تَرْكِيب	masdar	2125	رَكَّب	to ride	24	24	24	0	0	0	9			2125	forms	known	159.6	364	98	التركيب:5 تركيب:5 تركيبها:4 تركيبًا:2	forms:14 clitic:10
+مَحْمُول	passive_participle	2683	حَمَلَ	to carry; to bear; to load	24	24	24	0	0	0	9			2683	forms	known	77.8	72	254	المحمول:20 محمولًا:3 محمول:1	forms:24
+إِحْسَاس	masdar	2512	أَحَسَّ	to feel	24	24	24	0	0	0	3			2512	forms	known	7.7	592	65	الإحساس:7 إحساس:7 والإحساس:4 وإحساسًا:1	forms:14 clitic:10
+مُشَاهِد	active_participle	399	شاهَدَ	to watch	24	24	24	0	0	0	1			399	forms	known	285.0	310	107	مشاهد:11 المشاهد:7 بمشاهد:1 مُشاهَد:1	forms:20 clitic:4
+ضَرْب	masdar	3581	ضَرَب	strikes, sets	23	50	0	50	23	0	0			3581	lemma	known	5.7	374	96	ضرب:15 ضربًا:9 الضرب:8 ضربه:4	lemma:25 clitic:16 generated:9
+قَائِم	active_participle	2180	قَامَ	to perform	23	23	23	0	0	0	63			2180	forms	known	65.7	65	261	القائم:8 قائم:7 قائمًا:6 قائمٌ:1	forms:23
+اِتِّصَال	masdar	2499	اِتَّصَلَ	to contact	23	23	23	0	0	0	19			2499	forms	known	1.9	731	54	الاتصال:12 اتصال:4 والاتصال:2 واتصال:1	forms:17 clitic:6
+خُرُوج	masdar	2205	خَرَجَ	to exit	23	23	23	0	0	0	0			2205	forms	known	461.0	98	207	الخروج:8 خروج:8 لِلْخُرُوجِ:1 خروجهما:1	forms:17 clitic:6
+نَشْر	masdar	4803	نَشَرَ	to publish	22	67	0	67	22	0	0			4803	lemma	acquiring		248	123	نشر:21 النشر:12 نشرها:7 لنشر:4	lemma:36 clitic:31
+إِصَابَة	masdar	2569	أَصَابَ	to hit	22	39	22	17	0	5	2			2569	forms	known	13.1	202	137	إصابة:9 الإصابة:8 إصابتها:6 إصابته:4	clitic:22 forms:17
+سَحْب	masdar	2736	سَحَب	to pull	22	30	0	30	22	0	0			2736	lemma	known	21.4	941	43	السحب:10 السُّحب:5 سحب:4 وسحب:2	lemma:23 clitic:7
+إِدْرَاك	masdar	4261	أَدْرَكَ	to realize, grasp	22	22	22	0	0	2	4			4261	forms	known	2.8	332	104	إدراك:9 والإدراك:3 الإدراك:3 أدراك:2	forms:15 clitic:7
+مَسْعُود	passive_participle	2028	سَعِد	to be happy	22	22	22	0	0	0	0			2028	forms	known	12.4	235	127	مسعود:21 مسعودٍ:1	forms:22
+دَوَام	masdar	942	دَامَ	to last, to endure	22	22	22	0	0	0	0			942	forms	known	6.5	457	81	الدوام:18 الدَّوَامِ:1 دوام:1 دوامًا:1	forms:21 clitic:1
+اِكْتِئَابٌ	masdar	4469	اكْتَأَبَ	to be sorrowful	22	22	22	0	0	0	0			4469	forms	encountered		1623	24	الاكتئاب:15 والاكتئاب:2 اكتئابًا:1 واكتئاب:1	forms:17 clitic:5
+مُحَافَظَة	masdar	907	حَافَظَ	to preserve, maintain	22	22	22	0	0	0	0			907	forms	known	430.7	838	49	المُحافَظة:7 المُحَافَظَة:4 المحافظة:3 والمحافظة:2	forms:17 clitic:5
+خَلْق	masdar	2898	خَلَقَ	created	21	63	0	63	21	0	0			2898	lemma	known	292.1	154	167	خلق:21 الخلق:12 خلقه:7 لخلق:3	lemma:42 clitic:19 generated:2
+وَاقِف	active_participle	718	وَقَفَ	to come to a stop, to come to a standstill	21	24	5	19	16	1	6			718	forms	known	77.8	104	204	واقفًا:14 الواقف:4 واقف:2 وَاقِفًا:1	forms:23 clitic:1
+مَخْلُوق	passive_participle	2898	خَلَقَ	created	21	21	21	0	0	0	19			2898	forms	known	292.1	154	167	مخلوق:8 المخلوق:6 مخلوقٍ:3 لمخلوق:1	forms:19 clitic:2
+اعْتِقَاد	masdar	2250	اعْتَقَدَ	to believe / think	21	21	21	0	0	0	7			2250	forms	known	1.6	330	104	الاعتقاد:8 اعتقاد:5 اعتقادًا:2 اعتقادكم:1	forms:18 clitic:3
+حُدُوث	masdar	2551	حَدَثَ	to happen	21	21	21	0	0	0	0			2551	forms	known	93.7	140	178	حدوث:12 الحدوث:3 حدوثه:3 حدوثها:1	forms:16 clitic:5
+اِنْتِقَالٌ	masdar	2427	اِنْتَقَلَ	to move	21	21	21	0	0	0	0			2427	forms	known	1.9	544	70	انتقال:9 الانتقال:7 انتقاله:2 والانتقال:1	forms:16 clitic:5
+رَسْم	masdar	940	رَسَمَ	to draw, paint	20	36	0	36	20	0	0			940	lemma	known	200.4	306	109	الرسم:11 رسم:5 والرسم:3 رسمها:3	lemma:19 clitic:15 generated:2
+صَمْت	masdar	760	صَمَتَ	to be silent	20	33	0	33	20	0	0			760	lemma	known	1.8	903	45	صمت:9 الصمت:7 صمتٍ:5 بصمت:3	lemma:29 clitic:4
+سُقُوط	masdar	3522	سَقَطَ	to fall	20	20	20	0	0	0	0			3522	forms	known	153.5	353	99	سقوط:9 السقوط:4 للسقوط:3 السُّقُوطِ:1	forms:14 clitic:6
+اِعْتِمَاد	masdar	2706	اِعْتَمَد	to rely	20	20	20	0	0	0	0			2706	forms	lapsed	2.0	499	75	الاعتماد:7 والاعتماد:3 اعتمادًا:3 بالاعتماد:2	forms:10 clitic:10
+تَغَيُّرٌ	masdar	4358	تَغَيَّرَ	to change (intransitive)	19	57	0	57	19	0	0			4358	lemma	known	34.3	347	100	تغير:18 التغير:9 تغيُّر:6 تغيرًا:4	lemma:40 clitic:13 generated:4
+عَكْس	masdar	627	عَكَسَ	to reflect, reverse	19	33	0	33	19	0	0			627	lemma	known	4.0	723	55	عكس:13 العكس:11 بعكس:6 والعكس:1	lemma:25 clitic:8
+تَعَب	masdar	1404	تَعِبَ	to get tired	19	32	0	32	19	0	0			1404	lemma	known	16.6	1001	40	التعب:9 تعب:6 والتعب:3 التَّعَبُ:2	lemma:20 clitic:10 generated:2
+حِرْص	masdar	3478	حَرَصَ	to be keen, to strive	19	20	0	20	19	0	0			3478	lemma	suspended		1043	39	بحرص:6 الحرص:6 بحرصٍ:2 والحرص:2	clitic:12 lemma:7 generated:1
+تَامّ	active_participle	1360	تَمَّ	be completed	19	19	19	0	0	0	11			1360	forms	known	3.8	187	144	تام:6 تامًّا:5 تامٍّ:3 التام:2	forms:19
+وُقُوف	masdar	718	وَقَفَ	to come to a stop, to come to a standstill	19	19	19	0	0	0	1			718	forms	known	77.8	104	204	الوقوف:6 للوقوف:6 بالوقوف:2 والوقوف:1	clitic:10 forms:9
+بُلُوغ	masdar	3230	بَلَغَ	to reach	19	19	19	0	0	0	1			3230	forms	known	91.8	151	169	البلوغ:6 بُلُوغِ:2 بلوغ:2 بالبلوغ:1	forms:11 clitic:8
+رُجُوع	masdar	2245	رَجَعَ	to return	19	19	19	0	0	0	0			2245	forms	known	229.3	398	92	الرجوع:11 رجوعها:2 والرُّجوع:1 الرجوعَ:1	forms:14 clitic:5
+مُنَاسِب / مُنَاسَب	active_participle+passive_participle	2393	نَاسَبَ	to suit	19	19	19	0	0	0	0			2393	forms	known	3.5	1008	40	المناسب:8 مناسب:6 مناسبًا:4 مناسبٍ:1	forms:19
+دَمّ	masdar	559	دَمَّ	to coat, to smear	18	27	0	27	18	0	0			559	lemma	known	21.5	538	71	الدم:15 دم:6 كالدم:2 ودم:1	lemma:21 clitic:6
+كَثْرَة	masdar	3110	كَثُرَ	to increase	18	21	18	3	0	0	0	#2561 كَثْرَة [noun] abundance		2561	lemma	known	346.7	896	45	بكثرة:7 وكثرة:6 لكثرة:4 كثرتها:2	clitic:21
+حَانٍ	active_participle	1182	حَنَا	to bend, to curve	18	18	18	0	0	0	17			1182	forms	known	62.5	1145	35	حان:7 الألحان:5 حَانَ:3 ألحان:1	forms:17 clitic:1
+مَسْرُور	passive_participle	845	سَرَّ	to gladden, delight	18	18	18	0	0	0	4			845	forms	known	5.1	305	109	مسرور:14 مسرورًا:2 مَسْرُورٌ:1 مسرورٌ:1	forms:18
+تَسْمِيَة	masdar	501	سَمَّى	to name	18	18	18	0	0	0	0			501	forms	learning	8.3	214	133	تسمية:8 تسميته:5 التسمية:4 تسميتها:1	forms:12 clitic:6
+إِعْلَام	masdar	714	أَعْلَمَ	to inform, notify	18	18	18	0	0	9	0			714	forms	known	21.9	282	114	الإعلام:8 أعلام:3 الأعلام:2 بالْأَعْلامِ:1	forms:13 clitic:5
+اقْتِرَاب	masdar	3221	اقْتَرَبَ	to approach	18	18	18	0	0	0	0			3221	forms	known	131.9	481	77	الاقتراب:7 اقتراب:4 الِاقْتِرَابِ:2 باقتراب:2	forms:13 clitic:5
+إِبَاء	masdar	4769	أَبَى	to refuse, be unwilling	17	17	17	0	0	15	7			4769	forms	known	2.3	95	209	الآباء:10 والآباء:2 إباء:1 الْإبَاءُ:1	forms:13 clitic:4
+اِبْتِسَامَة	masdar	2535	اِبْتَسَمَ	to smile	17	17	17	0	0	0	1			2535	forms	known	195.5	747	53	ابتسامة:9 ابتسامةً:2 ابْتِسامَةٌ:1 ابتسامةٌ:1	forms:16 clitic:1
+زَوَالٌ	masdar	2576	زَالَ	to cease, disappear; (with negation) to still be, keep on	17	17	17	0	0	0	1			2576	forms	known	4.2	111	200	زوال:7 الزوال:3 وزوال:2 زوالًا:1	forms:11 clitic:6
+وُقُوع	masdar	1743	وَقَعَ	to fall; to be located	17	17	17	0	0	0	0			1743	forms	known	9.8	64	262	وقوع:7 الوقوع:2 للوقوع:2 الْوُقُوعِ:1	forms:10 clitic:7
+لَفْظ	masdar	3846	لَفَظ	to utter	16	32	0	32	16	0	0			3846	lemma	learning	9.0	464	80	لفظ:14 اللفظ:5 لفظًا:4 بلفظ:4	lemma:22 clitic:6 generated:4
+تَوَجُّه	masdar	2179	تَوَجَّه	to head	16	25	0	25	16	0	0			2179	lemma	known	87.4	880	46	التوجه:13 توجه:5 التَّوَجُّهِ:1 بالتوجه:1	lemma:21 clitic:4
+عَمَل	masdar	4882	عَمِلَ	to work; to do	16	22	0	22	16	0	0	#272 عَمَل [noun] work; action, deed		272	lemma	known	527.0	176	149	عملًا:14 عملنا:4 عَمَلًا:2 عَمِلَ:1	generated:20 lemma:2
+سَيْطَرَةٌ	masdar	4756	سَيْطَرَ	to control, dominate, take over	16	18	16	2	0	0	0			4756	forms	encountered		991	41	السيطرة:9 للسيطرة:3 سيطرة:3 سيطرتهم:2	forms:12 clitic:6
+إِثَارَة	masdar	4999	يُثِيرُ	arouse	16	17	16	1	0	1	0			4999	forms	acquiring		392	93	إثارة:7 الإثارة:3 الْإِثَارَةِ:2 وَإِثَارَةِ:1	forms:14 clitic:3
+مُسْتَمِرّ / مُسْتَمَرّ	active_participle+passive_participle	2088	اِسْتَمَرّ	to continue	16	16	16	0	0	0	12			2088	forms	known	483.3	283	113	المستمر:10 مستمر:2 مستمرًّا:2 ومستمرًّا:1	forms:15 clitic:1
+صَانِع	active_participle	2596	صَنَعَ	to make; to manufacture	16	16	16	0	0	0	8			2596	forms	known	4.0	226	130	صانع:10 الصانع:2 صَانِعٌ:1 لصانع:1	forms:14 clitic:2
+مَقْصُود	passive_participle	3559	قَصَد	to intend	16	16	16	0	0	0	4			3559	forms	suspended	0.1	586	66	المقصود:9 مقصودًا:2 مقصود:2 والمقصود:1	forms:15 clitic:1
+ضَاحِك	active_participle	4025	ضَحِكَ	to laugh	16	16	16	0	0	0	4			4025	forms	known	278.8	354	99	ضاحكًا:5 الضَّاحِكِ:4 ضَاحِكًا:2 الضاحك:2	forms:16
+حَاجّ	active_participle	883	حَجَّ	to pilgrimage	16	16	16	0	0	0	3			883	forms	known	335.9	1753	22	الحاج:13 بالحاج:1 حاج:1 للحاج:1	forms:14 clitic:2
+تَرْتِيبٌ	masdar	3092	رَتَّبَ	to arrange, organize	16	16	16	0	0	0	2			3092	forms	known	100.3	1160	35	ترتيب:10 الترتيب:2 ترتيبها:1 وترتيبها:1	forms:13 clitic:3
+دُعَاء	masdar	1033	دَعَا	to call	16	16	16	0	0	0	2			1033	forms	lapsed	5.9	132	185	دعاء:10 الدعاء:3 ودعاء:1 دعاءه:1	forms:14 clitic:2
+اِنْطِلَاق	masdar	2146	اِنْطَلَق	to set off	16	16	16	0	0	0	1			2146	forms	known	26.9	562	68	انطلاق:5 انطلاقًا:3 وانطلاق:2 الانطلاق:2	forms:10 clitic:6
+ٱِرْتِبَاط	masdar	2702	اِرْتَبَط	to be connected	16	16	16	0	0	0	0			2702	forms	suspended	0.2	980	41	ارتباطًا:7 ارتباط:3 الارتباط:3 ارتباطِ:1	forms:14 clitic:2
+قِيَادَة	masdar	3556	قَادَ	to lead; guide	16	16	16	0	0	0	0			3556	forms	known	1.8	602	64	قيادة:6 القيادة:6 بقيادة:2 والقيادة:1	forms:12 clitic:4
+حَمْل	masdar	2683	حَمَلَ	to carry; to bear; to load	15	59	0	59	15	0	0		#4858 حَمَلَ -> #2683	2683	lemma	known	77.8	72	254	حمل:9 حملها:5 حمله:4 حَمَلَ:4	clitic:32 lemma:22 generated:5
+تَحَوُّل	masdar	1009	تَحَوَّلَ	to transform, change	15	42	0	42	15	0	0			1009	lemma	known	38.1	440	83	تحوَّل:8 تحول:7 التحول:5 التحوُّل:4	lemma:26 clitic:11 generated:5
+رَبّ	masdar	968	رَبَّ	to be master, to be lord	15	31	0	31	15	0	0			968	lemma	known	345.7	518	73	الرب:10 رب:7 ربنا:3 بالرَّبِّ:2	lemma:19 clitic:12
+عَدْل	masdar	1043	عَدَلَ	to act justly	15	19	0	19	15	0	0			1043	lemma	known	558.4	710	55	العدل:7 والعدل:4 عدلًا:2 عدَّل:2	lemma:12 clitic:5 generated:2
+خِبْرَة	masdar	975	خَبَرَ	to try, to test	15	18	15	3	0	0	7			975	forms	known	8.3	540	71	خبرة:5 والخبرة:4 الخبرة:3 الْخِبْرَةِ:1	forms:9 clitic:9
+تَخَلُّصٌ	masdar	4360	تَخَلَّصَ	to get rid of, free oneself (من: of)	15	16	0	16	15	0	0			4360	lemma	known	304.4	1335	30	التخلص:9 للتخلُّص:1 وَالتَّخَلُّصُ:1 للتخلص:1	lemma:10 clitic:6
+مُسَمًّى	passive_participle	501	سَمَّى	to name	15	15	15	0	0	0	9			501	forms	learning	8.3	214	133	المسمى:7 المسمَّى:5 مسمى:1 المُسَمَّى:1	forms:14 clitic:1
+مُسْتَهْلِك / مُسْتَهْلَك	active_participle+passive_participle	4338	اِسْتَهْلَكَ	to consume, use up	15	15	15	0	0	0	8			4338	forms	known	60.2	1862	20	المستهلِك:6 مستهلك:2 المستهلك:2 كمستهلك:1	forms:11 clitic:4
+رَجَاء	masdar	2127	رَجا	to hope	15	15	15	0	0	0	7			2127	forms	known	79.4	610	63	الرجاء:4 رجاء:3 رَجاءَ:3 الرَّجَاءُ:1	forms:15
+مُشَاهَدَة	masdar	399	شاهَدَ	to watch	15	15	15	0	0	0	0	#4953 مُشَاهَدَة [noun] watching, observation		4953	lemma	known	285.0	310	107	لمشاهدة:3 مشاهدتها:3 ومشاهدة:2 بمشاهدة:2	clitic:15
+اتِّخَاذ	masdar	3521	اتَّخَذَ	to take; to adopt	15	15	15	0	0	0	0			3521	forms	suspended		556	69	اتخاذ:9 واتخاذ:3 واتخاذه:1 باتخاذ:1	forms:9 clitic:6
+إِرْسَالٌ	masdar	2278	أَرْسَلَ	to send	15	15	15	0	0	0	0			2278	forms	known	441.5	442	83	إرسال:9 لإرسال:3 بإرسال:1 الإرسال:1	forms:10 clitic:5
+عَالِم	active_participle	722	عَلِمَ	to know	15	15	15	0	0	0	0	#723 عَالَمٌ [noun] world		723	lemma	known	55.1	11	497	عالِم:8 العالِم:5 كعالِم:1 وعالِم:1	forms:13 clitic:2
+ذِكْر	masdar	572	ذَكَرَ	to mention	14	86	0	86	14	0	0			572	lemma	known	44.2	131	186	ذكر:29 ذكره:13 ذكرها:9 الذكر:4	lemma:43 clitic:37 generated:6
+طَلَب	masdar	620	طَلَبَ	to request, ask	14	65	0	65	14	0	0			620	lemma	known	386.0	175	152	طلب:26 وطلب:7 فطلب:5 طلبًا:5	lemma:32 clitic:28 generated:5
+رَدّ	masdar	2431	رَدَّ	to reply; to return	14	53	0	53	14	0	0			2431	lemma	known	316.4	301	109	رد:28 الرد:7 ردَّ:4 رَدَّ:3	lemma:49 clitic:4
+حَادِث	active_participle	2551	حَدَثَ	to happen	14	14	14	0	0	0	33			2551	forms	known	93.7	140	178	حادث:6 الحادث:5 حادثًا:1 لحادث:1	forms:12 clitic:2
+عِبَادَة	masdar	3927	عَبَدَ	to worship	14	14	14	0	0	0	2			3927	forms	known	1.7	1067	38	عبادة:6 العبادة:5 عِبادَته:1 وعبادة:1	forms:11 clitic:3
+تَرْكِيزٌ	masdar	2559	رَكَّزَ	to focus	14	14	14	0	0	0	1			2559	forms	known	63.3	1112	36	التركيز:6 تركيز:4 والتركيز:2 التركيزُ:1	forms:11 clitic:3
+بَرَكَة	masdar	2417	يُبَارِك	to bless	14	14	14	0	0	0	1			2417	forms	known	461.7	1898	19	الْبِرْكَةَ:3 بركة:3 وَالْبِرْكَةَ:1 بِالْبِرْكَةِ:1	forms:10 clitic:4
+سِعَة	masdar	3930	وَسِعَ	to widen; to expand	14	14	14	0	0	0	0			3930	forms	known	66.4	484	77	سعة:4 وسعة:3 وسَعة:1 والسِّعة:1	clitic:8 forms:6
+عَنَاء	masdar	2670	عانَى	to suffer	14	14	14	0	0	0	0			2670	forms	known	1.1	675	58	عناء:6 العناء:3 عَنَاءٍ:2 عَنَاءِ:1	forms:14
+ٱِنْقِطَاع	masdar	3856	ٱِنْقَطَع	to be interrupted	14	14	14	0	0	0	0			3856	forms	suspended	2.3	1618	24	انقطاع:7 الانقطاع:4 لانقطاعهم:1 انقطاعًا:1	forms:12 clitic:2
+بَاكٍ	active_participle	4298	بَكَى	to cry, weep	14	14	14	0	0	0	0			4298	forms	known	123.6	658	60	باك:11 باكُ:1 باكَ:1 باكِ:1	forms:14
+فَتْح	masdar	397	فَتَحَ	to open	13	59	0	59	13	0	0			397	lemma	known	478.8	184	146	فتح:22 وفتح:7 بفتح:6 الفتح:6	lemma:32 clitic:27
+لَعِب	masdar	1244	لَعِبَ	to play	13	26	0	26	13	0	0			1244	lemma	known	361.4	495	75	اللعب:9 لعب:5 لعبهم:2 للعب:2	lemma:17 clitic:8 generated:1
+مَجْد	masdar	4619	مَجَدَ	to glorify	13	20	0	20	13	0	0			4619	lemma	encountered		1205	34	المجد:8 مجدها:2 ومجد:2 مجد:2	lemma:12 clitic:7 generated:1
+كَافّ	active_participle	1354	كَفَّ	desist, cease	13	13	13	0	0	0	29			1354	forms	known	305.4	608	63	كافٍ:6 كاف:4 كَافٍ:2 الكاف:1	forms:13
+مُرَكِّب	active_participle	2125	رَكَّب	to ride	13	13	13	0	0	0	22			2125	forms	known	159.6	364	98	المركب:6 مركب:2 المركَّب:1 المركَّبُ:1	forms:12 clitic:1
+مُقَدِّسٌ / مُقَدَّسٌ	active_participle+passive_participle	3149	قَدَّس	sanctified; hallowed; honored	13	13	13	0	0	0	12			3149	forms	known	18.0	1664	23	المقدس:8 الْمُقَدَّسِ:1 المقدسِ:1 مقدَّسًا:1	forms:13
+شَرِيف	active_participle	485	شَرُفَ	to be noble	13	13	13	0	0	0	9			485	forms	known	61.5	738	54	الشريف:8 شريف:3 بشريف:1 وشريف:1	forms:11 clitic:2
+مَاسّ	active_participle	1016	مَسَّ	to feel, to touch	13	13	13	0	0	0	4			1016	forms	known	3.2	971	41	الألماس:4 الماس:4 بالماس:2 وَالْمَاسِ:1	forms:8 clitic:5
+مَاهِر	active_participle	1050	َمَهَرَ	to settle a dowry for (one's wife, etc.)	13	13	13	0	0	0	3			1050	forms	known	2.6	1181	34	ماهر:9 الماهر:2 ماهرًا:2	forms:13
+خَاطِر	active_participle	2628	خَطَر	to occur	13	13	13	0	0	0	3			2628	forms	lapsed	0.3	341	101	خاطر:3 خاطرك:3 الخاطر:3 لخاطرهم:1	forms:7 clitic:6
+مُؤَكِّدٌ / مُؤَكَّدٌ	active_participle+passive_participle	3385	أكّد	to confirm	13	13	13	0	0	0	2			3385	forms	known	81.0	829	49	المؤكد:10 المؤكَّد:2 مؤكَّدٍ:1	forms:13
+إِطْلَاع	masdar	3636	أَطْلَعَ	to inform	13	13	13	0	0	13	2			3636	forms	encountered		918	44	الاطلاع:5 اطِّلاع:3 بالاطِّلاع:1 والاطلاع:1	forms:10 clitic:3
+تَوَفِّي	masdar	3046	تَوَفَّى	to die	13	13	13	0	0	0	0			3046	lemma	known	530.7	1548	25	توفي:4 تُوفِّي:3 وتوفي:3 فتوفي:1	lemma:8 clitic:5
+خَالِق	active_participle	2898	خَلَقَ	created	13	13	13	0	0	0	0			2898	forms	known	292.1	154	167	الخالق:8 خالق:3 بخالق:1 وخالقها:1	forms:11 clitic:2
+اسْتِقْرَار	masdar	3035	اسْتَقَرَّ	settled	13	13	13	0	0	0	0			3035	forms	known	36.4	983	41	الاستقرار:8 استقرار:3 استقرارها:1 والاستقرار:1	forms:11 clitic:2
+خُضُوع	masdar	3847	خَضَع	to undergo (surgery, etc.); to submit, yield	13	13	13	0	0	0	0			3847	forms	acquiring		814	50	الخضوع:5 والخضوع:2 خضوع:2 وخضوعهم:1	forms:8 clitic:5
+نَوْم	masdar	387	نَامَ	to sleep	13	13	13	0	0	0	0	#1024 نَوَّمَ [verb] to put to sleep		1024	lemma	known	150.8	545	70	النَّوْمِ:4 نَوْمِكَ:2 نَوْمِهِ:2 النَّوْمُ:2	forms:7 clitic:6
+سَمْع	masdar	392	سَمِعَ	to hear	12	77	0	77	12	0	0			392	lemma	known	384.4	59	267	سمع:31 سمعه:10 وسمع:6 سَمِعَ:5	lemma:41 clitic:28 generated:8
+تَرَدُّد	masdar	4337	تَرَدَّدَ	to hesitate; to echo, resound	12	20	0	20	12	0	0			4337	lemma	suspended		1019	40	تردد:4 التردد:4 ترددٍ:3 تَردَّد:1	lemma:16 clitic:4
+رَحْمَة	masdar	1067	رَحِمَ	to have mercy	12	16	12	4	0	0	0			1067	forms	known	338.2	1143	35	رحمة:4 رحمته:3 رَحْمَةً:2 ورحمة:2	forms:8 clitic:8
+مَعْلُومٌ	passive_participle	722	عَلِمَ	to know	12	12	12	0	0	0	9			722	forms	known	55.1	11	497	المعلوم:9 معلوم:2 معلومًا:1	forms:12
+مَارِد	active_participle	595	مَرَدَ	to rebel	12	12	12	0	0	0	1			595	forms	encountered		1808	21	المارد:8 والمارد:1 ماردًا:1 ماردٍ:1	forms:11 clitic:1
+إِزْعَاج	masdar	2169	أَزْعَج	to disturb	12	12	12	0	0	0	1			2169	forms	known	344.5	1454	27	الإزعاج:3 إزعاج:3 والإزعاج:2 إزعاجه:1	forms:7 clitic:5
+إِنْفَاق	masdar	2827	أَنْفَقَ	to spend, to expend	12	12	12	0	0	5	1			2827	forms	known	17.2	1256	32	للإنفاق:2 الأنفاق:2 إنفاق:2 أنفاقٍ:1	clitic:6 forms:6
+مُصَادَفَة	masdar	2748	صَادَفَ	to encounter	12	12	12	0	0	0	1			2748	forms	known	4.2	1457	27	مصادفةً:4 مصادفة:3 المصادفة:2 لَمُصادفة:1	forms:9 clitic:3
+جَلَال	masdar	3908	جَلّ	to be great; to rise	12	12	12	0	0	0	1			3908	forms	encountered		656	60	جلال:3 جلاله:2 وجلالٍ:1 وجلال:1	clitic:7 forms:5
+ازْدِهَار	masdar	4570	اِزْدَهَرَ	to flourish; blossom	12	12	12	0	0	0	0			4570	forms	suspended	0.1	1236	33	الازدهار:5 ازدهاره:1 ازدهارها:1 لازدهار:1	forms:7 clitic:5
+مُشْتَرٍ	active_participle	400	اِشْتَرَى	to buy	12	12	12	0	0	0	0			400	forms	known	390.1	489	76	مشترك:5 المشترك:4 مشتركًا:2 المُشترَك:1	clitic:12
+سَانٍ	active_participle	938	سَنَا	to irrigate, to water	12	12	12	0	0	0	0			938	forms	known	8.3	1026	40	سان:10 وسان:2	forms:10 clitic:2
+إِتْقَان	masdar	4279	أَتْقَنَ	to master, perfect	12	12	12	0	0	0	0			4279	forms	suspended		1683	23	إتقان:4 وَالْإِتْقَانِ:2 وإتقانًا:1 إتقانًا:1	clitic:6 forms:6
+دَلَالَة	masdar	750	دَلَّ	to guide, indicate	12	12	12	0	0	0	0			750	forms	suspended	0.2	546	70	دلالة:7 الدلالة:3 الدِّلالة:1 للدلالة:1	forms:11 clitic:1
+سَيْر	masdar	4577	سَارَ	to walk; go	12	12	12	0	0	0	0			137	forms	encountered		91	217	السَّيْرِ:5 السَّيْرَ:3 السَّيْرُ:1 لِلسَّيْرِ:1	forms:10 clitic:2
+صُدُور	masdar	551	صَدَرَ	to issue, emerge	12	12	12	0	0	0	0			551	forms	known	44.5	281	114	صدورهم:5 الصدور:1 صدورنا:1 صدورهما:1	clitic:9 forms:3
+جَفَاف	masdar	4019	جَفّ	to dry	12	12	12	0	0	0	0			4019	forms	encountered		1561	25	جفاف:4 الجفاف:3 للجفاف:1 والجفاف:1	forms:8 clitic:4
+تَحَدُّث	masdar	2536	تَحَدَّثَ	to talk	11	49	0	49	11	0	0			2536	lemma	known	34.6	167	156	تحدث:21 التحدث:5 تحدَّث:4 تَحَدَّثَ:2	lemma:39 clitic:7 generated:3
+رَقْص	masdar	1203	رَقَصَ	to dance	11	12	0	12	11	0	0			1203	lemma	known	8.6	1711	22	الرقص:4 والرقص:4 بِالرَّقْصِ:1 ورقص:1	clitic:6 lemma:5 generated:1
+مَسْؤُول	passive_participle	391	سَأَلَ	to ask	11	11	11	0	0	0	26			391	forms	known	202.6	74	252	مسؤول:10 المسؤول:1	forms:11
+مُحِبّ / مُحَبّ	active_participle+passive_participle	394	أَحَبَّ	to like, love	11	11	11	0	0	0	18			394	forms	known	9.8	174	152	الْمُحِبُّ:3 محبًا:1 مُحِبٍّ:1 مُحِبَّهَا:1	forms:9 clitic:2
+مُرْتَفِع / مُرْتَفَع	active_participle+passive_participle	3526	ارْتَفَعَ	to rise; to increase	11	11	11	0	0	0	11			3526	forms	known	10.8	794	51	مرتفع:5 المرتفع:4 مُرْتَفِعٍ:1 مرتفعًا:1	forms:11
+مُسْتَعِد / مُسْتَعَد	active_participle+passive_participle	2724	اِسْتَعَدَّ	to prepare	11	11	11	0	0	0	8			2724	forms	known	2.6	1656	23	مستعد:4 مُسْتَعِدًّا:3 مُستعد:1 مستعدًّا:1	forms:11
+شَامِل	active_participle	2730	شَمِلَ	to include	11	11	11	0	0	0	7			2730	forms	known	2.0	806	50	شامل:5 شاملًا:5 الشامل:1	forms:11
+مُضْطَرِبٌ / مُضْطَرَبٌ	active_participle+passive_participle	3402	اِضْطَرَبَ	to be disturbed	11	11	11	0	0	0	7			3402	forms	known	8.6	768	52	مضطربًا:5 مضطرب:4 ومضطربه:1 المضطرب:1	forms:10 clitic:1
+نَاشِئ	active_participle	2425	نَشَأَ	to arise, originate; to grow up	11	11	11	0	0	0	5			2425	forms	lapsed	0.5	322	105	الناشئ:7 ناشئ:3 ناشئًا:1	forms:11
+مَجِيء / مَجِيءٌ	masdar+passive_participle	2027	جَاء	to come	11	11	11	0	0	0	2			2027	forms	known	375.7	155	164	مجيء:7 المجيء:2 الْمَجِيءِ:1 للمجيء:1	forms:10 clitic:1
+خُلُو	masdar	3099	خَلَا	to be empty	11	11	11	0	0	0	2			3099	forms	lapsed	0.2	915	44	خلوها:2 لخلوِّه:1 وخلوِّه:1 وخلو:1	clitic:7 forms:4
+مُقَاوَمَةٌ	masdar	2980	قَاوَمَ	to resist	11	11	11	0	0	0	1			2980	forms	known	10.7	1784	21	مقاومة:5 بمقاومة:2 ومقاومة:1 المقاومة:1	forms:7 clitic:4
+تَهْدِيد	masdar	3018	هَدَّدَ	to threaten	11	11	11	0	0	0	1			3018	forms	known	18.0	1459	27	التهديد:4 تهديد:3 تهديدًا:2 تهديدٌ:1	forms:10 clitic:1
+اعْتِرَافٌ	masdar	3022	اعْتَرَفَ	to confess	11	11	11	0	0	0	1			3022	forms	known	505.8	1415	28	اعترافًا:2 اعتراف:2 الِاعْتِرَافِ:1 الاعْتِرَافِ:1	forms:7 clitic:4
+إِنْبَاء	masdar	2912	أَنۢبَأَهُم	informed them	11	11	11	0	0	11	0			2912	forms	encountered		1905	19	الأنباء:6 أنباء:2 أَنْبَاءٌ:1 أنباءً:1	forms:10 clitic:1
+نُزُول	masdar	3569	نَزَلَ	to descend, come down (Form I)	11	11	11	0	0	0	0			3569	forms	known	20.6	557	69	نزول:3 النزول:2 نزولًا:2 للنزول:1	forms:8 clitic:3
+مُفْتَرِض / مُفْتَرَض	active_participle+passive_participle	4347	اِفْتَرَضَ	to assume, suppose	11	11	11	0	0	0	0			4347	forms	suspended	0.1	1072	38	المفترض:7 المفترَض:3 المُفترَض:1	forms:11
+فَوْز	masdar	3025	فَازَ	won	11	11	11	0	0	0	0			3025	forms	known	3.1	1416	28	الفوز:4 فوز:2 بِفَوْزِها:1 فوزه:1	forms:6 clitic:5
+مُغَادَرَة	masdar	2717	غَادَرَ	to leave	11	11	11	0	0	0	0			2717	forms	known	71.5	667	59	مغادرة:5 لمغادرة:3 مُغَادَرَةِ:1 لِمُغَادَرَةِ:1	forms:6 clitic:5
+تَرْكٌ	masdar	3148	تَرَك	left; abandoned	10	41	0	41	10	0	0			3148	lemma	known	1.4	183	146	ترك:10 فترك:3 الترك:3 تركه:3	lemma:21 clitic:19 generated:1
+تَصَوُّر	masdar	2149	تَصَوَّر	to imagine	10	29	0	29	10	0	0			2149	lemma	known	48.5	528	71	التصور:8 تصور:6 تصوُّر:3 تصوُّره:2	lemma:21 clitic:7 generated:1
+شَغْف	masdar	544	شَغَفَ	to infatuate, fascinate	10	16	0	16	10	0	0			544	lemma	suspended	0.2	2044	18	الشغف:7 شُغِفْنَا:1 شغفٍ:1 شَغفها:1	lemma:10 clitic:5 generated:1
+خَاضِع	active_participle	3847	خَضَع	to undergo (surgery, etc.); to submit, yield	10	10	10	0	0	0	8			3847	forms	acquiring		814	50	الخاضع:6 خاضع:3 خاضعًا:1	forms:10
+إِشْعَاع	masdar	2624	أَشَعّ	to radiate	10	10	10	0	0	0	4			2624	forms	known	280.5	913	44	الإشعاع:6 إشعاع:2 إشعاعها:1 للإشعاع:1	forms:8 clitic:2
+اِفْتِرَاض	masdar	4347	اِفْتَرَضَ	to assume, suppose	10	10	10	0	0	0	4			4347	forms	suspended	0.1	1072	38	افتراض:7 الافتراض:2 افتراضِ:1	forms:10
+بَادِئ	active_participle	402	بَدَأَ	to start	10	10	10	0	0	0	1			402	forms	known	146.9	47	294	بادئ:8 بَادِئِ:2	forms:10
+مَنْظُورٌ	passive_participle	611	نَظَرَ	to look	10	10	10	0	0	0	1			611	forms	known	178.3	21	401	منظور:5 المنظور:2 لمنظور:1 منظورًا:1	forms:8 clitic:2
+تُلُوّ	masdar	650	تَلَا	to follow, walk behind another	10	10	10	0	0	0	1			650	forms	lapsed	0.9	852	48	تلو:7 تلوَ:2 تِلْوَ:1	forms:10
+مُتَوَفًّى	passive_participle	3046	تَوَفَّى	to die	10	10	10	0	0	0	1			3046	forms	known	530.7	1548	25	المتوفَّى:6 المتوفى:4	forms:10
+رِبْح	masdar	3573	رَبِح	profited	10	10	0	10	10	0	0			3573	lemma	suspended		1792	21	ربحًا:4 الربح:2 للربح:2 بربحٍ:1	clitic:4 generated:4 lemma:2
+مَرُوج	passive_participle	996	رَاجَ	to circulate, spread	10	10	10	0	0	0	0			996	forms	known	7.9	2047	18	المروج:6 والمروج:2 المروِّج:1 مروجه:1	forms:7 clitic:3
+مُوَافِقٌ / مُوَافَقٌ	active_participle+passive_participle	3023	وافَقَ	agreed	10	10	10	0	0	0	0			3023	forms	known	241.5	808	50	الموافق:4 موافقًا:2 مُوَافِقٌ:1 الْمُوَافِقِ:1	forms:10
+أَخْذ / آخِذ	masdar+active_participle	393	أَخَذَ	to take	9	124	0	124	9	0	7			393	lemma	known	211.9	46	297	أخذ:50 وأخذ:34 أَخَذَ:7 أخذنا:5	lemma:66 clitic:52 generated:6
+طَرْح	masdar	1035	طَرَحَ	to put forward, propose (ideas); to throw; to subtract	9	31	0	31	9	0	0			1035	lemma	known	1.4	856	47	طرح:13 الطرح:5 طُرح:2 فطرح:2	lemma:21 clitic:9 generated:1
+سَكَنٌ	masdar	1765	سَكَنَ	to live, reside	9	16	0	16	9	0	0			1765	lemma	known	480.8	974	41	السكن:5 سكنًا:3 سكنها:2 سكنه:2	lemma:8 clitic:5 generated:3
+إِرَادَة	masdar	390	أَرادَ	to want	9	14	9	5	0	2	2			390	forms	known	433.1	49	286	إرادة:3 الإرادة:3 أرادتها:2 بإرادة:2	clitic:8 forms:6
+سَرِقَة	masdar	2756	سَرَقَ	to steal	9	11	9	2	0	0	2			2756	forms	known	20.4	1612	24	السرقة:3 سَرِقَةِ:2 سرقة:2 وسرقتها:1	forms:7 clitic:3 generated:1
+إِضاءَة	masdar	2700	أَضاء	to illuminate	9	11	9	2	0	1	0			2700	forms	known	31.3	1277	31	إضاءة:4 الإضاءة:3 أضاءته:1 إضاءةً:1	forms:8 clitic:3
+لُطْف	masdar	1290	لَطُفَ	to be kind and friendly	9	11	0	11	9	0	0			1290	lemma	known	165.0	1981	18	بلطف:5 لطفك:1 ولطفًا:1 لطفًا:1	clitic:9 generated:1 lemma:1
+بَرْق	masdar	1066	بَرَقَ	to produce lightning	9	10	0	10	9	0	0			1066	lemma	known	1.2	1889	19	البرق:6 الْبَرْقِ:1 برق:1 والبرق:1	lemma:9 clitic:1
+بَاحِث	active_participle	957	بَحَثَ	to search	9	9	9	0	0	0	28			957	forms	known	106.2	62	264	باحثًا:3 الباحث:3 باحثٍ:1 والباحث:1	forms:8 clitic:1
+مُتَّصِل / مُتَّصَل	active_participle+passive_participle	2499	اِتَّصَلَ	to contact	9	9	9	0	0	0	14			2499	forms	known	1.9	731	54	متصلًا:4 مُتَّصِلًا:2 المتصل:1 متَّصلَ:1	forms:9
+ذَاهِب	active_participle	494	ذَهَبَ	to go	9	9	9	0	0	0	5			494	forms	known	175.1	80	238	ذاهب:6 ذاهبًا:2 ذَاهِبٌ:1	forms:9
+مُفَاجَأَة	masdar	3295	فُوجِئَ	to surprise	9	9	9	0	0	0	4			3295	forms	known	16.0	1317	30	مفاجأة:3 المفاجأة:2 مُفَاجَأَةٍ:1 مفاجأتها:1	forms:6 clitic:3
+مُخَطِّط / مُخَطَّط	active_participle+passive_participle	3831	خَطَّط	to plan	9	9	9	0	0	0	4			3831	forms	known	4.7	1468	27	مخطط:4 الْمُخَطَّطُ:2 مخطَّط:1 المخطِّط:1	forms:9
+سَادّ	active_participle	4399	سَدَّ	blocked, closed	9	9	9	0	0	0	4			4399	forms	encountered		1235	33	ساد:6 وساد:2 وَسَادَ:1	forms:6 clitic:3
+نَاشِر	active_participle	4803	نَشَرَ	to publish	9	9	9	0	0	0	3			4803	forms	acquiring		248	123	الناشر:6 ناشِرها:2 ناشر:1	forms:7 clitic:2
+خِدَاع	masdar	2839	خَادَعَ	to deceive, to trick	9	9	9	0	0	0	3			2839	forms	known	10.9	2387	14	خِدَاعٌ:2 وَخِدَاعِهِ:1 خِدَاعُهُ:1 الخداع:1	clitic:5 forms:4
+اِرْتِقَاء	masdar	4662	اِرْتَقَى	to ascend, rise, climb	9	9	9	0	0	0	2			4662	forms	encountered		1942	19	الارتقاء:3 ارتقاء:3 والارتقاء:2 للارتقاء:1	forms:6 clitic:3
+وَادّ	active_participle	2175	أَوِد	to want	9	9	9	0	0	0	2			2175	forms	known	128.5	255	121	وادٍ:6 فوادِك:3	forms:6 clitic:3
+إِعْطَاء	masdar	406	أَعْطَى	to give	9	9	9	0	0	0	2			406	forms	known	51.2	402	91	إعطاء:7 إعطاءَ:1 الإعطاء:1	forms:9
+مُنَار	passive_participle	2194	أَنار	to illuminate	9	9	9	0	0	0	1			2194	forms	known	67.5	1593	24	المنار:4 منار:1 مُنارًا:1 المُنار:1	forms:7 clitic:2
+اِخْتِفَاءٌ	masdar	3401	اِخْتَفَى	to disappear	9	9	9	0	0	0	1			3401	forms	known	4.6	575	67	اختفاء:4 لاختفاء:2 الاختفاء:2 واختفاء:1	forms:6 clitic:3
+مُرَاقَبَة	masdar	2661	راقَب	to monitor	9	9	9	0	0	0	0	#4994 مُرَاقَبَة [noun] monitoring, supervision, oversight; inspection; surveillance		4994	lemma	suspended	0.5	1091	37	بمراقبة:2 بِمُرَاقَبَةِ:1 بِمُرَاقَبَتِهِ:1 بمراقبته:1	clitic:9
+وَهْم	masdar	1438	وَهَمَ	to imagine, presume	9	9	0	9	9	0	0			1438	lemma	known	219.3	312	106	الوهم:6 الْوَهْمِ:1 للوهم:1 بوَهْمِ:1	lemma:7 clitic:2
+إِرْهَاق	masdar	2493	أَرْهَق	to exhaust	9	9	9	0	0	0	0			2493	forms	known	33.8	2381	14	الإرهاق:2 بالإرهاق:2 إرهاق:2 وإرهاقه:1	clitic:5 forms:4
+اِمْتِصَاص	masdar	4724	اِمْتَصَّ	to absorb, suck up	9	9	9	0	0	0	0			4724	forms	encountered		2037	18	امتصاص:6 امتصاصِ:1 امتصاصه:1 امتصاصها:1	forms:7 clitic:2
+تَفَاؤُل	masdar	4748	تَفَاءَلَ	to be optimistic, take as a good omen	9	9	9	0	0	0	0			4748	forms	encountered		3023	10	التفاؤل:4 تفاؤلًا:3 تفاؤلُ:1 تَفَاؤُلًا:1	forms:9
+ازْدِيَاد	masdar	3251	ازْدَادَ	to increase	9	9	9	0	0	0	0			3251	forms	known	190.5	521	72	ازدياد:5 بازدياد:2 وازدياد:1 الازدياد:1	forms:6 clitic:3
+انْحِدَار	masdar	3235	اِنْحَدَرَ	to descend, flow	9	9	9	0	0	0	0			3235	forms	suspended	0.1	1162	35	الانحدار:4 انحدار:2 الِانْحِدَارِ:1 انحدارًا:1	forms:8 clitic:1
+ضَيَاع	masdar	2697	ضَاعَ	to be lost	9	9	9	0	0	0	0			2697	forms	suspended	0.3	940	43	وضياع:2 ضياع:2 ضياعًا:1 الضياع:1	clitic:5 forms:4
+إِطْعَام	masdar	2743	أَطْعَمَ	to feed	9	9	9	0	0	0	0			2743	forms	known	5.1	1610	24	لإطعام:4 إطعامها:2 إطعام:1 لِإِطْعَامِ:1	clitic:8 forms:1
+مَشْي	masdar	388	مَشَى	to walk	9	9	9	0	0	0	0			388	lemma	known	301.0	772	52	المشي:6 مشيًا:1 مشي:1 للمشي:1	forms:6 lemma:2 clitic:1
+قُدُوم	masdar	561	قَدَمَ	to precede	9	9	9	0	0	0	0			561	forms	known	4.1	88	223	بقدوم:3 قدوم:3 القدوم:1 فقدوم:1	clitic:5 forms:4
+تَخْدِير	masdar	4982	خَدَّرَ	to numb, to anesthetize	9	9	9	0	0	0	0			4982	forms			2419	14	التخدير:8 تخديرٍ:1	forms:9
+تَعَلُّم	masdar	395	تعلّمَ	to learn	8	67	0	67	8	0	0			395	lemma	known	540.6	292	111	تعلم:28 التعلم:5 تعلُّم:4 تعلمه:4	lemma:46 clitic:19 generated:2
+ظَنٌّ	masdar	3136	ظَنَّ	to think, suppose, conjecture	8	29	0	29	8	0	0			3136	lemma	known	8.5	290	111	ظن:10 الظن:7 ظنهم:2 ظَنَّ:2	lemma:19 clitic:10
+ضَمّ	masdar	3429	ضَمَّ	to annex	8	17	0	17	8	0	0			3429	lemma	acquiring		563	68	ضمنًا:4 وضم:3 ضمنيًّا:2 ضم:1	clitic:11 generated:4 lemma:2
+نَفْع	masdar	3933	نَفَعَ	to benefit; to help	8	14	0	14	8	0	0			3933	lemma	suspended	0.2	1470	27	النفع:3 نفعًا:2 ونفعًا:2 نَفْع:1	clitic:7 lemma:5 generated:2
+اِسْتِطَاعَة	masdar	2093	اِسْتَطاع	to be able	8	12	4	8	4	0	3			2093	forms	known	28.6	45	308	استطاعة:2 باستطاعة:2 باستطاعتنا:2 اسْتِطَاعَتِهِ:1	clitic:10 forms:2
+عَزْفٌ	masdar	2227	عَزَفَ	to play music	8	10	0	10	8	0	0			2227	lemma	known	442.7	2084	17	العزف:5 عزف:2 بعزفك:1 عزفٍ:1	lemma:9 clitic:1
+صَادِر	active_participle	551	صَدَرَ	to issue, emerge	8	8	8	0	0	0	20			551	forms	known	44.5	281	114	الصادر:4 صادرًا:3 صادرٍ:1	forms:8
+مَأْخُوذ	passive_participle	393	أَخَذَ	to take	8	8	8	0	0	0	17			393	forms	known	211.9	46	297	مأخوذ:5 مأخوذًا:1 المأخوذ:1 كمأخوذ:1	forms:7 clitic:1
+هَاجِم	active_participle	3614	هَجَمَ	to attack	8	8	8	0	0	0	9			3614	forms	encountered		2198	16	هاجم:4 فهاجم:1 هاجمني:1 هاجمهما:1	clitic:4 forms:4
+نَصِيحَة	masdar	2528	نَصَحَ	to advise	8	8	8	0	0	0	8			2528	forms	known	338.0	1899	19	نصيحة:2 النصيحة:2 لِنَصِيحَتِكِ:1 نَصِيحَةُ:1	forms:6 clitic:2
+مُنْحَدِر / مُنْحَدَر	active_participle+passive_participle	3235	اِنْحَدَرَ	to descend, flow	8	8	8	0	0	0	7			3235	forms	suspended	0.1	1162	35	المنحدر:2 منحدرًا:1 المُنْحَدِر:1 ومُنحدرًا:1	forms:5 clitic:3
+تَعْلِيق	masdar	3089	عَلَّقَ	to hang	8	8	8	0	0	0	6			3089	forms	known	42.4	1259	32	تعليق:4 بتعليقكم:1 بالتعليق:1 التعليق:1	forms:6 clitic:2
+شَاحِب	active_participle	3967	شَحَبَ	to pale	8	8	8	0	0	0	5			3967	forms	lapsed	0.5	3001	10	الشاحب:4 شاحبًا:3 وشاحبًا:1	forms:7 clitic:1
+وَدّ	masdar	2175	أَوِد	to want	8	8	8	0	0	0	4			2175	forms	known	128.5	255	121	ود:1 الود:1 وُدَّ:1 وِدُّهُ:1	clitic:5 forms:3
+إِحْصَاء	masdar	4305	أَحْصَى	to count, tally, enumerate	8	8	8	0	0	0	3			4305	forms	suspended		2304	15	إحصاء:4 الإحصاء:3 الإحصاءُ:1	forms:8
+صَامِت	active_participle	760	صَمَتَ	to be silent	8	8	8	0	0	0	3			760	forms	known	1.8	903	45	الصامت:5 صامت:3	forms:8
+مُسَاعِد / مُسَاعَد	active_participle+passive_participle	2094	ساعَد	to help	8	8	8	0	0	0	3			2094	forms	known	424.4	329	104	مساعد:5 المساعد:3	forms:8
+شَيْخُوخَة	masdar	978	شَاخَ	to age, grow old	8	8	8	0	0	0	1			978	forms	lapsed	0.2	2687	12	الشيخوخة:8	forms:8
+نِيَّة	masdar	2137	نَوَى	to intend	8	8	8	0	0	0	1			2137	forms	known	81.2	1089	37	نية:3 النية:2 نِيَّةِ:1 النِّيَّة:1	forms:8
+نُشُوء	masdar	2425	نَشَأَ	to arise, originate; to grow up	8	8	8	0	0	0	1			2425	forms	lapsed	0.5	322	105	نشوء:7 النشوء:1	forms:8
+مُرَاد	passive_participle	390	أَرادَ	to want	8	8	8	0	0	0	0			390	forms	known	433.1	49	286	مراد:5 المُراد:1 المراد:1 لمراد:1	forms:7 clitic:1
+امْتِلَاك	masdar	3271	امْتَلَك	to own	8	8	8	0	0	0	0			3271	forms	known	3.4	884	46	امتلاك:3 امتلاكها:2 امتلاكَ:1 بامتلاك:1	forms:4 clitic:4
+مُضِيّ	masdar	4575	مَضَى	to pass; go by	8	8	8	0	0	0	0			4575	lemma	encountered		619	63	مضي:2 مُضيِّ:1 مُضِي:1 المضي:1	lemma:5 clitic:2 forms:1
+مَهّ	masdar	878	مَهْ	stop	8	8	0	8	8	0	0			878	lemma	known	42.9	1175	35	المهني:7 ألمه:1	clitic:7 lemma:1
+مُتَابَعَة	masdar	1215	تَابَعَ	to continue, carry on	8	8	8	0	0	0	0			1215	forms	known	20.1	580	66	متابعة:5 والمتابعة:1 المتابعة:1 ومتابعة:1	forms:6 clitic:2
+سُطُوع	masdar	4454	سَطَعَ	shone/gleamed	8	8	8	0	0	0	0			4454	forms	encountered		2415	14	سطوع:2 وسطوع:1 بسطوعٍ:1 سطوعًا:1	clitic:4 forms:4
+تَدْمِيرٌ	masdar	2699	دَمَّر	to destroy	8	8	8	0	0	0	0			2699	forms	known	9.7	2190	16	لتدمير:3 تدمير:2 وتدميرًا:1 التَّدْمِيرُ:1	clitic:4 forms:4
+فَيْض	masdar	4016	فَاضَ	to overflow, to spill	8	8	8	0	0	0	0			4016	forms	known	1.4	1560	25	فيض:3 فيضُ:2 وَفَيضِهَا:1 بفيض:1	forms:6 clitic:2
+نُفُور	masdar	1091	نَفَرَ	to shy, to bolt, to stampede	8	8	8	0	0	0	0			1091	forms	encountered		1709	22	نفورًا:2 النفور:1 والنفور:1 ونفور:1	forms:5 clitic:3
+مُبَالِغ / مُبَالَغ	active_participle+passive_participle	560	بَالَغَ	to exaggerate	8	8	8	0	0	0	0			560	forms	known	5.2	564	68	مبالغ:3 المبالغ:2 مُبالغ:1 مبالغًا:1	forms:8
+صُعُود	masdar	3227	صَعِدَ	to ascend	8	8	8	0	0	0	0			3227	forms	known	2.0	945	43	صعود:2 صُعُودُ:1 الصُّعُودِ:1 والصعود:1	forms:7 clitic:1
+مَبْنِيّ	passive_participle	4955	بَنَى	to build	8	8	8	0	0	0	0			3409	lemma	encountered		537	71	مبني:3 المبني:2 المبنيِّ:2 المَبنيُّ:1	forms:8
+نِسْيَان	masdar	3711	نَسِيَ	to forget	8	8	8	0	0	0	0			3711	forms	known	52.2	463	80	النسيان:4 نسيان:1 نسيانه:1 لنسيان:1	forms:5 clitic:3
+رَعْي	masdar	4162	رَعَى	to shepherd	8	8	8	0	0	0	0			4162	lemma	known	29.5	1288	31	الرعي:3 برعْي:1 فرعي:1 والرعي:1	clitic:4 forms:3 lemma:1
+قَتْل	masdar	1022	قَتَلَ	to kill, murder	7	36	0	36	7	0	0			1022	lemma	known	194.9	425	86	قتل:12 قُتل:5 القتل:3 قَتَلَ:2	lemma:24 clitic:12
+رَكْض	masdar	1481	رَكَضَ	to run	7	22	0	22	7	0	0			1481	lemma	known	21.7	879	46	رَكَضَ:5 وَرَكَضَ:4 وركض:4 الرَّكْضِ:3	lemma:12 clitic:10
+سَرْد	masdar	993	سَرَدَ	to narrate, recount	7	12	0	12	7	0	0			993	lemma	suspended	0.2	1755	22	سرد:4 السرد:4 سردًا:2 بسرد:1	lemma:8 generated:2 clitic:2
+إِدَارَة	masdar	3321	أَدَارَ	to turn	7	11	7	4	0	1	0	#1163 إِدَارَةٌ [noun] administration, management		1163	lemma	known	2.2	1063	38	لإدارة:6 إدارتها:2 وأدارته:1 وإدارته:1	clitic:11
+غَرَق	masdar	4222	غَرِقَ	sink	7	11	0	11	7	0	0			4222	lemma	known	136.1	1682	23	الْغَرَقِ:4 غرق:2 الْغَرَقُ:1 غَرِقَ:1	lemma:10 generated:1
+خَمْر	masdar	1113	خَمَرَ	to cover, conceal	7	11	0	11	7	0	0			1113	lemma	known	1.2	2073	17	الخمر:3 وخمر:1 خمرٍ:1 خمر:1	lemma:8 clitic:3
+تَنَفُّس	masdar	4740	تَنَفَّسَ	to breathe	7	10	0	10	7	0	0			4740	lemma	encountered		2038	18	التنفُّس:2 تنفس:2 وتنفس:1 والتنفس:1	clitic:5 lemma:5
+رَمّ	masdar	841	رَمَّ	to repair, fix	7	8	0	8	7	0	0			841	lemma	known	3.0	925	44	كرم:4 رم:1 كرمه:1 برم:1	clitic:7 lemma:1
+مُفَكِّر / مُفَكَّرٌ	active_participle+passive_participle	2084	فَكَّر	to think	7	7	7	0	0	0	33			2084	forms	known	290.4	14	471	مُفكِّر:2 المفكر:2 مفكر:2 مفكِّرًا:1	forms:7
+مُعْدٍ	active_participle	2163	أَعْدَى	to infect; to make contagious	7	7	7	0	0	0	20			2163	forms	suspended	3.8	1777	21	معد:2 معدًا:1 مُعد:1 المعدني:1	forms:5 clitic:2
+مُحَدِّد / مُحَدَّد	active_participle+passive_participle	3623	حدّد	to specify	7	7	7	0	0	0	14			3623	forms	lapsed	0.2	1198	34	محدد:3 محدَّد:2 المحدَّد:1 المحدد:1	forms:7
+مَذْكُورٌ	passive_participle	572	ذَكَرَ	to mention	7	7	7	0	0	0	10			572	forms	known	44.2	131	186	المذكور:6 مذكورًا:1	forms:7
+إِنْجَاز	masdar	2132	أَنْجَز	to accomplish	7	7	7	0	0	0	7			2132	forms	known	29.2	1895	19	بإنجاز:2 إنجازًا:1 الإنجاز:1 إنجاز:1	forms:4 clitic:3
+مُحَافِظ	active_participle	907	حَافَظَ	to preserve, maintain	7	7	7	0	0	0	6			907	forms	known	430.7	838	49	محافظ:3 المحافظ:2 مُحافظًا:1 محافظنا:1	forms:6 clitic:1
+مُطْمَئِنّ	active_participle	3501	اطْمَأَنَ	to be reassured	7	7	7	0	0	0	5			3501	forms	known	40.1	1789	21	مطمئن:4 مُطْمَئِنًّا:1 مطمئنًا:1 مُطْمَئِنًا:1	forms:7
+مُرَافِق / مُرَافَق	active_participle+passive_participle	2984	رَافَقَ	to accompany	7	7	7	0	0	0	5			2984	forms	known	412.0	2287	15	مرافق:4 والمرافق:1 مرافقها:1 ومرافق:1	forms:4 clitic:3
+مُجَمِّع / مُجَمَّع	active_participle+passive_participle	2680	جَمَّع	to collect	7	7	7	0	0	0	4			2680	forms	known	57.7	227	130	المجمع:4 مجمع:2 ومجمع:1	forms:6 clitic:1
+مُنْطَلِق / مُنْطَلَق	active_participle+passive_participle	2146	اِنْطَلَق	to set off	7	7	7	0	0	0	4			2146	forms	known	26.9	562	68	منطلقًا:3 منطلق:2 المنطلق:2	forms:7
+مُحَاط	passive_participle	3808	أَحاط	to surround	7	7	7	0	0	0	4			3808	forms	known	1.4	616	63	محاطًا:3 محاط:2 والمحاط:1 المحاط:1	forms:6 clitic:1
+مُخْطِئ	active_participle	3815	أَخْطَأ	to make a mistake	7	7	7	0	0	0	3			3815	forms	encountered		1852	20	مخطئ:5 مُخطئ:2	forms:7
+تَوْحِيدٌ	masdar	2602	وَحَّد	to unify	7	7	7	0	0	0	3			2602	forms	known	3.7	343	100	التوحيد:6 توحيد:1	forms:7
+سَاخِر	active_participle	3965	سَخِرَ	mocked	7	7	7	0	0	0	2			3965	forms	lapsed	0.6	2116	17	ساخرًا:5 ساخرٍ:1 ساخر:1	forms:7
+الْتِحَاق	masdar	2438	الْتَحَقَ	to join / enroll	7	7	7	0	0	0	1			2438	forms	known	8.0	2508	13	الالتحاق:2 الِالْتِحَاقَ:1 والالتحاق:1 لالتحاق:1	forms:4 clitic:3
+مُنْتَظِر / مُنْتَظَر	active_participle+passive_participle	2134	اِنْتَظَر	to wait	7	7	7	0	0	0	1			2134	forms	known	209.9	437	84	منتظر:3 المنتظر:2 مُنْتَظِرًا:1 منتظرًا:1	forms:7
+إِمْسَاك	masdar	549	مَسَكَ	to hold, grasp	7	7	7	0	0	0	1			549	forms	known	110.1	708	56	الإمساك:4 الْإِمْسَاكِ:2 الْإِمْسَاكَ:1	forms:7
+حَاصِل	active_participle	3059	حَصَلَ	to happen	7	7	7	0	0	0	1			3059	forms	known	1.5	168	155	حاصل:3 الحاصل:2 حاصلاً:1 بالحاصل:1	forms:6 clitic:1
+إِلْقَاء	masdar	2734	أَلْقَى	to throw	7	7	7	0	0	0	1			2734	forms	suspended	0.2	170	153	إلقاء:3 بإلقاء:2 لإلقاء:2	clitic:4 forms:3
+صُرَاخ	masdar	2166	صَرَخ	to scream	7	7	7	0	0	0	0			2166	forms	known	348.7	729	54	والصراخ:2 صراخ:2 الصُّرَاخِ:1 صُراخُها:1	clitic:4 forms:3
+مُوَافَقَةٌ	masdar	3023	وافَقَ	agreed	7	7	7	0	0	0	0			3023	forms	known	241.5	808	50	موافقته:1 بموافقة:1 بموافقتها:1 الموافقة:1	clitic:5 forms:2
+اِعْتِدَال	masdar	4313	اِعْتَدَلَ	to straighten up; to be moderate	7	7	7	0	0	0	0			4313	forms	known	10.6	3810	7	اعتدال:2 اعتدالها:2 واعتدالًا:1 الِاعْتِدَالُ:1	clitic:4 forms:3
+تَبَعًا	masdar	4264	تَبِعَ	to follow	7	7	0	7	7	0	0			4264	forms	known	166.9	657	60	تبعًا:7	forms:7
+مَقْتُول	passive_participle	1022	قَتَلَ	to kill, murder	7	7	7	0	0	0	0			1022	forms	known	194.9	425	86	المقتول:5 مقتولًا:1 مقتول:1	forms:7
+تَخْفِيف	masdar	2568	خَفَّفَ	to reduce	7	7	7	0	0	0	0			2568	forms	known	240.6	1602	24	تخفيف:3 تخفيفِ:1 والتخفيف:1 وتخفيفِ:1	forms:5 clitic:2
+هِجْرَة	masdar	3045	هَاجَرَ	emigrated	7	7	7	0	0	0	0			3045	forms	known	5.0	2002	18	للهجرة:3 الهجرة:3 هجرة:1	forms:4 clitic:3
+مَعْنِيّ	passive_participle	4616	عَنَى	to mean	7	7	7	0	0	0	0			355	lemma	encountered		349	100	معنيٌّ:3 المعني:1 بالمعني:1 المعنيِّ:1	forms:6 clitic:1
+إِيقَاظ	masdar	3113	أَيْقَظَ	to awaken	7	7	7	0	0	0	0			3113	forms	known	3.9	1549	25	لإيقاظ:2 بِإِيقَاظِ:1 إِيْقَاظِ:1 إِيقَاظِ:1	clitic:5 forms:2
+انْضِمَام	masdar	3746	انْضَمَّ	to join	7	7	7	0	0	0	0			3746	forms	encountered		1850	20	الانضمام:5 انضمام:1 انضمامه:1	forms:6 clitic:1
+مَكْرُوه	passive_participle	1312	كَرِهَ	to hate, dislike	7	7	7	0	0	0	0			1312	forms	known	25.7	1302	30	مكروه:5 مكروهًا:1 بمكروهٍ:1	forms:6 clitic:1
+تَنْظِيف	masdar	403	نظّف	to clean	7	7	7	0	0	0	0			403	forms	known	284.1	2300	15	تنظيف:3 وتنظيف:2 تنظيفه:1 تَنْظِيفِ:1	forms:4 clitic:3
+مَرْحُوم	passive_participle	1067	رَحِمَ	to have mercy	7	7	7	0	0	0	0			1067	forms	known	338.2	1143	35	المرحوم:7	forms:7
+رِزْقٌ	masdar	2826	رَزَقَ	to provide, to sustain	6	28	0	28	6	0	0			2826	lemma	known	2.3	943	43	رزق:10 الرزق:5 ورزق:3 ورزقها:2	lemma:16 clitic:12
+وَاصِل	active_participle	2143	وَصَلَ	to arrive	6	15	5	10	1	2	15			2143	forms	known	229.5	28	357	واصل:6 وواصل:4 فواصل:1 وأصل:1	forms:10 clitic:5
+سَدّ	masdar	4399	سَدَّ	blocked, closed	6	13	0	13	6	0	0			4399	lemma	encountered		1235	33	السَّدِّ:3 سد:3 السد:2 سَدٍّ:1	lemma:10 clitic:3
+تَدَاوُل	masdar	3632	تَدَاوَلَ	to circulate	6	10	0	10	6	0	0			3632	lemma			2296	15	تداولًا:3 التداول:3 تداولها:2 تداول:2	lemma:5 generated:3 clitic:2
+حَشْد	masdar	1278	حَشَدَ	to mobilize, mass	6	10	0	10	6	0	0			1278	lemma	suspended		2619	12	الحشد:5 حشد:4 حشدٍ:1	lemma:10
+مُنَظِّم / مُنَظَّم	active_participle+passive_participle	3190	نَظَّمَ	to organize	6	6	6	0	0	0	30			3190	forms	known	235.1	750	53	المنظِّم:2 مُنَظَّمًا:1 منظَّم:1 المنظم:1	forms:6
+مُحَاوِل / مُحَاوَل	active_participle+passive_participle	2772	حَاوَلَ	to try	6	6	6	0	0	0	28			2772	forms	known	88.2	116	197	محاولًا:3 مُحَاوِلًا:2 ومحاولًا:1	forms:5 clitic:1
+مُرْتَبِط / مُرْتَبَط	active_participle+passive_participle	2702	اِرْتَبَط	to be connected	6	6	6	0	0	0	17			2702	forms	suspended	0.2	980	41	مرتبط:4 ومرتبطًا:1 المرتبط:1	forms:5 clitic:1
+مُحْدِث / مُحْدَث	active_participle+passive_participle	2170	أَحْدَث	to happen	6	6	6	0	0	0	14			2170	forms	known	84.8	181	147	محدثًا:3 مُحدِثًا:1 محدِّثًا:1 المُحدَّث:1	forms:6
+نَائِم	active_participle	387	نَامَ	to sleep	6	6	6	0	0	0	13			387	forms	known	150.8	545	70	نائمًا:2 النائم:2 نَائِمٍ:1 نائم:1	forms:6
+غَابٍ	active_participle	550	غَبِيَ	to be ignorant, to not understand	6	6	6	0	0	0	11			550	forms	suspended	0.2	2421	14	غاب:4 غَابَ:1 غابَ:1	forms:6
+جَالّ	active_participle	3908	جَلّ	to be great; to rise	6	6	6	0	0	0	7			3908	forms	encountered		656	60	جال:2 وجال:2 جَالَ:1 وجَالَ:1	forms:3 clitic:3
+مُزَوِّد / مُزَوَّدٌ	active_participle+passive_participle	1326	زَوَّدَ	to supply, equip	6	6	6	0	0	0	5			1326	forms	known	43.9	2172	16	مزود:2 مزودًا:1 مزوَّد:1 المزود:1	forms:5 clitic:1
+بَاعِث	active_participle	3535	بَعَث	to send; to dispatch	6	6	6	0	0	0	5			3535	forms	known	265.8	984	41	الباعث:2 باعث:2 والباعث:2	forms:4 clitic:2
+صَاغٍ	active_participle	1083	صَغَا	to incline, to bend, to lean	6	6	6	0	0	0	5			1083	forms			3725	7	صاغ:2 وصاغ:1 صاغها:1 صاغه:1	clitic:4 forms:2
+طَالِع	active_participle	4167	طَلَعَ	rose	6	6	6	0	0	0	5			4167	forms	encountered		2119	17	الطالع:2 وطالع:2 طالع:1 طالَع:1	forms:4 clitic:2
+مُسَبِّب / مُسَبَّب	active_participle+passive_participle	643	سَبَّبَ	to cause	6	6	6	0	0	0	5			643	forms	known	444.4	129	188	المسبب:3 مسببًا:2 مسبب:1	forms:6
+مُعْتَمِد / مُعْتَمَد	active_participle+passive_participle	2706	اِعْتَمَد	to rely	6	6	6	0	0	0	4			2706	forms	lapsed	2.0	499	75	المعتمد:5 مُعتمدًا:1	forms:6
+هَارِب	active_participle	2165	هَرَب	to escape	6	6	6	0	0	0	4			2165	forms	known	53.1	666	59	هاربًا:3 هاربٍ:1 هارب:1 الهَارِبَهْ:1	forms:5 clitic:1
+مُوَحِّدٌ / مُوَحَّدٌ	active_participle+passive_participle	2602	وَحَّد	to unify	6	6	6	0	0	0	3			2602	forms	known	3.7	343	100	موحدًا:2 موحد:2 موحَّد:2	forms:6
+رَاحِل	active_participle	3297	رَحَلَ	to depart, to leave	6	6	6	0	0	0	2			3297	forms	known	7.0	865	47	الراحل:4 وراحلٌ:1 راحلًا:1	forms:5 clitic:1
+مُعْجِب / مُعْجَب	active_participle+passive_participle	2521	أَعْجَبَ	to please, to impress	6	6	6	0	0	0	2			2521	forms	known	10.4	1780	21	معجب:3 معجبًا:2 مُعْجَبًا:1	forms:6
+مُنْعِم / مُنْعَم	active_participle+passive_participle	2845	أَنْعَمَ	to bestow favor	6	6	6	0	0	0	2			2845	forms	known	2.2	1357	29	المنعم:2 مُنعم:1 منعمٌ:1 والمنعم:1	forms:5 clitic:1
+مَشْدُود	passive_participle	4574	شَدَّ	to pull; take along	6	6	6	0	0	0	2			4574	forms	encountered		355	99	مشدودًا:4 مشدود:2	forms:6
+فَائِز	active_participle	3025	فَازَ	won	6	6	6	0	0	0	2			3025	forms	known	3.1	1416	28	فائز:3 فائزًا:1 الفائز:1 فائزٍ:1	forms:6
+احْتِفَاظ	masdar	3946	احْتَفَظَ	to keep; to retain	6	6	6	0	0	0	1			3946	forms	known	70.5	1742	22	الاحتفاظ:5 للاحتفاظ:1	forms:5 clitic:1
+اِسْتِسْلَام	masdar	4435	اِسْتَسْلَمَ	surrendered	6	6	6	0	0	0	1			4435	forms	encountered		2821	11	والاستسلام:3 استسلامًا:1 الاستسلام:1 استسلام:1	forms:3 clitic:3
+مُوقِد / مُوقَد	active_participle+passive_participle	3482	أَوْقَدَ	kindled	6	6	6	0	0	0	1			3482	forms	suspended	0.2	2654	12	الموقد:4 موقدًا:1 موقدٍ:1	forms:6
+مُلْتَقًى	passive_participle	2394	الْتَقَى	to meet	6	6	6	0	0	0	1			2394	forms	known	3.0	788	51	ملتقى:4 الملتقى:2	forms:6
+اِسْتِعَانَة	masdar	2817	اِسْتَعَانَ	to seek help	6	6	6	0	0	0	1			2817	forms	known	5.6	1412	28	الاستعانة:4 بالاستعانة:1 استعانة:1	forms:5 clitic:1
+مُنْتَهًى	passive_participle	3710	اِنْتَهَى	to end	6	6	6	0	0	0	1			3710	forms	known	277.8	316	106	منتهى:4 بمنتهى:2	forms:4 clitic:2
+ضَلَال	masdar	1434	ضَلَّ	to stray, err	6	6	6	0	0	0	0			1434	forms	known	22.1	2371	14	الضلال:3 ضلال:3	forms:6
+إِنْذَار	masdar	2835	أَنْذَرَ	to warn, to caution	6	6	6	0	0	0	0			2835	forms	lapsed	0.9	2638	12	إنذار:2 الإنذار:2 إِنْذَارًا:1 إِنْذَارٌ:1	forms:6
+مُخَالَفَة	masdar	3941	خَالَفَ	to contradict, to oppose	6	6	6	0	0	0	0			3941	forms	known	11.6	1741	22	مخالفة:3 المخالفة:2 لمخالفة:1	forms:5 clitic:1
+تَشْيِيد	masdar	848	شَادَ	to build	6	6	6	0	0	0	0			848	forms	known	10.8	2135	17	تشييد:3 تشييدها:1 لتشييد:1 التشييد:1	forms:4 clitic:2
+مُسْتَغْرِق / مُسْتَغْرَق	active_participle+passive_participle	2762	اِسْتَغْرَقَ	to take	6	6	6	0	0	0	0			2762	forms	known	56.7	1544	25	مستغرقًا:4 مُسْتَغْرِقٌ:1 مستغرق:1	forms:6
+سَاقِط	active_participle	3522	سَقَطَ	to fall	6	6	6	0	0	0	0			3522	forms	known	153.5	353	99	الساقط:5 ساقطًا:1	forms:6
+رَخّ	masdar	935	رَخَّ	to dilute, to mix with water	6	6	0	6	6	0	0			935	lemma	lapsed	0.3	3846	7	الرُّخِّ:3 الرُّخُّ:2 رُخٍّ:1	lemma:6
+وُجُوب	masdar	4954	وَجَبَ	to be necessary	6	6	6	0	0	0	0			4954	forms	encountered		239	125	بوجوب:3 وجوب:2 وجوبًا:1	clitic:3 forms:3
+غَيْرَة	masdar	1369	غَارَ	to be jealous	6	6	6	0	0	0	0			1369	forms	known	1.8	1984	18	بالغيرة:2 غيرة:2 الغَيرة:1 والغيرة:1	clitic:3 forms:3
+مُخْتَبِر / مُخْتَبَر	active_participle+passive_participle	3491	اخْتَبَرَ	to test	6	6	6	0	0	0	0			3491	forms	known	52.7	3450	8	مختبرها:2 المختبر:2 مُختبَر:1 مختبر:1	forms:4 clitic:2
+خَوْض	masdar	3794	خَاضَ	to wade; to engage in	6	6	6	0	0	0	0			3794	forms			2661	12	للخوض:2 بخوض:1 الخوض:1 خوض:1	clitic:4 forms:2
+ٱنْصِرَاف	masdar	3647	انْصَرَفَ	to turn away; to withdraw	6	6	6	0	0	0	0			3647	forms	known	3.3	1199	34	الانصراف:2 انصراف:1 للانصراف:1 بالانصراف:1	forms:3 clitic:3
+اِسْتِنَاد	masdar	4674	اِسْتَنَدَ	to lean on, rest against; to rely on	6	6	6	0	0	0	0			4674	forms	encountered		1564	25	استنادًا:5 الاستناد:1	forms:6
+سَمَاحٌ	masdar	2198	سَمَحَ	to allow	6	6	6	0	0	0	0			2198	forms	suspended	1.1	377	95	السماح:3 السماحَ:1 بالسماح:1 للسماح:1	forms:4 clitic:2
+اِسْتِمْتَاع	masdar	2167	اِسْتَمْتَع	to enjoy	6	6	6	0	0	0	0			2167	forms	known	10.8	1539	25	والاستمتاع:3 الاستمتاع:2 للاستمتاع:1	clitic:4 forms:2
+جَدَارَة	masdar	4140	جَدُرَ	to be worthy	6	6	6	0	0	0	0			4140	forms	known	2.2	1799	21	جدارته:2 جدارة:1 جدارتك:1 الجدارة:1	clitic:4 forms:2
+تَوَقُّف	masdar	4252	تَوَقَّفَ	to stop, come to a halt	5	40	0	40	5	0	0			4252	lemma	known	278.0	331	104	توقف:14 توقَّف:7 وتوقف:7 توقفها:2	lemma:25 clitic:13 generated:2
+قَرْص	masdar	1458	قَرَصَ	to pinch	5	12	0	12	5	0	0			1458	lemma	known	1.1	1715	22	القرص:3 قُرْصُ:1 قُرْصِ:1 قرصها:1	lemma:8 clitic:4
+قَبْر	masdar	1002	قَبَرَ	to bury, to entomb	5	12	0	12	5	0	0			1002	lemma	known	4.3	2261	15	قبر:4 قبره:2 القبر:2 الْقَبْرِ:2	lemma:8 clitic:4
+نَسْخ	masdar	503	نَسَخَ	to copy	5	11	0	11	5	0	0			503	lemma	known	18.9	1384	29	النسخ:4 نسخ:4 نُسَخ:1 نسخه:1	lemma:9 clitic:1 generated:1
+لَفْت	masdar	4244	لَفَتَ	attract attention	5	11	0	11	5	0	0			4244	lemma	known	3.3	1333	30	لفت:4 واللفت:2 اللفت:2 واللِّفت:1	lemma:6 clitic:5
+نَذْر	masdar	1460	نَذَرَ	to vow, to pledge	5	10	0	10	5	0	0			1460	lemma	known	11.3	1772	21	نذرًا:2 نذر:2 نَذْرًا:1 النَّذْرَ:1	lemma:4 generated:3 clitic:3
+تَحَرُّك	masdar	4314	تَحَرَّكَ	to move, stir (intransitive)	5	10	0	10	5	0	0			4314	lemma	known	6.0	816	50	تحرك:2 التحرك:2 تَحَرُّكُ:1 تحرَّك:1	lemma:7 clitic:3
+سَمّ	masdar	1262	سَمَّ	to poison	5	9	0	9	5	0	0			1262	lemma	known	70.6	607	63	بسم:3 سم:2 السم:1 سمَّه:1	clitic:6 lemma:3
+خَشْيَة	masdar	4126	خَشِيَ	to fear	5	6	5	1	0	0	0			4126	forms	encountered		988	41	خشية:4 وخشية:1 خشيتها:1	forms:4 clitic:2
+سَهَرٌ	masdar	2564	سَهِرَ	to stay up	5	6	0	6	5	0	0			2564	lemma	known	10.2	2634	12	السهر:3 وسهر:1 والسهرِ:1 والسهر:1	clitic:3 lemma:3
+قَبْض	masdar	1197	قَبَضَ	to seize	5	6	0	6	5	0	0			1197	lemma	known	4.4	1822	20	القبض:4 للقبض:1 فقبَض:1	lemma:4 clitic:2
+خَافٍ	active_participle	1429	خَفِيَ	to be hidden	5	5	5	0	0	0	44			1429	forms	known	20.2	1304	30	خاف:2 وخاف:1 وَخَافَ:1 خافٍ:1	forms:3 clitic:2
+مُصَاب	passive_participle	2569	أَصَابَ	to hit	5	5	5	0	0	0	16			2569	forms	known	13.1	202	137	مصابًا:3 المصاب:1 مصاب:1	forms:5
+مُعَلِّق / مُعَلَّق	active_participle+passive_participle	3089	عَلَّقَ	to hang	5	5	5	0	0	0	16			3089	forms	known	42.4	1259	32	المعلَّق:1 مُعلق:1 معلق:1 معلَّقًا:1	forms:5
+مُرَتِّبٌ / مُرَتَّبٌ	active_participle+passive_participle	3092	رَتَّبَ	to arrange, organize	5	5	5	0	0	0	12			3092	forms	known	100.3	1160	35	مرتبًا:2 مُرتَّبها:1 مرتبه:1 مُرتبك:1	clitic:3 forms:2
+مُكَلِّف / مُكَلَّف	active_participle+passive_participle	2731	كَلَّفَ	to cost	5	5	5	0	0	0	9			2731	forms	known	13.2	1191	34	المكلف:2 مكلِّف:1 المكلِّف:1 مكلَّفًا:1	forms:5
+مَرْسُوم	passive_participle	940	رَسَمَ	to draw, paint	5	5	5	0	0	0	7			940	forms	known	200.4	306	109	مرسوم:2 المرسوم:1 بمرسوم:1 مرسومًا:1	forms:4 clitic:1
+مُنِير	active_participle	2194	أَنار	to illuminate	5	5	5	0	0	0	5			2194	forms	known	67.5	1593	24	المنير:3 منير:1 منيرًا:1	forms:5
+نَافِع	active_participle	3933	نَفَعَ	to benefit; to help	5	5	5	0	0	0	4			3933	forms	suspended	0.2	1470	27	النافع:3 نافع:1 نافعٌ:1	forms:5
+مُهَدِّد / مُهَدَّد	active_participle+passive_participle	3018	هَدَّدَ	to threaten	5	5	5	0	0	0	3			3018	forms	known	18.0	1459	27	المهدد:1 مُهدَّد:1 مُهددًا:1 مهدَّدًا:1	forms:5
+ضَائِع	active_participle	2697	ضَاعَ	to be lost	5	5	5	0	0	0	3			2697	forms	suspended	0.3	940	43	الضائع:3 بضائعها:1 بضائع:1	forms:3 clitic:2
+دَالّ	active_participle	750	دَلَّ	to guide, indicate	5	5	5	0	0	0	2			750	forms	suspended	0.2	546	70	الدال:3 ودال:1 والدال:1	forms:3 clitic:2
+مَصْحُوب	passive_participle	4040	صَحِبَ	to accompany	5	5	5	0	0	0	2			4040	forms	known	93.2	1230	33	مصحوبًا:3 مصحوب:1 المصحوب:1	forms:5
+ضَارِب	active_participle	3581	ضَرَب	strikes, sets	5	5	5	0	0	0	2			3581	forms	known	5.7	374	96	الضارب:3 ضاربًا:2	forms:5
+مُضْطَرّ	active_participle	3631	اضْطَرَّ	to be forced	5	5	5	0	0	0	2			3631	forms	suspended		831	49	مضطر:2 مُضْطَرًّا:1 مضطرًّا:1 مضطرًا:1	forms:5
+مَبِين	passive_participle	554	بَانَ	to separate, to become distinct, to sunder	5	5	5	0	0	0	1			554	forms	known	114.9	1386	29	مبينًا:2 المبين:1 مبين:1 مبيِّنًا:1	forms:5
+عَاصِر	active_participle	1324	عَصَرَ	to squeeze	5	5	5	0	0	0	1			1324	forms	known	260.4	92	212	عاصر:2 عاصرهم:1 عاصرَ:1 عاصرها:1	forms:3 clitic:2
+حَائِل	active_participle	890	حَالَ	to change, to be transformed	5	5	5	0	0	0	1			890	forms	known	4.8	61	264	الحائل:4 حائلًا:1	forms:5
+مُضِيف	active_participle	3396	أَضَاف	to add	5	5	5	0	0	0	1			3396	forms	known	15.7	885	46	المضيف:1 مضيفنا:1 مُضيفهم:1 مُضيفه:1	clitic:3 forms:2
+مَرْضِيّ	passive_participle	1511	رَضِيَ	to be satisfied	5	5	5	0	0	0	1			1511	forms	lapsed	0.5	714	55	المرضي:2 مرضي:1 مرْضيًا:1 مرضيًّا:1	forms:5
+مُطِيع	active_participle	1085	أَطَاعَ	to obey	5	5	5	0	0	0	1			1085	forms	learning	0.4	2071	17	المطيع:3 مطيع:1 مطيعًا:1	forms:5
+تَقْوَى	masdar	3352	اِتَّقَى	to fear, beware	5	5	5	0	0	0	1			3352	forms	known	1.1	3449	8	تقوى:2 التقوى:2 والتقوى:1	forms:4 clitic:1
+مَعْبُود	passive_participle	3927	عَبَدَ	to worship	5	5	5	0	0	0	1			3927	forms	known	1.7	1067	38	المعبود:4 معبودَ:1	forms:5
+مُمْسِك	active_participle	549	مَسَكَ	to hold, grasp	5	5	5	0	0	0	1			549	forms	known	110.1	708	56	ممسكًا:2 ممسك:1 مُمسِكًا:1 الممسك:1	forms:5
+اِعْتِذَار	masdar	3875	اِعْتَذَرَ	to apologize	5	5	5	0	0	0	0			3875	forms	suspended		2997	10	الاعتذار:2 بالاعتذار:1 اعتذارًا:1 كاعتذار:1	forms:3 clitic:2
+رَاوٍ	active_participle	2640	رَوَى	to narrate	5	5	5	0	0	5	0			2640	forms	known	119.3	509	74	رَأَوْهُ:2 رأوه:2 رأوني:1	clitic:5
+طَبْخ	masdar	2236	طَبَخَ	to cook	5	5	0	5	5	0	0			2236	lemma	known	551.9	4610	5	الطبخ:3 للطبخ:2	lemma:3 clitic:2
+تَقْدِيسٌ	masdar	3149	قَدَّس	sanctified; hallowed; honored	5	5	5	0	0	0	0			3149	forms	known	18.0	1664	23	تقديس:2 التقديس:2 والتقديس:1	forms:4 clitic:1
+جَرْي	masdar	2231	جَرَى	to run	5	5	5	0	0	0	0			2231	lemma	known	77.3	169	154	جَرْيًا:1 الجري:1 جريها:1 بالجري:1	clitic:3 lemma:1 forms:1
+اِكْتِمَال	masdar	4336	اِكْتَمَلَ	to be completed, become full	5	5	5	0	0	0	0			4336	forms	lapsed	3.2	2305	15	واكتمال:2 اكتِمال:1 اكتمالًا:1 اكتمال:1	forms:3 clitic:2
+اسْتِوَاء	masdar	2899	استَوَى	leveled	5	5	5	0	0	0	0			2899	forms	known	11.4	687	57	الاستواء:3 والاستواء:1 استواء:1	forms:4 clitic:1
+إِنْجَاب	masdar	4683	أَنْجَبَ	to beget, father, give birth to	5	5	5	0	0	2	0			4683	forms	encountered		3019	10	بإنجابها:1 بإنجاب:1 فانجاب:1 وانجاب:1	clitic:4 forms:1
+انْدِفَاع	masdar	3454	اِنْدَفَعَ	to rush, to surge	5	5	5	0	0	0	0			3454	forms	known	106.4	1226	33	والاندفاع:2 لاندفاع:1 واندفاعٍ:1 اندفاعًا:1	clitic:4 forms:1
+شُهُود	masdar	1082	شَهِدَ	to witness, to be a witness	5	5	5	0	0	0	0			1082	forms	known	39.4	598	64	الشهود:4 شهود:1	forms:5
+جُرْأَة	masdar	4480	جَرُؤَ	dared	5	5	5	0	0	0	0			4480	forms	encountered		1685	23	الجرأة:1 جرأةً:1 جرأة:1 والجرأة:1	forms:3 clitic:2
+مَدِينٌ	passive_participle	1201	دَانَ	to owe (money)	5	5	5	0	0	0	0			1201	forms	known	207.8	877	46	مدينًا:2 لمدين:1 مَدين:1 مدين:1	forms:4 clitic:1
+بَاسِر	active_participle	1363	بَسَرَ	scowl, frown	5	5	5	0	0	5	0			1363	forms	known	31.0	4104	6	بأسرها:2 بأسره:2 بأسرِها:1	clitic:5
+تَحْرِيكٌ	masdar	4361	حَرَّكَ	to move (something), stir	5	5	5	0	0	0	0			4361	forms	known	3.5	1234	33	تحريك:3 تحريكه:1 تَحْرِيكِ:1	forms:4 clitic:1
+مُعْتَزّ	active_participle+passive_participle	3490	اعْتَزَّ	to be proud	5	5	5	0	0	0	0			3490	forms	learning		4156	6	المعتز:3 مُعتزًّا:1 الْمُعْتَزُّ:1	forms:5
+صِيَاحٌ	masdar	2658	صَيَّح	to shout	5	5	5	0	0	0	0			2658	forms	known	22.7	696	56	صياح:2 وصياحهم:1 الصياح:1 والصياح:1	forms:3 clitic:2
+كِتْمَان	masdar	3597	كَتَمَ	to conceal, hide, keep secret	5	5	5	0	0	0	0			3597	forms	lapsed	0.4	2526	13	الكتمان:3 كتمانها:1 كتمانُ:1	forms:4 clitic:1
+إِشْبَاع	masdar	4389	أَشْبَعَ	to satiate	5	5	5	0	0	0	0			4389	forms	learning	0.2	2550	13	وَإِشْبَاعَ:1 لإشباع:1 إشباعًا:1 وإشباعًا:1	clitic:3 forms:2
+اسْتِفادَة	masdar	2693	اِسْتَفاد	to benefit	5	5	5	0	0	0	0			2693	forms	known	112.1	2090	17	الاستفادة:4 استفادة:1	forms:5
+لَمَعَان	masdar	2191	لَمَعَ	to glisten, to gleam	5	5	4	1	1	0	0			2191	forms	known	41.3	1647	23	ولمعانًا:1 واللَّمَعَانِ:1 وَاللَّمَعَانِ:1 اللمعان:1	clitic:3 forms:2
+رَفْضٌ	masdar	3021	رَفَضَ	to refuse	4	21	0	21	4	0	0			3021	lemma	known	375.3	864	47	رفض:7 ورفض:5 الرفض:3 فرفض:2	lemma:11 clitic:9 generated:1
+رَغْبَة	masdar	3325	رَغِب	to desire	4	15	4	11	0	0	0	#3314 رَغْبَة [noun] desire / wish		3314	lemma	known	293.8	640	61	رغبتك:3 رغبته:3 ورغبة:2 رغبتهم:2	clitic:15
+قَفْز	masdar	2157	قَفَز	to jump	4	14	0	14	4	0	0			2157	lemma	known	19.5	976	41	قفز:7 القفز:2 وَقَفَزَ:1 قَفَزَ:1	lemma:10 clitic:4
+جَرّ	masdar	4427	جَرَّ	to drag	4	10	0	10	4	0	0			4427	lemma	encountered		1203	34	جر:4 للجر:2 جَرَّهُمَا:1 الجر:1	clitic:5 lemma:5
+لَمْس	masdar	4949	لَمَسَ	to touch	4	10	0	10	4	0	0			4949	lemma	encountered		1381	29	اللمس:3 لمس:3 ولمس:1 ولمسها:1	lemma:7 clitic:3
+إِقَامَة	masdar	2804	أَقَامَ	to reside, live, stay; to hold (an event); to set up	4	9	4	5	0	0	0	#2732 إِقَامَة [noun] stay		2732	lemma	known	183.3	325	105	لإقامة:4 إقامته:3 إقامتها:1 إقامتَها:1	clitic:9
+هَجْر	masdar	4041	هَجر	to abandon, forsake	4	9	0	9	4	0	0			4041	lemma	suspended	0.2	2204	16	هجر:3 الهَجرُ:2 هجره:1 هَجْرٌ:1	lemma:7 clitic:2
+شَرْط	masdar	1355	شَرَطَ	stipulate, condition	4	8	0	8	4	0	0			1355	lemma	lapsed	0.9	1890	19	شرط:3 بشرط:2 وشرط:1 بشرطٍ:1	clitic:4 lemma:3 generated:1
+قَطْب	masdar	726	قَطَبَ	to frown, contract	4	6	0	6	4	0	0			726	lemma	known	10.5	2684	12	القطب:2 الْقُطْبِ:1 قطب:1 قطبَ:1	lemma:5 generated:1
+مَهْر	masdar	1050	َمَهَرَ	to settle a dowry for (one's wife, etc.)	4	6	0	6	4	0	0			1050	lemma	known	2.6	1181	34	مهرًا:3 مهرها:2 المهر:1	generated:3 clitic:2 lemma:1
+شَارِك	active_participle	1356	شَرَكَ	associate, partner	4	4	4	0	0	0	29			1356	forms	known	102.9	591	65	شارك:4	forms:4
+مُتَكَرِّر / مُتَكَرَّر	active_participle+passive_participle	2085	تَكَرَّر	to repeat	4	4	4	0	0	0	13			2085	forms	known	199.0	1776	21	المتكرر:3 والمتكرِّر:1	forms:3 clitic:1
+طَارِد	active_participle	3042	طَرَدَ	to expel	4	4	4	0	0	0	12			3042	forms	suspended	0.1	1359	29	طاردهما:1 طاردًا:1 طَارَدَهَا:1 وطارَدَهُ:1	clitic:3 forms:1
+احْتِيَاج	masdar	2192	اِحْتاج	to need	4	4	4	0	0	0	12			2192	forms	known	336.2	487	76	باحتياج:1 الاحتياج:1 احتياجنا:1 والاحتياج:1	clitic:3 forms:1
+مُغْلِق / مُغْلَق	active_participle+passive_participle	2671	أَغْلَق	to close	4	4	4	0	0	0	11			2671	forms	known	59.2	1501	26	مغلقًا:3 مغلق:1	forms:4
+مُمْتَدّ	active_participle+passive_participle	3116	اِمْتَدَّ	to extend	4	4	4	0	0	0	11			3116	forms	known	2.8	404	90	الممتد:2 ممتدًا:1 ممتدًّا:1	forms:4
+لَاعِب	active_participle	1244	لَعِبَ	to play	4	4	4	0	0	0	7			1244	forms	known	361.4	495	75	لاعبه:1 كلاعبٍ:1 لاعب:1 اللاعب:1	clitic:2 forms:2
+مَخْطُوط	passive_participle	762	خَطَّ	to draw a line	4	4	4	0	0	0	7			762	forms	known	523.7	780	52	ومخطوطَ:2 المخطوط:1 مخطوطٍ:1	forms:2 clitic:2
+تَسَاؤُل	masdar	3928	تَسَاءَلَ	to wonder; to ask	4	4	4	0	0	0	5			3928	forms	known	140.6	1016	40	التساؤل:2 تساؤل:1 بالتساؤل:1	forms:3 clitic:1
+غَامِر	active_participle	4403	غَمَرَ	to flood	4	4	4	0	0	0	5			4403	forms	known	4.7	1099	37	غامر:2 الغامر:1 غامرًا:1	forms:4
+مُتَمَيِّز / مُتَمَيَّز	active_participle+passive_participle	2925	تَمَيَّزَ	to be distinguished	4	4	4	0	0	0	4			2925	forms	known	39.3	1159	35	متميز:2 متميزًا:1 المُتميز:1	forms:4
+مُقَرِّرٌ / مُقَرَّرٌ	active_participle+passive_participle	2440	قَرَّرَ	to decide	4	4	4	0	0	0	4			2440	forms	known	479.9	651	60	المقرر:2 المُقرَّر:1 مُقرَّرًا:1	forms:4
+ٱِنْتِقَاد	masdar	3809	ٱِنْتَقَد	to criticize	4	4	4	0	0	0	3			3809	forms			4165	6	وانتقاد:2 انتقاد:1 لانتقاد:1	clitic:3 forms:1
+مُحْدِق / مُحْدَق	active_participle+passive_participle	2151	أَحْدَق	to stare	4	4	4	0	0	0	3			2151	forms	known	31.7	2273	15	محدق:2 الْمُحْدِقَ:1 المحدق:1	forms:4
+قَاصِد	active_participle	3559	قَصَد	to intend	4	4	4	0	0	0	3			3559	forms	suspended	0.1	586	66	قاصدًا:3 فقاصدٌ:1	forms:3 clitic:1
+مَلْمُوس	passive_participle	4949	لَمَسَ	to touch	4	4	4	0	0	0	3			4949	forms	encountered		1381	29	ملموس:1 الملموس:1 ملموسًا:1 ملموسٌ:1	forms:4
+مُخَدِّر / مُخَدَّر	active_participle+passive_participle	4982	خَدَّرَ	to numb, to anesthetize	4	4	4	0	0	0	3			4982	forms			2419	14	المخدِّر:2 المُخدَّر:1 مخدر:1	forms:4
+مُسْتَنِد / مُسْتَنَد	active_participle+passive_participle	4674	اِسْتَنَدَ	to lean on, rest against; to rely on	4	4	4	0	0	0	3			4674	forms	encountered		1564	25	المستند:2 المُستند:1 مستند:1	forms:4
+انْحِنَاء	masdar	3298	انْحَنَى	to bend, to bow	4	4	4	0	0	0	3			3298	forms	suspended	0.2	1362	29	الانحناء:2 والانحناء:1 انحناء:1	forms:3 clitic:1
+جَرِيء	active_participle	4480	جَرُؤَ	dared	4	4	4	0	0	0	3			4480	forms	encountered		1685	23	الجريء:2 جريء:2	forms:4
+مَفْرُوض	passive_participle	922	فَرَضَ	to ordain	4	4	4	0	0	0	3			922	forms	known	3.1	854	48	المفروض:2 مفروضًا:1 فالمفروض:1	forms:3 clitic:1
+مُشِير	active_participle	3395	أَشَار	to point	4	4	4	0	0	0	3			3395	forms	known	7.3	252	122	مشيرًا:3 مُشِيرًا:1	forms:4
+مُفَارَقَة	masdar	3662	فَارَقَ	to differ; to leave	4	4	4	0	0	0	2			3662	forms	encountered		1015	40	المفارقة:2 مفارقتها:1 بالمفارقة:1	clitic:2 forms:2
+دَابّ	active_participle	589	دَبَّ	to creep, to crawl	4	4	4	0	0	2	2			589	forms	known	89.7	561	69	داب:2 دأب:2	forms:4
+نَاقِل	active_participle	4339	نَقَلَ	to transport, transfer, convey	4	4	4	0	0	0	2			4339	forms	suspended	0.2	705	56	ناقل:3 الناقل:1	forms:4
+رَاضٍ	active_participle	1511	رَضِيَ	to be satisfied	4	4	4	0	0	0	2			1511	forms	lapsed	0.5	714	55	راضٍ:4	forms:4
+مُبَالَغَة	masdar	560	بَالَغَ	to exaggerate	4	4	4	0	0	0	2			560	forms	known	5.2	564	68	المبالغة:2 الْمُبَالِغَةِ:1 مبالغة:1	forms:4
+سَامِع	active_participle	392	سَمِعَ	to hear	4	4	4	0	0	0	2			392	forms	known	384.4	59	267	سامع:2 السامع:1 سامعنا:1	forms:3 clitic:1
+مَحْكُومٌ	passive_participle	1439	حَكَمَ	to rule, judge	4	4	4	0	0	0	2			1439	forms	known	321.1	147	174	المحكوم:2 محكومٌ:1 محكومًا:1	forms:4
+مُتَّفِق / مُتَّفَق	active_participle+passive_participle	3509	اتَّفَقَ	to agree	4	4	4	0	0	0	1			3509	forms	known	539.4	962	42	المتفق:2 متفق:1 متفَق:1	forms:4
+مَنْسِيّ	passive_participle	3711	نَسِيَ	to forget	4	4	4	0	0	0	1			3711	forms	known	52.2	463	80	منسي:2 منسيًا:1 ومنسيًّا:1	forms:3 clitic:1
+حَافِزٌ	active_participle	4754	حَفَزَ	to spur, urge on, motivate	4	4	4	0	0	0	1			4754	forms	encountered		2831	11	حافزًا:2 وحافزه:1 حافز:1	forms:3 clitic:1
+تَجْمِيع	masdar	2680	جَمَّع	to collect	4	4	4	0	0	0	1			2680	forms	known	57.7	227	130	تجميعها:2 وتجميع:1 تجميع:1	clitic:3 forms:1
+اسْتِهْزَاء	masdar	3570	ٱِسْتَهْزَأ	mocks	4	4	4	0	0	0	1			3570	forms	encountered		5318	4	استهزاء:2 استهزاءً:1 واستهزاءٍ:1	forms:3 clitic:1
+مَخْزُون	passive_participle	543	خَزَنَ	to store, save	4	4	4	0	0	0	1			543	forms	known	47.0	3262	9	مخزون:2 المخزون:2	forms:4
+مَسْمُوعٌ	passive_participle	392	سَمِعَ	to hear	4	4	4	0	0	0	1			392	forms	known	384.4	59	267	والمسموع:2 المسموع:1 مسموعًا:1	forms:2 clitic:2
+تَعْمِيد	masdar	3907	عَمَّد	to baptize	4	4	4	0	0	0	1			3907	forms			2664	12	تعميدٍ:2 التعميد:1 تعميد:1	forms:4
+مَذِيع	passive_participle	2615	ذَاعَ	to spread	4	4	4	0	0	0	0			2615	forms	lapsed	0.9	3752	7	المذيع:2 مذيعٌ:1 مذيع:1	forms:4
+اِكْتِفَاء	masdar	4428	اِكْتَفَى	to be satisfied	4	4	4	0	0	0	0			4428	forms	suspended		1802	21	والاكتفاء:3 الاكتفاء:1	clitic:3 forms:1
+مَسْمُوحٌ	passive_participle	2198	سَمَحَ	to allow	4	4	4	0	0	0	0			2198	forms	suspended	1.1	377	95	المسموح:3 مسموح:1	forms:4
+مُلَاحَظَة	masdar	4248	لَاحَظَ	to notice, observe	4	4	4	0	0	0	0	#2605 مُلاحَظَة [noun] note		2605	lemma	known	4.6	645	61	بالملاحظة:2 ملاحظتها:1 بملاحظة:1	clitic:4
+دَاعٍ	active_participle	1033	دَعَا	to call	4	4	4	0	0	0	0			1033	forms	lapsed	5.9	132	185	داعٍ:2 وداعنا:1 داع:1	forms:3 clitic:1
+طُلُوع	masdar	4167	طَلَعَ	rose	4	4	4	0	0	0	0			4167	forms	encountered		2119	17	طلوع:3 طلوعه:1	forms:3 clitic:1
+مُفَاد	passive_participle	3417	أَفاد	to benefit, to inform	4	4	4	0	0	0	0			3417	forms	acquiring		1225	33	مفاده:2 ومفادُها:1 مُفادها:1	clitic:4
+هِتَاف	masdar	3253	هَتَفَ	to shout	4	4	4	0	0	0	0			3253	forms	known	205.1	1841	20	الهتاف:3 وَهُتافٌ:1	forms:3 clitic:1
+مُعَاهِد / مُعَاهَد	active_participle+passive_participle	3476	عَاهَدَ	to covenant	4	4	4	0	0	0	0			3476	forms	suspended	3.0	3774	7	المعاهد:2 معاهد:2	forms:4
+تَعْذِيب	masdar	2656	عَذَّب	to torture	4	4	4	0	0	0	0			2656	forms	known	71.4	1058	38	تعذيب:3 التعذيب:1	forms:4
+إِفْسَادٌ	masdar	3353	أَفْسَدَ	to corrupt, ruin	4	4	4	0	0	0	0			3353	forms	known	38.3	1669	23	إفسادها:1 إفساده:1 لإفسادها:1 إفساد:1	clitic:3 forms:1
+اسْتِخْرَاج	masdar	3504	اسْتَخْرَجَ	to extract	4	4	4	0	0	0	0			3504	forms	known	42.8	2798	11	استخراج:3 استخراجه:1	forms:3 clitic:1
+إشْفَاق	masdar	3453	أَشْفَقَ	to pity, to have compassion	4	4	4	0	0	0	0			3453	forms	suspended		2982	10	الإشفاق:1 إِشْفَاقُ:1 بالإشفاق:1 وإشفاق:1	forms:2 clitic:2
+مُتَوَلِّد / مُتَوَلَّد	active_participle+passive_participle	1186	تَوَلَّدَ	to be born, to originate	4	4	4	0	0	0	0			1186	forms	known	153.5	1821	20	المتولد:4	forms:4
+صُمُود	masdar	2629	صَمَد	to withstand	4	4	4	0	0	0	0			2629	forms	known	352.0	3426	8	الصمود:3 صموده:1	forms:3 clitic:1
+مُعَاوَدَة	masdar	3988	عاوَد	to return to, to resume; to recur	4	4	4	0	0	0	0			3988	forms	encountered		2117	17	المعاودة:3 فالمعاودة:1	forms:3 clitic:1
+مُتَنَقِّل	active_participle	4142	تَنَقَّلَ	to move about, to travel around	4	4	4	0	0	0	0			4142	forms	lapsed	1.0	1800	21	متنقلًا:3 المتنقل:1	forms:4
+خَيْبَة	masdar	4681	خَابَ	to fail, come to nothing; to be disappointed	4	4	4	0	0	0	0			4681	forms	encountered		5380	4	خيبة:2 الخيبة:1 وخيبة:1	forms:3 clitic:1
+ٱِسْتِيلَاء	masdar	3876	ٱِسْتَوْلَى	to take control of	4	4	4	0	0	0	0			3876	forms	encountered		1932	19	والاستيلاء:2 بالاستيلاء:1 باستيلاء:1	clitic:4
+طَيّ	masdar	4711	طَوَى	to fold, roll up; to traverse (a distance)	4	4	4	0	0	0	0			4711	forms	encountered		2036	18	طي:2 طيها:1 للطي:1	forms:2 clitic:2
+إِنْكَارٌ	masdar	3739	أَنْكَرَ	to deny	4	4	4	0	0	0	0			3739	forms	encountered		1128	36	لإنكاره:1 إنكار:1 إنكارًا:1 إنكارها:1	clitic:2 forms:2
+مُقَدِّمٌ / مُقَدَّمٌ	active_participle+passive_participle	3081	قَدَّمَ	to submit, to present	4	4	4	0	0	0	0			561	forms	known	166.8	445	83	مُقدِّم:4	forms:4
+مُبْتَسِمٌ / مُبْتَسَمٌ	active_participle+passive_participle	2535	اِبْتَسَمَ	to smile	4	4	4	0	0	0	0			2535	forms	known	195.5	747	53	مبتسمًا:3 ومبتسم:1	forms:3 clitic:1
+مُجِيب	active_participle	2217	أَجَابَ	to answer	4	4	4	0	0	0	0			2217	forms	known	433.6	70	257	مجيب:2 مُجِيبُكُمْ:1 المجيب:1	forms:3 clitic:1
+مُثَار	passive_participle	4999	يُثِيرُ	arouse	4	4	4	0	0	0	0			4999	forms	acquiring		392	93	مثار:2 مثارَ:1 مَثَارَ:1	forms:4
+سُعَال	masdar	2554	سَعَلَ	to cough	4	4	4	0	0	0	0			2554	forms	known	1.6	3182	9	بالسعال:1 سعال:1 سعالك:1 سعالًا:1	clitic:2 forms:2
+مَدْلُول	passive_participle	750	دَلَّ	to guide, indicate	4	4	4	0	0	0	0			750	forms	suspended	0.2	546	70	المدلول:2 ومدلول:1 لمدلول:1	clitic:2 forms:2
+ابْتِدَاء	masdar	3217	ابْتَدَأَ	to begin	4	4	4	0	0	0	0			3217	forms	known	310.2	2390	14	ابتداءً:2 بابتداء:1 ابتداء:1	forms:3 clitic:1
+اِسْتِيقَاظ	masdar	2079	اِسْتَيْقَظ	to wake up	4	4	4	0	0	0	0			2079	forms	known	472.3	1351	29	الاستيقاظ:3 بالاستيقاظ:1	forms:3 clitic:1
+مُنْدَفِع / مُنْدَفَع	active_participle+passive_participle	3454	اِنْدَفَعَ	to rush, to surge	4	4	4	0	0	0	0			3454	forms	known	106.4	1226	33	ومندفع:1 مُنْدَفِعًا:1 مُندفعًا:1 المندفع:1	forms:3 clitic:1
+مُثَابَرَة	masdar	1217	ثَابَرَ	to persevere	4	4	4	0	0	0	0			1217	forms			4594	5	والمثابرة:2 بمثابرة:1 المثابرة:1	clitic:3 forms:1
+تَخْطِيط	masdar	3831	خَطَّط	to plan	4	4	4	0	0	0	0			3831	forms	known	4.7	1468	27	تخطيط:1 التَّخْطِيطِ:1 التخطيط:1 لتخطيط:1	forms:3 clitic:1
+آتٍ	active_participle	2195	أَتَى	to come	4	4	4	0	0	2	0			2195	forms	known	32.1	144	176	وات:2 آتٍ:1 آتِ:1	clitic:2 forms:2
+إِهْوَاء	masdar	4498	أَهْوَى	to fall	4	4	4	0	0	4	0			4498	forms	encountered		577	67	الأهواء:3 بأهواء:1	forms:3 clitic:1
+مُزَاح	passive_participle	3290	أَزَاحَ	to remove	4	4	4	0	0	0	0			3290	forms	suspended	0.5	3445	8	المزاح:2 الْمِزَاحُ:1 مزاح:1	forms:4
+مُسَرِّع / مُسَرَّع	active_participle+passive_participle	2130	سَرَّعَ	to speed up, accelerate	4	4	4	0	0	0	0			2130	forms	known	370.4	1830	20	مسرعًا:4	forms:4
+بَدْو	masdar	4855	بَدَا	to appear; to seem	4	4	4	0	0	0	0			4855	forms	encountered		48	290	البدو:3 بدو:1	forms:4
+تَضْحِيَة	masdar	3706	ضَحَّى	to sacrifice	4	4	4	0	0	0	0			3706	forms	suspended	0.2	2015	18	تضحية:2 التضحية:1 بتضحِيَةِ:1	forms:3 clitic:1
+اِشْتِغَال	masdar	2567	اِشْتَغَلَ	to work	4	4	4	0	0	0	0			2567	forms	known	93.5	1833	20	وَاشْتِغَالِهِ:1 الاشتغال:1 والاشتغال:1 اشتغالًا:1	clitic:2 forms:2
+مُتَنَاوِل / مُتَناوَل	active_participle+passive_participle	2184	تَناوَل	to consume	4	4	4	0	0	0	0			2184	forms	known	144.9	244	123	مُتناوَل:2 متناوِلُه:1 متناول:1	forms:3 clitic:1
+جَعْل	masdar	2220	جَعَل	to make	3	66	0	66	3	0	0			2220	lemma	known	82.5	85	226	جعل:27 جعلني:7 جعله:4 وجعل:4	clitic:33 lemma:30 generated:3
+صُنْع	masdar	2596	صَنَعَ	to make; to manufacture	3	47	0	47	3	0	0		#4859 صَنَعَ -> #2596	2596	lemma	known	4.0	226	130	صنع:23 صنعها:5 صُنع:4 صُنْعِ:2	lemma:34 clitic:13
+تَنَاوُل	masdar	2184	تَناوَل	to consume	3	46	0	46	3	0	0			2184	lemma	known	144.9	244	123	تناول:19 لتناول:8 وتناول:7 تناولًا:2	clitic:22 lemma:21 generated:3
+سَبْق	masdar	3424	سَبَقَ	to precede	3	27	0	27	3	0	0			3424	lemma	known	78.4	669	59	سبق:16 السبق:3 سبقها:2 سبقه:2	lemma:21 clitic:6
+تَمَكُّن	masdar	2160	تَمَكَّن	to manage	3	21	0	21	3	0	0			2160	lemma	known	232.0	650	60	تمكَّن:5 تمكن:4 التمكن:2 تَمَكَّنَ:1	lemma:13 clitic:7 generated:1
+طَرْد	masdar	3042	طَرَدَ	to expel	3	13	0	13	3	0	0			3042	lemma	suspended	0.1	1359	29	طَرَدَ:1 وطردها:1 بطرده:1 طردهما:1	clitic:7 lemma:5 generated:1
+هَمْسٌ	masdar	3245	هَمَسَ	to whisper	3	13	0	13	3	0	0			3245	lemma	known	2.4	1731	22	همس:5 وهمس:1 هَمَسَ:1 فهمس:1	lemma:8 clitic:4 generated:1
+بَثّ	masdar	3512	بَثَّ	to broadcast, to spread	3	12	0	12	3	0	0			3512	lemma	known	281.2	1065	38	بث:4 لبث:3 ألبث:3 بثِّ:2	lemma:9 clitic:3
+نَفْخ	masdar	3088	نَفَخَ	to blow	3	11	0	11	3	0	0			3088	lemma	lapsed	2.4	2100	17	نفخ:6 النفخ:2 ونفخ:1 ونُفخ:1	lemma:8 clitic:2 generated:1
+تَعَلُّق	masdar	1332	تَعَلَّقَ	to be attached	3	11	0	11	3	0	0			1332	lemma	known	33.1	695	56	تعلق:4 وتعلق:1 التعلُّق:1 تعلَّق:1	lemma:7 clitic:3 generated:1
+كَسْب	masdar	3862	كَسَب	to earn, to gain, to obtain	3	10	0	10	3	0	0			3862	lemma	suspended	0.9	1514	26	كسب:5 وكسب:2 الكسب:2 كَسْبٍ:1	lemma:8 clitic:2
+صَغَر	masdar	4556	صَغُرَ	to become small	3	8	0	8	3	0	0			4556	lemma	encountered		2554	13	الصغر:2 صغره:1 صغرنا:1 لصغر:1	lemma:4 clitic:3 generated:1
+وَاضِع	active_participle	4030	وَضَعَ	put, place	3	6	0	6	3	3	2			4030	forms	known	118.7	122	193	وأضع:2 واضعًا:2 وَاضِعًا:1 وأضعه:1	forms:5 clitic:1
+تَمَاسُك	masdar	4004	تَماسَك	to hold together; to pull oneself together	3	6	0	6	3	0	0			4004	lemma			3469	8	التماسك:2 وتماسُكها:1 تماسكها:1 تماسكًا:1	lemma:3 clitic:2 generated:1
+طَعْن	masdar	4500	طَعَنَ	to stab	3	6	0	6	3	0	0			4500	lemma	encountered		3237	9	وطعن:2 الطعن:2 طُعن:1 والطعن:1	clitic:3 lemma:3
+جَرْس	masdar	658	جَرَسَ	to ring, to produce a gentle modulating sound	3	6	0	6	3	0	0			658	lemma	known	176.2	2312	15	جرس:2 جَرَسُكِ:1 جرسًا:1 والجرس:1	lemma:2 clitic:2 generated:2
+رَمْق	masdar	4485	رَمَقَ	glanced at, observed	3	6	0	6	3	0	0			4485	lemma	encountered		3011	10	ورمَقها:1 رمق:1 للرمق:1 رمقه:1	clitic:3 lemma:3
+خَلْط	masdar	3460	خَلَطَ	to mix	3	5	0	5	3	0	0			3460	lemma	lapsed	3.6	3204	9	وخلطه:1 خلط:1 الخلطَ:1 الخلط:1	lemma:3 clitic:2
+غَزْل	masdar	1076	غَزَلَ	to spin	3	5	0	5	3	0	0			1076	lemma	known	41.3	4099	6	غزل:2 بغزل:1 غَزِلٌ:1 غزِلٌ:1	lemma:4 clitic:1
+ثَقْب	masdar	4691	ثَقَبَ	to pierce, bore a hole through	3	5	0	5	3	0	0			4691	lemma	encountered		2034	18	ثقب:2 ثُقْبٍ:2 ثقبٍ:1	lemma:5
+كِذْب	masdar	2842	كَذَبَ	to lie	3	5	0	5	3	0	0			2842	lemma	known	293.6	1998	18	والكذب:1 الكذب:1 كذبه:1 وكذب:1	clitic:3 lemma:1 generated:1
+سَكّ	masdar	3864	سكّ	to mint, to coin	3	5	0	5	3	0	0			3864	lemma	encountered		1325	30	السكك:3 سكِّ:1 سكه:1	clitic:4 lemma:1
+مُقَدَّم	passive_participle	561	قَدَمَ	to precede	3	3	3	0	0	0	73			561	forms	known	4.1	88	223	مُقدمًا:1 مقدَّمُه:1 مقدَّم:1	forms:2 clitic:1
+مُسْتَخْدِم / مُسْتَخْدَم	active_participle+passive_participle	2575	اِسْتَخْدَمَ	to use	3	3	3	0	0	0	17			2575	forms	known	405.5	87	224	لمستخدِمه:1 المستخدَم:1 المستخدم:1	forms:2 clitic:1
+مَجْرِيّ	passive_participle	2231	جَرَى	to run	3	3	3	0	0	0	17			2231	forms	known	77.3	169	154	المجرِّيِّ:1 مجريًا:1 ومُجري:1	forms:2 clitic:1
+مُتَعَلِّق / مُتَعَلَّق	active_participle+passive_participle	1332	تَعَلَّقَ	to be attached	3	3	3	0	0	0	16			1332	forms	known	33.1	695	56	المتعلق:3	forms:3
+مَرْئِيّ	passive_participle	4576	رَأَى	to see	3	3	3	0	0	0	13			4576	forms	suspended	0.5	26	386	المرئي:2 والمرئي:1	forms:2 clitic:1
+فَائِق	active_participle	4134	فَاقَ	to exceed, to surpass	3	3	3	0	0	0	10			4134	forms	suspended	0.1	1330	30	فائق:2 الفائق:1	forms:3
+مُتَغَيِّرٌ / مُتَغَيَّرٌ	active_participle+passive_participle	4358	تَغَيَّرَ	to change (intransitive)	3	3	3	0	0	0	8			4358	forms	known	34.3	347	100	متغير:2 المتغير:1	forms:3
+عَارِض	active_participle	4985	عَرَضَ	to show, to present	3	3	3	0	0	0	7			4985	forms	encountered		671	59	عارض:2 العارض:1	forms:3
+عَارِف	active_participle	389	عَرَفَ	to know	3	3	3	0	0	0	6			389	forms	known	169.2	6	565	عارف:2 عارفًا:1	forms:3
+طَائِلٌ	active_participle	3616	طَالَ	to lengthen; to be long	3	3	3	0	0	0	6			3616	forms	known	46.0	1846	20	طائل:2 بطائلٍ:1	forms:2 clitic:1
+عَابِد	active_participle	3927	عَبَدَ	to worship	3	3	3	0	0	0	6			3927	forms	known	1.7	1067	38	العابد:2 عابد:1	forms:3
+مُسَيْطِرٌ	active_participle	4756	سَيْطَرَ	to control, dominate, take over	3	3	3	0	0	0	5			4756	forms	encountered		991	41	المسيطر:2 مسيطرًا:1	forms:3
+خَاطِفٌ	active_participle	3577	خَطَف	snatches	3	3	3	0	0	0	5			3577	forms	known	21.2	3209	9	الخاطف:1 خاطف:1 خاطِفٌ:1	forms:3
+مَضِيق	passive_participle	2089	ضَاقَ	to become narrow	3	3	3	0	0	0	4			2089	forms	known	114.0	1718	22	مضيق:1 فالمضيق:1 والمضيق:1	clitic:2 forms:1
+مُزْدَهِر / مُزْدَهَر	active_participle+passive_participle	4570	اِزْدَهَرَ	to flourish; blossom	3	3	3	0	0	0	4			4570	forms	suspended	0.1	1236	33	المزدهر:2 مزدهرًا:1	forms:3
+مُدَمِّرٌ / مُدَمَّرٌ	active_participle+passive_participle	2699	دَمَّر	to destroy	3	3	3	0	0	0	4			2699	forms	known	9.7	2190	16	مدمِّرٌ:1 مدمِّر:1 مدمرًا:1	forms:3
+مُتَعَلِّم / مُتَعَلَّم	active_participle+passive_participle	395	تعلّمَ	to learn	3	3	3	0	0	0	3			395	forms	known	540.6	292	111	فالمتعلم:1 المتعلم:1 متعلم:1	forms:2 clitic:1
+مُقَدِّر / مُقَدَّر	active_participle+passive_participle	2781	قَدَّرَ	to appreciate	3	3	3	0	0	0	3			2781	forms	known	2.6	171	153	مقدرًا:1 المقدَّر:1 مُقدَّرًا:1	forms:3
+مَرْفُوع	passive_participle	3934	رَفَعَ	to raise, to lift	3	3	3	0	0	0	2			3934	forms	known	142.5	429	86	مَرْفُوعًا:2 المرفوع:1	forms:3
+هَادِف	active_participle	1025	هَدَفَ	to aim, target	3	3	3	0	0	0	2			1025	forms	known	33.3	451	81	هادف:2 الهادف:1	forms:3
+مُضَاعِف / مُضَاعَف	active_participle+passive_participle	3330	ضَاعَف	to double	3	3	3	0	0	0	2			3330	forms	suspended	1.0	3448	8	المضاعف:2 مضاعفًا:1	forms:3
+مُحْتَاج	active_participle+passive_participle	2192	اِحْتاج	to need	3	3	3	0	0	0	2			2192	forms	known	336.2	487	76	المحتاج:1 محتاج:1 محتاجًا:1	forms:3
+كَاذِب	active_participle	2842	كَذَبَ	to lie	3	3	3	0	0	0	2			2842	forms	known	293.6	1998	18	كاذب:2 كاذِبَ:1	forms:3
+مُدْرِك / مُدْرَك	active_participle+passive_participle	4261	أَدْرَكَ	to realize, grasp	3	3	3	0	0	0	2			4261	forms	known	2.8	332	104	مدرك:1 ومُدرِكًا:1 المدرك:1	forms:2 clitic:1
+عَازِفٌ	active_participle	2227	عَزَفَ	to play music	3	3	3	0	0	0	2			2227	forms	known	442.7	2084	17	عازفًا:2 عازف:1	forms:3
+اِسْتِعْرَاض	masdar	1310	اِسْتَعْرَضَ	to review, inspect	3	3	3	0	0	0	2			1310	forms			3158	9	باستعراض:2 استعراض:1	clitic:2 forms:1
+مُحَقِّق / مُحَقَّق	active_participle+passive_participle	3416	حَقَّق	to verify, to realize	3	3	3	0	0	0	2			3416	forms	suspended	0.2	769	52	المحقق:2 كمحقق:1	forms:2 clitic:1
+مُنْشَأ	passive_participle	4864	أَنْشَأَ	to establish, found, create	3	3	3	0	0	0	2			4864	forms	encountered		1521	26	منشأ:2 المُنشأ:1	forms:3
+رَاشِد	active_participle	483	رَشَدَ	to be guided	3	3	3	0	0	0	1			483	forms	known	14.0	1337	30	راشد:3	forms:3
+صَاعِد	active_participle	3227	صَعِدَ	to ascend	3	3	3	0	0	0	1			3227	forms	known	2.0	945	43	فصاعدًا:2 وصاعدًا:1	clitic:3
+مَهْجُور	passive_participle	4041	هَجر	to abandon, forsake	3	3	3	0	0	0	1			4041	forms	suspended	0.2	2204	16	المهجور:2 مَهْجُورٍ:1	forms:3
+مُوَاجِه / مُوَاجَه	active_participle+passive_participle	3600	وَاجَهَ	to face	3	3	3	0	0	0	1			3600	forms	known	332.4	631	62	المواجه:2 مواجه:1	forms:3
+اِضْطِرَار	masdar	3631	اضْطَرَّ	to be forced	3	3	3	0	0	0	1			3631	forms	suspended		831	49	اضطرار:2 الاضطرار:1	forms:3
+مُفْتَرِق / مُفْتَرَق	active_participle+passive_participle	3978	ٱِفْتَرَق	to separate	3	3	3	0	0	0	1			3978	forms			3793	7	مفترق:2 لمفترق:1	forms:2 clitic:1
+مُتَزَامِن / مُتَزَامَن	active_participle+passive_participle	4790	تَزَامَنَ	to coincide	3	3	3	0	0	0	1			4790	forms	learning	8.3	3832	7	متزامنٍ:1 المتزامن:1 متزامن:1	forms:3
+إِنْعَام	masdar	2845	أَنْعَمَ	to bestow favor	3	3	3	0	0	0	1			2845	forms	known	2.2	1357	29	بإنعام:1 الإنعام:1 وإنعام:1	clitic:2 forms:1
+اِسْتِطْرَاد	masdar	4220	اِسْتَطْرَدَ	continued	3	3	3	0	0	0	1			4220	forms	suspended	0.6	3806	7	واستطراد:1 استطراد:1 استطرادًا:1	forms:2 clitic:1
+مُتَّبِعٌ / مُتَّبَعٌ	active_participle+passive_participle	4364	اِتَّبَعَ	to follow, adopt	3	3	3	0	0	0	1			4364	forms	suspended		1863	20	المتَّبَع:2 مُتبعًا:1	forms:3
+اِسْتِرْخَاء	masdar	2955	اِسْتَرْخَى	to relax	3	3	3	0	0	0	1			2955	forms	known	34.4	4629	5	للاسترخاء:1 والاسترخاء:1 الاسترخاء:1	clitic:2 forms:1
+تَرْتِيل	masdar	3179	رَتَّلَ	to recite melodiously	3	3	3	0	0	0	1			3179	forms	known	5.2	3440	8	وترتيلَها:1 بترتيل:1 ترتيلٌ:1	clitic:2 forms:1
+مَحُول	passive_participle	890	حَالَ	to change, to be transformed	3	3	3	0	0	0	1			890	forms	known	4.8	61	264	المُحوَّل:1 المحوَّل:1 محوِّلًا:1	forms:3
+مُغَلِّف / مُغَلَّف	active_participle+passive_participle	4983	غَلَّفَ	to wrap	3	3	3	0	0	0	1			4983	forms			3838	7	ومغلَّف:1 ومغلفًا:1 مغلفًا:1	clitic:2 forms:1
+مَطُولٌ	passive_participle	3616	طَالَ	to lengthen; to be long	3	3	3	0	0	0	1			3616	forms	known	46.0	1846	20	مطولًا:2 مَطُولٍ:1	forms:3
+هَوَس	masdar	1333	هَوَّسَ	to obsess, craze	3	3	0	3	3	0	0			1333	lemma			5259	4	الهوس:1 هَوَسًا:1 بالهوس:1	lemma:1 generated:1 clitic:1
+مُسْتَعِين	active_participle	2817	اِسْتَعَانَ	to seek help	3	3	3	0	0	0	0			2817	forms	known	5.6	1412	28	المستعين:2 مستعينًا:1	forms:3
+مَشْكُور	passive_participle	2204	شَكَرَ	to thank	3	3	3	0	0	0	0			2204	forms	known	553.7	623	62	المشكور:3	forms:3
+مُعِدّ / مُعَدّ	active_participle+passive_participle	2533	أَعَدَّ	to prepare	3	3	3	0	0	0	0			2163	forms	suspended		894	45	مُعدًّا:1 المُعَدَّ:1 المعَد:1	forms:3
+مُسْرِع / مُسْرَع	active_participle+passive_participle	4287	أَسْرَعَ	to hurry, hasten	3	3	3	0	0	0	0			2130	forms	known	314.3	677	58	مُسْرِعًا:3	forms:3
+اِقْتِنَاع	masdar	4402	اِقْتَنَعَ	to be convinced	3	3	3	0	0	0	0			4402	forms	encountered		2669	12	لاقتناعه:1 اقتناعًا:1 الاقتناع:1	forms:2 clitic:1
+إِسْقَاط	masdar	4865	أَسْقَطَ	to drop, bring down; to omit	3	3	3	0	0	0	0			4865	forms			2559	13	بإسقاط:1 بإسقاطه:1 إسقاط:1	clitic:2 forms:1
+الْتِقَاء	masdar	2394	الْتَقَى	to meet	3	3	3	0	0	0	0			2394	forms	known	3.0	788	51	التقاء:1 التقاءِ:1 بالتقاء:1	forms:2 clitic:1
+تَأْدِيَة	masdar	2975	أَدَّى	to lead to	3	3	3	0	0	0	0			2975	forms	known	10.7	223	131	تأدية:2 التأدية:1	forms:3
+تَبَاطُؤ	masdar	4737	تَبَاطَأَ	to slow down, dawdle	3	3	3	0	0	0	0			4737	forms	encountered		3827	7	التباطؤ:1 تباطؤًا:1 تباطؤ:1	forms:3
+مَدْهُوشٌ	passive_participle	3406	دَهِشَ	to be astonished	3	3	3	0	0	0	0			3406	forms	known	56.2	462	80	مَدْهُوشًا:1 مدهوش:1 مدهوشًا:1	forms:3
+فَاتِح	active_participle	397	فَتَحَ	to open	3	3	3	0	0	0	0			397	forms	known	478.8	184	146	فاتح:1 وفاتحه:1 وفاتح:1	clitic:2 forms:1
+مُلَاحِظ / مُلَاحَظ	active_participle+passive_participle	4248	لَاحَظَ	to notice, observe	3	3	3	0	0	0	0			4248	forms	known	4.6	645	61	المُلاحَظ:1 الملاحَظ:1 والملاحظ:1	forms:2 clitic:1
+إِرْغَام	masdar	4429	أَرْغَمَ	forced, compelled	3	3	3	0	0	0	0			2141	forms	learning	0.2	3487	8	بالإرغام:1 الإرغام:1 وإرغامها:1	clitic:2 forms:1
+دِرَايَة	masdar	4874	دَرَى	to know, be aware of	3	3	3	0	0	0	0			4874	forms	encountered		1436	28	دراية:2 درايتنا:1	forms:2 clitic:1
+رَاءٍ	active_participle	4576	رَأَى	to see	3	3	3	0	0	0	0			4576	forms	suspended	0.5	26	386	راء:2 الراء:1	forms:3
+قَارِص	active_participle	1458	قَرَصَ	to pinch	3	3	3	0	0	0	0			1458	forms	known	1.1	1715	22	قارص:2 القارص:1	forms:3
+زَائِلٌ	active_participle	2576	زَالَ	to cease, disappear; (with negation) to still be, keep on	3	3	3	0	0	0	0			2576	forms	known	4.2	111	200	زائل:2 الزائل:1	forms:3
+اسْتِغْرَابٌ	masdar	3313	اسْتَغْرَب	to be surprised	3	3	3	0	0	0	0			3313	forms	known	315.9	3446	8	واستغرابٍ:1 الاستغراب:1 استغراب:1	forms:2 clitic:1
+سَنْد	masdar	3950	سَنَد	to support, to back up	3	3	0	3	3	0	0			3950	lemma	encountered		2665	12	والسند:1 السند:1 كسندٍ:1	clitic:2 lemma:1
+إِتَاحَة	masdar	3817	أَتَاحَ	to provide; to make available	3	3	3	0	0	0	0			3817	forms	encountered		868	47	إتاحة:2 وإتاحة:1	forms:2 clitic:1
+تَرْدِيد	masdar	4449	رَدَّدَ	to repeat	3	3	3	0	0	0	0			4449	forms	encountered		2214	16	ترديد:3	forms:3
+مَنِيف	passive_participle	655	نَافَ	to exceed	3	3	3	0	0	0	0			655	forms	known	79.3	2683	12	منيفًا:2 المنيف:1	forms:3
+اِرْتِياحٌ	masdar	2225	اِرْتاحَ	to relax	3	3	3	0	0	0	0			2225	forms	known	32.2	2955	10	وارتياحٍ:1 ارتياحٍ:1 بارتياح:1	clitic:2 forms:1
+اِشْتِدَاد	masdar	3833	اِشْتَدَّ	to intensify; to become strong	3	3	3	0	0	0	0			3833	forms	suspended	0.2	1324	30	اشْتِدادًا:1 اشتداد:1 اشتدادها:1	forms:2 clitic:1
+مُشَار	passive_participle	3395	أَشَار	to point	3	3	3	0	0	0	0			3395	forms	known	7.3	252	122	المشار:2 المُشار:1	forms:3
+مُسْتَغْرِبٌ / مُسْتَغْرَبٌ	active_participle+passive_participle	3313	اسْتَغْرَب	to be surprised	3	3	3	0	0	0	0			3313	forms	known	315.9	3446	8	المستغرب:2 بمستغرب:1	forms:2 clitic:1
+نَاجٍ	active_participle	3481	نَجا	to save	3	3	3	0	0	0	0			3481	forms	lapsed	1.0	1420	28	ناجٍ:3	forms:3
+كَيْد	masdar	3576	كَادَ	almost, nearly	3	3	3	0	0	0	0			3576	forms	known	29.0	212	134	الكيد:1 كيد:1 والكيد:1	forms:2 clitic:1
+تَمْكِين	masdar	2087	مَكَّن	to enable	3	3	3	0	0	0	0			2087	forms	known	428.6	24	392	وتمكينهم:1 والتمكين:1 التمكين:1	clitic:2 forms:1
+مُعْتَرِفٌ / مُعْتَرَفٌ	active_participle+passive_participle	3022	اعْتَرَفَ	to confess	3	3	3	0	0	0	0			3022	forms	known	505.8	1415	28	ومُعترفًا:1 معترفًا:1 معترف:1	forms:2 clitic:1
+إِسْرَاع	masdar	4287	أَسْرَعَ	to hurry, hasten	3	3	3	0	0	0	0			4287	forms	known	314.3	677	58	الإسراع:3	forms:3
+طِيب / طَيِّب	masdar+active_participle	4146	طَابَ	to be good	3	3	3	0	0	0	0	#67 طَيِّبٌ [adj] kind		67	lemma	lapsed	1.0	2207	16	بالطِّيبِ:1 طِيبَهُ:1 طِيبِهَا:1	clitic:3
+اِبْتِهَاجٌ	masdar	4471	ابْتَهَجَ	rejoiced	3	3	3	0	0	0	0			4471	forms	encountered		5365	4	ابْتِهاجًا:1 وابتهاج:1 بابتهاج:1	clitic:2 forms:1
+حَاظٍ	active_participle	4670	حَظِيَ	to enjoy, be favoured with (بـ)	3	3	3	0	0	0	0			4670	forms	encountered		1206	34	لِحَاظِهَا:2 لِحَاظٌ:1	clitic:3
+إِزْهَار	masdar	813	أَزْهَرَ	to bloom, blossom	3	3	3	0	0	0	0		#1151 أَزْهَار -> #1484	764	forms			3042	10	الإزهار:3	forms:3
+طَاوٍ	active_participle	4711	طَوَى	to fold, roll up; to traverse (a distance)	3	3	3	0	0	0	0			4711	forms	encountered		2036	18	الطاو:3	forms:3
+عُلُوّ	masdar	3229	عَلَا	to rise	3	3	3	0	0	0	0			3229	forms	known	293.8	1504	26	علوِّ:2 لِعُلُوِّ:1	forms:2 clitic:1
+هِدَايَة	masdar	3584	هَدَى	to guide	3	3	3	0	0	0	0			3584	forms	known	1.7	1465	27	هداية:2 لهِداية:1	forms:2 clitic:1
+إِيضَاح	masdar	4950	أَوْضَحَ	to clarify, to explain	3	3	3	0	0	0	0			4950	forms	encountered		1103	37	إيضاحه:1 إيضاح:1 وإيضاحًا:1	clitic:2 forms:1
+مَشْكُوك	passive_participle	4980	شَكَّ	to doubt	3	3	3	0	0	0	0			4980	forms	encountered		1265	32	مشكوك:2 ومشكوكًا:1	forms:2 clitic:1
+تَذَكُّر	masdar	405	تذكّر	to remember	2	43	0	43	2	0	0			405	lemma	known	199.9	430	86	تذكر:20 تُذكر:3 تُذكِّر:2 تذكَّر:2	lemma:32 clitic:11
+دَفْع	masdar	2376	دَفَعَ	to pay; to push	2	31	0	31	2	0	0	#4968 دَفْع [noun] payment; pushing		2376	lemma	known	492.1	309	107	دفع:14 دفعني:5 دفعها:3 دفعًا:2	lemma:15 clitic:14 generated:2
+وَتْر	masdar	1072	وَتَرَ	to string (as a bow), to provide with a string	2	18	0	18	2	0	0			1072	lemma	suspended	1.1	725	54	وترك:8 وتر:3 وَتَرَكَ:2 وترَه:1	clitic:13 lemma:5
+حَجْر	masdar	512	حَجَرَ	to stop, to hinder	2	16	0	16	2	0	0	#3585 حَجَر [noun] stone		512	lemma	known	85.8	923	44	حجر:13 حجرًا:1 حجره:1 حَجَرًا:1	lemma:13 generated:2 clitic:1
+مَنْعٌ	masdar	3138	مَنَعَ	to prevent, withhold, deny, protect	2	16	0	16	2	0	0			3138	lemma	known	2.1	809	50	منع:4 منعني:2 ومنع:2 لمنع:2	clitic:8 lemma:7 generated:1
+تَجَنُّب	masdar	3812	تَجَنَّب	to avoid	2	15	0	15	2	0	0			3812	lemma	suspended		1674	23	تجنُّب:3 تجنب:3 تجنبه:2 تَجَنُّبُهَا:1	clitic:8 lemma:6 generated:1
+سَافِرٌ	active_participle	2201	سَافَرَ	to travel	2	15	0	15	2	0	0			2201	lemma	known	482.0	935	43	سافر:4 سافرنا:4 وسافر:2 فسافر:1	lemma:6 clitic:5 generated:4
+فَرْض	masdar	922	فَرَضَ	to ordain	2	11	0	11	2	0	0			922	lemma	known	3.1	854	48	فرض:7 فرَضَ:1 الفرض:1 فرضًا:1	lemma:9 generated:1 clitic:1
+كَفّ	masdar	1354	كَفَّ	desist, cease	2	9	0	9	2	0	0			1354	lemma	known	305.4	608	63	كفه:2 كفك:1 بكف:1 كفُّ:1	clitic:7 lemma:2
+دَعْم	masdar	3040	دَعَمَ	to support	2	8	0	8	2	0	0	#4969 دَعْم [noun] support		3040	lemma	known	1.9	2515	13	دعم:3 دعمًا:2 ودعمهم:1 دعَّم:1	lemma:4 clitic:2 generated:2
+صَدّ	masdar	964	صَدَّ	to hinder, to repel	2	7	0	7	2	0	0			964	lemma	suspended	0.4	1754	22	صدها:2 لصد:1 الصَّدَّ:1 صد:1	clitic:5 lemma:2
+تَجاهُلٌ	masdar	3412	تَجَاهَلَ	to ignore	2	6	0	6	2	0	0			3412	lemma	known	2.6	2006	18	والتجاهل:1 تجاهل:1 للتجاهل:1 تجاهُلها:1	clitic:4 lemma:1 generated:1
+شُرْب	masdar	401	شَرِبَ	to drink	2	6	0	6	2	0	0			401	lemma	known	431.9	1372	29	الشرب:2 شرب:1 وشربهما:1 شربها:1	lemma:3 clitic:3
+جَرْم	masdar	1047	جَرَمَ	to commit crime, felony	2	5	0	5	2	0	0			1047	lemma			2759	11	جرم:2 جرَّم:1 جِرْمًا:1 جُرْمًا:1	lemma:3 generated:2
+مَسّ	masdar	1016	مَسَّ	to feel, to touch	2	5	0	5	2	0	0			1016	lemma	known	3.2	971	41	مُسِنًّا:1 مسَّها:1 ألمسُ:1 ومسكن:1	clitic:2 lemma:2 generated:1
+فَطْر	masdar	1233	فَطَرَ	to split, cleave	2	4	0	4	2	0	0			1233	lemma	known	17.6	2369	14	الفطر:2 فُطِر:1 فطرنا:1	lemma:3 generated:1
+تَزَامُن	masdar	4790	تَزَامَنَ	to coincide	2	3	0	3	2	0	0			4790	lemma	learning	8.3	3832	7	بالتزامن:1 تزامن:1 التزامن:1	lemma:2 clitic:1
+تَذَمُّرٌ	masdar	2935	تَذَمَّرَ	to complain	2	3	0	3	2	0	0			2935	lemma	known	15.0	4133	6	وَتَذَمَّرَ:1 بتذمُّر:1 التذمر:1	clitic:2 lemma:1
+وَازِعٌ	active_participle	3328	وَزَع	to distribute	2	3	1	2	1	0	0			3328	forms	known	10.0	3447	8	وَازِعٍ:1 وازع:1 ووازع:1	forms:2 clitic:1
+شَرَك	masdar	1356	شَرَكَ	associate, partner	2	3	0	3	2	0	0			1356	lemma	known	102.9	591	65	الشَّرَكِ:1 شَرَك:1 بشَّرك:1	lemma:2 clitic:1
+هَزْل	masdar	2021	هَزَل	to jest	2	3	0	3	2	0	0			2021	lemma			6277	3	الهزل:2 هزل:1	lemma:3
+إِجَادَةٌ	masdar	4669	أَجَادَ	to do well, master, excel at	2	3	2	1	0	0	0			4669	forms	encountered		1627	24	الإجادة:2 إجادتها:1	forms:2 clitic:1
+غَيْم	masdar	3280	غَيَّم	to cloud	2	3	0	3	2	0	0			3280	lemma	known	352.5	4639	5	بالغيم:1 غيم:1 كغيمٍ:1	clitic:2 lemma:1
+إِحَاطَة	masdar	3808	أَحاط	to surround	2	3	2	1	0	1	0			3808	forms	known	1.4	616	63	أحاطَتْها:1 إحاطة:1 الإحاطة:1	forms:2 clitic:1
+عَرْض	masdar	4985	عَرَضَ	to show, to present	2	3	0	3	2	0	0	#2486 عَرَض [noun] symptom		2486	lemma	encountered		671	59	عرضًا:2 عَرْض:1	generated:2 lemma:1
+رَامّ	active_participle	841	رَمَّ	to repair, fix	2	2	2	0	0	0	25			841	forms	known	3.0	925	44	فَرَامَ:1 رَامَ:1	clitic:1 forms:1
+خَاطِب	active_participle	3684	خَطَبَ	to deliver a speech; to propose marriage	2	2	2	0	0	0	20			3684	forms	suspended	0.2	1164	35	وخاطَب:1 خَاطَبَهُمُ:1	clitic:2
+حَافِل	active_participle	3546	حَفَل	to be crowded	2	2	2	0	0	0	13			3546	forms	known	3.6	2009	18	حافل:1 الحافل:1	forms:2
+فَاعِل	active_participle	4532	فَعَلَ	to do	2	2	2	0	0	0	8			4532	forms	known	50.9	165	157	الفاعل:1 فاعل:1	forms:2
+مُشْبِع / مُشْبَع	active_participle+passive_participle	4389	أَشْبَعَ	to satiate	2	2	2	0	0	0	7			4389	forms	learning	0.2	2550	13	المشبع:1 مُشبعًا:1	forms:2
+مَدْفُوع	passive_participle	2376	دَفَعَ	to pay; to push	2	2	2	0	0	0	7			2376	forms	known	492.1	309	107	مدفوعًا:1 مدفوع:1	forms:2
+مُشْتَقّ	active_participle+passive_participle	4603	اِشْتَقَّ	to derive; coin	2	2	2	0	0	0	7			4603	forms	encountered		4691	5	مشتق:1 مُشتقٌّ:1	forms:2
+مَنْقُول	passive_participle	4339	نَقَلَ	to transport, transfer, convey	2	2	2	0	0	0	6			4339	forms	suspended	0.2	705	56	منقول:2	forms:2
+مُسْتَقِرّ / مُسْتَقَرّ	active_participle+passive_participle	3035	اسْتَقَرَّ	settled	2	2	2	0	0	0	5			3035	forms	known	36.4	983	41	المستقر:1 مُستقرًّا:1	forms:2
+شَاهِقٌ	active_participle	4413	شَهَقَ	to gasp	2	2	2	0	0	0	5			4413	forms	encountered		4681	5	شاهق:1 شاهقًا:1	forms:2
+حَالِم	active_participle	1268	حَلَمَ	to dream	2	2	2	0	0	0	5			1268	forms	known	31.2	300	109	حالم:1 الحالم:1	forms:2
+مُتَحَرِّك / مُتَحَرَّك	active_participle+passive_participle	4314	تَحَرَّكَ	to move, stir (intransitive)	2	2	2	0	0	0	5			4314	forms	known	6.0	816	50	متحرك:2	forms:2
+رِضًى	masdar	1511	رَضِيَ	to be satisfied	2	2	2	0	0	0	5			1511	forms	lapsed	0.5	714	55	رضى:1 الرضى:1	forms:2
+إِيمَاء	masdar	4288	أَوْمَأَ	to nod, gesture	2	2	2	0	0	0	5			4288	forms	suspended		2123	17	بالإيماء:1 إيماءً:1	clitic:1 forms:1
+مُهْتَمّ	active_participle	2237	اِهْتَمَّ	to care, to be interested	2	2	2	0	0	0	4			2237	forms	known	25.9	257	121	مهتم:1 مهتمٍّ:1	forms:2
+مُخْتَار	active_participle+passive_participle	1273	اخْتَارَ	to choose	2	2	2	0	0	0	4			1273	forms	known	71.9	381	94	مختارًا:1 المختار:1	forms:2
+مُضِيء	active_participle	2700	أَضاء	to illuminate	2	2	2	0	0	0	4			2700	forms	known	31.3	1277	31	مضيءٌ:1 مضيء:1	forms:2
+رَافِع	active_participle	3934	رَفَعَ	to raise, to lift	2	2	2	0	0	0	4			3934	forms	known	142.5	429	86	رافع:1 رافعًا:1	forms:2
+حَاسِب	active_participle	667	حَسَبَ	to calculate, to compute	2	2	2	0	0	0	4			667	forms	suspended	0.2	200	138	حاسبٍ:1 وحاسبٍ:1	forms:1 clitic:1
+مَدْقُوق	passive_participle	3324	دَقَّ	to ring	2	2	2	0	0	0	3			3324	forms	known	20.4	1551	25	المدقوق:2	forms:2
+مُسَجِّل / مُسَجَّل	active_participle+passive_participle	2609	سَجَّل	to record	2	2	2	0	0	0	3			2609	forms	known	45.8	1034	39	المُسجَّل:1 المسجل:1	forms:2
+مُتَحَدِّث / مُتَحَدَّث	active_participle+passive_participle	2536	تَحَدَّثَ	to talk	2	2	2	0	0	0	3			2536	forms	known	34.6	167	156	المتحدث:1 متحدث:1	forms:2
+رَاعٍ	active_participle	4162	رَعَى	to shepherd	2	2	2	0	0	0	3			4162	forms	known	29.5	1288	31	راعك:1 راعه:1	clitic:2
+حالِف	active_participle	3654	حَلَف	to swear; to vow	2	2	2	0	0	0	3			3654	forms			4162	6	حالفها:1 حالفهم:1	clitic:2
+مُعْتَزِل / مُعْتَزَل	active_participle+passive_participle	2019	اِعْتَزَل	to withdraw	2	2	2	0	0	0	3			2019	forms	suspended		4605	5	معتزل:1 المعتزل:1	forms:2
+مُعْلِن / مُعْلَن	active_participle+passive_participle	4315	أَعْلَنَ	to announce, declare	2	2	2	0	0	0	3			4315	forms	known	240.7	1233	33	مُعلَن:1 معلن:1	forms:2
+جَاذِب	active_participle	3859	جَذَب	to draw, to pull, to attract	2	2	2	0	0	0	3			3859	forms	encountered		1130	36	الجاذب:1 وَجَاذَبَ:1	forms:1 clitic:1
+مُقْتَنِع	active_participle	4402	اِقْتَنَعَ	to be convinced	2	2	2	0	0	0	3			4402	forms	encountered		2669	12	مقتنع:1 مقتنعًا:1	forms:2
+شَاكِر	active_participle	2204	شَكَرَ	to thank	2	2	2	0	0	0	3			2204	forms	known	553.7	623	62	شاكر:2	forms:2
+شُمُول	masdar	2730	شَمِلَ	to include	2	2	2	0	0	0	2			2730	forms	known	2.0	806	50	الشمول:1 شموله:1	forms:1 clitic:1
+اِمْتِلَاء	masdar	4311	اِمْتَلَأَ	to fill up, become full	2	2	2	0	0	0	2			4311	forms	known	309.0	1518	26	امتلاء:2	forms:2
+مُسْتَيْقِظ / مُسْتَيْقَظ	active_participle+passive_participle	2079	اِسْتَيْقَظ	to wake up	2	2	2	0	0	0	2			2079	forms	known	472.3	1351	29	مستيقظًا:1 مُسْتَيْقِظًا:1	forms:2
+كَافِرٌ	active_participle	2833	كَفَرَ	to disbelieve, to deny	2	2	2	0	0	0	2			2833	forms	known	56.0	4132	6	الكافر:1 كافرًا:1	forms:2
+مُشَدِّد / مُشَدَّد	active_participle+passive_participle	3638	شَدَّد	to intensify; to emphasize	2	2	2	0	0	0	2			3638	forms			5322	4	المشدَّد:1 المشدد:1	forms:2
+مُعَذِّب / مُعَذَّب	active_participle+passive_participle	2656	عَذَّب	to torture	2	2	2	0	0	0	2			2656	forms	known	71.4	1058	38	المعذب:1 ومعذب:1	forms:1 clitic:1
+مُبْتَدِئ	active_participle	3217	ابْتَدَأَ	to begin	2	2	2	0	0	0	2			3217	forms	known	310.2	2390	14	مبتدئًا:1 مبتدئ:1	forms:2
+مُلْصِق / مُلْصَق	active_participle+passive_participle	4491	أَلْصَقَ	to stick	2	2	2	0	0	0	2			4491	forms	learning	2.3	3488	8	ملصقًا:1 الملصق:1	forms:2
+رَاغِب	active_participle	3325	رَغِب	to desire	2	2	2	0	0	0	2			3325	forms	known	293.8	640	61	راغب:1 راغبًا:1	forms:2
+إِيحَاء	masdar	3067	أَوْحَى	to inspire, suggest	2	2	2	0	0	0	1			3067	forms	known	213.1	1120	36	الإيحاء:1 للإيحاء:1	forms:1 clitic:1
+مُعْتَبِر / مُعْتَبَر	active_participle+passive_participle	2927	اِعْتَبَرَ	to consider	2	2	2	0	0	0	1			2927	forms	known	3.1	500	75	معتبرًا:2	forms:2
+مُلْتَزِم / مُلْتَزَم	active_participle+passive_participle	3962	ٱلْتَزَم	to commit; to adhere	2	2	2	0	0	0	1			3962	forms			4173	6	ملتزم:1 ملتزمًا:1	forms:2
+خَوَاء	masdar	1422	خَوَى	to be empty	2	2	2	0	0	0	1			1422	forms	known	175.1	2268	15	للخواء:1 خواء:1	clitic:1 forms:1
+اِسْتِحْقَاق	masdar	2740	اِسْتَحَقّ	to deserve	2	2	2	0	0	0	1			2740	forms	known	3.5	1609	24	استحقاقًا:1 استحقاقه:1	forms:1 clitic:1
+مُؤَامَرَة	masdar	1185	آمَرَ	to consult with; to conspire with	2	2	2	0	0	0	1			1185	forms	encountered		762	52	مؤامرة:1 المؤامرة:1	forms:2
+مُنْذِر / مُنْذَر	active_participle+passive_participle	2835	أَنْذَرَ	to warn, to caution	2	2	2	0	0	0	1			2835	forms	lapsed	0.9	2638	12	مُنذرًا:1 منذر:1	forms:2
+مُقْتَصِر / مُقْتَصَر	active_participle+passive_participle	4122	اِقْتَصَرَ	to limit	2	2	2	0	0	0	1			4122	forms	suspended		1562	25	مقتصرًا:1 مُقتصِر:1	forms:2
+إِسَاءَة	masdar	4088	أَسَاءَ	to offend; to mistreat	2	2	2	0	0	0	1			4088	forms	encountered		2810	11	إساءة:2	forms:2
+مُزْهِر	active_participle	813	أَزْهَرَ	to bloom, blossom	2	2	2	0	0	0	1			813	forms			3042	10	المُزهِر:1 المزهر:1	forms:2
+صَائِحٌ	active_participle	2658	صَيَّح	to shout	2	2	2	0	0	0	1			2658	forms	known	22.7	696	56	صائحًا:1 الصائح:1	forms:2
+مُشْفِق / مُشْفَق	active_participle+passive_participle	3453	أَشْفَقَ	to pity, to have compassion	2	2	2	0	0	0	1			3453	forms	suspended		2982	10	مشفق:1 المشْفِقَهْ:1	forms:1 clitic:1
+مُضاء	passive_participle	2700	أَضاء	to illuminate	2	2	2	0	0	0	1			2700	forms	known	31.3	1277	31	مضاءً:2	forms:2
+رَافِضٌ	active_participle	3021	رَفَضَ	to refuse	2	2	2	0	0	0	1			3021	forms	known	375.3	864	47	رافضًا:2	forms:2
+زَائِد	active_participle	2563	زَادَ	to increase	2	2	2	0	0	0	1			2563	forms	known	84.0	113	198	الزائد:2	forms:2
+مَوْعُود	passive_participle	2470	وَعَدَ	to promise	2	2	2	0	0	0	1			2470	forms	known	23.6	222	131	الموعود:2	forms:2
+أُفُول	masdar	2026	أَفَل	to set	2	2	2	0	0	0	1			2026	forms	known	2.0	4116	6	والأفول:1 أفول:1	clitic:1 forms:1
+مُجَنِّد / مُجَنَّد	active_participle+passive_participle	3596	جَنَّدَ	to conscript	2	2	2	0	0	0	1			3596	forms			4648	5	المجند:2	forms:2
+مَزْعُوم	passive_participle	4524	زَعَمَ	to claim, assert; say	2	2	2	0	0	0	1			4524	forms	suspended		1624	24	المزعوم:2	forms:2
+حَاقّ	active_participle	866	حَقَّ	to be true, to be confirmed	2	2	2	0	0	0	1			866	forms	known	1.2	108	203	بإلحاق:1 إلحاق:1	clitic:1 forms:1
+اِجْتِيَاز	masdar	4707	اِجْتَازَ	to cross, pass through; to pass (a test)	2	2	2	0	0	0	1			4707	forms	acquiring		3020	10	اجتياز:2	forms:2
+سَنْو	masdar	938	سَنَا	to irrigate, to water	2	2	2	0	0	0	0			938	forms	known	8.3	1026	40	سنو:2	forms:2
+مُسْتَطاع	passive_participle	2093	اِسْتَطاع	to be able	2	2	2	0	0	0	0			2093	forms	known	28.6	45	308	الْمُسْتَطَاعِ:2	forms:2
+مُجَارَاة	masdar	5009	جَارَى	be matched or rivaled	2	2	2	0	0	0	0			5009	forms	acquiring		951	43	مجاراتهم:1 مُجاراة:1	clitic:1 forms:1
+سَاحِب	active_participle	2736	سَحَب	to pull	2	2	2	0	0	2	0			2736	forms	known	21.4	941	43	وسأحب:1 وسأحبه:1	clitic:2
+مُسْتَتِر / مُسْتَتَر	active_participle+passive_participle	4171	اِسْتَتَرَ	to hide, to conceal	2	2	2	0	0	0	0			4171	forms	suspended	0.4	7900	2	مستترًا:1 مستتر:1	forms:2
+امْتِزَاج	masdar	3212	امْتَزَجَ	to mix	2	2	2	0	0	0	0			3212	forms	known	1.7	3197	9	امتزاج:2	forms:2
+غَلَط	masdar	754	غَلِطَ	to err	2	2	0	2	2	0	0			754	lemma	suspended	2.0	7952	2	والغلط:1 الغلط:1	clitic:1 lemma:1
+تَوَلِّي	masdar	4694	تَوَلَّى	to take charge of, assume (an office, a task)	2	2	2	0	0	0	0	#3753 تَوَلِّي [noun] assumption (of office)		3753	lemma	encountered		1434	28	لتولي:2	clitic:2
+مَكْتُوم	passive_participle	3597	كَتَمَ	to conceal, hide, keep secret	2	2	2	0	0	0	0			3597	forms	lapsed	0.4	2526	13	مكتومًا:2	forms:2
+تَسْيِيب	masdar	721	سَيَّبَ	to set free, to liberate, to release (e.g., from prison)	2	2	2	0	0	0	0			721	forms			7951	2	والتسييب:1 وتسييب:1	clitic:2
+جَاعِل	active_participle	2220	جَعَل	to make	2	2	2	0	0	0	0			2220	forms	known	82.5	85	226	جاعلًا:2	forms:2
+اِنْتِزَاع	masdar	4147	اِنْتَزَعَ	to snatch, seize	2	2	2	0	0	0	0			4147	forms	suspended	0.2	2027	18	انتزاعه:1 انتزاع:1	clitic:1 forms:1
+تَلَفُّظ	masdar	1296	تَلَفَّظَ	to articulate, to enunciate	2	2	0	2	2	0	0			1296	lemma	known	85.2	6257	3	التلفُّظ:1 والتلفظ:1	lemma:1 clitic:1
+فَائِض	active_participle	4016	فَاضَ	to overflow, to spill	2	2	2	0	0	0	0			4016	forms	known	1.4	1560	25	فائض:2	forms:2
+إِنْزَال	masdar	3588	أَنْزَلَ	to bring down, send down (Form IV)	2	2	2	0	0	0	0			3588	forms	known	103.1	4646	5	لإنزالها:1 بِإِنْزَالِ:1	clitic:2
+زَاهٍ	active_participle	3972	زَهَا	bloomed	2	2	2	0	0	0	0			3972	forms	known	4.0	3467	8	زاهٍ:2	forms:2
+صِيَانَة	masdar	3073	صَانَ	to preserve	2	2	2	0	0	0	0			3073	forms	known	1.9	4135	6	صيانة:1 الصِّيَانَةَ:1	forms:2
+مُلْقًى	passive_participle	2734	أَلْقَى	to throw	2	2	2	0	0	0	0			2734	forms	suspended	0.2	170	153	مُلْقًى:1 ملقى:1	forms:2
+خِطَابَة	masdar	3684	خَطَبَ	to deliver a speech; to propose marriage	2	2	2	0	0	0	0			3684	forms	suspended	0.2	1164	35	الخطابة:1 والخطابة:1	forms:1 clitic:1
+تَرَامٍ	masdar	4660	تَرَامَى	to stretch out, extend into the distance	2	2	0	2	2	0	0			4660	forms	encountered		5379	4	الترام:1 للترام:1	forms:1 clitic:1
+مَتَانَة	masdar	1289	مَتُنَ	to be firm	2	2	2	0	0	0	0			1289	forms	suspended		2170	16	الْمَتَانَةِ:1 وَالْمَتَانَةِ:1	forms:1 clitic:1
+مُسَالَمَة	masdar	1199	سَالَمَ	to make peace	2	2	2	0	0	0	0			1199	forms	lapsed	0.8	4592	5	مسالمة:1 ومسالمة:1	forms:1 clitic:1
+لُجُوءٌ	masdar	4082	لَجَأَ	to resort to (a measure, a provision); to take refuge	2	2	2	0	0	0	0			4082	forms	suspended	0.1	869	47	اللجوء:2	forms:2
+شَهِيقٌ	masdar	4413	شَهَقَ	to gasp	2	2	2	0	0	0	0			4413	forms	encountered		4681	5	شَهِيقِ:1 الشهيق:1	forms:2
+مَدْسُوس	passive_participle	1224	دَسَّ	to hide, insert	2	2	2	0	0	0	0			1224	forms	acquiring		3404	8	المدسُوسْ:1 مدسوس:1	forms:2
+مَارِش	active_participle	1435	مَرَشَ	to scratch with the fingernails	2	2	2	0	0	0	0			1435	forms			7798	2	مارش:2	forms:2
+اِنْتِعَاش	masdar	3998	ٱِنْتَعَش	to revive, to recover	2	2	2	0	0	0	0			3998	forms			5338	4	بانتعاش:2	clitic:2
+مُتَوَهِّج / مُتَوَهَّج	active_participle+passive_participle	3210	تَوَهَّجَ	to glow	2	2	2	0	0	0	0			3210	forms	known	110.1	3443	8	المتوهج:2	forms:2
+اِحْتِرَاق	masdar	4404	اِحْتَرَقَ	to burn	2	2	2	0	0	0	0			4404	forms	known	81.7	3007	10	الاحتراق:2	forms:2
+مُرَدِّد / مُرَدَّد	active_participle+passive_participle	4449	رَدَّدَ	to repeat	2	2	2	0	0	0	0			4449	forms	encountered		2214	16	مرددًا:1 مردِّدًا:1	forms:2
+مُزَمْجِر / مَزْمَجَر	active_participle+passive_participle	2156	زَمْجَر	to growl	2	2	2	0	0	0	0			2156	forms	known	582.5	5271	4	ومزمجرًا:1 مزمجرًا:1	clitic:1 forms:1
+اِمْتِطَاء	masdar	4436	اِمْتَطَى	mount	2	2	2	0	0	0	0			4436	forms	encountered		3234	9	امتطاءه:1 امتطاء:1	clitic:1 forms:1
+غَامّ	active_participle	1195	غَمَّ	to cover, to veil, to shroud	2	2	2	0	0	0	0			1195	forms	known	3.6	2263	15	الألغام:2	forms:2
+غَبَاء	masdar	550	غَبِيَ	to be ignorant, to not understand	2	2	2	0	0	0	0			550	forms	suspended	0.2	2421	14	بغباء:1 الغباء:1	clitic:1 forms:1
+اِلْتِقَاط	masdar	4341	اِلْتَقَطَ	to pick up, catch	2	2	2	0	0	0	0			4341	forms	suspended		2668	12	التقاط:1 لالتقاطها:1	forms:1 clitic:1
+فَاجِر	active_participle	702	فَجَرَ	to cleave, to break up, to dig up	2	2	2	0	0	0	0			702	forms	known	7.3	889	46	الفاجر:1 فاجر:1	forms:2
+بُزُوغٌ	masdar	3403	بَزَغَ	to rise	2	2	2	0	0	0	0			3403	forms	acquiring		4153	6	بزوغ:2	forms:2
+اِسْتِغْرَاق	masdar	2762	اِسْتَغْرَقَ	to take	2	2	2	0	0	0	0			2762	forms	known	56.7	1544	25	استغراقه:1 استغراق:1	clitic:1 forms:1
+مُبْصِر / مُبْصَر	active_participle+passive_participle	4990	أَبْصَرَ	was born	2	2	2	0	0	0	0			4990	forms	acquiring		3257	9	كالمبصر:1 المبصر:1	clitic:1 forms:1
+مُرْتَكِب / مُرْتَكَب	active_participle+passive_participle	3748	ارْتَكَبَ	to commit	2	2	2	0	0	0	0			3748	forms	suspended		2017	18	مرتكبه:1 مرتكب:1	clitic:1 forms:1
+الْتِجَاءٌ	masdar	3469	التَجَأ	to seek refuge	2	2	2	0	0	0	0			3469	forms	suspended		1919	19	الالتجاء:2	forms:2
+مُرَاقِب / مُرَاقَب	active_participle+passive_participle	2661	راقَب	to monitor	2	2	2	0	0	0	0			2661	forms	suspended	0.5	1091	37	للمُراقب:1 مراقب:1	clitic:1 forms:1
+إِعَارَة	masdar	4049	أَعارَ	lent	2	2	1	1	1	0	0			4049	forms	known	37.7	4669	5	إعارة:1 بإعارته:1	forms:1 clitic:1
+تَصْحِيح	masdar	596	صَحَّحَ	to correct	2	2	2	0	0	0	0			596	forms	known	269.1	6435	3	لتصحيح:1 بتصحيح:1	clitic:2
+طَرَب	masdar	4981	طَرِبَ	to be delighted	2	2	0	2	2	0	0	#3114 طَرَب [noun] delight, joy		3114	lemma			4704	5	طرَبًا:1 طربًا:1	generated:2
+نُهُوض	masdar	3200	نَهَضَ	to rise, stand up	2	2	2	0	0	0	0			3200	forms	known	1.2	1360	29	النهوض:2	forms:2
+مُصَلًّى	passive_participle	1246	صَلَّى	to pray	2	2	2	0	0	0	0			1246	forms	known	13.7	549	69	المصلى:1 والمُصَلَّى:1	forms:1 clitic:1
+مُكْتَئِبٌ	active_participle	4469	اكْتَأَبَ	to be sorrowful	2	2	2	0	0	0	0			4469	forms	encountered		1623	24	المكتئب:2	forms:2
+مُحَدِّق / مُحَدَّق	active_participle+passive_participle	4419	حَدَّقَ	stared	2	2	2	0	0	0	0			2151	forms	encountered		2306	15	محدِّقًا:1 مُحدِّقًا:1	forms:2
+رَازِقٌ	active_participle	2826	رَزَقَ	to provide, to sustain	2	2	2	0	0	0	0			2826	forms	known	2.3	943	43	الرازق:2	forms:2
+تَغْلِيف	masdar	4983	غَلَّفَ	to wrap	2	2	2	0	0	0	0			4983	forms			3838	7	التغليف:2	forms:2
+ضِيق	masdar	2089	ضَاقَ	to become narrow	2	2	2	0	0	0	0	#4914 ضَيِّق [adj] narrow, tight		4914	lemma	known	114.0	1718	22	ضِيق:1 الضِّيق:1	forms:2
+كُفْرٌ	masdar	2833	كَفَرَ	to disbelieve, to deny	2	2	0	2	2	0	0			2833	lemma	known	56.0	4132	6	الكُفر:1 الكفر:1	lemma:2
+خَفَاء	masdar	1429	خَفِيَ	to be hidden	2	2	2	0	0	0	0			1429	forms	known	20.2	1304	30	الخفاء:1 بِخَفاءِ:1	forms:1 clitic:1
+مَظْنُونٌ	passive_participle	3136	ظَنَّ	to think, suppose, conjecture	2	2	2	0	0	0	0			3136	forms	known	8.5	290	111	والمظنون:2	clitic:2
+سَاجِد	active_participle	4513	سَجَدَ	prostrate oneself, bow down	2	2	2	0	0	2	0			4513	forms	known	70.3	5366	4	سأجد:2	forms:2
+إِنَارَة	masdar	2194	أَنار	to illuminate	2	2	2	0	0	0	0			2194	forms	known	67.5	1593	24	والإنارة:1 للإنارة:1	clitic:2
+مُفْتَتِحٌ / مُفْتَتَحٌ	active_participle+passive_participle	3692	ٱِفْتَتَح	to open, to inaugurate	2	2	2	0	0	0	0			3692	forms	encountered		4650	5	مفتتح:1 مفتتحًا:1	forms:2
+تَنْوِيه	masdar	1011	نَوَّهَ	to mention, note	2	2	2	0	0	0	0			1011	forms			7779	2	التنويه:1 بالتنويه:1	forms:1 clitic:1
+مَيْن	masdar	1257	مَانَ	to lie	2	2	2	0	0	0	0			1257	forms	known	3.9	1771	21	مين:2	forms:2
+ذَوَبَان	masdar	2665	ذَابَ	to melt	2	2	2	0	0	0	0			2665	forms	known	5.2	2967	10	ذوبان:1 وذوبان:1	forms:1 clitic:1
+تَعْرِيب	masdar	788	عَرَّبَ	to translate into Arabic	2	2	2	0	0	0	0			788	forms	known	428.3	338	102	التعريب:1 تعريبه:1	forms:1 clitic:1
+مُرْتاحٌ	active_participle+passive_participle	2225	اِرْتاحَ	to relax	2	2	2	0	0	0	0			2225	forms	known	32.2	2955	10	مرتاح:2	forms:2
+سَيَلَان	masdar	775	سَالَ	to flow, to run	2	2	2	0	0	0	0			775	forms	known	1.7	2685	12	سيلان:2	forms:2
+إِهْدَار	masdar	4685	أَهْدَرَ	to waste, squander	2	2	2	0	0	0	0			4685	forms	encountered		5381	4	وَإِهْدَارِ:1 إهدار:1	clitic:1 forms:1
+مُتَأَوِّه / مُتَأَوَّه	active_participle+passive_participle	3237	تَأَوَّهَ	to sigh, moan	2	2	2	0	0	0	0			3237	forms	known	19.2	4146	6	المُتأوِّه:1 متأوهًا:1	forms:2
+سَارِد	active_participle	993	سَرَدَ	to narrate, recount	2	2	2	0	0	1	0			993	forms	suspended	0.2	1755	22	ساردًا:1 سأرد:1	forms:2
+مَسْبُوق	passive_participle	3424	سَبَقَ	to precede	2	2	2	0	0	0	0			3424	forms	known	78.4	669	59	مسبوق:2	forms:2
+مُداعِب / مُداعَب	active_participle+passive_participle	3232	دَاعَبَ	to caress, fondle	2	2	2	0	0	0	0			3232	forms	known	1.8	2980	10	مداعبًا:1 المداعب:1	forms:2
+عَمْد	masdar	4837	عَمَدَ	to set about, proceed deliberately (عمد إلى)	2	2	0	2	2	0	0	#3907 عَمَّد [verb] to baptize		3907	lemma	acquiring		5394	4	الْعُمُدُ:1 العَمَد:1	lemma:2
+مَشِيئَة	masdar	2441	شَاءَ	to want	2	2	2	0	0	0	0			2441	forms	known	280.5	611	63	لمشيئة:1 ومشيئته:1	clitic:2
+إِطْلَالَة	masdar	2778	أَطَلَّ	to peek out, look out; to appear; to overlook	2	2	2	0	0	0	0			2778	forms	suspended	0.1	1254	32	إطلالة:2	forms:2
+مُخْبِرٌ / مُخْبَرٌ	active_participle+passive_participle	3082	أَخْبَرَ	to inform, to tell	2	2	2	0	0	0	0			3082	forms	known	11.9	698	56	مخبرنا:1 المخبر:1	clitic:1 forms:1
+مُدَاخِل	active_participle	924	دَاخَلَ	to enter	2	2	2	0	0	0	0			924	forms	known	641.0	275	117	المداخل:1 مداخل:1	forms:2
+مَاضّ	active_participle	3413	مَضّ	to pass	2	2	2	0	0	0	0			3413	forms	known	227.6	1196	34	ماضٍ:2	forms:2
+مُتَسَلِّل / مُتَسَلَّل	active_participle+passive_participle	4342	تَسَلَّلَ	to sneak, slip in	2	2	2	0	0	0	0			4342	forms	known	4.8	2029	18	متسللًا:1 المتسلل:1	forms:2
+ارْتِكَاب	masdar	3748	ارْتَكَبَ	to commit	2	2	2	0	0	0	0			3748	forms	suspended		2017	18	الارتكاب:1 ارتكاب:1	forms:2
+مُضَاهَاة	masdar	4133	ضَاهَى	to equal, to rival	2	2	2	0	0	0	0			4133	forms	known	1.3	2811	11	مضاهاتها:1 مضاهاة:1	clitic:1 forms:1
+إِخْفَاء	masdar	1430	أَخْفَى	to hide, to conceal	2	2	2	0	0	0	0			1430	forms	known	18.5	1182	34	إخفاء:2	forms:2
+اضْمِحْلَال	masdar	3261	اضْمَحَل	to fade	2	2	2	0	0	0	0			3261	forms	lapsed	1.7	7853	2	اضمحلال:1 والاضمحلال:1	forms:1 clitic:1
+تَحَالُف	masdar	3605	تَحَالَفَ	to ally; to form an alliance	2	2	0	2	2	0	0			3605	lemma			6344	3	التحالف:2	lemma:2
+دَائِر	active_participle	1206	دَارَ	to turn; to revolve, go around	2	2	2	0	0	0	0			1206	forms	known	3.1	295	110	الدائر:2	forms:2
+ذَبْح	masdar	995	ذَبَحَ	to slaughter	2	2	0	2	2	0	0			995	lemma	known	10.3	4217	6	بالذبح:1 وذبحًا:1	clitic:2
+دَهْن	masdar	2449	دَهَنَ	to paint; to grease	2	2	0	2	2	0	0			2449	lemma	known	376.6	4614	5	دهنًا:1 الدهن:1	generated:1 lemma:1
+قَطّ	masdar	490	قَطَّ	to carve	1	50	0	50	1	0	0	#3084 قِطّ [noun] cat		490	lemma	known	405.3	559	69	قط:32 قطُّ:8 قَطُّ:8 قَط:1	lemma:49 clitic:1
+نَقْل	masdar	4339	نَقَلَ	to transport, transfer, convey	1	31	0	31	1	0	0	#4612 نَقْل [noun] transfer; moving		4339	lemma	suspended	0.2	705	56	نقل:14 نقلها:3 نقله:3 نُقل:3	lemma:19 clitic:11 generated:1
+حِفْظ	masdar	828	حَفِظَ	to preserve, save	1	16	0	16	1	0	0			828	lemma	known	44.7	262	120	لحفظ:3 حفظ:2 حفِظ:2 حفظه:2	clitic:10 lemma:6
+فَكّ	masdar	3844	فَكَّ	to unfasten	1	15	0	15	1	0	0			3844	lemma	encountered		1558	25	فك:4 فكِّ:3 فكَّها:2 فكُّ:1	lemma:9 clitic:6
+بَعْث	masdar	3535	بَعَث	to send; to dispatch	1	15	0	15	1	0	0			3535	lemma	known	265.8	984	41	بعث:9 بعثها:1 البعث:1 وبُعِث:1	lemma:10 clitic:5
+جَذْب	masdar	3859	جَذَب	to draw, to pull, to attract	1	14	0	14	1	0	0			3859	lemma	encountered		1130	36	جذب:5 لجذب:3 جذبها:2 جَذَبَ:1	clitic:8 lemma:6
+وَعْد	masdar	2470	وَعَدَ	to promise	1	14	0	14	1	0	0	#4974 وَعْد [noun] promise		2470	lemma	known	23.6	222	131	وعد:3 وَعْدِكَ:1 وَعْدِهِ:1 وعدني:1	clitic:8 lemma:5 generated:1
+شَرْع	masdar	1028	شَرَعَ	to legislate, start	1	13	0	13	1	0	0			1028	lemma	known	58.5	1583	24	شرع:6 شرعنا:2 فشرع:1 وشرَع:1	lemma:8 clitic:3 generated:2
+شَدّ	masdar	4574	شَدَّ	to pull; take along	1	12	0	12	1	0	0			4574	lemma	encountered		355	99	شَدَّ:2 شدَّ:2 شُدَّ:2 وشدَّ:2	lemma:7 clitic:5
+تَرَفُّع	masdar	3173	تَرَفَّعَ	to rise, elevated	1	12	0	12	1	0	0			3173	lemma	known	259.6	2646	12	ترفع:5 ترفعه:2 لترفع:1 وتُرفع:1	lemma:8 clitic:4
+جَلْد	masdar	2418	جَلَدَ	to whip, to flog	1	12	0	12	1	0	0	#4977 جِلْد [noun] skin, leather		2418	lemma	known	10.7	2086	17	جلد:8 جلدها:1 جلدِها:1 الجلَد:1	lemma:9 clitic:3
+هَزّ	masdar	4218	هَزَّ	shake	1	10	0	10	1	0	0			4218	lemma	known	189.6	1332	30	هز:3 وهز:2 هزَّ:2 بهز:1	clitic:5 lemma:5
+تَأَخُّر	masdar	2458	تَأَخَّرَ	to be late	1	8	0	8	1	0	0			2458	lemma	known	120.9	1832	20	تأخُّر:2 تأخر:2 والتأخُّر:1 وتأخُّرِهِ:1	clitic:4 lemma:4
+فَحْص	masdar	2498	فَحَصَ	to examine	1	7	0	7	1	0	0	#4967 فَحْص [noun] examination, check-up		2498	lemma	known	2.2	2281	15	فحص:3 فَحْصِ:1 فحصها:1 فحصًا:1	lemma:4 clitic:2 generated:1
+وَضْع	masdar	4030	وَضَعَ	put, place	1	7	0	7	1	0	0	#2190 وَضْع [noun] situation, state		2190	lemma	known	118.7	122	193	وضَعَ:1 وضعًا:1 وَضَعها:1 وَضَع:1	lemma:3 generated:2 clitic:2
+كُرْه	masdar	1312	كَرِهَ	to hate, dislike	1	6	0	6	1	0	0			1312	lemma	known	25.7	1302	30	كره:2 كُره:1 كرهًا:1 فِكَره:1	lemma:4 generated:1 clitic:1
+دَهَشٌ	masdar	3406	دَهِشَ	to be astonished	1	6	0	6	1	0	0			3406	lemma	known	56.2	462	80	فدهش:3 ودهش:1 دهشًا:1 دَهَشُكَ:1	clitic:5 generated:1
+لُبْس	masdar	1828	لَبِسَ	to wear	1	6	0	6	1	0	0			1828	lemma	known	434.7	1402	28	لبس:4 اللبس:1 ولبس:1	lemma:5 clitic:1
+كَبَر	masdar	4559	كَبُرَ	to grow; become big	1	6	0	6	1	0	0			4559	lemma	encountered		1204	34	وكبر:2 كَبِرَ:1 كُبْرِ:1 كِبَر:1	lemma:4 clitic:2
+حَطّ	masdar	4444	حَطَّ	to put down, to lower	1	6	0	6	1	0	0			4444	lemma	known	2.3	2822	11	وحَطَّ:2 حط:2 الحطِّ:1 حَطَّ:1	lemma:4 clitic:2
+تَخَيُّل	masdar	4549	تَخَيَّلَ	to imagine	1	5	0	5	1	0	0			4549	lemma	encountered		1432	28	تخيَّل:2 التخيل:1 تخيله:1 تخيُّل:1	lemma:4 clitic:1
+عَرْق	masdar	918	عَرَقَ	to strip of flesh, to nibble	1	4	0	4	1	0	0	#4838 عِرْق [noun] race, ethnicity; vein, root (pl. أعراق)		918	lemma	known	104.1	2224	16	عرقًا:1 عرقه:1 وعرق:1 وعَرقْ:1	clitic:3 generated:1
+غَمّ	masdar	1195	غَمَّ	to cover, to veil, to shroud	1	4	0	4	1	0	0			1195	lemma	known	3.6	2263	15	غم:3 غمٍّ:1	lemma:4
+خَلْع	masdar	2921	خَلَعَ	to take off (clothes); to remove; to depose	1	4	0	4	1	0	0			2921	lemma	known	207.3	1545	25	بخلع:1 خَلْعِ:1 خلع:1 خلعه:1	clitic:2 lemma:2
+تَوَسُّلٌ	masdar	4460	تَوَسَّلَ	to beseech	1	4	0	4	1	0	0			4460	lemma	encountered		3009	10	وتَوسَّلَ:1 وَتَوَسَّلَ:1 وتوسَّل:1 التوسُّل:1	clitic:3 lemma:1
+فَرْج	masdar	1414	فَرَجَ	to open, part	1	4	0	4	1	0	0			1414	lemma	known	1.6	4598	5	فرج:3 الفرج:1	lemma:4
+أَمْر / آمِر	masdar+active_participle	4600	أَمَرَ	to order; command	1	4	0	4	1	0	0	#1185 آمَرَ [verb] to consult with; to conspire with; #2501 أَمْر [noun] matter/affair	#1328 أَمَرَ -> #4600	1185	lemma	known	19.5	1625	24	فَأَمَرَ:1 وَأَمَرَهُ:1 الآمر:1 أمَر:1	clitic:2 lemma:2
+دَقٌّ	masdar	3324	دَقَّ	to ring	1	4	0	4	1	0	0			3324	lemma	known	20.4	1551	25	دَقَّ:1 دقٍّ:1 دقِّه:1 ودق:1	lemma:2 clitic:2
+وَاجِد	active_participle	2073	وَجَدَ	to find	1	4	0	4	1	1	0			2073	forms	known	126.9	27	365	واجد:2 وأجدها:1 وَاجِدٌ:1	forms:3 clitic:1
+خَصّ	masdar	4104	خصّ	to single out; to concern	1	4	0	4	1	0	0			4104	lemma	encountered		1856	20	لخَّصَ:1 أُلخِّص:1 وخص:1 خصه:1	clitic:3 lemma:1
+إِدَانَة	masdar	3874	أَدَانَ	to condemn	1	3	1	2	0	0	2			3874	forms	encountered		986	41	إدانته:1 إدانتهم:1 إدانة:1	clitic:2 forms:1
+وَاعِد	active_participle	2470	وَعَدَ	to promise	1	3	0	3	1	2	2			2470	forms	known	23.6	222	131	وأعدُّ:1 واعدًا:1 وأعدك:1	forms:2 clitic:1
+تَنَازُل	masdar	4569	تَنَازَلَ	to relinquish; surrender	1	2	0	2	1	0	0			4569	lemma	encountered		6404	3	تنازلًا:1 تنازَلْنا:1	generated:2
+تَضَامُن	masdar	4109	تَضَامَنَ	to show solidarity	1	2	0	2	1	0	0			4109	lemma			7895	2	تضامن:1 التضامن:1	lemma:2
+نَطٌّ	masdar	4761	نَطَّ	to jump, hop, leap	1	2	0	2	1	0	0			4761	lemma	encountered		3025	10	نَطَّ:1 والنط:1	lemma:1 clitic:1
+سَبّ	masdar	4477	سَبَّ	insulted	1	2	0	2	1	0	0			4477	lemma	encountered		2671	12	وسبك:1 السبك:1	clitic:2
+تَطَاوُلٌ	masdar	4759	تَطَاوَلَ	to stretch up, grow long; to be insolent toward	1	2	0	2	1	0	0			4759	lemma	encountered		6419	3	والتطاوُل:1 تطاول:1	clitic:1 lemma:1
+مَضْغٌ	masdar	4457	مَضَغَ	to chew	1	2	0	2	1	0	0			4457	lemma	encountered		4684	5	المضغ:1 مضغ:1	lemma:2
+تَطَايُر	masdar	4738	تَطَايَرَ	to fly about, scatter in the air	1	2	0	2	1	0	0			4738	lemma	encountered		3022	10	التطاير:1 تطاير:1	lemma:2
+تَمَلُّق	masdar	1192	تَمَلَّقَ	to flatter	1	2	0	2	1	0	0			1192	lemma			6253	3	تملُّقها:1 والتملُّق:1	clitic:2
+إِذَابَة	masdar	4194	أَذَابَ	melt; enrapture	1	2	1	1	0	1	0			4194	forms	known	3.4	3475	8	إذابةُ:1 أذابته:1	forms:1 clitic:1
+سَلّ	masdar	1194	سَلَّ	to withdraw	1	2	0	2	1	0	0			1194	lemma	lapsed	0.1	2616	12	كسلٍ:1 وسلك:1	clitic:2
+تَكْلِيف	masdar	2731	كَلَّفَ	to cost	1	1	1	0	0	0	19			2731	forms	known	13.2	1191	34	تكليف:1	forms:1
+مُقَرِّب / مُقَرَّب	active_participle+passive_participle	4188	قَرَّبَ	bring close	1	1	1	0	0	0	19			4188	forms	known	262.1	501	75	الْمُقَرَّبَ:1	forms:1
+مَقُوم	passive_participle	2180	قَامَ	to perform	1	1	1	0	0	0	10			2180	forms	known	65.7	65	261	المقوِّم:1	forms:1
+مَهْدِيّ	passive_participle	3584	هَدَى	to guide	1	1	1	0	0	0	9			3584	forms	known	1.7	1465	27	مهدي:1	forms:1
+مَنْشُور	passive_participle	4803	نَشَرَ	to publish	1	1	1	0	0	0	9			4803	forms	acquiring		248	123	منشور:1	forms:1
+مُشْتَغِل / مُشْتَغَل	active_participle+passive_participle	2567	اِشْتَغَلَ	to work	1	1	1	0	0	0	8			2567	forms	known	93.5	1833	20	المشتغل:1	forms:1
+سَامّ	active_participle	1262	سَمَّ	to poison	1	1	1	0	0	0	8			1262	forms	known	70.6	607	63	السام:1	forms:1
+مَعْرُوض	passive_participle	4985	عَرَضَ	to show, to present	1	1	1	0	0	0	8			4985	forms	encountered		671	59	المعروض:1	forms:1
+خَالِط	active_participle	3460	خَلَطَ	to mix	1	1	1	0	0	0	7			3460	forms	lapsed	3.6	3204	9	خالط:1	forms:1
+كَاثِر	active_participle	3110	كَثُرَ	to increase	1	1	1	0	0	1	7			3110	forms	known	346.7	896	45	كأثرٍ:1	forms:1
+مُطِلّ / مُطَلّ	active_participle+passive_participle	2778	أَطَلَّ	to peek out, look out; to appear; to overlook	1	1	1	0	0	0	7			2778	forms	suspended	0.1	1254	32	مُطَلٍّ:1	forms:1
+زَارِع	active_participle	2643	زَرَع	to plant	1	1	1	0	0	0	6			2643	forms	known	73.2	938	43	وزارع:1	clitic:1
+صَارِخ	active_participle	2166	صَرَخ	to scream	1	1	1	0	0	0	6			2166	forms	known	348.7	729	54	الصارخ:1	forms:1
+مُوقِن / مُوقَن	active_participle+passive_participle	2830	أَيْقَنَ	to be certain	1	1	1	0	0	0	5			2830	forms	lapsed	0.2	1157	35	موقنًا:1	forms:1
+صَادّ	active_participle	964	صَدَّ	to hinder, to repel	1	1	1	0	0	0	5			964	forms	suspended	0.4	1754	22	صادٍ:1	forms:1
+مُنَفِّذ / مُنَفَّذ	active_participle+passive_participle	2124	نَفَّذ	to implement	1	1	1	0	0	0	5			2124	forms	known	8.4	1988	18	منفذ:1	forms:1
+مُوَدِّع / مُوَدَّعٌ	active_participle+passive_participle	2022	وَدَّع	to bid farewell	1	1	1	0	0	0	5			2022	forms	known	30.4	636	61	مودعًا:1	forms:1
+دَاسّ	active_participle	1224	دَسَّ	to hide, insert	1	1	1	0	0	0	5			1224	forms	acquiring		3404	8	وداس:1	clitic:1
+مُنْقَطِع	active_participle	3856	ٱِنْقَطَع	to be interrupted	1	1	1	0	0	0	4			3856	forms	suspended	2.3	1618	24	منقطع:1	forms:1
+هَامِسٌ	active_participle	3245	هَمَسَ	to whisper	1	1	1	0	0	0	4			3245	forms	known	2.4	1731	22	هامس:1	forms:1
+مُتَرَدِّد / مُتَرَدَّد	active_participle+passive_participle	4337	تَرَدَّدَ	to hesitate; to echo, resound	1	1	1	0	0	0	4			4337	forms	suspended		1019	40	متردد:1	forms:1
+قَاصّ	active_participle	3672	قَصّ	to cut	1	1	1	0	0	0	4			3672	forms	known	213.8	919	44	وقَّاص:1	clitic:1
+مُتَدَاوِل	active_participle	3632	تَدَاوَلَ	to circulate	1	1	1	0	0	0	4			3632	forms			2296	15	المتداول:1	forms:1
+مَعْدُودٌ	passive_participle	4591	عَدَّ	to count	1	1	1	0	0	0	4			4591	forms	encountered		237	127	معدود:1	forms:1
+مَدْعُوّ	passive_participle	1033	دَعَا	to call	1	1	1	0	0	0	4			1033	forms	lapsed	5.9	132	185	المدعو:1	forms:1
+غَائِر	active_participle	1369	غَارَ	to be jealous	1	1	1	0	0	0	3			1369	forms	known	1.8	1984	18	غائر:1	forms:1
+مُنْحَنًى	passive_participle	3298	انْحَنَى	to bend, to bow	1	1	1	0	0	0	3			3298	forms	suspended	0.2	1362	29	منحنى:1	forms:1
+مُتَّجِه / مُتَّجَه	active_participle+passive_participle	3289	اتَّجَه	to head	1	1	1	0	0	0	3			3289	forms	known	5.8	594	65	مُتَّجِهًا:1	forms:1
+مُكْتَمِل / مُكْتَمَل	active_participle+passive_participle	4336	اِكْتَمَلَ	to be completed, become full	1	1	1	0	0	0	3			4336	forms	lapsed	3.2	2305	15	مكتملًا:1	forms:1
+مُشَوِّق / مُشَوَّق	active_participle+passive_participle	3916	شوّق	to long for	1	1	1	0	0	0	3			3916	forms	lapsed	0.2	2024	18	مُشوَّق:1	forms:1
+مُحَيِّر / مُحَيَّر	active_participle+passive_participle	3810	حَيَّر	to perplex	1	1	1	0	0	0	3			3810	forms	known	96.6	1928	19	محيرًا:1	forms:1
+سَابِح	active_participle	2230	سَبَحَ	to swim	1	1	1	0	0	0	3			2230	forms	known	34.6	2182	16	سَابِحًا:1	forms:1
+مُسْتَهْدِف / مُسْتَهْدَف	active_participle+passive_participle	3590	ٱِسْتَهْدَفَ	to target	1	1	1	0	0	0	2			3590	forms	lapsed	0.6	3778	7	المستهدف:1	forms:1
+مَانِعٌ	active_participle	3138	مَنَعَ	to prevent, withhold, deny, protect	1	1	1	0	0	0	2			3138	forms	known	2.1	809	50	مانع:1	forms:1
+مُتَمَاسِك	active_participle	4004	تَماسَك	to hold together; to pull oneself together	1	1	1	0	0	0	2			4004	forms			3469	8	متماسكًا:1	forms:1
+مُتَفَائِل	active_participle	4748	تَفَاءَلَ	to be optimistic, take as a good omen	1	1	1	0	0	0	2			4748	forms	encountered		3023	10	المتفائل:1	forms:1
+مُهْوًى	passive_participle	4498	أَهْوَى	to fall	1	1	1	0	0	0	2			4498	forms	encountered		577	67	مهوى:1	forms:1
+رَابِح	active_participle	3573	رَبِح	profited	1	1	1	0	0	0	2			3573	forms	suspended		1792	21	والرابح:1	clitic:1
+قَاضٍ	active_participle	2450	قَضَى	to spend time	1	1	1	0	0	0	2			2450	forms	known	2.6	373	96	قاضٍ:1	forms:1
+مَزْرُوع	passive_participle	2643	زَرَع	to plant	1	1	1	0	0	0	2			2643	forms	known	73.2	938	43	مزروع:1	forms:1
+بَارِق	active_participle	1066	بَرَقَ	to produce lightning	1	1	1	0	0	1	2			1066	forms	known	1.2	1889	19	بِأَرَقَّ:1	forms:1
+صَفْقَة	masdar	2741	صَفَق	to clap	1	1	1	0	0	0	2			2741	forms	known	6.5	3188	9	صفقة:1	forms:1
+مُقْتَرِح / مُقْتَرَح	active_participle+passive_participle	3731	ٱِقْتَرَح	to propose; to suggest	1	1	1	0	0	0	2			3731	forms	known	10.7	2297	15	المُقترَح:1	forms:1
+مُشِعّ / مُشَعّ	active_participle+passive_participle	2624	أَشَعّ	to radiate	1	1	1	0	0	0	2			2624	forms	known	280.5	913	44	المشع:1	forms:1
+مُتَهالِك / مُتَهالَك	active_participle+passive_participle	3281	تَهالَك	to be ruined	1	1	1	0	0	0	2			3281	forms	lapsed	0.6	7854	2	متهالك:1	forms:1
+تَنْزِيل	masdar	3587	نَزَّلَ	to send down, reveal (Form II causative)	1	1	1	0	0	0	2			3587	forms	known	267.2			التنزيل:1	forms:1
+إِطْفَاء	masdar	4002	اِطْفِيءْ	to extinguish, to turn off	1	1	1	0	0	0	2			4002	forms	encountered		3795	7	إطفاءَ:1	forms:1
+مَطْرُوح	passive_participle	1035	طَرَحَ	to put forward, propose (ideas); to throw; to subtract	1	1	1	0	0	0	2			1035	forms	known	1.4	856	47	مطروحًا:1	forms:1
+عَافٍ	active_participle	4156	عَفَا	to pardon	1	1	1	0	0	0	2			4156	forms	suspended		3003	10	فَعَافَ:1	clitic:1
+إِفَادَة	masdar	3417	أَفاد	to benefit, to inform	1	1	1	0	0	0	2			3417	forms	acquiring		1225	33	إفادة:1	forms:1
+مُنْبَسِطٌ / مُنْبَسَطٌ	active_participle+passive_participle	2939	انْبَسَطَ	to enjoy	1	1	1	0	0	0	2			2939	forms	known	2.2	6315	3	المنبسط:1	forms:1
+لَابِس	active_participle	1828	لَبِسَ	to wear	1	1	1	0	0	0	2			1828	forms	known	434.7	1402	28	لابسًا:1	forms:1
+لاهِثٌ	active_participle	3260	لَهَث	to pant	1	1	1	0	0	0	1			3260	forms	known	1.5	4147	6	لاهثًا:1	forms:1
+رَابّ	active_participle	968	رَبَّ	to be master, to be lord	1	1	1	0	0	1	1			968	forms	known	345.7	518	73	لرأْبِ:1	clitic:1
+خَالِع	active_participle	2921	خَلَعَ	to take off (clothes); to remove; to depose	1	1	1	0	0	0	1			2921	forms	known	207.3	1545	25	خالعًا:1	forms:1
+مُتَحَوِّل / مُتَحَوَّل	active_participle+passive_participle	1009	تَحَوَّلَ	to transform, change	1	1	1	0	0	0	1			1009	forms	known	38.1	440	83	متحوِّلًا:1	forms:1
+دَاعِم	active_participle	3040	دَعَمَ	to support	1	1	1	0	0	0	1			3040	forms	known	1.9	2515	13	داعمًا:1	forms:1
+تَنْوِيع	masdar	1075	نَوَّعَ	to diversify	1	1	1	0	0	0	1			1075	forms	lapsed	0.4	75	251	التنويع:1	forms:1
+مُسْتَوْحًى	passive_participle	3060	اسْتَوْحَى	to be inspired	1	1	1	0	0	0	1			3060	forms	suspended	0.3	7843	2	المستوحَى:1	forms:1
+مَقُود	passive_participle	3556	قَادَ	to lead; guide	1	1	1	0	0	0	1			3556	forms	known	1.8	602	64	بمقود:1	clitic:1
+مَشْغُوف	passive_participle	544	شَغَفَ	to infatuate, fascinate	1	1	1	0	0	0	1			544	forms	suspended	0.2	2044	18	مشغوفًا:1	forms:1
+نَافِخ	active_participle	3088	نَفَخَ	to blow	1	1	1	0	0	0	1			3088	forms	lapsed	2.4	2100	17	نافخ:1	forms:1
+سَامِحٌ	active_participle	2198	سَمَحَ	to allow	1	1	1	0	0	0	1			2198	forms	suspended	1.1	377	95	وسامح:1	clitic:1
+مَرْجُوّ	passive_participle	2127	رَجا	to hope	1	1	1	0	0	0	1			2127	forms	known	79.4	610	63	المرجوُّ:1	forms:1
+مُدَان	passive_participle	3874	أَدَانَ	to condemn	1	1	1	0	0	0	1			3874	forms	encountered		986	41	مُدانًا:1	forms:1
+مَرْوِيّ	passive_participle	2640	رَوَى	to narrate	1	1	1	0	0	0	1			2640	forms	known	119.3	509	74	مرويه:1	clitic:1
+مُقْتَرِب / مُقْتَرَب	active_participle+passive_participle	3221	اقْتَرَبَ	to approach	1	1	1	0	0	0	1			3221	forms	known	131.9	481	77	مُقترب:1	forms:1
+دَافّ	active_participle	1005	دَفَّ	to flap the wings (of a bird)	1	1	1	0	0	0	1			1005	forms	known	64.0	2493	13	ودافَ:1	clitic:1
+مَزْهُوّ	passive_participle	3972	زَهَا	bloomed	1	1	1	0	0	0	1			3972	forms	known	4.0	3467	8	مزهوًّا:1	forms:1
+رَائِج	active_participle	996	رَاجَ	to circulate, spread	1	1	1	0	0	0	1			996	forms	known	7.9	2047	18	رائجًا:1	forms:1
+مُتَوَجِّه / مُتَوَجَّه	active_participle+passive_participle	2179	تَوَجَّه	to head	1	1	1	0	0	0	1			2179	forms	known	87.4	880	46	متوجهًا:1	forms:1
+مُنْقِذ	active_participle	3687	أَنْقَذَ	to rescue; to save	1	1	1	0	0	0	1			3687	forms	known	1.1	1926	19	مُنْقِذِهِ:1	clitic:1
+إِمْضَاء	masdar	4862	أَمْضَى	to spend (time); to sign	1	1	1	0	0	0	1			4862	forms			2128	17	بإمضاء:1	clitic:1
+سَاهِرٌ	active_participle	2564	سَهِرَ	to stay up	1	1	1	0	0	0	1			2564	forms	known	10.2	2634	12	الساهر:1	forms:1
+مَدْعُوم	passive_participle	3040	دَعَمَ	to support	1	1	1	0	0	0	1			3040	forms	known	1.9	2515	13	مدعومًا:1	forms:1
+مُضَاف	passive_participle	3396	أَضَاف	to add	1	1	1	0	0	0	1			3396	forms	known	15.7	885	46	مضاف:1	forms:1
+مَسْتُورٌ	passive_participle	1225	سَتَرَ	to cover, veil	1	1	1	0	0	0	1			1225	forms	suspended	0.1	1395	28	المستور:1	forms:1
+ٱِرْتِعَاش	masdar	2081	اِرْتَعَش	to shake	1	1	1	0	0	0	1			2081	forms	known	34.3	5269	4	ارتعاش:1	forms:1
+مُنْتَقِلٌ / مُنْتَقَلٌ	active_participle+passive_participle	2427	اِنْتَقَلَ	to move	1	1	1	0	0	0	1			2427	forms	known	1.9	544	70	منتقلًا:1	forms:1
+شَجّ	masdar	4398	شَجَّ	to wound	1	1	0	1	1	0	0			4398	lemma	encountered		5359	4	شجنًا:1	generated:1
+مُنْحَنٍ	active_participle	3298	انْحَنَى	to bend, to bow	1	1	1	0	0	0	0			3298	forms	suspended	0.2	1362	29	مُنحنٍ:1	forms:1
+مُكْتَظّ	active_participle	3255	اكْتَظَّ	to be crowded	1	1	1	0	0	0	0			3255	forms	known	12.2	7851	2	المكتظِّ:1	forms:1
+اِنْتِدَاب	masdar	4155	اِنْتَدَبَ	to volunteer, nominate	1	1	1	0	0	0	0			4155	forms	suspended	0.2			الانتداب:1	forms:1
+صَامِد	active_participle	2629	صَمَد	to withstand	1	1	1	0	0	0	0			2629	forms	known	352.0	3426	8	صامدًا:1	forms:1
+اِبْتِلَاع	masdar	1210	ابْتَلَعَ	to swallow	1	1	1	0	0	0	0			1210	forms	known	1.2	2495	13	وابتلاعها:1	clitic:1
+إِخْبَارٌ	masdar	3082	أَخْبَرَ	to inform, to tell	1	1	1	0	0	0	0	#317 أخْبار [noun] news		317	lemma	known	11.9	698	56	إخبار:1	forms:1
+إِنْشَاد	masdar	4492	أَنْشَدَ	to recite	1	1	1	0	0	0	0			4492	forms	encountered		3235	9	الإنشاد:1	forms:1
+حَظْوَةٌ	masdar	4670	حَظِيَ	to enjoy, be favoured with (بـ)	1	1	1	0	0	0	0			4670	forms	encountered		1206	34	حظوة:1	forms:1
+رَوَاج	masdar	996	رَاجَ	to circulate, spread	1	1	1	0	0	0	0			996	forms	known	7.9	2047	18	رواجها:1	clitic:1
+مَغْلُوب	passive_participle	2582	غَلَب	to defeat	1	1	1	0	0	0	0			2582	forms	suspended	0.2	260	120	مغلوبًا:1	forms:1
+وُجُوم	masdar	3199	وَجَمَ	to fall silent (from grief or anger)	1	1	1	0	0	0	0			3199	forms	learning	0.4	3441	8	الوجوم:1	forms:1
+خَرَس	masdar	891	خَرِسَ	to be mute	1	1	0	1	1	0	0			891	lemma					والخرس:1	clitic:1
+مُسْتَعْرِض / مُسْتَعْرَض	active_participle+passive_participle	1310	اِسْتَعْرَضَ	to review, inspect	1	1	1	0	0	0	0			1310	forms			3158	9	مستعرضًا:1	forms:1
+اِقْتِصَار	masdar	4122	اِقْتَصَرَ	to limit	1	1	1	0	0	0	0			4122	forms	suspended		1562	25	بالاقتصار:1	clitic:1
+مُجَارٍ	active_participle	5009	جَارَى	be matched or rivaled	1	1	1	0	0	0	0			5009	forms	acquiring		951	43	مجارٍ:1	forms:1
+نَوْف	masdar	655	نَافَ	to exceed	1	1	1	0	0	0	0			655	forms	known	79.3	2683	12	نوف:1	forms:1
+تَضْيِيع	masdar	2133	ضَيَّع	to waste	1	1	1	0	0	0	0			2133	forms	known	41.1	1989	18	لتضييع:1	clitic:1
+مُحَمْلِق / مُحَمْلَق	active_participle+passive_participle	4241	حَمْلَقَ	stared	1	1	1	0	0	0	0			4241	forms	suspended		4675	5	محملقًا:1	forms:1
+مُرْتَقًى	passive_participle	4662	اِرْتَقَى	to ascend, rise, climb	1	1	1	0	0	0	0			4662	forms	encountered		1942	19	المرتقى:1	forms:1
+مُتَرَقْرِق / مُتَرَقْرَق	active_participle+passive_participle	3302	تَرَقْرَقَ	to shimmer	1	1	1	0	0	0	0			3302	forms	known	3.3	5311	4	مترقرقًا:1	forms:1
+تَحْدِيق	masdar	4419	حَدَّقَ	stared	1	1	1	0	0	0	0			4419	forms	encountered		2306	15	التحديق:1	forms:1
+اِسْتِئْذَان	masdar	1211	اسْتَأْذَنَ	to ask permission	1	1	1	0	0	0	0			1211	forms	known	23.9	3156	9	استئذان:1	forms:1
+نَائِف	active_participle	655	نَافَ	to exceed	1	1	1	0	0	0	0			655	forms	known	79.3	2683	12	نائف:1	forms:1
+إِبَانَة	masdar	4607	أَبَانَ	to explain; make clear	1	1	1	0	0	0	0			4607	forms	encountered		490	76	والإبانة:1	clitic:1
+بَاقٍ	active_participle	4323	بَقِيَ	to remain, stay	1	1	1	0	0	0	0			4323	forms	known	22.5	405	90	باق:1	forms:1
+مُحْصٍ	active_participle	4305	أَحْصَى	to count, tally, enumerate	1	1	1	0	0	0	0			4305	forms	suspended		2304	15	محصَّنًا:1	clitic:1
+دَسّ	masdar	1224	دَسَّ	to hide, insert	1	1	0	1	1	0	0			1224	lemma	acquiring		3404	8	الدس:1	lemma:1
+تَوْبَة	masdar	1216	تَابَ	to repent, to be penitent	1	1	1	0	0	0	0			1216	forms	known	19.9	2761	11	تَوْبَةُ:1	forms:1
+مُمْضٍ	active_participle	4862	أَمْضَى	to spend (time); to sign	1	1	1	0	0	0	0			4862	forms			2128	17	المُمِضِّ:1	forms:1
+بَائِي	active_participle	1212	بَاءَ	to return, to come back	1	1	1	0	0	0	0			1212	forms			2940	10	وبائي:1	clitic:1
+مُسْتَلْقٍ	active_participle	3012	اسْتَلَقَى	to lie down	1	1	1	0	0	0	0			3012	forms	suspended	2.3	4632	5	مستلق:1	forms:1
+تَوَرُّم	masdar	1292	تَوَرَّمَ	to swell	1	1	0	1	1	0	0			1292	lemma			7787	2	بتورُّم:1	clitic:1
+مُسْتَغِلّ / مُسْتَغَلّ	active_participle+passive_participle	4717	اِسْتَغَلَّ	to exploit, take advantage of	1	1	1	0	0	0	0			4717	forms	encountered		3497	8	مستغلًّا:1	forms:1
+دَوَرَان	masdar	1206	دَارَ	to turn; to revolve, go around	1	1	1	0	0	0	0			1206	forms	known	3.1	295	110	دورانها:1	clitic:1
+حَجّ	masdar	883	حَجَّ	to pilgrimage	1	1	0	1	1	0	0			883	lemma	known	335.9	1753	22	الحج:1	lemma:1
+مَوْزُون	passive_participle	4613	وَزَنَ	to weigh	1	1	1	0	0	0	0			4613	forms	encountered		2673	12	موزونًا:1	forms:1
+تَسْدِيد	masdar	3903	سَدَّدَ	to direct, to aim, to settle, to pay	1	1	1	0	0	0	0			3903	forms			4169	6	تسديده:1	clitic:1
+مَعْكُوسٌ	passive_participle	627	عَكَسَ	to reflect, reverse	1	1	1	0	0	0	0			627	forms	known	4.0	723	55	معكوس:1	forms:1
+مُتَصَوِّر / مُتَصَوَّر	active_participle+passive_participle	2149	تَصَوَّر	to imagine	1	1	1	0	0	0	0			2149	forms	known	48.5	528	71	مُتصوَّر:1	forms:1
+مَوْتُورٌ	passive_participle	1072	وَتَرَ	to string (as a bow), to provide with a string	1	1	1	0	0	0	0			1072	forms	suspended	1.1	725	54	موتور:1	forms:1
+ٱِلْتِمَاع	masdar	2076	اِلْتَمَع	to glisten	1	1	1	0	0	0	0			2076	forms	known	427.6	3416	8	كالتماع:1	clitic:1
+إِحْدَاق	masdar	2151	أَحْدَق	to stare	1	1	1	0	0	1	0			2151	forms	known	31.7	2273	15	وأحداقِ:1	clitic:1
+شَاكّ	active_participle	4980	شَكَّ	to doubt	1	1	1	0	0	0	0			4980	forms	encountered		1265	32	لشاكِ:1	clitic:1
+خَاوٍ	active_participle	1422	خَوَى	to be empty	1	1	1	0	0	0	0			1422	forms	known	175.1	2268	15	خاوٍ:1	forms:1
+تَائِب	active_participle	1216	تَابَ	to repent, to be penitent	1	1	1	0	0	0	0			1216	forms	known	19.9	2761	11	تَائِبًا:1	forms:1
+مُتَذَمِّرٌ / مُتَذَمَّرٌ	active_participle+passive_participle	2935	تَذَمَّرَ	to complain	1	1	1	0	0	0	0			2935	forms	known	15.0	4133	6	بِالْمُتَذَمِّرِ:1	clitic:1
+رَاكِض	active_participle	1481	رَكَضَ	to run	1	1	1	0	0	0	0			1481	forms	known	21.7	879	46	راكضًا:1	forms:1
+طَارِح	active_participle	1035	طَرَحَ	to put forward, propose (ideas); to throw; to subtract	1	1	1	0	0	0	0			1035	forms	known	1.4	856	47	طارحًا:1	forms:1
+مَغْمُومٌ	passive_participle	1195	غَمَّ	to cover, to veil, to shroud	1	1	1	0	0	0	0			1195	forms	known	3.6	2263	15	مغمومًا:1	forms:1
+نَاسِخ	active_participle	503	نَسَخَ	to copy	1	1	1	0	0	0	0			503	forms	known	18.9	1384	29	ناسخ:1	forms:1
+مَنْسُوخ	passive_participle	503	نَسَخَ	to copy	1	1	1	0	0	0	0			503	forms	known	18.9	1384	29	المنسوخ:1	forms:1
+ابْتِلَال	masdar	3963	ابْتَلَّ	to become wet	1	1	1	0	0	0	0			3963	forms	known	19.1	5336	4	وابتلال:1	clitic:1
+مَبْثُوث	passive_participle	3512	بَثَّ	to broadcast, to spread	1	1	1	0	0	0	0			3512	forms	known	281.2	1065	38	مبثوثًا:1	forms:1
+اِعْتِيَاد	masdar	4116	اِعْتَادَ	to get used to	1	1	1	0	0	0	0			4116	forms	encountered		1018	40	اعتياد:1	forms:1
+مُغْتَاظ	active_participle	4433	اغْتَاظَ	to become angry	1	1	1	0	0	0	0			4433	forms	encountered		5363	4	مغتاظ:1	forms:1
+مَوْهُوم	passive_participle	1438	وَهَمَ	to imagine, presume	1	1	1	0	0	0	0			1438	forms	known	219.3	312	106	موهوم:1	forms:1
+إِطَاحَةٌ	masdar	2978	أَطَاحَ	to overthrow	1	1	1	0	0	0	0			2978	forms	known	3.8	6317	3	للإطاحة:1	clitic:1
+إِحْرَاز	masdar	3900	أَحْرَزَ	to achieve, to gain, to secure	1	1	1	0	0	0	0			3900	forms			4658	5	إحرازَ:1	forms:1
+مَطِير	passive_participle	1428	طَارَ	to fly	1	1	1	0	0	0	0			1428	forms	known	207.2	371	96	المطير:1	forms:1
+مُتْقِن / مُتْقَن	active_participle+passive_participle	4279	أَتْقَنَ	to master, perfect	1	1	1	0	0	0	0			4279	forms	suspended		1683	23	المُتقن:1	forms:1
+سُجُود	masdar	4513	سَجَدَ	prostrate oneself, bow down	1	1	1	0	0	0	0			4513	forms	known	70.3	5366	4	والسجود:1	clitic:1
+مَتْرُوكٌ	passive_participle	3148	تَرَك	left; abandoned	1	1	1	0	0	0	0			3148	forms	known	1.4	183	146	متروك:1	forms:1
+رَيْن	masdar	1032	رَانَ	to take possession of	1	1	1	0	0	0	0			1032	forms	known	2.3	1142	35	فرِّين:1	clitic:1
+بَاثّ	active_participle	3512	بَثَّ	to broadcast, to spread	1	1	1	0	0	0	0			3512	forms	known	281.2	1065	38	باث:1	forms:1
+مُثَابِر / مُثَابَر	active_participle+passive_participle	1217	ثَابَرَ	to persevere	1	1	1	0	0	0	0			1217	forms			4594	5	والمثابر:1	clitic:1
+مُدَاخَلَة	masdar	924	دَاخَلَ	to enter	1	1	1	0	0	0	0			924	forms	known	641.0	275	117	مداخلة:1	forms:1
+مَائِه	active_participle	840	مَاهَ	to produce water (of a well, etc.)	1	1	1	0	0	0	0			840	forms	known	1.7	4710	5	مائه:1	forms:1
+قَابِض	active_participle	1197	قَبَضَ	to seize	1	1	1	0	0	0	0			1197	forms	known	4.4	1822	20	قابضًا:1	forms:1
+تَشَاوُر	masdar	4307	تَشَاوَرَ	to confer, consult together	1	1	0	1	1	0	0			4307	lemma	known	1.8	5355	4	بِالتَّشَاوُرِ:1	clitic:1
+عَفْو	masdar	4156	عَفَا	to pardon	1	1	1	0	0	0	0	#2710 عَفْو [noun] you're welcome		2710	lemma	suspended		3003	10	عفوكَ:1	clitic:1
+مَسُوقٌ	passive_participle	2202	سَاقَ	to drive	1	1	1	0	0	0	0			2202	forms	known	91.7	825	49	المسوِّق:1	forms:1
+مَسْرُوق	passive_participle	2756	سَرَقَ	to steal	1	1	1	0	0	0	0			2756	forms	known	20.4	1612	24	المسروق:1	forms:1
+مُضْطَجِع / مُضْطَجَع	active_participle+passive_participle	3222	اضْطَجَعَ	to recline	1	1	1	0	0	0	0			3222	forms	known	1.4	6325	3	مُضْطَجِعًا:1	forms:1
+مُخَفِّق	active_participle	2142	خَفَّق	to throb	1	1	1	0	0	0	0			2142	forms	known	15.5	3174	9	ومخفقًا:1	clitic:1
+مَطْوِيّ	passive_participle	4711	طَوَى	to fold, roll up; to traverse (a distance)	1	1	1	0	0	0	0			4711	forms	encountered		2036	18	المطوي:1	forms:1
+مَحْنِي	passive_participle	1182	حَنَا	to bend, to curve	1	1	1	0	0	0	0			1182	forms	known	62.5	1145	35	محني:1	forms:1
+مَوْلِيّ	passive_participle	4588	وَلِيَ	to follow; come next	1	1	1	0	0	0	0			4121	lemma	encountered		379	95	مولي:1	forms:1
+اِسْتِشْهَاد	masdar	4802	اُسْتُشْهِدَ	to be martyred	1	1	1	0	0	0	0			4802	forms	known	8.3	5390	4	والاستشهاد:1	clitic:1
+مُتَيَسِّرٌ	active_participle	4757	تَيَسَّرَ	to be feasible, go smoothly; to be available	1	1	1	0	0	0	0			4757	forms	encountered		3024	10	متيسرًا:1	forms:1
+إِصْغَاء	masdar	1084	أَصْغَى	to listen closely	1	1	1	0	0	0	0			1084	forms	known	26.2	3726	7	للإصغاء:1	clitic:1
+مُتَمَلِّق / مُتَمَلَّق	active_participle+passive_participle	1192	تَمَلَّقَ	to flatter	1	1	1	0	0	0	0			1192	forms			6253	3	متملِّقًا:1	forms:1
+مُعَقِّب / مُعَقَّب	active_participle+passive_participle	3517	عَقَّب	to follow, to come after	1	1	1	0	0	0	0			3517	forms	learning	8.3	1366	29	معقِّبًا:1	forms:1
+مَحْكِيّ	passive_participle	3014	حَكى	to tell	1	1	1	0	0	0	0			3014	forms	known	403.7	863	47	المَحكيَّ:1	forms:1
+مُشَاطَرَة	masdar	2421	شَاطَرَ	to share	1	1	1	0	0	0	0			2421	forms	known	19.4	6298	3	مشاطرته:1	clitic:1
+مُتَنَفِّس	active_participle	4740	تَنَفَّسَ	to breathe	1	1	1	0	0	0	0			4740	forms	encountered		2038	18	متنفسًا:1	forms:1
+وَسَخ	masdar	684	وَسِخَ	to be dirty	1	1	0	1	1	0	0			684	lemma	lapsed	2.7			الوسخ:1	lemma:1
+ارْتِجَاف	masdar	4423	ارْتَجَفَ	trembled	1	1	1	0	0	0	0			4423	forms	encountered		3486	8	الارتجاف:1	forms:1
+مُزْوَرّ	active_participle	767	زَوِرَ	to incline	1	1	1	0	0	0	0			767	forms	known	1.8	3040	10	والمزور:1	clitic:1
+عَاكِس	active_participle	627	عَكَسَ	to reflect, reverse	1	1	1	0	0	0	0			627	forms	known	4.0	723	55	العاكس:1	forms:1
+مُعَرِّب / مُعَرَّب	active_participle+passive_participle	788	عَرَّبَ	to translate into Arabic	1	1	1	0	0	0	0			788	forms	known	428.3	338	102	مُعرَّب:1	forms:1
+دَائِن	active_participle	1201	دَانَ	to owe (money)	1	1	1	0	0	0	0			1201	forms	known	207.8	877	46	للدائن:1	clitic:1
+مُعَار	passive_participle	4049	أَعارَ	lent	1	1	1	0	0	0	0			4049	forms	known	37.7	4669	5	ومعارك:1	clitic:1
+طَاعِن	active_participle	4500	طَعَنَ	to stab	1	1	1	0	0	0	0			4500	forms	encountered		3237	9	طاعنًا:1	forms:1
+تَصَبُّب	masdar	4742	تَصَبَّبَ	to pour down, stream (of sweat)	1	1	0	1	1	0	0			4742	lemma	encountered		6417	3	التصبب:1	lemma:1
+مَضْرُوب	passive_participle	3581	ضَرَب	strikes, sets	1	1	1	0	0	0	0			3581	forms	known	5.7	374	96	مضروبًا:1	forms:1
+دَيْن	masdar	1201	دَانَ	to owe (money)	1	1	1	0	0	0	0	#670 دِينٌ [noun] religion, debt		670	lemma	known	207.8	877	46	دَيْنٌ:1	forms:1
+اقْتِيَاد	masdar	3974	اقْتَادَ	led	1	1	1	0	0	0	0			3974	forms	known	3.6	6360	3	اقْتِيَادِهَا:1	clitic:1
+قُعُود	masdar	2558	قَعَدَ	to sit	1	1	1	0	0	0	0			2558	forms	known	5.9	2775	11	القُعُودَ:1	forms:1
+إِضَافَة	masdar	3396	أَضَاف	to add	1	1	1	0	0	0	0	#2241 إِضافَة [noun] addition		2241	lemma	known	15.7	885	46	وإضافة:1	clitic:1
+هَازّ	active_participle	4218	هَزَّ	shake	1	1	1	0	0	0	0			4218	forms	known	189.6	1332	30	هازًا:1	forms:1
+اِفْتِرَاق	masdar	3978	ٱِفْتَرَق	to separate	1	1	1	0	0	0	0			3978	forms			3793	7	افتراق:1	forms:1
+اِنْزِلَاق	masdar	4698	اِنْزَلَقَ	to slip, slide	1	1	1	0	0	0	0			4698	forms	encountered		4695	5	بالانزلاق:1	clitic:1
+سَارِق	active_participle	2756	سَرَقَ	to steal	1	1	1	0	0	0	0			2756	forms	known	20.4	1612	24	وسارقًا:1	clitic:1
+الْتِفَاتٌ	masdar	3468	الْتَفَتَ	to turn around	1	1	1	0	0	0	0			3468	forms	known	12.5	961	42	بالالتفات:1	clitic:1
+مُلْتَحِق / مُلْتَحَق	active_participle+passive_participle	2438	الْتَحَقَ	to join / enroll	1	1	1	0	0	0	0			2438	forms	known	8.0	2508	13	ملتحق:1	forms:1
+عِنَاق	masdar	3266	عَانَقَ	to embrace, hug	1	1	1	0	0	0	0			3266	forms	known	1.8	4148	6	بعناق:1	clitic:1
+حَنْي	masdar	1182	حَنَا	to bend, to curve	1	1	0	1	1	0	0			1182	forms	known	62.5	1145	35	حنينًا:1	generated:1
+رَاخّ	active_participle	935	رَخَّ	to dilute, to mix with water	1	1	1	0	0	0	0			935	forms	lapsed	0.3	3846	7	فراخ:1	clitic:1
+إِتْيَان	masdar	2195	أَتَى	to come	1	1	1	0	0	0	0			2195	forms	known	32.1	144	176	الإتيان:1	forms:1
+رَحَابَة	masdar	1138	رَحُبَ	to be spacious	1	1	1	0	0	0	0			1138	forms	known	8.8	1534	25	ورحابة:1	clitic:1
+مُقَارِن / مُقَارَن	active_participle+passive_participle	2606	قارَن	to compare	1	1	1	0	0	0	0			2606	forms	known	1.4	1033	39	المقارن:1	forms:1
+زُحُول	masdar	973	زَحَلَ	to move away, withdraw, retire	1	1	1	0	0	0	0			973	forms			2318	15	للزحول:1	clitic:1
+لَافِح	active_participle	3256	لَفَحَ	to scorch	1	1	1	0	0	0	0			3256	forms	known	56.4	5309	4	لافح:1	forms:1
+انْبِسَاطٌ	masdar	2939	انْبَسَطَ	to enjoy	1	1	1	0	0	0	0			2939	forms	known	2.2	6315	3	انْبِسَاطِهَا:1	clitic:1
+تَعْقِيب	masdar	3517	عَقَّب	to follow, to come after	1	1	1	0	0	0	0			3517	forms	learning	8.3	1366	29	تعقيبًا:1	forms:1
+مُتَجاهِلٌ / مُتَجاهَلٌ	active_participle+passive_participle	3412	تَجَاهَلَ	to ignore	1	1	1	0	0	0	0			3412	forms	known	2.6	2006	18	متجاهلًا:1	forms:1
+أَوْب	masdar	580	آبَ	to return, to come back	1	1	0	1	1	0	0			580	forms	known	18.5	399	92	الأوبك:1	clitic:1
+مُنْتَحِب / مُنْتَحَب	active_participle+passive_participle	3976	انْتَحَبَ	sobbed	1	1	1	0	0	0	0			3976	forms	known	37.8			منتحبًا:1	forms:1
+مَعْرُوقٌ	passive_participle	918	عَرَقَ	to strip of flesh, to nibble	1	1	1	0	0	0	0			918	forms	known	104.1	2224	16	معروقًا:1	forms:1
+نُحُول	masdar	1267	نَحُلَ	to grow thin	1	1	1	0	0	0	0			1267	forms	known	2.3	2943	10	نحول:1	forms:1
+مَفْرُوغ	passive_participle	4510	فَرَغَ	to finish, be done; become free	1	1	1	0	0	0	0			4510	forms	acquiring		3014	10	المفروغ:1	forms:1
+مُسْتَفاد	passive_participle	2693	اِسْتَفاد	to benefit	1	1	1	0	0	0	0			2693	forms	known	112.1	2090	17	مستفادٍ:1	forms:1
+اِغْتِسَال	masdar	4628	اِغْتَسَلَ	to wash oneself, bathe	1	1	1	0	0	0	0			4628	forms	encountered		6408	3	الاغتسال:1	forms:1
+عِتَابٌ	masdar	3918	عَتَبَ	to blame	1	1	1	0	0	0	0			3918	forms	encountered		4170	6	وعتاب:1	clitic:1
+مَصُون	passive_participle	3073	صَانَ	to preserve	1	1	1	0	0	0	0			3073	forms	known	1.9	4135	6	المصون:1	forms:1
+رَاحِم	active_participle	1067	رَحِمَ	to have mercy	1	1	1	0	0	0	0			1067	forms	known	338.2	1143	35	راحم:1	forms:1
+مُعْتَقِد / مُعْتَقَد	active_participle+passive_participle	2250	اعْتَقَدَ	to believe / think	1	1	1	0	0	0	0	#4951 مُعْتَقَد [noun] belief		4951	lemma	known	1.6	330	104	المُعتقِد:1	forms:1
+إِغْمَاض	masdar	3226	أَغْمَضَ	to close	1	1	1	0	0	0	0			3226	forms	known	201.7	4145	6	إغماض:1	forms:1
+مُلْتَفِتٌ / مُلْتَفَتٌ	active_participle+passive_participle	3468	الْتَفَتَ	to turn around	1	1	1	0	0	0	0			3468	forms	known	12.5	961	42	مُلْتَفِتٌ:1	forms:1
+مُتَّخِذ / مُتَّخَذ	active_participle+passive_participle	3521	اتَّخَذَ	to take; to adopt	1	1	1	0	0	0	0			3521	forms	suspended		556	69	متخذًا:1	forms:1
+مُنْشِئ	active_participle	4864	أَنْشَأَ	to establish, found, create	1	1	1	0	0	0	0			4864	forms	encountered		1521	26	لمنشئها:1	clitic:1
+مُتَمّ	passive_participle	1360	تَمَّ	be completed	1	1	1	0	0	0	0			1360	forms	known	3.8	187	144	متمنيًا:1	clitic:1
+مُرْتَعِش / مُرْتَعَشٌ	active_participle+passive_participle	2081	اِرْتَعَش	to shake	1	1	1	0	0	0	0			2081	forms	known	34.3	5269	4	المرتعش:1	forms:1
+مَنْفُور	passive_participle	1091	نَفَرَ	to shy, to bolt, to stampede	1	1	1	0	0	0	0			1091	forms	encountered		1709	22	ومنفورًا:1	clitic:1
+شَارٍ	active_participle	4752	شَرَى	to buy (archaic/literary); to sell	1	1	1	0	0	0	0			4752	forms	encountered		3829	7	شار:1	forms:1
+تَنْوِيم	masdar	1024	نَوَّمَ	to put to sleep	1	1	1	0	0	0	0			1024	forms	known	574.9	434	84	تنويمٍ:1	forms:1
+حِنْثٌ	masdar	3462	حَنِثَ	to break (an oath)	1	1	0	1	1	0	0			3462	lemma	lapsed	0.9	7861	2	الحِنث:1	lemma:1
+دَرْدَشَة	masdar	2239	دَرْدَشَ	to chat	1	1	1	0	0	0	0			2239	forms	known	92.8	7819	2	الدردشة:1	forms:1
+مُخَفِّف / مُخَفَّف	active_participle+passive_participle	2568	خَفَّفَ	to reduce	1	1	1	0	0	0	0			2568	forms	known	240.6	1602	24	مخففًا:1	forms:1
+عَاثِر	active_participle	3309	عَثَرَ	to stumble, to find	1	1	1	0	0	0	0			3309	forms	known	96.5	828	49	عاثر:1	forms:1
+صَيْرُورَة	masdar	3017	صَارَ	to become	1	1	1	0	0	0	0			3017	forms	known	290.6	142	177	وصيرورة:1	clitic:1
+مُهَرْوِل	active_participle	4658	هَرْوَلَ	to hurry, jog along	1	1	1	0	0	0	0			4658	forms	encountered		3496	8	مهرولًا:1	forms:1
+غِشّ	masdar	4984	غَشَّ	to cheat, to deceive	1	1	0	1	1	0	0	#3459 غِشّ [noun] fraud		3459	lemma			6430	3	وغشًّا:1	clitic:1
+مُتَطَايِر	active_participle	4738	تَطَايَرَ	to fly about, scatter in the air	1	1	1	0	0	0	0			4738	forms	encountered		3022	10	المتطاير:1	forms:1
+قَاعِد	active_participle	2558	قَعَدَ	to sit	1	1	1	0	0	0	0			2558	forms	known	5.9	2775	11	قاعد:1	forms:1
+مُعَالِجٌ / مُعَالَجٌ	active_participle+passive_participle	2595	عالَج	to treat	1	1	1	0	0	0	0			2595	forms	known	118.2	1994	18	معالَج:1	forms:1
+مُتَّكِئ	active_participle	4657	اِتَّكَأَ	to lean (on), recline	1	1	1	0	0	0	0			4657	forms	encountered		3822	7	متكئًا:1	forms:1
+مَفْقُوسٌ	passive_participle	1416	فَقَسَ	to hatch	1	1	1	0	0	0	0			1416	forms			3733	7	المفقوس:1	forms:1
+مُسْتَرِيح	active_participle	2492	اِسْتَرَاحَ	to rest	1	1	1	0	0	0	0			2492	forms	known	438.1	2088	17	مستريحًا:1	forms:1
+مُحْتَفِل	active_participle	3929	احْتَفَلَ	to celebrate	1	1	1	0	0	0	0			3929	forms			3791	7	المحتفل:1	forms:1
+مُسْتَسْلِم	active_participle	4435	اِسْتَسْلَمَ	surrendered	1	1	1	0	0	0	0			4435	forms	encountered		2821	11	مستسلمًا:1	forms:1
+اضْطِجَاع	masdar	3222	اضْطَجَعَ	to recline	1	1	1	0	0	0	0			3222	forms	known	1.4	6325	3	الاضطجاع:1	forms:1
+مَخْتُومٌ	passive_participle	2836	خَتَمَ	to seal, to finish	1	1	1	0	0	0	0			2836	forms	known	4.9	1118	36	ومختومًا:1	clitic:1
+تَهالُك	masdar	3281	تَهالَك	to be ruined	1	1	0	1	1	0	0			3281	lemma	lapsed	0.6	7854	2	وتهالكًا:1	clitic:1
+جَاءٍ	active_participle	2027	جَاء	to come	0	69	0	69	0	0	0			2027	lemma	known	375.7	155	164	جاء:50 فجاء:4 وجاء:3 جاءَ:2	lemma:53 clitic:16
+تَعَوُّد	masdar	2147	تَعَوَّد	to get used to	0	34	0	34	0	0	0			2147	lemma	suspended	0.2	861	47	تعود:26 وتعود:3 تعوَّد:2 فتعود:1	lemma:29 clitic:5
+رَفْع	masdar	3934	رَفَعَ	to raise, to lift	0	28	0	28	0	0	0	#4971 رَفْع [noun] raising, lifting		3934	lemma	known	142.5	429	86	رفع:13 ورفع:9 رَفْعِهِ:1 رفعها:1	lemma:15 clitic:13
+شُكْر	masdar	2204	شَكَرَ	to thank	0	23	0	23	0	0	0	#4975 شُكْر [noun] thanks, gratitude		2204	lemma	known	553.7	623	62	وشكر:8 شكر:7 شكره:2 فشكر:2	clitic:15 lemma:8
+تَمَلُّك	masdar	4550	تَمَلَّكَ	to take possession of	0	22	0	22	0	0	0			4550	lemma	suspended	0.4	1563	25	تملك:9 تملكه:3 تَمَلَّكَ:1 تَمَلَّكَهُ:1	lemma:12 clitic:10
+تَعَالٍ	masdar	2171	تَعالَى	to come	0	19	0	19	0	0	0			2171	forms	known	1.8	977	41	تَعَالَ:6 تعال:5 تعالَ:3 فتعالَ:1	forms:15 clitic:4
+غَادِر	active_participle	2717	غَادَرَ	to leave	0	19	0	19	0	0	0			2717	lemma	known	71.5	667	59	غادر:12 وَغَادَرَ:2 غَادَرْنَا:1 غَادَرَ:1	lemma:14 clitic:4 generated:1
+تَزَوُّج	masdar	4702	تَزَوَّجَ	to marry, get married	0	15	0	15	0	0	0			4702	lemma	acquiring		777	52	تزوج:11 وتزوجها:1 تزوجها:1 تزوَّج:1	lemma:12 clitic:3
+هَدّ	masdar	3889	هَدَّ	to demolish; destroy	0	14	0	14	0	0	0			3889	lemma	suspended	0.1	1854	20	فهد:11 هد:2 هدَّني:1	clitic:12 lemma:2
+تَجَاوُز	masdar	3520	تَجَاوَزَ	to exceed; to go beyond	0	14	0	14	0	0	0			3520	lemma	known	8.3	754	53	تجاوز:4 تجاوزه:3 تجاوزنا:2 فَتَجَاوَزْ:1	clitic:8 lemma:4 generated:2
+خَطّ	masdar	762	خَطَّ	to draw a line	0	13	0	13	0	0	0	#4881 خَطّ [noun] line; handwriting		762	lemma	known	523.7	780	52	خط:10 خَطَّ:2 خطهم:1	lemma:12 clitic:1
+تَوَلُّد	masdar	1186	تَوَلَّدَ	to be born, to originate	0	12	0	12	0	0	0			1186	lemma	known	153.5	1821	20	تولد:5 تولده:2 وتَولَّد:1 تولِّد:1	lemma:8 clitic:4
+لَيْت	masdar	998	لَاتَ	not to be	0	12	0	12	0	0	0			998	forms	known	164.9	2137	17	ليت:3 لَيْتَنِي:2 ليتك:2 ليته:1	clitic:8 forms:4
+شَاء	active_participle	2441	شَاءَ	to want	0	12	0	12	0	0	0			2441	lemma	known	280.5	611	63	شاء:9 وشاء:2 شاءَ:1	lemma:10 clitic:2
+تَسَلُّق	masdar	2234	تَسَلَّقَ	to climb	0	10	0	10	0	0	0			2234	lemma	known	23.0	1720	22	تسلق:4 وتسلق:1 تسلُّقه:1 وتسلُّق:1	lemma:5 clitic:5
+تَوَقُّع	masdar	4366	تَوَقَّعَ	to expect, anticipate	0	10	0	10	0	0	0			4366	lemma	known	19.3	850	48	توقع:4 توقُّع:2 توقَّعه:1 توقُّعه:1	lemma:6 clitic:4
+عَسًى	masdar	4776	عَسَىٰ	to hope	0	10	0	10	0	0	0			4776	lemma			3026	10	عسى:9 عَسَى:1	lemma:10
+تَمَيُّز	masdar	2925	تَمَيَّزَ	to be distinguished	0	10	0	10	0	0	0			2925	lemma	known	39.3	1159	35	تميز:8 تَمَيَّزَ:1 تُميِّزنا:1	lemma:9 generated:1
+تَنَقُّل	masdar	4142	تَنَقَّلَ	to move about, to travel around	0	10	0	10	0	0	0	#4972 تَنَقُّل [noun] moving about, travel		4142	lemma	lapsed	1.0	1800	21	تنقل:6 وتنقلها:1 تنقلني:1 تنقلهم:1	lemma:6 clitic:4
+رُشْد	masdar	483	رَشَدَ	to be guided	0	9	0	9	0	0	0			483	lemma	known	14.0	1337	30	رشده:3 رشد:3 رشدك:1 رُشدك:1	clitic:6 lemma:3
+ضَعْف	masdar	3312	ضَعُفَ	to be weak, to weaken	0	8	0	8	0	0	0	#4970 ضَعْف [noun] weakness		3312	lemma	known	60.8	1462	27	ضعف:3 ضِعْفَ:1 ضَعْفِ:1 ضَعف:1	lemma:6 clitic:2
+وَزْن	masdar	4613	وَزَنَ	to weigh	0	8	0	8	0	0	0	#4614 وَزْن [noun] weight		4613	lemma	encountered		2673	12	وزن:4 فَوَزْنُهُ:1 وزنها:1 وزنك:1	clitic:4 lemma:4
+تَصَادُف	masdar	1027	تَصَادَفَ	to meet by chance	0	8	0	8	0	0	0			1027	lemma			3153	9	تصادف:3 وتصادف:2 تُصَادِفُنِي:1 تَصَادَفَ:1	clitic:4 lemma:4
+فَرْط	masdar	3849	فَرَط	to neglect	0	7	0	7	0	0	0			3849	lemma	encountered		3218	9	فرط:4 فَرْطِ:1 فَرَطَ:1 لفرط:1	lemma:6 clitic:1
+وَاهِم	active_participle	1438	وَهَمَ	to imagine, presume	0	7	0	7	0	7	0			1438	forms	known	219.3	312	106	وأهم:4 وأهمها:2 وأهمُّها:1	forms:4 clitic:3
+خَصْمٌ	masdar	3691	خَصَم	to deduct, to reduce	0	7	0	7	0	0	0	#4870 خَصْم [noun] opponent, adversary; discount		3691	lemma	learning		3456	8	خصمه:6 خصم:1	clitic:6 lemma:1
+تَرْجَمَة	masdar	1094	تَرْجَمَ	to translate	0	7	0	7	0	0	0	#211 تَرْجَمة [noun] translation		211	lemma	known	642.1	2072	17	ترجمتها:4 ترجمته:2 وترجمته:1	clitic:7
+عَدٌّ	masdar	4591	عَدَّ	to count	0	7	0	7	0	0	0			4591	lemma	encountered		237	127	عُدَّ:2 عَدَّ:2 عدَّ:1 عدّ:1	lemma:6 clitic:1
+تَيَسُّرٌ	masdar	4757	تَيَسَّرَ	to be feasible, go smoothly; to be available	0	7	0	7	0	0	0			4757	lemma	encountered		3024	10	تيسر:3 تَيَسَّرَ:1 وتيسر:1 تيسَّر:1	lemma:5 clitic:2
+قَصْد	masdar	3559	قَصَد	to intend	0	7	0	7	0	0	0	#4602 قَصْد [noun] intent; purpose		3559	lemma	suspended	0.1	586	66	قصد:5 قصدْنا:1 قصدنا:1	lemma:5 generated:2
+نَزْع	masdar	3215	نَزَعَ	to remove	0	6	0	6	0	0	0			3215	lemma	known	1.9	1503	26	نزع:4 ونزع:1 نَزَعَ:1	lemma:5 clitic:1
+شَنّ	masdar	952	شَنَّ	to launch (war; campaign)	0	6	0	6	0	0	0			952	lemma	known	217.4	185	145	شن:3 شنَّها:1 فشنَّ:1 لشن:1	clitic:3 lemma:3
+قَصّ	masdar	3672	قَصّ	to cut	0	6	0	6	0	0	0			3672	lemma	known	213.8	919	44	قصَّ:2 وَقَصَّ:1 وقص:1 قَصَّها:1	clitic:4 lemma:2
+غَمْر	masdar	4403	غَمَرَ	to flood	0	6	0	6	0	0	0			4403	lemma	known	4.7	1099	37	غمر:3 غَمَرَ:1 غَمْر:1 وغمرُه:1	lemma:5 clitic:1
+غَلَب	masdar	2582	غَلَب	to defeat	0	6	0	6	0	0	0			2582	lemma	suspended	0.2	260	120	غلب:3 وغَلَبَ:1 غلبها:1 غلبه:1	clitic:3 lemma:3
+لَمْح	masdar	4181	لَمَحَ	to glimpse	0	6	0	6	0	0	0			4181	lemma	encountered		1331	30	لَمْحِ:2 لمح:2 لَمَحَ:1 ولمح:1	lemma:5 clitic:1
+تَرَاجُع	masdar	2136	تَراجَع	to review	0	5	0	5	0	0	0			2136	lemma	known	13.7	3173	9	تراجع:4 وتراجَعَ:1	lemma:4 clitic:1
+حَثّ	masdar	2644	حَثَّ	to urge	0	5	0	5	0	0	0			2644	lemma	suspended	0.4	3186	9	حث:2 حثني:1 حثُّ:1 حثك:1	lemma:3 clitic:2
+صُحْبَة	masdar	4040	صَحِبَ	to accompany	0	5	0	5	0	0	0	#4978 صُحْبَة [noun] companionship, company		4978	lemma	known	93.2	1230	33	صحبته:3 وصحبتها:1 صحبتني:1	clitic:5
+غَسْل	masdar	2448	غَسَلَ	to wash	0	4	0	4	0	0	0	#4966 غَسْل [noun] washing		2448	lemma	known	207.8	3181	9	غسل:3 وغسله:1	lemma:3 clitic:1
+خَطْفٌ	masdar	3577	خَطَف	snatches	0	4	0	4	0	0	0			3577	lemma	known	21.2	3209	9	خطفه:1 خطف:1 خَطَفَ:1 خَطِفَهُ:1	clitic:2 lemma:2
+أَكْل / آكِل	masdar+active_participle	2519	أَكَلَ	to eat	0	4	0	4	0	0	0	#324 أَكْل [noun] food		324	lemma	known	384.0	843	48	آكل:2 فَأَكَلَ:1 أَكَلَ:1	lemma:3 clitic:1
+تَنَهُّد	masdar	3044	تَنَهَّدَ	to sigh	0	4	0	4	0	0	0			3044	lemma	known	7.3	2516	13	تنهد:3 فتنهَّد:1	lemma:3 clitic:1
+تَلَخُّص	masdar	3979	تَلَخَّص	to summarize	0	4	0	4	0	0	0			3979	lemma			4174	6	فتُلَخَّصُ:1 تُلخِّصه:1 تُلخَّص:1 تلخص:1	clitic:2 lemma:2
+تَكَرُّر	masdar	2085	تَكَرَّر	to repeat	0	4	0	4	0	0	0			2085	lemma	known	199.0	1776	21	تكرر:3 تكرُّر:1	lemma:4
+قَطْفٌ	masdar	3470	قَطَف	to pick	0	3	0	3	0	0	0			3470	lemma	lapsed	3.2	2522	13	فقطف:1 لقطف:1 وقطف:1	clitic:3
+هَرَعٌ	masdar	4382	هَرَعَ	rushed	0	3	0	3	0	0	0			4382	lemma	encountered		3483	8	هرع:2 فهرع:1	lemma:2 clitic:1
+فِعْل	masdar	4532	فَعَلَ	to do	0	3	0	3	0	0	0	#207 فِعْل [noun] verb		207	lemma	known	50.9	165	157	فَعَلَ:3	lemma:3
+بَتّ	masdar	727	بَتَّ	to cut off, to sever	0	3	0	3	0	0	0			727	lemma	known	1.7	2423	14	بتهم:1 فبتْنا:1 بِتُّ:1	clitic:2 lemma:1
+هَزْم	masdar	4566	هَزَمَ	to defeat	0	3	0	3	0	0	0			4566	lemma	encountered		3815	7	فهزم:1 وهُزم:1 هزم:1	clitic:2 lemma:1
+تَسَاقُط	masdar	3945	تَسَاقَطَ	to fall; to drop	0	3	0	3	0	0	0			3945	lemma	acquiring		2537	13	وتساقط:3	clitic:3
+تَشَجُّع	masdar	2757	تَشَجَّعَ	to take courage	0	3	0	3	0	0	0			2757	lemma	known	109.6	5290	4	وتشجعني:1 وتشجع:1 تشجع:1	clitic:2 lemma:1
+تَسَلُّل	masdar	4342	تَسَلَّلَ	to sneak, slip in	0	2	0	2	0	0	0			4342	lemma	known	4.8	2029	18	تَسَلَّلَ:1 تسلل:1	lemma:2
+تَنَشُّق	masdar	4642	تَنَشَّقَ	to inhale, sniff in	0	2	0	2	0	0	0			4642	lemma	encountered		7924	2	تنشق:2	lemma:2
+لَحْس	masdar	4010	لَحِسَ	to lick	0	2	0	2	0	0	0			4010	lemma	encountered		1017	40	لحسِّهِ:1 للحس:1	clitic:2
+حَجْز	masdar	2718	حَجَزَ	to book, to reserve	0	2	0	2	0	0	0	#4965 حَجْز [noun] booking, reservation		2718	lemma	known	3.9	6308	3	حجز:2	lemma:2
+قَرْض	masdar	4534	قَرَضَ	to bite	0	2	0	2	0	0	0			4534	lemma			5368	4	قرض:1 وقرض:1	lemma:1 clitic:1
+مَسْحٌ	masdar	3301	مَسَحَ	to wipe	0	2	0	2	0	0	0			3301	lemma	known	23.1	1912	19	مسح:2	lemma:2
+تَصَفُّح	masdar	2235	تَصَفَّحَ	to browse	0	2	0	2	0	0	0			2235	lemma	known	389.2	5274	4	تصفَّحْ:1 تصفح:1	lemma:2
+فَقْس	masdar	1416	فَقَسَ	to hatch	0	2	0	2	0	0	0			1416	lemma			3733	7	فقس:2	lemma:2
+تَزَاحُم	masdar	4363	تَزَاحَمَ	to crowd together, jostle	0	2	0	2	0	0	0			4363	lemma	known	41.2	7909	2	وتزاحم:1 تُزاحمها:1	clitic:2
+سَتْر	masdar	1225	سَتَرَ	to cover, veil	0	2	0	2	0	0	0			1225	lemma	suspended	0.1	1395	28	ستر:1 لستر:1	lemma:1 clitic:1
+تَناقُش	masdar	3701	تَناقَشَ	to discuss	0	2	0	2	0	0	0			3701	forms	known	457.9	2014	18	تُناقَش:1 وتُناقشهم:1	forms:1 clitic:1
+قَذْف	masdar	4187	قَذَفَ	ejaculate	0	2	0	2	0	0	0			4187	lemma	known	88.3	2543	13	قذفها:1 قَذَفَ:1	clitic:1 lemma:1
+تَوَهُّج	masdar	3210	تَوَهَّجَ	to glow	0	2	0	2	0	0	0			3210	lemma	known	110.1	3443	8	وتوهجها:1 توهجها:1	clitic:2
+نَاوِل	active_participle	2751	نَاوَلَ	to hand over	0	2	0	2	0	0	0			2751	lemma	known	252.0	4129	6	ناوله:1 وناولني:1	clitic:2
+وَاتِر	active_participle	1072	وَتَرَ	to string (as a bow), to provide with a string	0	1	0	1	0	1	1			1072	forms	suspended	1.1	725	54	وأترك:1	clitic:1
+حُرْمَة	masdar	939	حَرُمَ	to be forbidden	0	1	0	1	0	0	1			939	forms	known	17.7	2136	17	حرمته:1	clitic:1
+زَرْد	masdar	850	زَرَدَ	to strangle	0	1	0	1	0	0	0			850	lemma					زرد:1	lemma:1
+تَزَايُد	masdar	4234	تَزَايَدَ	to increase steadily	0	1	0	1	0	0	0			4234	lemma	known	155.9	5351	4	تزايد:1	lemma:1
+عَصْب	masdar	931	عَصَبَ	to twist, wrap around	0	1	0	1	0	0	0			931	lemma	known	2.3	2426	14	عَصْب:1	lemma:1
+سَئِم	active_participle	4486	سَئِمَ	tired of	0	1	0	1	0	0	0			4486	lemma	encountered		3012	10	سئم:1	lemma:1
+تَوَاجُد	masdar	4332	تَوَاجَدَ	to be present	0	1	0	1	0	0	0			4332	lemma	known	12.0	7908	2	تواجدها:1	clitic:1
+تَأَوُّه	masdar	3237	تَأَوَّهَ	to sigh, moan	0	1	0	1	0	0	0			3237	forms	known	19.2	4146	6	تأوه:1	forms:1
+حَرْث	masdar	1315	حَرَثَ	to plow	0	1	0	1	0	0	0			1315	lemma	learning	0.2	6258	3	وحرثها:1	clitic:1
+صَرْع	masdar	759	صَرَعَ	to throw down to the ground	0	1	0	1	0	0	0			759	lemma	suspended		4209	6	صرع:1	lemma:1
+تَكَاثُف	masdar	3252	تَكَاثَفَ	to condense	0	1	0	1	0	0	0			3252	lemma	known	2.4	7850	2	تكاثف:1	lemma:1
+عِزَّة	masdar	4045	عَزَّ	to be mighty; to be dear	0	1	0	1	0	0	0	#3923 عِزَّة [noun] dignity; might; power		3923	lemma	known	54.5	1935	19	وعزتها:1	clitic:1
+تَعَفُّن	masdar	1249	تَعَفَّنَ	to rot, decay	0	1	0	1	0	0	0			1249	lemma	lapsed	0.5			وتعفُّنه:1	clitic:1
+دَعْك	masdar	4193	دَعَكَ	leave aside	0	1	0	1	0	0	0			4193	lemma	known	126.7			دعك:1	lemma:1
+خَتْمٌ	masdar	2836	خَتَمَ	to seal, to finish	0	1	0	1	0	0	0			2836	lemma	known	4.9	1118	36	وختم:1	clitic:1
+لَفْح	masdar	3256	لَفَحَ	to scorch	0	1	0	1	0	0	0			3256	lemma	known	56.4	5309	4	لفح:1	lemma:1
+تَمَلْمُل	masdar	3294	تَمَلْمَلَ	fidget, squirm	0	1	0	1	0	0	0			3294	lemma	lapsed	3.2			تَمَلْمَلَ:1	lemma:1
+قَلْع	masdar	1015	قَلَعَ	to pluck out, to uproot	0	1	0	1	0	0	0			1015	lemma	known	94.4	2262	15	قلعها:1	clitic:1
+تَصَايُح	masdar	4400	تَصايَحَ	shouted	0	1	0	1	0	0	0			4400	lemma	encountered				وتصايح:1	clitic:1
+تَرَقْرُق	masdar	3302	تَرَقْرَقَ	to shimmer	0	1	0	1	0	0	0			3302	lemma	known	3.3	5311	4	تَرقرَقَ:1	lemma:1
+تَفَضُّل	masdar	4029	تَفَضَّلَ	be so kind	0	1	0	1	0	0	0	#432 تفَضَّل [expr] welcome, go ahead		432	lemma	known	300.8	5341	4	تفضُّل:1	lemma:1
+حَفْزٌ	masdar	4754	حَفَزَ	to spur, urge on, motivate	0	1	0	1	0	0	0			4754	lemma	encountered		2831	11	وحفز:1	clitic:1
+عَثْرَة	masdar	3309	عَثَرَ	to stumble, to find	0	1	0	1	0	0	0			3309	forms	known	96.5	828	49	عَثْرَتِها:1	clitic:1
+طَحْن	masdar	3323	طَحَن	to grind	0	1	0	1	0	0	0			3323	lemma	known	418.2			وطحنها:1	clitic:1
+تَرَمُّق	masdar	3983	تَرَمَّق	to glance, to peek	0	1	0	1	0	0	0			3983	lemma					ترمقه:1	clitic:1
+تَنَسُّمٌ	masdar	4645	تَنَسَّمَ	to breathe in, catch the scent of	0	1	0	1	0	0	0			4645	lemma	encountered				تنسم:1	lemma:1
+عَضّ	masdar	4014	عَضَّ	to bite	0	1	0	1	0	0	0			4014	lemma			3796	7	لعض:1	clitic:1
+كَائِن	active_participle	385	كَانَ	to be	0	0	0	0	0	0	53			385	forms	known	8.3				
+رَائِح	active_participle	386	رَاحَ	to go	0	0	0	0	0	0	33			386	forms	known	17.0	304	109		
+كَوْن	masdar	385	كَانَ	to be	0	0	0	0	0	0	16			385	forms	known	8.3				
+مَكُونٌ	passive_participle	385	كَانَ	to be	0	0	0	0	0	0	14			385	forms	known	8.3				
+طَافٍ	active_participle	2937	طَفَا	to float	0	0	0	0	0	0	11			2937	forms	known	123.9	2639	12		
+هَابّ	active_participle	1373	هَبَّ	to blow violently	0	0	0	0	0	0	6			1373	forms	suspended	0.2	878	46		
+مُنْكِرٌ / مُنْكَرٌ	active_participle+passive_participle	3739	أَنْكَرَ	to deny	0	0	0	0	0	0	6			3739	forms	encountered		1128	36		
+مُنْتَفِخ	active_participle	3995	ٱِنْتَفَخ	to swell, to puff up	0	0	0	0	0	0	6			3995	forms			7888	2		
+مَرْعِيّ	passive_participle	4162	رَعَى	to shepherd	0	0	0	0	0	0	6			4162	forms	known	29.5	1288	31		
+نَازِع	active_participle	3215	نَزَعَ	to remove	0	0	0	0	0	0	6			3215	forms	known	1.9	1503	26		
+نَاقِضٌ	active_participle	3586	نَقَض	to break, undo	0	0	0	0	0	0	5			3586	forms	lapsed	0.1	2400	14		
+مَرْمُوق	passive_participle	4485	رَمَقَ	glanced at, observed	0	0	0	0	0	0	5			4485	forms	encountered		3011	10		
+عَاضّ	active_participle	4014	عَضَّ	to bite	0	0	0	0	0	0	5			4014	forms			3796	7		
+مَقُول	passive_participle	408	قَالَ	to say	0	0	0	0	0	0	5			408	forms	known	107.6	1	1360		
+لَامِس	active_participle	4949	لَمَسَ	to touch	0	0	0	0	0	0	5			4949	forms	encountered		1381	29		
+مُؤَدًّى	passive_participle	2975	أَدَّى	to lead to	0	0	0	0	0	0	5			2975	forms	known	10.7	223	131		
+دَارِس	active_participle	1680	أَدْرُسُ	I study	0	0	0	0	0	0	5			1680	forms	known	296.8	2271	15		
+مَشْفِيّ	passive_participle	2599	شَفَى	to heal	0	0	0	0	0	0	5			2599	forms	known	216.7	3184	9		
+مُرْتَدٍ	active_participle	2145	اِرْتَدَى	to wear	0	0	0	0	0	0	4			2145	forms	known	266.9	389	93		
+مُعْدًى	passive_participle	2163	أَعْدَى	to infect; to make contagious	0	0	0	0	0	0	4			2163	forms	suspended	3.8	1777	21		
+خَازِن	active_participle	543	خَزَنَ	to store, save	0	0	0	0	0	0	4			543	forms	known	47.0	3262	9		
+مُشْتَرًى	passive_participle	400	اِشْتَرَى	to buy	0	0	0	0	0	0	4			400	forms	known	390.1	489	76		
+مَغْطِيّ	passive_participle	3493	غَطَّى	to cover	0	0	0	0	0	0	4			3493	forms	known	69.4	917	44		
+مُتَسَلِّق / مُتَسَلَّق	active_participle+passive_participle	2234	تَسَلَّقَ	to climb	0	0	0	0	0	0	4			2234	forms	known	23.0	1720	22		
+غَازِل	active_participle	1076	غَزَلَ	to spin	0	0	0	0	0	0	3			1076	forms	known	41.3	4099	6		
+مُشَجِّع / مُشَجَّع	active_participle+passive_participle	4117	شَجَّعَ	to encourage	0	0	0	0	0	0	3			4117	forms	known	78.7	2410	14		
+مُتَعَفِّن / مُتَعَفَّن	active_participle+passive_participle	1249	تَعَفَّنَ	to rot, decay	0	0	0	0	0	0	3			1249	forms	lapsed	0.5				
+ذَائِب	active_participle	2665	ذَابَ	to melt	0	0	0	0	0	0	3			2665	forms	known	5.2	2967	10		
+مُرْسِلٌ / مُرْسَلٌ	active_participle+passive_participle	2278	أَرْسَلَ	to send	0	0	0	0	0	0	3			2278	forms	known	441.5	442	83		
+آفِل	active_participle	2026	أَفَل	to set	0	0	0	0	0	0	3			2026	lemma	known	2.0	4116	6		
+عَاتِبٌ	active_participle	3918	عَتَبَ	to blame	0	0	0	0	0	0	3			3918	forms	encountered		4170	6		
+مُتَمَكِّن / مُتَمَكَّن	active_participle+passive_participle	2160	تَمَكَّن	to manage	0	0	0	0	0	0	3			2160	forms	known	232.0	650	60		
+مَحْرُوم	passive_participle	939	حَرُمَ	to be forbidden	0	0	0	0	0	0	3			939	forms	known	17.7	2136	17		
+مَسْكُون	passive_participle	1765	سَكَنَ	to live, reside	0	0	0	0	0	0	2			1765	forms	known	480.8	974	41		
+مُعَزِّز / مُعَزَّز	active_participle+passive_participle	3909	عَزَّز	to strengthen; to reinforce	0	0	0	0	0	0	2			3909	forms	known	217.5	3219	9		
+مُعَاقِب / مُعَاقَب	active_participle+passive_participle	3475	عَاقَبَ	to punish	0	0	0	0	0	0	2			3475	forms	known	14.5	3773	7		
+مُنْضَمّ	active_participle+passive_participle	3746	انْضَمَّ	to join	0	0	0	0	0	0	2			3746	forms	encountered		1850	20		
+مُرِيد	active_participle	390	أَرادَ	to want	0	0	0	0	0	0	2			390	forms	known	433.1	49	286		
+مُشْتاقٌ	active_participle+passive_participle	2275	اشْتاق	to miss	0	0	0	0	0	0	2			2275	forms	known	237.4	3745	7		
+مُنْتَبِه / مُنْتَبَه	active_participle+passive_participle	3827	ٱِنْتَبَه	to pay attention; to wake up	0	0	0	0	0	0	2			3827	forms	suspended	0.3	689	57		
+ذَائِع	active_participle	2615	ذَاعَ	to spread	0	0	0	0	0	0	2			2615	forms	lapsed	0.9	3752	7		
+صَارِع	active_participle	759	صَرَعَ	to throw down to the ground	0	0	0	0	0	0	2			759	forms	suspended		4209	6		
+مُكَرِّر / مُكَرَّر	active_participle+passive_participle	4329	كَرَّرَ	to repeat	0	0	0	0	0	0	2			4329	forms	known	93.1	3232	9		
+اكْتِظَاظ	masdar	3255	اكْتَظَّ	to be crowded	0	0	0	0	0	0	2			3255	forms	known	12.2	7851	2		
+مَشِيد	passive_participle	848	شَادَ	to build	0	0	0	0	0	0	2			848	forms	known	10.8	2135	17		
+سَالِك	active_participle	1056	سَلَكَ	to follow, travel	0	0	0	0	0	0	2			1056	forms	known	2.5	590	65		
+مَأْكُول	passive_participle	2519	أَكَلَ	to eat	0	0	0	0	0	0	2			2519	forms	known	384.0	843	48		
+مُعَاد	passive_participle	2200	أَعَادَ	to repeat	0	0	0	0	0	0	2			2200	forms	known	1.8	340	101		
+مُتَخَيِّل / مُتَخَيَّل	active_participle+passive_participle	4549	تَخَيَّلَ	to imagine	0	0	0	0	0	0	2			4549	forms	encountered		1432	28		
+مَرْفُوضٌ	passive_participle	3021	رَفَضَ	to refuse	0	0	0	0	0	0	2			3021	forms	known	375.3	864	47		
+مَخْفِيّ	passive_participle	1429	خَفِيَ	to be hidden	0	0	0	0	0	0	2			1429	forms	known	20.2	1304	30		
+مُعْتَرِض / مُعْتَرَض	active_participle+passive_participle	3801	ٱعْتَرَض	to object	0	0	0	0	0	0	2			3801	forms	encountered		2662	12		
+نَازِل	active_participle	3569	نَزَلَ	to descend, come down (Form I)	0	0	0	0	0	0	2			3569	forms	known	20.6	557	69		
+مُنْجِز / مُنْجَز	active_participle+passive_participle	2132	أَنْجَز	to accomplish	0	0	0	0	0	0	2			2132	forms	known	29.2	1895	19		
+فَاحِص	active_participle	2498	فَحَصَ	to examine	0	0	0	0	0	0	2			2498	forms	known	2.2	2281	15		
+مَوْقُوف	passive_participle	718	وَقَفَ	to come to a stop, to come to a standstill	0	0	0	0	0	0	1			718	forms	known	77.8	104	204		
+مُرْتَعِد / مُرْتَعَد	active_participle+passive_participle	3287	ارْتَعَد	to tremble	0	0	0	0	0	0	1			3287	forms	known	2.6	4640	5		
+زَاعِم	active_participle	4524	زَعَمَ	to claim, assert; say	0	0	0	0	0	0	1			4524	forms	suspended		1624	24		
+مُتَضَامِن / مُتَضَامَن	active_participle+passive_participle	4109	تَضَامَنَ	to show solidarity	0	0	0	0	0	0	1			4109	forms			7895	2		
+مَخْطُوفٌ	passive_participle	3577	خَطَف	snatches	0	0	0	0	0	0	1			3577	forms	known	21.2	3209	9		
+مُتَطَاوِلٌ	active_participle	4759	تَطَاوَلَ	to stretch up, grow long; to be insolent toward	0	0	0	0	0	0	1			4759	forms	encountered		6419	3		
+حَارِث	active_participle	1315	حَرَثَ	to plow	0	0	0	0	0	0	1			1315	forms	learning	0.2	6258	3		
+مُنْتَقِد / مُنْتَقَد	active_participle+passive_participle	3809	ٱِنْتَقَد	to criticize	0	0	0	0	0	0	1			3809	forms			4165	6		
+تَجْنِيد	masdar	3596	جَنَّدَ	to conscript	0	0	0	0	0	0	1			3596	forms			4648	5		
+حَوْم	masdar	4629	حَامَ	to hover, circle around	0	0	0	0	0	0	1			4629	forms	encountered		3819	7		
+مُنْصَرِف	active_participle	3647	انْصَرَفَ	to turn away; to withdraw	0	0	0	0	0	0	1			3647	forms	known	3.3	1199	34		
+قَارِض	active_participle	4534	قَرَضَ	to bite	0	0	0	0	0	0	1			4534	forms			5368	4		
+مَخْلُوط	passive_participle	3460	خَلَطَ	to mix	0	0	0	0	0	0	1			3460	forms	lapsed	3.6	3204	9		
+طَارِف	active_participle	3542	طَرُف	to be strange	0	0	0	0	0	0	1			3542	forms	encountered		299	110		
+مَكْفُوفٌ	passive_participle	1354	كَفَّ	desist, cease	0	0	0	0	0	0	1			1354	forms	known	305.4	608	63		
+مُسَمٍّ	active_participle	501	سَمَّى	to name	0	0	0	0	0	0	1			501	forms	learning	8.3	214	133		
+فَائِت	active_participle	4351	فَاتَ	to pass by; to be missed	0	0	0	0	0	0	1			4351	forms	suspended		1473	27		
+عَائِشٌ	active_participle	2428	عَاشَ	to live	0	0	0	0	0	0	1			2428	forms	known	58.1	58	271		
+صَاغِر	active_participle	4556	صَغُرَ	to become small	0	0	0	0	0	0	1			4556	forms	encountered		2554	13		
+مُؤَجَّرٌ	passive_participle	1000	آجَرَ	to rent out	0	0	0	0	0	0	1			1000	forms	known	400.6	1887	19		
+لَاطِف	active_participle	1290	لَطُفَ	to be kind and friendly	0	0	0	0	0	0	1			1290	forms	known	165.0	1981	18		
+مُتَوَرِّم / مُتَوَرَّم	active_participle+passive_participle	1292	تَوَرَّمَ	to swell	0	0	0	0	0	0	1			1292	forms			7787	2		
+مَدْرُوس	passive_participle	1680	أَدْرُسُ	I study	0	0	0	0	0	0	1			1680	forms	known	296.8	2271	15		
+نَافِر	active_participle	1091	نَفَرَ	to shy, to bolt, to stampede	0	0	0	0	0	0	1			1091	forms	encountered		1709	22		
+مُضَيِّع / مُضَيَّعٌ	active_participle+passive_participle	2133	ضَيَّع	to waste	0	0	0	0	0	0	1			2133	forms	known	41.1	1989	18		
+تَخْرِيج	masdar	4861	خَرَّجَ	to graduate (students); to bring out	0	0	0	0	0	0	1			4861	forms			6424	3		
+خَاصِمٌ	active_participle	3691	خَصَم	to deduct, to reduce	0	0	0	0	0	0	1			3691	forms	learning		3456	8		
+وَازِن	active_participle	4613	وَزَنَ	to weigh	0	0	0	0	0	0	1			4613	forms	encountered		2673	12		
+مَحْسُوبٌ	passive_participle	667	حَسَبَ	to calculate, to compute	0	0	0	0	0	0	1			667	forms	suspended	0.2	200	138		
+مَكْذُوب	passive_participle	2842	كَذَبَ	to lie	0	0	0	0	0	0	1			2842	forms	known	293.6	1998	18		
+اخْتِبَاء	masdar	2755	اخْتَبَأَ	to hide	0	0	0	0	0	0	1			2755	forms	known	4.7	4130	6		
+مُصَلٍّ	active_participle	1246	صَلَّى	to pray	0	0	0	0	0	0	1			1246	forms	known	13.7	549	69		
+مَغْلُوط	passive_participle	754	غَلِطَ	to err	0	0	0	0	0	0	1			754	forms	suspended	2.0	7952	2		
+مُدَخِّن / مُدَخَّن	active_participle+passive_participle	2562	دَخَّنَ	to smoke	0	0	0	0	0	0	1			2562	forms	known	76.9	3751	7		
+خَامِر	active_participle	1113	خَمَرَ	to cover, conceal	0	0	0	0	0	0	1			1113	forms	known	1.2	2073	17		
+مُتَفَاوِض	active_participle	4714	تَفَاوَضَ	to negotiate, bargain	0	0	0	0	0	0	1			4714	forms	encountered					
+ضَامّ	active_participle	3429	ضَمَّ	to annex	0	0	0	0	0	0	1			3429	forms	acquiring		563	68		
+سَانِد	active_participle	3950	سَنَد	to support, to back up	0	0	0	0	0	0	1			3950	forms	encountered		2665	12		
+حَاطّ	active_participle	4444	حَطَّ	to put down, to lower	0	0	0	0	0	0	1			4444	forms	known	2.3	2822	11		
+عَامِد	active_participle	4837	عَمَدَ	to set about, proceed deliberately (عمد إلى)	0	0	0	0	0	0	1			4837	forms	acquiring		5394	4		
+مَرْغُوب	passive_participle	3325	رَغِب	to desire	0	0	0	0	0	0	1			3325	forms	known	293.8	640	61		
+كَاتِم	active_participle	3597	كَتَمَ	to conceal, hide, keep secret	0	0	0	0	0	0	1			3597	forms	lapsed	0.4	2526	13		
+مَمْشِيّ	passive_participle	388	مَشَى	to walk	0	0	0	0	0	0	1			388	forms	known	301.0	772	52		
+مَغْسُول	passive_participle	2448	غَسَلَ	to wash	0	0	0	0	0	0	1			2448	forms	known	207.8	3181	9		
+مُوحًى	passive_participle	3067	أَوْحَى	to inspire, suggest	0	0	0	0	0	0	1			3067	forms	known	213.1	1120	36		
+مُعْطًى	passive_participle	406	أَعْطَى	to give	0	0	0	0	0	0	1			406	forms	known	51.2	402	91		
+مَبْعُوث	passive_participle	3535	بَعَث	to send; to dispatch	0	0	0	0	0	0	1			3535	forms	known	265.8	984	41		
+مُسْتَحِقّ / مُسْتَحَقّ	active_participle+passive_participle	2740	اِسْتَحَقّ	to deserve	0	0	0	0	0	0	1			2740	forms	known	3.5	1609	24		

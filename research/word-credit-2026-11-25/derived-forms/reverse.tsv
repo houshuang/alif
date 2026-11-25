@@ -1,0 +1,368 @@
+derived_form	derived_key	form_type	verb_lemma_id	verb_ar	verb_gloss	own_lemma_id	own_lemma_ar	own_pos	own_gloss	lookup_key_owner	owner_is	book_tokens_to_own_lemma	book_tokens_to_verb_via_this_form	own_state	verb_state	same_root
+أَمْر	امر	masdar	4600	أَمَرَ	to order; command	2501	أَمْر	noun	matter/affair	1185	other	488	4	known	known	True
+عَالِم	عالم	active_participle	722	عَلِمَ	to know	723	عَالَمٌ	noun	world	723	own_lemma	451	15	known	known	True
+عَمَل	عمل	masdar	4882	عَمِلَ	to work; to do	272	عَمَل	noun	work; action, deed	272	own_lemma	419	22	known	known	True
+نَاسٍ	ناس	active_participle	3711	نَسِيَ	to forget	270	نَاسٌ	noun	people	270	own_lemma	321	0	known	known	False
+خَاصّ	خاص	active_participle	4104	خصّ	to single out; to concern	693	خَاصٌّ	adj	special	693	own_lemma	257	0	known	encountered	True
+سَالّ	سال	active_participle	1194	سَلَّ	to withdraw	391	سَأَلَ	verb	to ask	391	own_lemma	252	0	known	lapsed	False
+سَالٍ	سال	active_participle	1461	سَلَا	to forget, to think no more of	391	سَأَلَ	verb	to ask	391	own_lemma	252	0	known		False
+مُنَزِّل	منزل	active_participle	3587	نَزَّلَ	to send down, reveal (Form II causative)	688	مَنْزِلٌ	noun	house, dwelling	688	own_lemma	242	0	known	known	True
+مُنْزِل	منزل	active_participle	3588	أَنْزَلَ	to bring down, send down (Form IV)	688	مَنْزِلٌ	noun	house, dwelling	688	own_lemma	242	0	known	known	True
+جَعْل	جعل	masdar	2903	أَتَجعَلُ	do you make	2220	جَعَل	verb	to make	2220	own_lemma	226	0	known	encountered	True
+سَارّ	سار	active_participle	845	سَرَّ	to gladden, delight	4577	سَارَ	verb	to walk; go	4577	own_lemma	217	0	encountered	known	False
+وُجُود	وجود	masdar	2073	وَجَدَ	to find	1424	وُجُودٌ	noun	existence, presence	1424	own_lemma	204	0	known	known	True
+مُخْتَلِف	مختلف	active_participle	3096	اِخْتَلَفَ	to differ, disagree	660	مُخْتَلِفٌ	adj	different	660	own_lemma	195	0	known	known	True
+آبٍ	اب	active_participle	4769	أَبَى	to refuse, be unwilling	158	أَب	noun	father	158	own_lemma	187	0	known	known	False
+عَادٌّ	عاد	active_participle	4591	عَدَّ	to count	4258	عَادَ	verb	to return; (with negation) to no longer	4258	own_lemma	184	0	known	encountered	False
+دِرَاسَة	دراسة	masdar	1680	أَدْرُسُ	I study	200	دِراسَة	noun	studying	200	own_lemma	162	0	known	known	True
+دِرَاسَة	دراسة	masdar	4027	دَرَسَ	to study	200	دِراسَة	noun	studying	200	own_lemma	162	0	known	known	True
+وَضْع	وضع	masdar	4030	وَضَعَ	put, place	2190	وَضْع	noun	situation, state	2190	own_lemma	148	7	known	known	True
+صَاحِب	صاحب	active_participle	4040	صَحِبَ	to accompany	859	صَاحِبٌ	noun	owner, companion	859	own_lemma	136	0	known	known	True
+دَيْن	دين	masdar	1201	دَانَ	to owe (money)	670	دِينٌ	noun	religion, debt	670	own_lemma	133	1	known	known	True
+نَبَات	نبات	masdar	4579	نَبَتَ	to grow; sprout	2371	نَباتِيّ	adj	vegetarian	2371	own_lemma	131	0	known	encountered	True
+شَابّ	شاب	active_participle	876	شَبَّ	to become a young adult, to grow up	4901	شَابّ	noun	young man, youth	4901	own_lemma	130	0	encountered	known	True
+عَالٍ	عال	active_participle	3229	عَلَا	to rise	2522	عَالٍ	adj	high	2522	own_lemma	128	0	known	known	True
+خَارِج	خارج	active_participle	2205	خَرَجَ	to exit	983	خَارِجٌ	adj	outside, external	983	own_lemma	124	0	known	known	True
+عَرْض	عرض	masdar	4985	عَرَضَ	to show, to present	2486	عَرَض	noun	symptom	2486	own_lemma	121	3	known	encountered	True
+عَامِل	عامل	active_participle	4882	عَمِلَ	to work; to do	686	عَامِلٌ	noun	worker	686	own_lemma	120	0	known	known	True
+رِوَايَة	رواية	masdar	2640	رَوَى	to narrate	695	رِوَايَةٌ	noun	novel, story	695	own_lemma	119	0	known	known	True
+فِعْل	فعل	masdar	4532	فَعَلَ	to do	207	فِعْل	noun	verb	207	own_lemma	116	3	known	known	True
+دَاخِل	داخل	active_participle	407	دَخَلَ	to enter	924	دَاخَلَ	verb	to enter	924	own_lemma	117	0	known	known	True
+حَاضِر	حاضر	active_participle	2455	حَضَرَ	to attend	2210	حَاضِر	adj	present	2210	own_lemma	114	0	known	known	True
+دَارّ	دار	active_participle	884	دَرَّ	to stream, to flow, to well	1206	دَارَ	verb	to turn; to revolve, go around	1206	own_lemma	110	0	known	known	False
+دَارٍ	دار	active_participle	4874	دَرَى	to know, be aware of	1206	دَارَ	verb	to turn; to revolve, go around	1206	own_lemma	110	0	known	encountered	False
+سُؤَال	سؤال	masdar	391	سَأَلَ	to ask	220	سُؤال	noun	question	220	own_lemma	110	0	known	known	True
+شَاهِد	شاهد	active_participle	1082	شَهِدَ	to witness, to be a witness	399	شاهَدَ	verb	to watch	399	own_lemma	107	0	known	known	True
+قَوْل	قول	masdar	4020	مَايَقُولُونَ	to say	905	قَوْلٌ	noun	speech, saying	905	own_lemma	106	0	known		True
+قَوْل	قول	masdar	408	قَالَ	to say	905	قَوْلٌ	noun	speech, saying	905	own_lemma	106	0	known	known	True
+شَكّ	شك	masdar	4980	شَكَّ	to doubt	2721	شَكّ	noun	doubt	2721	own_lemma	106	0	known	encountered	True
+بِنَاء	بناء	masdar	4955	بَنَى	to build	2618	بِناء	noun	building	2618	own_lemma	105	0	known	encountered	True
+سَاعِد	ساعد	active_participle	2028	سَعِد	to be happy	2094	ساعَد	verb	to help	2094	own_lemma	104	0	known	known	True
+كِتَابَة	كتابة	masdar	4028	كَتَبَ	to write	197	كِتابة	noun	writing	197	own_lemma	103	0	known	known	True
+طُولٌ	طول	masdar	3616	طَالَ	to lengthen; to be long	1058	طُولٌ	noun	length, height	1058	own_lemma	98	0	known	known	False
+سَاكِن	ساكن	active_participle	1765	سَكَنَ	to live, reside	375	ساكِن	adj	living, residing in..	375	own_lemma	98	0	known	known	True
+نَوْم	نوم	masdar	387	نَامَ	to sleep	1024	نَوَّمَ	verb	to put to sleep	1024	own_lemma	84	13	known	known	True
+آبٍ	اب	active_participle	4769	أَبَى	to refuse, be unwilling	580	آبَ	verb	to return, to come back	158	other	92	0	known	known	False
+رُؤْيَة	رؤية	masdar	4576	رَأَى	to see	2176	رُؤْيَة	noun	vision	2176	own_lemma	88	0	known	suspended	True
+قِرَاءَة	قراءة	masdar	398	قَرَأَ	to read	199	قِراءة	noun	reading	199	own_lemma	88	0	known	known	True
+تَرْجَمَة	ترجمة	masdar	1094	تَرْجَمَ	to translate	211	تَرْجَمة	noun	translation	211	own_lemma	80	7	known	known	True
+مَوْتٌ	موت	masdar	1389	مَاتَ	to die	597	مَوْتٌ	noun	death	597	own_lemma	87	0	known	known	True
+نَقْل	نقل	masdar	4339	نَقَلَ	to transport, transfer, convey	4612	نَقْل	noun	transfer; moving	4339	verb	56	31	encountered	suspended	True
+شَاعِر	شاعر	active_participle	881	شَعَرَ	to feel	882	شَاعِرٌ	noun	poet	882	own_lemma	87	0	known	known	True
+شَارِع	شارع	active_participle	1028	شَرَعَ	to legislate, start	296	شارِع	noun	street	296	own_lemma	83	0	known	known	True
+دَامّ	دام	active_participle	559	دَمَّ	to coat, to smear	942	دَامَ	verb	to last, to endure	942	own_lemma	81	0	known	known	False
+طِيب	طيب	masdar	4146	طَابَ	to be good	67	طَيِّبٌ	adj	kind	67	own_lemma	76	3	known	lapsed	True
+سَابِق	سابق	active_participle	3424	سَبَقَ	to precede	2675	سابِق	adj	previous	2675	own_lemma	77	0	known	known	True
+بَادٍ	باد	active_participle	4855	بَدَا	to appear; to seem	855	بَادَ	verb	to perish	855	own_lemma	76	0	known	encountered	False
+نَجَاح	نجاح	masdar	3547	نَجَح	to succeed	2495	نَجَاح	noun	success	2495	own_lemma	75	0	known	known	True
+سَفَرٌ	سفر	masdar	2201	سَافَرَ	to travel	875	سَفَرٌ	noun	departure, journey, travel	875	own_lemma	73	0	known	known	True
+وِلَايَة	ولاية	masdar	4588	وَلِيَ	to follow; come next	4986	وِلَايَة	noun	term of office; rule, governorship; province; state	4986	own_lemma	72	0	acquiring	encountered	True
+طَائِر	طائر	active_participle	1428	طَارَ	to fly	2461	طَائِر	noun	bird	2461	own_lemma	71	0	known	known	True
+نَامّ	نام	active_participle	1012	نَمَّ	to gossip, slander	387	نَامَ	verb	to sleep	387	own_lemma	70	0	known	known	False
+نَامٍ	نام	active_participle	2481	نَمَا	to grow	387	نَامَ	verb	to sleep	387	own_lemma	70	0	known	known	False
+مُسَاعَدَة	مساعدة	masdar	2094	ساعَد	to help	2091	مُساعَدَة	noun	help	2091	own_lemma	69	0	known	known	True
+بَالِغ	بالغ	active_participle	3230	بَلَغَ	to reach	560	بَالَغَ	verb	to exaggerate	560	own_lemma	68	0	known	known	True
+وَاسِع	واسع	active_participle	3930	وَسِعَ	to widen; to expand	16	واسِع	adj	wide; extensive, widespread; spacious, vast	16	own_lemma	67	0	known	known	True
+تَابِع	تابع	active_participle	4264	تَبِعَ	to follow	1215	تَابَعَ	verb	to continue, carry on	1215	own_lemma	66	0	known	known	True
+ظُهُور	ظهور	masdar	588	ظَهَرَ	to appear, seem	1323	ظُهُورٌ	noun	appearance, emergence	1323	own_lemma	66	0	known	known	True
+مَوْجٌ	موج	masdar	4643	مَاجَ	to surge, swell, be in commotion	609	مَوْجٌ	noun	waves	609	own_lemma	66	0	known	encountered	True
+إِشَارَة	اشارة	masdar	3395	أَشَار	to point	3043	إِشَارَة	noun	gesture	3043	own_lemma	66	0	known	known	False
+مُحِيط	محيط	active_participle	3808	أَحاط	to surround	733	مُحِيطٌ	noun	surrounding, ocean	733	own_lemma	65	0	known	known	False
+سَوْقٌ	سوق	masdar	2202	سَاقَ	to drive	304	سُوق	noun	market	304	own_lemma	65	0	known	known	True
+حَجْر	حجر	masdar	512	حَجَرَ	to stop, to hinder	3585	حَجَر	noun	stone	512	verb	49	16	encountered	known	True
+عَوْدَة	عودة	masdar	4258	عَادَ	to return; (with negation) to no longer	4369	عَوْدَة	noun	return (noun)	4369	own_lemma	64	0	known	known	True
+رَاجِع	راجع	active_participle	2245	رَجَعَ	to return	2534	رَاجَعَ	verb	to review	2534	own_lemma	64	0	known	known	True
+فَارّ	فار	active_participle	3768	فَرّ	to flee	1813	فَأْر	noun	mouse	1813	own_lemma	29	34	known	known	False
+اِقْتِصَاد	اقتصاد	masdar	4299	اِقْتَصَدَ	to economize, save	902	اِقْتِصَادٌ	noun	economy	902	own_lemma	63	0	known	known	True
+قَطّ	قط	masdar	490	قَطَّ	to carve	3084	قِطّ	noun	cat	490	verb	12	50	known	known	True
+مُسْتَقْبِلٌ	مستقبل	active_participle	2923	اِسْتَقْبَلَ	to receive	2436	مُسْتَقْبَل	noun	future	2436	own_lemma	62	0	known	lapsed	True
+حِكَايَة	حكاية	masdar	3014	حَكى	to tell	3015	حِكاية	noun	tale	3015	own_lemma	60	0	known	known	True
+مُعَيِّن	معين	active_participle	4997	عَيَّنَ	to appoint, assign, designate; to specify	2442	مُعَيَّنَة	adj	specific	2442	own_lemma	60	0	known	acquiring	True
+اِعْتِبَار	اعتبار	masdar	2927	اِعْتَبَرَ	to consider	1336	اِعْتِبَارٌ	noun	consideration, regard	1336	own_lemma	58	0	suspended	known	True
+تَقْرِيب	تقريب	masdar	4188	قَرَّبَ	bring close	2423	تَقْرِيبًا	adv	approximately	2423	own_lemma	58	0	known	known	True
+رَغْبَة	رغبة	masdar	3325	رَغِب	to desire	3314	رَغْبَة	noun	desire / wish	3314	own_lemma	42	15	known	known	True
+كَاتِب	كاتب	active_participle	4028	كَتَبَ	to write	4857	كَاتِب	noun	writer; author; clerk	1384	other	57	0	encountered	known	True
+أَمْر	امر	masdar	4600	أَمَرَ	to order; command	1185	آمَرَ	verb	to consult with; to conspire with	1185	own_lemma	52	4	encountered	known	True
+إِعْلَان	اعلان	masdar	4315	أَعْلَنَ	to announce, declare	3390	إِعْلَان	noun	announcement	3390	own_lemma	55	0	known	known	True
+سُرُور	سرور	masdar	845	سَرَّ	to gladden, delight	1649	سُرُورٍ	noun	pleasure	1649	own_lemma	54	0	known	known	True
+طَالِب	طالب	active_participle	620	طَلَبَ	to request, ask	223	طالِب	noun	student	223	own_lemma	54	0	known	known	True
+إِضَافَة	اضافة	masdar	3396	أَضَاف	to add	2241	إِضافَة	noun	addition	2241	own_lemma	53	1	known	known	True
+كَاتِب	كاتب	active_participle	4028	كَتَبَ	to write	1384	كَاتَبَ	verb	to correspond with	1384	own_lemma	54	0	known	known	True
+مُمْكِن	ممكن	active_participle	4571	أَمْكَنَ	to be possible; can	438	مُمْكِن	expr	can / may..?	438	own_lemma	53	0	known	known	False
+مُمَكِّن	ممكن	active_participle	2087	مَكَّن	to enable	438	مُمْكِن	expr	can / may..?	438	own_lemma	53	0	known	known	True
+إِطْلَاق	اطلاق	masdar	3273	أَطْلَقَ	to release	2775	إِطْلَاق	noun	giving (a name)	2775	own_lemma	52	0	known	suspended	True
+قَائِد	قائد	active_participle	3556	قَادَ	to lead; guide	703	قَائِدٌ	noun	leader	703	own_lemma	52	0	known	known	False
+تَحْدِيد	تحديد	masdar	3623	حدّد	to specify	3420	تَحْدِيد	noun	determination, specification	3420	own_lemma	52	0	known	lapsed	True
+خَطّ	خط	masdar	762	خَطَّ	to draw a line	4881	خَطّ	noun	line; handwriting	762	verb	39	13	encountered	known	True
+زِيَارَة	زيارة	masdar	195	زَارَ	visited	2537	زِيَارَة	noun	visit	2537	own_lemma	51	0	known	known	False
+سَائِر	سائر	active_participle	4577	سَارَ	to walk; go	3549	سائِر	adj	proceeding; traveling	3549	own_lemma	50	0	encountered	encountered	True
+حَافِظ	حافظ	active_participle	828	حَفِظَ	to preserve, save	907	حَافَظَ	verb	to preserve, maintain	907	own_lemma	49	0	known	known	True
+ضِيق	ضيق	masdar	2089	ضَاقَ	to become narrow	4914	ضَيِّق	adj	narrow, tight	4914	own_lemma	47	2	encountered	known	True
+مَفْهُوم	مفهوم	passive_participle	396	فَهِمَ	to understand	2199	مَفْهُوم	adj	understood, concept	2199	own_lemma	48	0	known	known	True
+مُرَكِّزٌ	مركز	active_participle	2559	رَكَّزَ	to focus	1563	مَرْكَز	noun	center	1563	own_lemma	47	0	known	known	True
+جَارّ	جار	active_participle	4427	جَرَّ	to drag	185	جَار	noun	neighbor	185	own_lemma	45	0	known	encountered	False
+جَارٍ	جار	active_participle	2231	جَرَى	to run	185	جَار	noun	neighbor	185	own_lemma	45	0	known	known	False
+عَرْق	عرق	masdar	918	عَرَقَ	to strip of flesh, to nibble	4838	عِرْق	noun	race, ethnicity; vein, root (pl. أعراق)	918	verb	40	4	acquiring	known	True
+هَاتِف	هاتف	active_participle	3253	هَتَفَ	to shout	801	هَاتِفٌ	noun	telephone, phone	801	own_lemma	44	0	known	known	True
+تَحْقِيق	تحقيق	masdar	3416	حَقَّق	to verify, to realize	2443	تَحْقيق	noun	achievement	2443	own_lemma	44	0	lapsed	suspended	True
+مُنَاسَبَة	مناسبة	masdar	2393	نَاسَبَ	to suit	4584	مُنَاسَبَة	noun	occasion; opportunity	4584	own_lemma	42	0	acquiring	known	True
+شُكْر	شكر	masdar	2204	شَكَرَ	to thank	4975	شُكْر	noun	thanks, gratitude	2204	verb	19	23	encountered	known	True
+ارْتِفَاع	ارتفاع	masdar	3526	ارْتَفَعَ	to rise; to increase	2985	ارْتِفَاع	noun	rise	2985	own_lemma	42	0	known	known	True
+دَاخِل	داخل	active_participle	407	دَخَلَ	to enter	4880	دَاخِل	noun	inside; interior	924	other	42	0	encountered	known	True
+دَفْع	دفع	masdar	2376	دَفَعَ	to pay; to push	4968	دَفْع	noun	payment; pushing	2376	verb	11	31		known	True
+إِخْبَارٌ	اخبار	masdar	3082	أَخْبَرَ	to inform, to tell	317	أخْبار	noun	news	317	own_lemma	40	1	known	known	True
+حَاكِم	حاكم	active_participle	1439	حَكَمَ	to rule, judge	1327	حَاكِمٌ	adj	ruling, governing	1327	own_lemma	41	0	known	known	True
+خَالٍ	خال	active_participle	3099	خَلَا	to be empty	960	خَالٌ	noun	maternal uncle	960	own_lemma	41	0	known	lapsed	True
+خَادِم	خادم	active_participle	2738	خَدَم	to serve	4892	خَادِم	noun	servant	4892	own_lemma	41	0	encountered	known	True
+حِسَاب	حساب	masdar	667	حَسَبَ	to calculate, to compute	346	حِساب	noun	bill	346	own_lemma	40	0	known	suspended	True
+جَالِس	جالس	active_participle	1731	جَلَسَ	to sit	4961	جَالِس	adj	sitting, seated	4961	own_lemma	40	0	encountered	known	True
+قَضَاء	قضاء	masdar	2450	قَضَى	to spend time	4868	قَضَاء	noun	judiciary; fate, divine decree; completion	4868	own_lemma	40	0	encountered	known	True
+قَاتِل	قاتل	active_participle	1022	قَتَلَ	to kill, murder	1271	قَاتَلَ	verb	to combat, to battle, to fight	1271	own_lemma	39	0	learning	known	True
+بَيْع	بيع	masdar	147	بَاعَ	sold	175	بَيْعٌ	noun	selling	175	own_lemma	39	0	known	known	True
+مَفْتُوح	مفتوح	passive_participle	397	فَتَحَ	to open	682	مَفْتُوحٌ	adj	open	682	own_lemma	39	0	known	known	True
+بَقَاء	بقاء	masdar	4323	بَقِيَ	to remain, stay	4326	بَقَاء	noun	remaining, staying; survival	4326	own_lemma	39	0	known	known	True
+زِرَاعَة	زراعة	masdar	2643	زَرَع	to plant	2635	زِراعَة	noun	agriculture	2635	own_lemma	39	0	known	known	True
+أَكْل	اكل	masdar	2519	أَكَلَ	to eat	324	أَكْل	noun	food	324	own_lemma	35	4	known	known	True
+مُشَاهَدَة	مشاهدة	masdar	399	شاهَدَ	to watch	4953	مُشَاهَدَة	noun	watching, observation	4953	own_lemma	23	15	encountered	known	True
+عِلاَجٌ	علاج	masdar	2595	عالَج	to treat	747	عِلَاجٌ	noun	treatment, cure	747	own_lemma	38	0	known	known	True
+بُكَاء	بكاء	masdar	4298	بَكَى	to cry, weep	2507	بُكاء	noun	crying	2507	own_lemma	38	0	known	known	False
+اجْتِمَاع	اجتماع	masdar	3555	اجْتَمَعَ	to gather; assemble	3176	اِجْتِمَاع	noun	gathering, meeting	3176	own_lemma	38	0	known	known	True
+مُعْلِم	معلم	active_participle	714	أَعْلَمَ	to inform, notify	121	مُعَلِّم	noun	teacher	121	own_lemma	37	0	known	known	True
+تَأْكِيدٌ	تاكيد	masdar	3385	أكّد	to confirm	2573	تَأْكِيد	noun	confirmation	2573	own_lemma	36	0	known	known	True
+هُدُوء	هدوء	masdar	4572	هَدَأَ	to calm down; become quiet	645	هُدُوء	noun	calm, quiet	645	own_lemma	35	0	known	encountered	True
+ٱكْتِشَاف	اكتشاف	masdar	3803	ٱكْتَشَف	to discover	2614	اِكْتِشاف	noun	discovery	2614	own_lemma	35	0	known	known	True
+جَافّ	جاف	active_participle	4019	جَفّ	to dry	4918	جَافّ	adj	dry	4918	own_lemma	35	0	encountered	encountered	True
+مَشْرُوع	مشروع	passive_participle	1028	شَرَعَ	to legislate, start	679	مَشْرُوعٌ	noun	project; plan; bill (draft law); legal, legitimate (adj)	679	own_lemma	34	0	known	known	True
+إِدَارَة	ادارة	masdar	3321	أَدَارَ	to turn	1163	إِدَارَةٌ	noun	administration, management	1163	own_lemma	22	11	known	known	True
+مُمَيِّز	مميز	active_participle	4136	مَيَّزَ	to distinguish, to characterize	3805	مُمَيَّز	adj	distinguished	3805	own_lemma	33	0	encountered	known	True
+رَفْع	رفع	masdar	3934	رَفَعَ	to raise, to lift	4971	رَفْع	noun	raising, lifting	3934	verb	4	28		known	True
+مُطْعِم	مطعم	active_participle	2743	أَطْعَمَ	to feed	303	مَطْعَم	noun	restaurant	303	own_lemma	32	0	known	known	True
+مُدَار	مدار	passive_participle	3321	أَدَارَ	to turn	3057	مَدَار	noun	orbit	3057	own_lemma	32	0	known	known	True
+شِرَاء	شراء	masdar	4752	شَرَى	to buy (archaic/literary); to sell	2931	شِرَاء	noun	buying	2931	own_lemma	30	0	known	encountered	True
+جَلْد	جلد	masdar	2418	جَلَدَ	to whip, to flog	4977	جِلْد	noun	skin, leather	2418	verb	18	12		known	True
+صَلَاة	صلاة	masdar	1246	صَلَّى	to pray	656	صَلاة	noun	prayer	656	own_lemma	30	0	known	known	True
+ضَعِيف	ضعيف	active_participle	3312	ضَعُفَ	to be weak, to weaken	1507	ضَعِيف	adj	weak	1507	own_lemma	30	0	known	known	True
+مُعْتَقِد	معتقد	active_participle	2250	اعْتَقَدَ	to believe / think	4951	مُعْتَقَد	noun	belief	4951	own_lemma	29	1	encountered	known	True
+بَاتّ	بات	active_participle	727	بَتَّ	to cut off, to sever	553	بَاتٌّ	adj	definite, definitive	553	own_lemma	29	0	known	known	True
+مُخَرِّج	مخرج	active_participle	4861	خَرَّجَ	to graduate (students); to bring out	3730	مُخْرَج	noun	exit; outlet; solution	3730	own_lemma	29	0	encountered		True
+شَافٍ	شاف	active_participle	2599	شَفَى	to heal	404	شَافَ	verb	to see	404	own_lemma	29	0	known	known	False
+مَصْنُوع	مصنوع	passive_participle	2596	صَنَعَ	to make; to manufacture	2684	مَصْنُوع	adj	made	2684	own_lemma	29	0	known	known	True
+بَانٍ	بان	active_participle	4955	بَنَى	to build	554	بَانَ	verb	to separate, to become distinct, to sunder	554	own_lemma	29	0	known	encountered	False
+جُوعٌ	جوع	masdar	4456	جَاعَ	to be hungry	3329	جُوع	noun	hunger	3329	own_lemma	29	0	known	encountered	True
+كَثْرَة	كثرة	masdar	3110	كَثُرَ	to increase	2561	كَثْرَة	noun	abundance	2561	own_lemma	8	21	known	known	True
+نُمُو	نمو	masdar	2481	نَمَا	to grow	4596	نُمُوّ	noun	growth	4596	own_lemma	28	0	known	known	True
+مُدِير	مدير	active_participle	3321	أَدَارَ	to turn	685	مُدِيرٌ	noun	manager, director	685	own_lemma	28	0	known	known	True
+حُضُور	حضور	masdar	2455	حَضَرَ	to attend	2463	حُضُور	noun	attendance, presence	2463	own_lemma	28	0	known	known	True
+تَمْيِيز	تمييز	masdar	4136	مَيَّزَ	to distinguish, to characterize	4120	تَمْيِيز	noun	distinction; discrimination	4120	own_lemma	28	0	encountered	known	True
+إِمْكَان	امكان	masdar	4571	أَمْكَنَ	to be possible; can	3626	إِمْكَان	noun	possibility	3626	own_lemma	28	0	known	known	False
+مَيِّت	ميت	passive_participle	1389	مَاتَ	to die	2897	مَيِّت	adj	dead; deceased	2897	own_lemma	28	0	encountered	known	True
+تَنْظِيم	تنظيم	masdar	3190	نَظَّمَ	to organize	3052	تَنْظِيم	noun	organization	3052	own_lemma	28	0	known	known	True
+إِقَامَة	اقامة	masdar	2804	أَقَامَ	to reside, live, stay; to hold (an event); to set up	2732	إِقَامَة	noun	stay	2732	own_lemma	19	9	known	known	False
+سَائِقٌ	سائق	active_participle	2202	سَاقَ	to drive	1855	سَائِق	noun	driver	1855	own_lemma	27	0	known	known	True
+وَاجِب	واجب	active_participle	4954	وَجَبَ	to be necessary	218	واجِب	noun	homework	218	own_lemma	26	0	known	encountered	True
+ٱِنْتِظَار	انتظار	masdar	2134	اِنْتَظَر	to wait	745	انْتِظَارٌ	noun	waiting, expectation	745	own_lemma	26	0	known	known	True
+مُعْتَاد	معتاد	active_participle	4116	اِعْتَادَ	to get used to	3404	مُعْتَادٌ	adj	accustomed	3404	own_lemma	25	0	known	encountered	True
+مُلَاحَظَة	ملاحظة	masdar	4248	لَاحَظَ	to notice, observe	2605	مُلاحَظَة	noun	note	2605	own_lemma	21	4	known	known	True
+إِعْدَاد	اعداد	masdar	2533	أَعَدَّ	to prepare	4867	إِعْدَاد	noun	preparation	4867	own_lemma	25	0	encountered	suspended	True
+وَعْد	وعد	masdar	2470	وَعَدَ	to promise	4974	وَعْد	noun	promise	2470	verb	11	14		known	True
+مَسَافَرٌ	مسافر	passive_participle	2201	سَافَرَ	to travel	1196	مُسَافِرٌ	noun	traveller	1196	own_lemma	25	0	known	known	True
+احْتِفَال	احتفال	masdar	3929	احْتَفَلَ	to celebrate	3119	اِحْتِفَال	noun	celebration	3119	own_lemma	25	0	known		True
+مُحَرِّكٌ	محرك	active_participle	4361	حَرَّكَ	to move (something), stir	3892	محرّك	noun	engine; motor	3892	own_lemma	24	0	encountered	known	False
+مُتَزَايِد	متزايد	active_participle	4234	تَزَايَدَ	to increase steadily	4245	مُتَزَايِد	adj	increasing	4245	own_lemma	24	0	suspended	known	True
+ضَعْف	ضعف	masdar	3312	ضَعُفَ	to be weak, to weaken	4970	ضَعْف	noun	weakness	3312	verb	16	8		known	True
+إِعْجَاب	اعجاب	masdar	2521	أَعْجَبَ	to please, to impress	786	إِعْجَابٌ	noun	admiration, like	786	own_lemma	24	0	known	known	True
+جُلُوس	جلوس	masdar	1731	جَلَسَ	to sit	1722	جُلُوس	noun	sitting	1722	own_lemma	24	0	known	known	True
+دَارّ	دار	active_participle	884	دَرَّ	to stream, to flow, to well	4856	دَار	noun	house; home; abode	1206	other	23	0	encountered	known	False
+مُظْلِمٌ	مظلم	active_participle	2870	أَظلَمَ	became dark	4922	مُظْلِم	adj	dark	4922	own_lemma	23	0	encountered	known	True
+اِسْتِعْدَاد	استعداد	masdar	2724	اِسْتَعَدَّ	to prepare	963	اِسْتِعْدَادٌ	noun	readiness, preparation	963	own_lemma	23	0	known	known	True
+دَارٍ	دار	active_participle	4874	دَرَى	to know, be aware of	4856	دَار	noun	house; home; abode	1206	other	23	0	encountered	encountered	False
+حَامِل	حامل	active_participle	2683	حَمَلَ	to carry; to bear; to load	4528	حامِل	adj	carrier; bearing (adj.); pregnant	4528	own_lemma	23	0	known	known	True
+مُتَوَقِّع	متوقع	active_participle	4366	تَوَقَّعَ	to expect, anticipate	3855	مُتَوَقَّع	adj	expected	3855	own_lemma	22	0	known	known	True
+غَطَاء	غطاء	masdar	3493	غَطَّى	to cover	4939	غِطَاء	noun	lid, cover	4939	own_lemma	22	0	encountered	known	True
+هَادِئ	هادئ	active_participle	4572	هَدَأَ	to calm down; become quiet	3828	هادِئ	adj	calm; quiet	3828	own_lemma	22	0	known	encountered	True
+إيمَان	ايمان	masdar	2848	ءَامَنَّا	we believed	4873	إِيمَان	noun	faith, belief	4873	own_lemma	21	0	encountered	encountered	True
+صُحْبَة	صحبة	masdar	4040	صَحِبَ	to accompany	4978	صُحْبَة	noun	companionship, company	4978	own_lemma	16	5		known	True
+إِيمَان	ايمان	masdar	2838	آمَنَ	to believe, to trust	4873	إِيمَان	noun	faith, belief	4873	own_lemma	21	0	encountered	known	True
+وَزْن	وزن	masdar	4613	وَزَنَ	to weigh	4614	وَزْن	noun	weight	4613	verb	13	8	encountered	encountered	True
+زَائِر	زائر	active_participle	873	زَرَّ	to encroach upon one's enemy	676	زَائِرٌ	noun	visitor, guest, caller	676	own_lemma	20	0	known	suspended	False
+زَعْم	زعم	masdar	4524	زَعَمَ	to claim, assert; say	3882	زَعْم	noun	claim; allegation	3882	own_lemma	20	0	encountered	suspended	True
+عِقَاب	عقاب	masdar	3475	عَاقَبَ	to punish	586	عِقَابٌ	noun	punishment	586	own_lemma	20	0	known	known	True
+زَائِر	زائر	active_participle	195	زَارَ	visited	676	زَائِرٌ	noun	visitor, guest, caller	676	own_lemma	20	0	known	known	True
+ٱلْتِزَام	التزام	masdar	3962	ٱلْتَزَم	to commit; to adhere	3565	ٱِلْتِزام	noun	commitment	3565	own_lemma	19	0	encountered		True
+جَازٍ	جاز	active_participle	4165	جَزَى	to reward	2226	جَاز	noun	jazz	2226	own_lemma	19	0	known	known	
+عَائِد	عائد	active_participle	4258	عَادَ	to return; (with negation) to no longer	3814	عائِد	adj	returning; returning to	3814	own_lemma	19	0	suspended	known	True
+مُتَقَدِّم	متقدم	active_participle	4863	تَقَدَّمَ	to apply for, sit (an exam); to advance, progress; to come forward; to submit	3852	مُتَقَدِّم	adj	advanced	3852	own_lemma	19	0	acquiring	acquiring	True
+تَوْفِير	توفير	masdar	4300	وَفَّرَ	to save (time, money); to provide	3434	تَوْفِير	noun	provision, supply	3434	own_lemma	19	0	known	suspended	True
+فَارِغ	فارغ	active_participle	4510	فَرَغَ	to finish, be done; become free	4345	فَارِغ	adj	empty	4345	own_lemma	19	0	known	acquiring	True
+دَافِع	دافع	active_participle	2376	دَفَعَ	to pay; to push	3807	دافِع	adj	pushing; driving	3807	own_lemma	19	0	known	known	True
+تَنْفِيذ	تنفيذ	masdar	2124	نَفَّذ	to implement	4875	تَنْفِيذ	noun	implementation, execution	4875	own_lemma	19	0	encountered	known	True
+اِتِّبَاعٌ	اتباع	masdar	4364	اِتَّبَعَ	to follow, adopt	3848	ٱِتِّباع	noun	following	3848	own_lemma	18	0		suspended	True
+مُرَاقَبَة	مراقبة	masdar	2661	راقَب	to monitor	4994	مُرَاقَبَة	noun	monitoring, supervision, oversight; inspection; surveillance	4994	own_lemma	9	9	acquiring	suspended	True
+هَاجِر	هاجر	active_participle	4041	هَجر	to abandon, forsake	3045	هَاجَرَ	verb	emigrated	3045	own_lemma	18	0	known	suspended	True
+مُزْعِج	مزعج	active_participle	2169	أَزْعَج	to disturb	2098	مُزْعِج	adj	annoying	2098	own_lemma	18	0	known	known	True
+دَعْم	دعم	masdar	3040	دَعَمَ	to support	4969	دَعْم	noun	support	3040	verb	10	8		known	True
+عَابٍ	عاب	active_participle	987	عَبَأَ	to pack, fill	1243	أَلْعَابٌ	noun	games, toys	1243	own_lemma	18	0	known	known	False
+تَنَقُّل	تنقل	masdar	4142	تَنَقَّلَ	to move about, to travel around	4972	تَنَقُّل	noun	moving about, travel	4142	verb	8	10		lapsed	True
+رَاجٍ	راج	active_participle	2127	رَجا	to hope	996	رَاجَ	verb	to circulate, spread	996	own_lemma	18	0	known	known	False
+سُخْرِيَة	سخرية	masdar	3965	سَخِرَ	mocked	4604	سُخْرِيَة	noun	mockery; ridicule	4604	own_lemma	18	0	encountered	lapsed	True
+اخْتِبار	اختبار	masdar	3491	اخْتَبَرَ	to test	2457	اِخْتِبَار	noun	test	2457	own_lemma	18	0	known	known	True
+لَامِع	لامع	active_participle	2191	لَمَعَ	to glisten, to gleam	4923	لَامِع	adj	shiny, bright	4923	own_lemma	17	0	encountered	known	True
+نَجَاة	نجاة	masdar	3481	نَجا	to save	4959	نَجَاة	noun	rescue, salvation	4959	own_lemma	17	0		lapsed	False
+مَحْصُول	محصول	passive_participle	3059	حَصَلَ	to happen	1184	مَحْصُولٌ	noun	crop, harvest	1184	own_lemma	17	0	suspended	known	True
+اتِّفَاق	اتفاق	masdar	3509	اتَّفَقَ	to agree	1335	اِتِّفَاقٌ	noun	agreement, accord	1335	own_lemma	17	0	known	known	True
+مَكْتُوب	مكتوب	passive_participle	4028	كَتَبَ	to write	2424	مَكْتُوب	adj	written	2424	own_lemma	17	0	known	known	True
+شَادّ	شاد	active_participle	4574	شَدَّ	to pull; take along	848	شَادَ	verb	to build	848	own_lemma	17	0	known	encountered	False
+حَافِظ	حافظ	active_participle	828	حَفِظَ	to preserve, save	2547	حَافِظ	noun	guardian; protector; one who preserves	907	other	16	0	known	known	True
+اِرْتِدَاء	ارتداء	masdar	2145	اِرْتَدَى	to wear	2524	اِرْتِدَاء	noun	wearing	2524	own_lemma	16	0	known	known	True
+مَرْزُوقٌ	مرزوق	passive_participle	2826	رَزَقَ	to provide, to sustain	1347	مَرْزُوقٌ	adj	blessed (by God)	1347	own_lemma	16	0		known	True
+جَدِير	جدير	active_participle	4140	جَدُرَ	to be worthy	4092	جَدِير	adj	worthy	4092	own_lemma	16	0	encountered	known	True
+اسْتِعْمَال	استعمال	masdar	3008	اسْتَعْمَلَ	to use	748	اِسْتِعْمَالٌ	noun	use, usage	748	own_lemma	16	0	encountered	known	True
+بَائِع	بائع	active_participle	147	بَاعَ	sold	4889	بَائِع	noun	seller, vendor, salesman	4889	own_lemma	16	0	encountered	known	True
+مُنْتَشِر	منتشر	active_participle	3456	اِنْتَشَرَ	spread, dispersed	3240	مُنْتَشِر	adj	scattered, spread	3240	own_lemma	16	0	known	known	True
+نَاظِر	ناظر	active_participle	611	نَظَرَ	to look	900	نَاظِرٌ	noun	observer, headmaster	900	own_lemma	15	0	known	known	True
+ضَالّ	ضال	active_participle	1434	ضَلَّ	to stray, err	3572	ضالّ	adj	astray, straying	3572	own_lemma	15	0	encountered	known	True
+قَصْد	قصد	masdar	3559	قَصَد	to intend	4602	قَصْد	noun	intent; purpose	3559	verb	8	7	encountered	suspended	True
+خَادِع	خادع	active_participle	2841	خَدَعَ	to deceive, to trick	2839	خَادَعَ	verb	to deceive, to trick	2839	own_lemma	14	0	known	known	True
+إِنْشَاء	انشاء	masdar	4864	أَنْشَأَ	to establish, found, create	3391	إِنْشَاء	noun	creation	3391	own_lemma	14	0	known	encountered	True
+فَحْص	فحص	masdar	2498	فَحَصَ	to examine	4967	فَحْص	noun	examination, check-up	2498	verb	7	7		known	True
+مُؤْمِن	مؤمن	active_participle	2848	ءَامَنَّا	we believed	2540	مُؤْمِن	noun	believer	2540	own_lemma	14	0	known	encountered	True
+إِنْقَاذ	انقاذ	masdar	3687	أَنْقَذَ	to rescue; to save	2594	إِنْقاذ	noun	rescue	2594	own_lemma	14	0	known	known	True
+مُؤْمِن	مؤمن	active_participle	2838	آمَنَ	to believe, to trust	2540	مُؤْمِن	noun	believer	2540	own_lemma	14	0	known	known	True
+اِسْتِغْلَال	استغلال	masdar	4717	اِسْتَغَلَّ	to exploit, take advantage of	3689	ٱِسْتِغْلال	noun	exploitation	3689	own_lemma	14	0		encountered	True
+مُتَاح	متاح	passive_participle	3817	أَتَاحَ	to provide; to make available	2716	مُتَاح	adj	available	2716	own_lemma	14	0	suspended	encountered	False
+خَصْمٌ	خصم	masdar	3691	خَصَم	to deduct, to reduce	4870	خَصْم	noun	opponent, adversary; discount	3691	verb	7	7		learning	True
+عَمْد	عمد	masdar	4837	عَمَدَ	to set about, proceed deliberately (عمد إلى)	3907	عَمَّد	verb	to baptize	3907	own_lemma	12	2		acquiring	True
+مُعْتَدِل	معتدل	active_participle	4313	اِعْتَدَلَ	to straighten up; to be moderate	2286	مُعْتَدِل	adj	moderate	2286	own_lemma	14	0	known	known	True
+تَشْجِيع	تشجيع	masdar	4117	شَجَّعَ	to encourage	3733	تَشْجِيع	noun	encouragement	3733	own_lemma	13	0	encountered	known	True
+اِشْتِقَاق	اشتقاق	masdar	4603	اِشْتَقَّ	to derive; coin	603	اشْتِقَاقٌ	noun	derivation	603	own_lemma	13	0		encountered	True
+مُقِيم	مقيم	active_participle	2804	أَقَامَ	to reside, live, stay; to hold (an event); to set up	5007	مُقِيم	noun	resident; one who establishes or maintains (e.g. relationships)	5007	own_lemma	13	0	acquiring	known	True
+اِسْتِقْبَالٌ	استقبال	masdar	2923	اِسْتَقْبَلَ	to receive	1467	اِسْتِقْبَالٌ	noun	reception	1467	own_lemma	13	0	known	lapsed	True
+انْتِهَاء	انتهاء	masdar	3710	اِنْتَهَى	to end	3444	ٱِنْتِهاء	noun	to end; conclusion; termination	3444	own_lemma	13	0	known	known	True
+مُطْلِع	مطلع	active_participle	3636	أَطْلَعَ	to inform	3593	مَطْلَع	noun	beginning	3593	own_lemma	13	0		encountered	True
+سَالّ	سال	active_participle	1194	سَلَّ	to withdraw	775	سَالَ	verb	to flow, to run	391	other	12	0	known	lapsed	False
+جَائِع	جائع	active_participle	4456	جَاعَ	to be hungry	3259	جَائِع	adj	hungry	3259	own_lemma	12	0	known	encountered	True
+سَالٍ	سال	active_participle	1461	سَلَا	to forget, to think no more of	775	سَالَ	verb	to flow, to run	391	other	12	0	known		False
+سَاطِع	ساطع	active_participle	4454	سَطَعَ	shone/gleamed	3293	ساطِع	adj	bright	3293	own_lemma	12	0	known	encountered	True
+مَسِير	مسير	passive_participle	4577	سَارَ	to walk; go	4470	مَسِير	noun	procession, march	4470	own_lemma	12	0	known	encountered	True
+حَاجِز	حاجز	active_participle	2718	حَجَزَ	to book, to reserve	3792	حَاجِز	noun	barrier, obstacle	3792	own_lemma	12	0		known	True
+هُجُوم	هجوم	masdar	3614	هَجَمَ	to attack	3427	هُجُوم	noun	attack	3427	own_lemma	11	0	known	encountered	True
+نَاجِح	ناجح	active_participle	3547	نَجَح	to succeed	2460	نَاجِح	adj	successful	2460	own_lemma	11	0	known	known	True
+مَطْلُوب	مطلوب	passive_participle	620	طَلَبَ	to request, ask	2520	مَطْلُوب	adj	required	2520	own_lemma	11	0	known	known	True
+تَمَام	تمام	masdar	1360	تَمَّ	be completed	435	تَمَامٌ	expr	ok, deal	435	own_lemma	11	0	known	known	True
+مُرِيح	مريح	active_participle	4636	أَرَاحَ	to rest, relieve; to lay (something) down to rest	1675	مُرِيح	adj	comfortable	1675	own_lemma	10	0	known	encountered	False
+زَوْر	زور	masdar	873	زَرَّ	to encroach upon one's enemy	767	زَوِرَ	verb	to incline	767	own_lemma	10	0	known	suspended	False
+تَسْجِيل	تسجيل	masdar	2609	سَجَّل	to record	2207	تَسْجِيل	noun	registration	2207	own_lemma	10	0	known	known	True
+سِبَاحَة	سباحة	masdar	2230	سَبَحَ	to swim	1548	سِّبَاحَةَ	noun	swimming	1548	own_lemma	10	0	known	known	True
+شَارِب	شارب	active_participle	401	شَرِبَ	to drink	522	شَارِبٌ	noun	mustache	522	own_lemma	10	0	known	known	True
+شِفَاء	شفاء	masdar	2599	شَفَى	to heal	2550	شِفاء	noun	recovery	2550	own_lemma	10	0	known	known	True
+دَافِع	دافع	active_participle	2376	دَفَعَ	to pay; to push	4592	دَافَعَ	verb	to defend	3807	other	10	0	known	known	True
+فَرَاغ	فراغ	masdar	4510	فَرَغَ	to finish, be done; become free	2221	فَراغ	noun	emptiness	2221	own_lemma	10	0	known	acquiring	True
+خَامّ	خام	active_participle	1436	خَمَّ	to rot, stink	985	خَامٌ	adj	raw, crude, unprocessed	985	own_lemma	10	0		acquiring	False
+ذَوْق	ذوق	masdar	2511	ذَاقَ	to taste (present)	2506	ذَوْق	noun	taste	2506	own_lemma	10	0	known	known	True
+ٱِنْقِلَاب	انقلاب	masdar	3948	ٱِنْقَلَب	to overturn, to flip	871	انْقِلَابٌ	noun	coup, upheaval	871	own_lemma	9	0		encountered	True
+فِرَار	فرار	masdar	3768	فَرّ	to flee	3761	فِرَار	noun	flight; escape	3761	own_lemma	9	0	known	known	True
+تَقْرِيرٌ	تقرير	masdar	2440	قَرَّرَ	to decide	4866	تَقْرِير	noun	report	4866	own_lemma	9	0		known	True
+مُفِيد	مفيد	active_participle	3417	أَفاد	to benefit, to inform	2574	مُفِيد	adj	useful	2574	own_lemma	9	0	known	acquiring	True
+غَارِق	غارق	active_participle	4222	غَرِقَ	sink	3028	غَارِقَة	adj	drowning, submerged	3028	own_lemma	9	0	known	known	True
+نَاصِح	ناصح	active_participle	2528	نَصَحَ	to advise	2109	نَاصَحَ	verb	to advise sincerely, counsel	2109	own_lemma	9	0	known	known	True
+إِيجَاد	ايجاد	masdar	4960	أَوْجَدَ	to create, to bring into being	3543	إِيجاد	noun	creation	3543	own_lemma	9	0			True
+قَطَرَان	قطران	masdar	564	قَطَرَ	to drip	631	قَطِرَانٌ	noun	tar	631	own_lemma	9	0		known	True
+تَعْيِين	تعيين	masdar	4997	عَيَّنَ	to appoint, assign, designate; to specify	4064	تَعْيِين	noun	appointment; assignment	4064	own_lemma	8	0	encountered	acquiring	True
+ذَاكِر	ذاكر	active_participle	572	ذَكَرَ	to mention	2548	ذَاكِر	noun	mindful one; one who remembers God	2548	own_lemma	8	0	known	known	True
+مُسْتَدِير	مستدير	active_participle	4317	اِسْتَدَارَ	to turn around	4215	مُسْتَدِير	adj	round	4215	own_lemma	8	0	known	suspended	True
+مُنْتَصِب	منتصب	active_participle	3997	يَنْتَصِب	to stand upright, to become erect	4006	مُنْتَصِب	adj	upright, erect	4006	own_lemma	8	0	encountered		True
+مُتَأَخِّر	متاخر	active_participle	2458	تَأَخَّرَ	to be late	2211	مُتَأَخِّر	adj	late	2211	own_lemma	8	0	known	known	True
+اِسْتِدْعَاء	استدعاء	masdar	3837	اِسْتَدْعَى	to summon; to call upon	2620	اِسْتِدْعاء	noun	summoning	2620	own_lemma	8	0	known	known	False
+اطْمِئْنَان	اطمئنان	masdar	3501	اطْمَأَنَ	to be reassured	3068	اطْمِئْنان	noun	reassurance, peace	3068	own_lemma	7	0	known	known	False
+اِحْتِلَال	احتلال	masdar	3796	اِحْتَلَّ	to occupy	3602	احْتِلَال	noun	occupation	3602	own_lemma	7	0	known	suspended	True
+لَافِت	لافت	active_participle	4244	لَفَتَ	attract attention	4263	لَافِت	adj	striking, eye-catching	4263	own_lemma	7	0	suspended	known	True
+تَعْزِيز	تعزيز	masdar	3909	عَزَّز	to strengthen; to reinforce	3440	تَعْزِيز	noun	to strengthen; reinforcement	3440	own_lemma	7	0	encountered	known	True
+تَارِكٌ	تارك	active_participle	3148	تَرَك	left; abandoned	2657	تارَك	verb	to abandon	2657	own_lemma	7	0	lapsed	known	True
+هُرُوب	هروب	masdar	2165	هَرَب	to escape	2119	هُرُوب	noun	escape	2119	own_lemma	7	0	known	known	True
+ٱِفْتِتَاحٌ	افتتاح	masdar	3692	ٱِفْتَتَح	to open, to inaugurate	3537	ٱِفْتِتاح	noun	opening; inauguration	3537	own_lemma	7	0	encountered	encountered	True
+إِغْلَاق	اغلاق	masdar	2671	أَغْلَق	to close	2679	إِغْلاق	noun	closing	2679	own_lemma	7	0	known	known	True
+طَرَب	طرب	masdar	4981	طَرِبَ	to be delighted	3114	طَرَب	noun	delight, joy	3114	own_lemma	5	2	suspended		True
+اِسْتِهْلَاك	استهلاك	masdar	4338	اِسْتَهْلَكَ	to consume, use up	4079	اِسْتِهْلَاك	noun	consumption	4079	own_lemma	7	0		known	True
+مُخَصِّص	مخصص	active_participle	3884	خَصَّص	to allocate; to assign	3786	مُخَصَّص	adj	designated	3786	own_lemma	7	0		encountered	True
+ٱِقْتِراح	اقتراح	masdar	3731	ٱِقْتَرَح	to propose; to suggest	3646	ٱِقْتِراح	noun	to propose; proposal	3646	own_lemma	7	0	known	known	True
+مَشْرُوب	مشروب	passive_participle	401	شَرِبَ	to drink	2357	مَشْرُوب	noun	drinks	2357	own_lemma	7	0	known	known	True
+مُجِيدٌ	مجيد	active_participle	4669	أَجَادَ	to do well, master, excel at	3195	مَجِيد	adj	glorious, magnificent	3195	own_lemma	7	0	lapsed	encountered	False
+اِنْفِجَار	انفجار	masdar	4697	اِنْفَجَرَ	to explode, burst out	3598	انْفِجَار	noun	explosion	3598	own_lemma	6	0	known	encountered	True
+مُتَرْجِم	مترجم	active_participle	1094	تَرْجَمَ	to translate	166	مُتَرجِم	noun	translator	166	own_lemma	6	0	known	known	True
+انْتِخَاب	انتخاب	masdar	3709	اِنْتَخَبَ	to elect	916	اِنْتِخَابٌ	noun	election	916	own_lemma	6	0	known	suspended	True
+اِسْتِمَاع	استماع	masdar	2445	اِسْتَمَعَ	to listen	198	استِماع	noun	listening	198	own_lemma	6	0	known	known	True
+مُتَطَوِّر	متطور	active_participle	2977	تَطَوَّرَ	to develop, evolve	2619	مُتَطَوِّر	adj	advanced	2619	own_lemma	6	0	known	known	True
+تَفَضُّل	تفضل	masdar	4029	تَفَضَّلَ	be so kind	432	تفَضَّل	expr	welcome, go ahead	432	own_lemma	5	1	known	known	True
+مُرْهِق	مرهق	active_participle	2493	أَرْهَق	to exhaust	2490	مُرْهَق	adj	exhausted	2490	own_lemma	6	0	known	known	True
+ثَاقِب	ثاقب	active_participle	4691	ثَقَبَ	to pierce, bore a hole through	5010	ثَاقِب	adj	penetrating; perceptive	5010	own_lemma	6	0	acquiring	encountered	True
+غِشّ	غش	masdar	4984	غَشَّ	to cheat, to deceive	3459	غِشّ	noun	fraud	3459	own_lemma	5	1	known		True
+اِمْتِحَان	امتحان	masdar	4655	اِمْتَحَنَ	to test, examine, put to the test	219	اِمْتِحان	noun	exam, test	219	own_lemma	6	0	known	encountered	True
+تَوَلِّي	تولي	masdar	4694	تَوَلَّى	to take charge of, assume (an office, a task)	3753	تَوَلِّي	noun	assumption (of office)	3753	own_lemma	3	2		encountered	True
+مَاهّ	ماه	active_participle	878	مَهْ	stop	840	مَاهَ	verb	to produce water (of a well, etc.)	840	own_lemma	5	0	known	known	False
+مَغْمُور	مغمور	passive_participle	4403	غَمَرَ	to flood	3292	مَغْمور	adj	immersed	3292	own_lemma	5	0	lapsed	known	True
+اِلْتِهَاب	التهاب	masdar	4741	اِلْتَهَبَ	to flare up, burn, be inflamed	2487	اِلْتِهَاب	noun	inflammation	2487	own_lemma	5	0	known	encountered	True
+مُبْتَعِد	مبتعد	active_participle	3288	ابْتَعَد	to recede	3265	مُبْتَعِد	adj	distant, remote one	3265	own_lemma	5	0	known	suspended	True
+ابْتِعَاد	ابتعاد	masdar	3288	ابْتَعَد	to recede	2648	اِبْتِعاد	noun	avoidance	2648	own_lemma	5	0	known	suspended	True
+مُمْتَلِئ	ممتلئ	active_participle	4311	اِمْتَلَأَ	to fill up, become full	2944	مُمْتَلِئ	adj	full	2944	own_lemma	5	0	known	known	True
+شُحُوب	شحوب	masdar	3967	شَحَبَ	to pale	3970	شُحُوب	noun	pallor, paleness	3970	own_lemma	5	0	known	lapsed	True
+عَاجّ	عاج	active_participle	4123	عَجَّ	to teem	930	عَاجٌ	noun	ivory	930	own_lemma	5	0	known	encountered	False
+ٱعْتِرَاض	اعتراض	masdar	3801	ٱعْتَرَض	to object	1337	اعْتِرَاض	noun	objection, opposition	1337	own_lemma	5	0	known	encountered	True
+صَابِر	صابر	active_participle	858	صَبَرَ	to be patient	2543	صَابِر	noun	patient one; steadfast person	2543	own_lemma	5	0	known	known	True
+صِيَام	صيام	masdar	3093	صَامَ	to fast	1159	صِيَام	noun	fasting	1159	own_lemma	4	0	known	known	True
+مَمْنُوعٌ	ممنوع	passive_participle	3138	مَنَعَ	to prevent, withhold, deny, protect	2172	مَمْنُوع	adj	forbidden	2172	own_lemma	4	0	known	known	True
+تَجْهِيز	تجهيز	masdar	4157	جَهَّزَ	to prepare	3086	تَجْهِيز	noun	preparation	3086	own_lemma	4	0	known	known	True
+غَسْل	غسل	masdar	2448	غَسَلَ	to wash	4966	غَسْل	noun	washing	2448	verb	0	4		known	True
+إِنْهَاء	انهاء	masdar	3782	أَنْهَىٰ	to finish	3656	إِنْهَاء	noun	termination	3656	own_lemma	4	0	known	known	True
+عَفْو	عفو	masdar	4156	عَفَا	to pardon	2710	عَفْو	noun	you're welcome	2710	own_lemma	3	1	known	suspended	True
+مُرْتَجِف	مرتجف	active_participle	4423	ارْتَجَفَ	trembled	4420	مُرْتَجِف	adj	trembling	4420	own_lemma	4	0	encountered	encountered	True
+مُهَاجِر	مهاجر	active_participle	3045	هَاجَرَ	emigrated	1178	مُهَاجِرٌ	noun	migrant, immigrant	1178	own_lemma	4	0		known	True
+مُتَزَوِّج	متزوج	active_participle	4702	تَزَوَّجَ	to marry, get married	372	مُتَزَوِّج	adj	married	372	own_lemma	4	0	known	acquiring	True
+جَزَاء	جزاء	masdar	4165	جَزَى	to reward	672	جَزَاءٌ	noun	reward, punishment	672	own_lemma	4	0	suspended	known	True
+زُهُوّ	زهو	masdar	3972	زَهَا	bloomed	4877	زَهْو	noun	pride, vanity; splendor	4877	own_lemma	3	0		known	True
+مُوضِح	موضح	active_participle	4950	أَوْضَحَ	to clarify, to explain	4090	مُوَضِّح	noun	explainer; clarifier	4090	own_lemma	3	0		encountered	True
+عِزَّة	عزة	masdar	4045	عَزَّ	to be mighty; to be dear	3923	عِزَّة	noun	dignity; might; power	3923	own_lemma	2	1		known	True
+مَسْدُود	مسدود	passive_participle	4399	سَدَّ	blocked, closed	4173	مَسْدُود	adj	blocked	4173	own_lemma	3	0	encountered	encountered	True
+هَبُوب	هبوب	masdar	1373	هَبَّ	to blow violently	1365	هُبُوبٌ	noun	strong wind, gale	1365	own_lemma	3	0		suspended	True
+مُبْتَلّ	مبتل	active_participle	3963	ابْتَلَّ	to become wet	2083	مُبْتَلّ	adj	soaked	2083	own_lemma	3	0	known	known	True
+غَائِم	غائم	active_participle	3280	غَيَّم	to cloud	1119	غَائِمٌ	adj	cloudy, overcast	1119	own_lemma	3	0	known	known	True
+اسْتِحْمَام	استحمام	masdar	2244	اسْتَحَمَّ	to bathe	4611	اِسْتِحْمَام	noun	bathing	4611	own_lemma	3	0	encountered	known	True
+مَخْصُوص	مخصوص	passive_participle	4104	خصّ	to single out; to concern	1451	مَخْصُوصٌ	adj	private, characteristic	1451	own_lemma	3	0		encountered	True
+مُخَالِف	مخالف	active_participle	3941	خَالَفَ	to contradict, to oppose	3376	مُخَالِف	adj	opponent; opposing	3376	own_lemma	3	0		known	True
+مُبْتَهِجٌ	مبتهج	active_participle	4471	ابْتَهَجَ	rejoiced	4455	مُبْتَهِج	adj	happy/delighted	4455	own_lemma	2	0	encountered	encountered	True
+تَخْصِيص	تخصيص	masdar	3884	خَصَّص	to allocate; to assign	3824	تَخْصِيص	noun	allocation; specification	3824	own_lemma	2	0		encountered	True
+اِسْتِرَاحَة	استراحة	masdar	2492	اِسْتَرَاحَ	to rest	2219	ٱِسْتِراحَة	noun	break or rest	2219	own_lemma	2	0	known	known	False
+مُسْتَعْمِل	مستعمل	active_participle	3008	اسْتَعْمَلَ	to use	2795	مُسْتَعْمَل	adj	used	2795	own_lemma	2	0	known	known	True
+لَوْعَة	لوعة	masdar	4709	لَاعَ	to burn with grief or anxiety; to be in torment	3991	لَوْعَة	noun	anguish, pang	3991	own_lemma	2	0		encountered	True
+مَأْمُور	مامور	passive_participle	4600	أَمَرَ	to order; command	1299	مَأْمُورٌ	noun	officer, bailiff	1299	own_lemma	2	0	known	known	True
+حَجْز	حجز	masdar	2718	حَجَزَ	to book, to reserve	4965	حَجْز	noun	booking, reservation	2718	verb	0	2		known	True
+مُغْمِض	مغمض	active_participle	3226	أَغْمَضَ	to close	3300	مُغْمَض	adj	closed	3300	own_lemma	2	0	known	known	True
+مُنْتَخِب	منتخب	active_participle	3709	اِنْتَخَبَ	to elect	3418	مُنْتَخَب	noun	elected representative, select	3418	own_lemma	2	0		suspended	True
+أَخْرَس	اخرس	active_participle	891	خَرِسَ	to be mute	4907	أَخْرَس	adj	mute, dumb	4907	own_lemma	2	0	encountered		True
+مُسْقِط	مسقط	active_participle	4865	أَسْقَطَ	to drop, bring down; to omit	3881	مَسْقَط	noun	place of falling; capital city	3881	own_lemma	2	0	known		True
+تَشْوِيق	تشويق	masdar	3916	شوّق	to long for	2111	تَشْوِيق	noun	suspense	2111	own_lemma	1	0	known	lapsed	True
+مَعْمُول	معمول	passive_participle	4882	عَمِلَ	to work; to do	1008	مَعْمُولٌ	adj	current, practiced	1008	own_lemma	1	0	lapsed	known	True
+مُلْتَهِب	ملتهب	active_participle	4741	اِلْتَهَبَ	to flare up, burn, be inflamed	3486	مُلْتَهِب	adj	burning	3486	own_lemma	1	0	learning	encountered	True
+مَغْشُوش	مغشوش	passive_participle	4984	غَشَّ	to cheat, to deceive	3458	مَغْشُوش	adj	adulterated	3458	own_lemma	1	0	known		True
+اِسْتِغَاثَة	استغاثة	masdar	4443	اِسْتَغَاثَ	to call for help	4397	اسْتِغَاثَة	noun	plea for help	4397	own_lemma	1	0	encountered	encountered	False
+لَاجِئٌ	لاجئ	active_participle	4082	لَجَأَ	to resort to (a measure, a provision); to take refuge	2727	لَاجِئ	noun	refugee	2727	own_lemma	1	0	known	suspended	True
+مُتَقَدّ	متقد	active_participle	3206	اتَّقَدَ	to ignite, blaze	3241	مُتَّقِد	adj	glowing, burning	3241	own_lemma	1	0	known	known	True
+مَقْفُول	مقفول	passive_participle	970	قَفَلَ	to return from a journey	683	مَقْفُولٌ	adj	locked	683	own_lemma	0	0		suspended	True
+مُتَوَسِّل	متوسل	active_participle	4460	تَوَسَّلَ	to beseech	4383	مُتَوَسِّل	adj	beseeching	4383	own_lemma	0	0	encountered	encountered	True
+فَاطِر	فاطر	active_participle	1233	فَطَرَ	to split, cleave	1427	فَاطِرٌ	noun	Creator, Originator (God)	1427	own_lemma	0	0		known	True
+فَوْق	فوق	masdar	4134	فَاقَ	to exceed, to surpass	462	فَوْق	prep	on top of	462	own_lemma	0	0		suspended	True
+آمٍ	ام	active_participle	1107	أَمَا	to meow	76	أُمّ	noun	mother	76	own_lemma	0	0	known	known	False
+آمٍ	ام	active_participle	1107	أَمَا	to meow	2465	أَم	conj	or (disjunctive conjunction)	76	other	0	0	known	known	
+مَرْدُود	مردود	passive_participle	2431	رَدَّ	to reply; to return	4995	مَرْدُود	noun	yield, return, profit; revenue; effect	4995	own_lemma	0	0	acquiring	known	True
+خَارّ	خار	active_participle	925	خَرَّ	to murmur, to bubble, to gurgle	1208	خَارَ	verb	to moo	1208	own_lemma	0	0	known	known	False
+حَوْل	حول	masdar	890	حَالَ	to change, to be transformed	2033	حَوْل	particle	around	2033	own_lemma	0	0	known	known	True
+مُوشِكٌ	موشك	active_participle	4474	أَوْشَكَ	to be about to	3968	مُوشِك	adj	about to	3968	own_lemma	0	0	known	known	True
+اِشْتِهَارٌ	اشتهار	masdar	2947	اِشْتَهَرَ	to be famous	1140	اشْتِهَارٌ	noun	fame, notoriety	1140	own_lemma	0	0		known	True
+بَيْن	بين	masdar	554	بَانَ	to separate, to become distinct, to sunder	461	بَيْن	prep	between	461	own_lemma	0	0		known	True
+إيقاد	ايقاد	masdar	3482	أَوْقَدَ	kindled	3483	إِيقَاد	noun	kindling	3483	own_lemma	0	0	suspended	suspended	True
+اِنْتِصَاب	انتصاب	masdar	3997	يَنْتَصِب	to stand upright, to become erect	3987	ٱِنْتِصاب	noun	erection, standing upright	3987	own_lemma	0	0			True
+صَائِم	صائم	active_participle	3093	صَامَ	to fast	2546	صَائِم	noun	fasting one; person who fasts	2546	own_lemma	0	0	known	known	True
+مُبَارِك	مبارك	active_participle	2417	يُبَارِك	to bless	2415	مُبَارَك	noun_prop	(name) Mubarak	2415	own_lemma	0	0	known	known	True
+انْتِحَاب	انتحاب	masdar	3976	انْتَحَبَ	sobbed	3977	انْتِحَاب	noun	sobbing	3977	own_lemma	0	0	known	known	False
+آلّ	ال	active_participle	1387	أَلَّ	to be agitated	441	الْ	particle	the	441	own_lemma	0	0	encountered		
+صَرْصَرَة	صرصرة	masdar	3036	صَرْصَرَ	to creak	4973	صَرْصَرَة	noun	creaking	4973	own_lemma	0	0		known	True
+اعْتِقَال	اعتقال	masdar	3053	اعْتَقَلَ	to arrest	3066	ٱِعْتِقال	noun	detention, arrest	3066	own_lemma	0	0	known	known	True

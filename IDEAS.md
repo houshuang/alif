@@ -3368,3 +3368,15 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Take in the remaining Al-Kitaab Part 1 and Madinah Book 1 entries; find word lists for Al-Kitaab Parts 2–3 and Madinah Books 2–3 as upper-year benchmarks.
 - One-year outside measure: ACTFL reading and listening proficiency tests (single-skill, remotely proctored); CIMA needs writing and speaking.
 - A frequent word should not stay suspended as a leech: consider a shorter delay or a different treatment for book rank <= 1,000 (رأى was suspended).
+
+## Word-credit follow-ups (2026-11-25, from `research/analysis-2026-11-25-word-credit.md`)
+
+- Second batch of common words with no lemma: about 390 words at 12–16 occurrences in the book sample (`research/word-credit-2026-11-25/words_without_entry.tsv`), then the long tail. Curate by hand as on 2026-11-25; CAMeL's lemma is wrong often enough that an unreviewed import would add junk.
+- Remap stored sentences after new lemmas: `sentence_words` rows still point at the old entry (مجتمع on اجتمع, فكرة on كرة). Needs a remap by exact surface identity plus re-verification, in batches small enough that sessions keep enough reviewable sentences.
+- Resolver errors where the right lemma exists: عاد credited to وَعَدَ, بدأ to أبدًا, وجد to جادّ, ورأى to رَأْيٌ, يرون to رانَ. Find the rule that lets a clitic parse or a stored form of another lemma beat the lemma's own conjugation.
+- Weak verbs lose their suffixed and jussive forms (تراه, رآه, لم يرَ; يكفيه; يخافون before خاف existed). Either ask enrichment for the suffixed stems (رآ, يرا) or generate them; رأى was patched by hand on 2026-11-25.
+- One word, two canonical lemmas: بلد and بِلاد, كبير and كبيرة, يوم and أيّام are separate rows without a variant link, so knowledge is split and one of them looks "not started". Audit with `entry_exists_credit_elsewhere.tsv`.
+- Glosses that do not match book usage: أَحَد is glossed "Sunday" while its 458 book tokens mean "one, anyone"; حَسَبَ "to calculate" where books mostly have "according to" and "to think". Check the gloss of every top-1,000 word against a sample of its book sentences.
+- Frequent leeches that fail a second time: if more than half of the reintroduced frequent leeches are suspended again (readout in experiment log "2026-11-25 (6)"), more repetition is not the answer. Candidates: a card with two or three real book sentences for the word, an automatic contrast with its nearest look-alike through the confusion-pair lessons, and the gloss check above.
+- A per-entry "share of book tokens that are really this word" figure (`credit_per_entry.tsv`) could flag entries whose knowledge state rests on another word's tokens.
+

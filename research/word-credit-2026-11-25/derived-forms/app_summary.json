@@ -1,0 +1,48 @@
+{
+ "sentence_words_mapped_total": 304301,
+ "sentence_words_on_verb_lemmas": 58578,
+ "by_category": {
+  "finite": 43732,
+  "ambiguous": 9190,
+  "ambiguous_verb": 7242,
+  "ambiguous_nominal": 1412,
+  "other": 2977,
+  "derived_exact": 2293,
+  "ambiguous_undecided": 536,
+  "derived_inflected": 386
+ },
+ "derived_rows_est": 4091,
+ "by_type": {
+  "masdar": {
+   "ambiguous": 1403,
+   "derived_exact": 1337,
+   "derived_inflected": 65
+  },
+  "active_participle": {
+   "derived_exact": 772,
+   "derived_inflected": 280,
+   "ambiguous": 9
+  },
+  "passive_participle": {
+   "derived_exact": 184,
+   "derived_inflected": 41
+  }
+ },
+ "sentences_with_derived_surface": 3754,
+ "of_which_active": 51,
+ "of_which_reviewable": 30,
+ "reviewable_total": 1460,
+ "distinct_verb_form_pairs": 636,
+ "review_log_rows_with_sentence": 75276,
+ "review_log_total": 79647,
+ "review_log_credited_to_verb_from_derived_only_sentence": 1051,
+ "review_log_derived_and_finite_same_sentence": 16,
+ "review_log_derived_ratings": {
+  "3": 802,
+  "1": 165,
+  "2": 84
+ },
+ "verbs_with_such_review_rows": 270,
+ "sentences_whose_target_verb_appears_only_as_derived_form": 216,
+ "forms_with_ge5_rows": 232
+}
