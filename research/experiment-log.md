@@ -120,6 +120,10 @@ This changes the model, not the existing Arabic quality calibration.
 
 ## 2026-11-25: Spaced confusion-pair practice in reading
 
+**Release:** PR #344 (`112c4695`), backend and web restarted; iOS OTA group
+`f69a42e6-5465-4846-a45d-c561368a1282` published and verified. No migration or data change.
+At deploy: 56 pairs, 4 due (two reviews, two new); قمع/قمح next due 2026-12-08.
+
 **Problem (learner, 25 Nov):** the pair cards help but appear far too often; the
 learner dismissed them for days. Production: 22 of 22 scored answers correct, yet
 pair 55 showed its lesson 14 times in five sessions over three days. Cause: every
