@@ -64,6 +64,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Audit a "translation" complaint = check glosses too](feedback_audit_translation_check_glosses_too.md) — check BOTH `sentences.translation_en` AND `lemmas.gloss_en` (the lookup-card surface).
 
 ## Active / in-flight projects
+- [Stack word panel + word cards (LIVE 2026-11-25, feedback pending)](project_word_cards.md) — derivation chain, set phrases, forms, root list in the review dock; lazy `word_card_json` backlog; his design preferences.
 - [Book-frequency steering (LIVE 2026-11-25)](project_book_frequency.md) — Stian's goal: all high-frequency book words firm and fast, band by band; what is live, baseline, readouts 12-09 / 12-23, agreed next steps (missing lemmas, participle split, speed measure, ACTFL test).
 - [Walk + bridge episodes (LIVE 2026-11-21, feedback pending)](project_walk_episodes.md) — daily two-host audio from firm words, private feed, cron with a stop rule; bridge episodes wrap authentic recordings; open questions to Stian and the readout plan.
 - [Missed-word recovery (LIVE 2026-11-20; phrase trial ended early 2026-11-25)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase follow-ups now for every miss; red-word naming on; verb-tense phrase trial `verb_phrase_forms_v1` RUNNING (readout ~late Jan 2027); interval-restore trial and FSRS refit advised against; experiment-log entry "2026-11-25 (2)".
