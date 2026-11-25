@@ -2262,7 +2262,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     <Text style={styles.eiInfoText}>{ltr(wc.memory_hooks_json!.mnemonic!)}</Text>
                   </View>
                 )}
-                {wc.extra_support && (wc.root_family ?? []).some(f => f.state === "known" || f.state === "learning") && (
+                {(wc.root_family ?? []).some(f => f.state === "known" || f.state === "learning") && (
                   <View style={{ marginTop: 10, alignSelf: "stretch" }}>
                     <Text style={[styles.eiInfoText, { fontSize: 12, color: colors.textSecondary }]}>Same root</Text>
                     {(wc.root_family ?? [])

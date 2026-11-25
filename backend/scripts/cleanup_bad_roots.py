@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import SessionLocal
 from app.models import Lemma, Root, UserLemmaKnowledge, ReviewLog, SentenceWord, StoryWord
 from app.services.llm import generate_completion
-from app.services.morphology import is_valid_root, backfill_root_meanings
+from app.services.morphology import backfill_root_meanings, find_or_create_root, is_valid_root
 
 
 def find_bad_roots(db):
@@ -171,13 +171,9 @@ def main():
 
             if not args.dry_run:
                 # Assign correct root
-                if existing_root:
-                    lemma.root_id = existing_root.root_id
-                else:
-                    new_root = Root(root=new_root_str, core_meaning_en="")
-                    db.add(new_root)
-                    db.flush()
-                    lemma.root_id = new_root.root_id
+                root_obj = existing_root or find_or_create_root(db, new_root_str)
+                if root_obj is not None:
+                    lemma.root_id = root_obj.root_id
 
                 # Fix POS
                 if new_pos:

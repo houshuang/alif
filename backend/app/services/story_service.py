@@ -56,7 +56,7 @@ from app.services.sentence_validator import (
     requires_exact_running_text_alias,
     resolve_exact_running_text_alias,
 )
-from app.services.morphology import find_best_db_match, get_word_features, is_valid_root
+from app.services.morphology import find_best_db_match, find_or_create_root, get_word_features, is_valid_root
 from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 
 logger = logging.getLogger(__name__)
@@ -864,19 +864,12 @@ Set name_type to "personal" for personal names (people, characters), "place" for
     # Process each analysis: classify, prepare root/lemma data, then write
     new_lemma_ids: list[int] = []
 
-    # Batch-create all needed new roots first (single flush)
-    roots_to_create: dict[str, Root] = {}  # root_str -> Root object
+    # Resolve every remaining root before creating lemmas, reusing other hamza spellings
     for analysis in word_analyses:
         root_str = analysis.get("root")
-        if root_str and is_valid_root(root_str) and root_str not in existing_roots and root_str not in roots_to_create:
-            new_root = Root(root=root_str, core_meaning_en="")
-            db.add(new_root)
-            roots_to_create[root_str] = new_root
-    if roots_to_create:
-        db.flush()
-        # Update lookup with newly created root IDs
-        for root_str, root_obj in roots_to_create.items():
-            existing_roots[root_str] = root_obj.root_id
+        if root_str and is_valid_root(root_str) and root_str not in existing_roots:
+            root_obj = find_or_create_root(db, root_str)
+            existing_roots[root_str] = root_obj.root_id if root_obj else None
 
     # Now create lemmas and update story words
     for analysis in word_analyses:

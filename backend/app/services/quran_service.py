@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy import func
 
-from app.models import Lemma, QuranicVerse, QuranicVerseWord, Root, UserLemmaKnowledge
+from app.models import Lemma, QuranicVerse, QuranicVerseWord, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
 import re
@@ -834,7 +834,7 @@ def _create_unknown_quran_lemmas(
     """
     import re
     from app.services.llm import generate_completion
-    from app.services.morphology import is_valid_root
+    from app.services.morphology import find_or_create_root
 
     if not unknown_forms:
         return {}
@@ -899,8 +899,6 @@ def _create_unknown_quran_lemmas(
         if bn:
             trans_by_bare[bn] = t
 
-    all_roots = db.query(Root).all()
-    root_by_dotted = {r.root: r for r in all_roots}
     new_lemma_ids: list[int] = []
     existing_bare_set = {normalize_alef(l.lemma_ar_bare) for l in all_lemmas}
 
@@ -908,15 +906,8 @@ def _create_unknown_quran_lemmas(
         if not root_str:
             return None
         cleaned = re.sub(r'[^\u0600-\u06FF.]', '', root_str)
-        if not cleaned or not is_valid_root(cleaned):
-            return None
-        root = root_by_dotted.get(cleaned)
-        if not root:
-            root = Root(root=cleaned)
-            db.add(root)
-            db.flush()
-            root_by_dotted[cleaned] = root
-        return root.root_id
+        root = find_or_create_root(db, cleaned)
+        return root.root_id if root else None
 
     def _create_lemma(lemma_ar: str, lemma_ar_bare: str, gloss: str,
                       pos: str | None, root_id: int | None, is_name: bool) -> Lemma:
