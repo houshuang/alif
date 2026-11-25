@@ -121,3 +121,11 @@ Words like عَيْن (eye / spring / spy) or سِلْم (peace / ladder) curren
 ## Scheduling Details
 
 - **Canonical lemma is the unit of scheduling** — variant forms tracked via `variant_stats_json` but never get independent FSRS cards. **Multi-hop chain resolution**: variant chains (A->B->C) are followed to the root canonical everywhere: story knowledge maps, word introduction priority (`_resolve_to_canonical`), book page priority mapping, **review credit** (`sentence_review_service.py`), and **session building** (`sentence_selector.py`). Without this, a variant whose canonical is itself a variant would never resolve correctly. Bug fix (2026-03-23): single-hop resolution in review service caused variants like غرفة to be introduced despite root canonical غرف being known.
+
+## Derived words start from their verb (2026-11-25)
+
+Participles and verbal nouns are separate lemmas with their own cards. When such a lemma is
+created after the learner already knows the verb, `scripts/seed_derived_from_verb.py` copies
+the verb's review state and FSRS card to it (learner decision), instead of introducing it as
+an unseen word. It applies only to lemmas with no review history; see experiment-log entry
+"2026-11-25 (7)".

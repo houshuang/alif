@@ -118,6 +118,55 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25 (7): 435 missing words created; new participles and verbal nouns start from their verb's state
+
+**Why.** The word-credit analysis (`research/analysis-2026-11-25-word-credit.md`) showed that
+the "not in Alif" rows of the book list and the participles folded into verbs were one
+problem: the word had no lemma, so its tokens were unresolved or credited to a look-alike or
+to the verb through the verb's stored forms.
+
+**What was done (production, backups `alif_pre_word_lists_20261125_091650.db` and
+`alif_pre_verb_seed_20261125_105733.db`).**
+
+- `scripts/stage_word_list.py --apply` created 406 lemmas from
+  `data/word_lists/book_gap_words_2026-11-25.tsv` (source `book_frequency`; 8 already
+  existed), 23 from `alkitaab_part1_remaining.tsv` and 6 from `madinah_book1_remaining.tsv`
+  (source `textbook_list`), all through the quality gates with variant detection off. The
+  textbook lists also opened reading targets in `alkitaab_part1` / `madinah_book1` for 23
+  existing lemmas, so they count as frequent words for `frequent_word_intake_v1`.
+- `build_book_frequency.py --apply` was re-run: 7,946 ranked words, 4,031 linked. Rows with
+  no lemma: 4 in ranks 1–1,000 and 13 in 1,001–2,000 (before: 33 and 167).
+- **Learner decision:** a new participle or verbal noun starts from its verb's review state
+  rather than as an unseen word. `scripts/seed_derived_from_verb.py --apply` seeded 105 of the
+  new lemmas (63 from a firm verb): the lemma must be new today with no reviews, a same-root
+  verb must list it as `masdar` / `active_participle` / `passive_participle`, and the verb
+  must be `known` or `learning`. The lemma copies the verb's FSRS card, so it comes due when
+  the verb does. Each pair is in the activity log (`derived_seeded_from_verb`).
+
+**Baseline after the import (`/api/stats/book-frequency`).** This replaces the entry-5
+baseline for the 2026-12-09 and 2026-12-23 readouts, because the ranks moved:
+
+| Ranks | Firm | In review | Acquiring | Suspended | Not started | Not in Alif |
+|---|---|---|---|---|---|---|
+| 1–500 | 366 | 83 | 14 | 5 | 31 | 1 |
+| 501–1,000 | 272 | 104 | 7 | 21 | 93 | 3 |
+| 1,001–2,000 | 415 | 193 | 13 | 51 | 315 | 13 |
+
+Firm share is 63.8% of the top 1,000 and 52.7% of the top 2,000 (before: 64.7% and 53.5%).
+The share fell slightly although 63 seeded words are firm: the new entries took ranks that
+firm words held, and verbs lost the tokens of their derived words. The earlier figure
+overstated the base by that amount.
+
+**Known limits.** A seeded word whose meaning has drifted from the verb (مُرَتَّب "salary",
+مُعِيد "teaching assistant", حادِث "accident", مُسْتَوَى "level") is marked firm without
+evidence for that sense; a miss sends it through the ordinary missed-word path. Stored
+sentences keep their old mapping until re-verified. Verbal nouns spelled like their verb
+(عِلْم, نَظَر, بَحْث) were not created. Follow-ups are in IDEAS.md "Word-credit follow-ups".
+
+**Stop signal.** If seeded words are missed at a clearly higher rate than their verbs at the
+first reviews (check 2026-12-09 from `derived_seeded_from_verb` pairs), reset the seeded
+words that have not yet been reviewed to unseen.
+
 
 ## 2026-11-25 (6): Frequent words get their own intake allowance (`frequent_word_intake_v1`)
 
