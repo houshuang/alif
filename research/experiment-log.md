@@ -118,6 +118,39 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25 (8): Second word batch (282 lemmas) and stored sentence words moved onto the new lemmas
+
+**What was done (production, backups `alif_pre_word_batch2_*.db`, `alif_pre_remap_*.db`).**
+
+- `stage_word_list.py --apply` created 282 lemmas from
+  `data/word_lists/book_gap_words_batch2_2026-11-25.tsv` (book words at 12–16 occurrences);
+  6 already existed. Four verbal nouns spelled like an existing verb or adjective (جَهْل, مَرَح,
+  تَطَوُّر, تَعَرُّف) were left out, as in entry 7. The book list was rebuilt (4,308 linked).
+- The Claude CLI on the server reached its weekly limit at 10:26 UTC (resets 2026-11-29
+  03:00 UTC). The API fallback answered the root-extraction call under a key the parser did
+  not read, so the 283 new lemmas got no root and seeding found one pair. Fixed by passing a
+  JSON schema (`ROOTS_JSON_SCHEMA`); `backfill_roots.py` then set 248 roots and
+  `seed_derived_from_verb.py` seeded 36 more lemmas (22 from a firm verb; 141 in total today).
+- `scripts/remap_to_new_lemmas.py --since 2026-11-25 --apply` moved 1,911 stored
+  `sentence_words` rows in 1,797 sentences onto the new lemmas and let 67 sentence targets
+  follow. It moves only nouns and adjectives whose headword the stored surface spells out;
+  the resolver alone proposed wrong moves (أَجَابَهُ to إِجابَة, حُلْواً to the verb حَلَّ), so
+  verbs and broken plurals stay (IDEAS.md "Word-credit follow-ups"). Of the 18 reviewable
+  sentences that changed, the verifier passed 11, corrected 5 and hid 1.
+
+**Bands after both batches (`/api/stats/book-frequency`), the baseline for the 2026-12-09
+and 2026-12-23 readouts:**
+
+| Ranks | Firm | In review | Acquiring | Suspended | Not started | Not in Alif |
+|---|---|---|---|---|---|---|
+| 1–500 | 365 | 82 | 21 | 1 | 30 | 1 |
+| 501–1,000 | 273 | 104 | 8 | 21 | 91 | 3 |
+| 1,001–2,000 | 410 | 187 | 13 | 44 | 333 | 13 |
+| 2,001–3,000 | 298 | 162 | 16 | 41 | 405 | 78 |
+
+Suspended words in ranks 1–500 fell from 5 to 1 during the day: the frequent-word
+allowance of entry 6 is reintroducing them.
+
 ## 2026-11-25 (7): 435 missing words created; new participles and verbal nouns start from their verb's state
 
 **Why.** The word-credit analysis (`research/analysis-2026-11-25-word-credit.md`) showed that
