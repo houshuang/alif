@@ -31,7 +31,7 @@ from app.database import SessionLocal
 from app.models import Lemma
 from app.services.canonical_resolution import resolve_canonical_via_map
 from app.services.sentence_validator import build_comprehensive_lemma_lookup, lookup_lemma_id
-from build_book_frequency import DEFAULT_SOURCES, is_function_surface
+from build_book_frequency import is_function_surface
 from reading_readiness import norm_bare, tokenize
 
 MIN_COUNT = 2
@@ -72,8 +72,8 @@ def count_phrases(db, texts) -> dict[int, Counter]:
                     if end > len(toks) or not (start <= i < end):
                         continue
                     others = [bares[j] for j in range(start, end) if j != i]
-                    # A phrase needs at least one other word that is not a bare clitic.
-                    if all(len(o) < 2 for o in others):
+                    # A phrase needs another content word: "this book", "in the book" are not phrases.
+                    if not any(len(o) >= 2 and not is_function_surface(o) for o in others):
                         continue
                     key = " ".join(bares[start:end])
                     if key not in seen:
@@ -86,11 +86,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--source", action="append", help="BAREC source name (repeatable)")
+    parser.add_argument("--source", action="append", help="BAREC source name (repeatable; default all)")
     args = parser.parse_args()
 
-    sources = set(args.source or DEFAULT_SOURCES)
-    texts = [r["text"] for r in json.loads(args.corpus.read_text(encoding="utf-8")) if r.get("source") in sources]
+    # Every source by default: phrases need more text than the word ranking does.
+    rows = json.loads(args.corpus.read_text(encoding="utf-8"))
+    texts = [r["text"] for r in rows if not args.source or r.get("source") in set(args.source)]
     db = SessionLocal()
     try:
         phrases = count_phrases(db, texts)
