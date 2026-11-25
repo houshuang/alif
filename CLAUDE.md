@@ -52,6 +52,17 @@ folder cover the current reading goal, source-tier dominance, rank/mapping limit
 slow-lane omissions, and proposed attention dispositions. This is analysis, not an
 activated policy; verify live deployment separately from merge/implementation labels.
 
+Book-frequency steering (`book_frequency_v1`, 2026-11-25): `book_frequency_entries` (built by
+`scripts/build_book_frequency.py` from BAREC book text, corpus file on the server only) ranks
+words by running-text count, including words Alif lacks. While it has rows and
+`ALIF_BOOK_FREQUENCY_LANES` is not `0`, it replaces the fused core rank in the due lanes
+(main lane = book rank <= 2,000, acquiring, or the learner's own reading), in
+`automatic_attention_v2`'s broad-frequency test, in intake tiers and in leech reintroduction
+order. Do not use `frequency_core_entries` to judge what is frequent or missing: it ranks
+in-vocabulary lemmas first. Do not judge whether the learner knows a word by matching list
+headwords against `lemma_ar_bare`; measure on running text with the resolver. See
+`research/analysis-2026-11-25-vocabulary-coverage.md`; progress at `/api/stats/book-frequency`.
+
 Engagement and tuning check (2026-11-18): `research/analysis-2026-11-18-engagement-and-tuning.md`
 (activity history, FSRS calibration, new-word throughput per card, the stalled automatic intake).
 

@@ -78,7 +78,7 @@ This changes the model, not the existing Arabic quality calibration.
 
 **FSRS / lapse / leech** — `2026-08-11 "Token-isolated form/tashkeel recovery v1"` · `2026-07-27 "Assisted-lapse scheduling + Box-1 efficiency"` · `2026-07-09 "Return recovery tuning + exact-surface pilot"` · `2026-04-13 "Lapse Recovery Tuning — desired_retention=0.95"` · `2026-03-15 "Leech Sliding Window"` · `2026-04-21 "Leech auto-suspend — fire on every review"` · `2026-03-03 "Confused Rating No Longer Penalizes FSRS"`.
 
-**Session building / selection / comprehensibility** — `2026-09-03 "Low-energy maintenance v1"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
+**Session building / selection / comprehensibility** — `2026-11-25 (5) "Book-text frequency steers lanes, relief and intake"` · `2026-09-03 "Low-energy maintenance v1"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-02-22 "Session Build Performance Fix (18s → 1.2s)"` (origin of the no-LLM-in-build invariant) · `2026-03-19 "Comprehensibility Gate Starvation"` (gate-audit lesson) · `2026-03-14 "Never-Reviewed Boost — Fix Box-1 Starvation"` · `2026-02-22 "Sentence Recency Window 4 Days to 1 Day"` · `2026-02-22 "Function Words Excluded from Scheduling"`.
 
 **Sentence generation pipeline** — `2026-03-21 "Unify Sentence Generation Through Verified Pipeline"` (single-pipeline invariant) · `2026-05-10 "Batch material now has a mandatory quality gate"` · `2026-04-20 "Self-correcting batch sentence generation"` (⚠ later gated OFF — current default is legacy batch, `ALIF_USE_LEGACY_BATCH=1`) · `2026-05-04 "Backoff-aware multi-target"` · `2026-05-03 "Generation-pipeline investigation — three concurrent bugs"`.
 
@@ -117,6 +117,56 @@ This changes the model, not the existing Arabic quality calibration.
 ---
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
+
+
+## 2026-11-25 (5): Book-text frequency steers lanes, relief and intake (`book_frequency_v1`)
+
+**Why.** The learner asked for an overview against courses and frequency lists and reported
+that common words still seem missing. Token-level coverage of real books is about 81%
+(`research/analysis-2026-11-25-vocabulary-coverage.md`). The fused frequency core cannot
+steer toward the gaps: it ranks every lemma already in the vocabulary above every missing
+one. Of 579 due words, 331 lie beyond book rank 2,000 and carry 0.6% of book text, while
+121 lie in the top 1,000 and carry 4.1%. Learner decision (25 Nov): work aggressively toward
+all high-frequency words being firm, band by band; rare due words may leave the backlog.
+
+**What changed.** New table `book_frequency_entries`, built by
+`scripts/build_book_frequency.py` from BAREC book sources (Hindawi, Kalima, Green Library):
+every token goes through the production resolver, words with no lemma keep their true rank
+with `lemma_id` NULL. While the table has rows and `ALIF_BOOK_FREQUENCY_LANES` is not `0`:
+
+- **Lanes.** Main lane = acquiring words, book rank ≤ 2,000, source `snap`/`preread`, or an
+  attention reason of reading target, reading recurrence or learner pick. Everything else
+  is slow lane (10% of a session, outside the main due count and the recovery trigger).
+  Due-word priority uses the book rank; a word absent from the sample ranks 20,001.
+- **Attention.** `automatic_attention_v2` takes its "broad frequency" from book rank ≤ 2,000
+  (was fused/CAMeL rank ≤ 5,000); the Hindawi protection and the unknown-rank protection do
+  not apply. A top-band word with no learner row is staged (`encountered`, source
+  `book_frequency`). Dry run on the snapshot: 108 costly rare words relieved (35 known, 23
+  lapsed, 7 learning, 42 suspended, 1 acquiring), 55 unstarted words wait for reading
+  evidence, 151 words promoted or staged.
+- **Intake.** Book rank ≤ 500 / 1,000 / 2,000 scores 340 / 335 / 330 and outranks every
+  stored-source tier, including old textbook-scan backlog (320) and reading targets (300+).
+  A pick still enters learning at pick time.
+- **Leeches.** Reintroduction order and the low-priority delay use the book rank.
+- **Bug fix.** `select_next_words` returned at most one word per call since PR #285 (a loop
+  variable named `count` shadowed the argument while reading targets were open).
+- **Measure.** `GET /api/stats/book-frequency`: firm / in review / acquiring / suspended /
+  not started / not in Alif per band (500, 1,000, 2,000, 3,000, 5,000).
+
+**Expected.** Main-lane FSRS due falls from 439 to about 231 on the snapshot. Daily caps and
+the recovery ladder are unchanged, so intake stays earned (Box 1 held 72 actionable words at
+the snapshot).
+
+**Readout.** Firm share of the top 1,000 and top 2,000 book words (66% and 58% at the
+snapshot), weekly; coverage of the learner's own pages; whether relieved words are missed in
+reading. Check on 2026-12-09 and 2026-12-23.
+
+**Not done.** Creating lemmas for book words Alif lacks (33 in the top 1,000, 200 in the top
+2,000); separate lemmas for participles and verbal nouns; a per-word speed measure; a screen
+for the band figures.
+
+**Rollback.** `ALIF_BOOK_FREQUENCY_LANES=0` and restart. Dispositions return at the next
+attention refresh; no memory state is rewritten.
 
 ## 2026-11-25 (4): Verb phrases vary the tense (`verb_phrase_forms_v1`, trial)
 
