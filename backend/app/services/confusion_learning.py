@@ -114,6 +114,37 @@ def import_captures(db):
         index.conn.close()
 
 
+# Wait after each clean practice run; a run after the last step retires the pair
+# from reading practice until a new report, mixed-up mark or error reopens it.
+PRACTICE_INTERVALS = [timedelta(hours=20), timedelta(days=14), timedelta(days=60)]
+NEW_PAIRS_PER_DAY = 2
+QUESTIONS_PER_RUN = 2
+
+
+def practice_schedule(attempts, cutoff, at=None):
+    """Spaced steps from clean sessions after the latest reset.
+
+    A session counts when it has at least two scored answers, all after the reset
+    (so all unaided and correct), and it came once the previous wait had elapsed:
+    a second clean run on the same day does not advance the pair.
+    """
+    at = at or now()
+    sessions = {}
+    for a in attempts:
+        sessions.setdefault(a.session_id, []).append(naive(a.created_at))
+    step, due = 0, datetime.min
+    for times in sorted(sessions.values(), key=max):
+        if len(times) < QUESTIONS_PER_RUN or min(times) <= cutoff or max(times) < due:
+            continue
+        step += 1
+        if step > len(PRACTICE_INTERVALS):
+            due = None; break
+        due = max(times) + PRACTICE_INTERVALS[step - 1]
+    return dict(practice_step=step, practice_retired=due is None,
+                next_due=due.isoformat() if due not in (None, datetime.min) else None,
+                due_now=due is not None and due <= at)
+
+
 def pair_progress(db, pair):
     captures = db.query(ConfusionCapture).join(ConfusionLink, ConfusionLink.capture_id == ConfusionCapture.id).filter(ConfusionLink.pair_id == pair.id).all()
     latest_capture = max(captures, key=lambda c: (naive(c.captured_at), c.id), default=None)
@@ -139,7 +170,13 @@ def pair_progress(db, pair):
     days = {e[2] for e in evidence}
     resolved = practice_ready and evidence_sides == {pair.lemma_a_id, pair.lemma_b_id} and len(days) >= 2 and len({e[1] for e in evidence}) >= 3
     status = "resolved" if resolved else "partially_resolved" if len(wins) >= 2 and len(sides) == 2 else "active"
-    return dict(status=status, practice_correct=len(wins), practice_attempts=len(attempts), practice_total_correct=sum(bool(a.correct) for a in attempts), clean_contexts=len({e[1] for e in evidence}), clean_days=len(days),
+    schedule = practice_schedule(attempts, cutoff)
+    if resolved:
+        schedule["due_now"] = False
+    count = len((pair.lesson_json or {}).get("questions", []))
+    # Each later run asks the next two questions, so reviews reach the sentence exercises.
+    schedule["practice_start"] = (QUESTIONS_PER_RUN * schedule["practice_step"]) % count if count else 0
+    return dict(status=status, **schedule, first_practiced=naive(attempts[0].created_at).isoformat() if attempts else None, practice_correct=len(wins), practice_attempts=len(attempts), practice_total_correct=sum(bool(a.correct) for a in attempts), clean_contexts=len({e[1] for e in evidence}), clean_days=len(days),
         reports=len(captures), last_session_id=latest_capture.session_id if latest_capture else None, last_report=last_report.isoformat() if captures else None,
         explanation="Resolved requires four unaided practice answers covering both words, then clean reading of both words after 24 hours, in at least three contexts on two days. A new report or practice error reopens the pair.")
 

@@ -5,11 +5,11 @@ import { colors, fontFamily, ltr } from "../theme";
 import { ConfusionPair, pairStatusLabel } from "../confusion-learning";
 import { recordConfusionAttempt } from "../api";
 
-export default function ConfusionPractice({ pair, sessionId, start = 0, onClose, onComplete, continueLabel }: {
-  pair: ConfusionPair; sessionId: string; start?: number; continueLabel?: string; onClose: () => void; onComplete: (next: number) => void | Promise<void>;
+export default function ConfusionPractice({ pair, sessionId, start = 0, showLesson = start === 0, onClose, onComplete, continueLabel }: {
+  pair: ConfusionPair; sessionId: string; start?: number; showLesson?: boolean; continueLabel?: string; onClose: () => void; onComplete: (next: number) => void | Promise<void>;
 }) {
   const { height, width } = useWindowDimensions();
-  const [stage, setStage] = useState<"lesson" | "exercise">(start === 0 ? "lesson" : "exercise");
+  const [stage, setStage] = useState<"lesson" | "exercise">(showLesson ? "lesson" : "exercise");
   const [index, setIndex] = useState(start);
   const [answer, setAnswer] = useState<number | null | undefined>(undefined);
   const [saving, setSaving] = useState(false), [error, setError] = useState<string | null>(null);

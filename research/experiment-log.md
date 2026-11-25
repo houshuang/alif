@@ -118,6 +118,29 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25: Spaced confusion-pair practice in reading
+
+**Problem (learner, 25 Nov):** the pair cards help but appear far too often; the
+learner dismissed them for days. Production: 22 of 22 scored answers correct, yet
+pair 55 showed its lesson 14 times in five sessions over three days. Cause: every
+non-resolved pair was offered in every session, in three two-question visits, and
+"resolved" needs clean reading of both words on two days, which accrues slowly.
+Only 4 of 56 pairs had lessons, so wider preparation would have multiplied this.
+
+**Change:** server-computed spacing from stored attempts (undo-safe). A clean run
+(two or more scored answers after the latest reset) advances one step only once
+the previous wait has passed: 20 h, 14 d, 60 d, then retired from reading practice.
+Any report, mixed-up mark or wrong/helped answer resets to step 0. One run per pair
+per session; review runs skip the lesson and rotate through the questions. At most
+two new pairs first shown per UTC day (lesson preparation follows the same limit).
+Closing rests the pair for 20 h on the device. The learner proposed the shape
+("right this session, wait a day, right again, wait quite a long time"); the exact
+intervals and the daily limit are starting values, not calibrated.
+
+**Effect on trials:** teaching exposure in the `fragment_followup_v1` readout falls;
+exposure rows (`question_index=-1`) still record every display. FSRS untouched.
+Docs: `docs/confusion-learning.md` § "Spacing in reading".
+
 ## 2026-11-23: Confusion-pair teaching and separate recovery evidence (deployed)
 
 **Release:** PR #342 (`f3ded7d2`), backend and web active; migration
