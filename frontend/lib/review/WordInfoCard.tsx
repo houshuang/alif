@@ -591,7 +591,7 @@ export function RevealedView({
           label="pattern"
           onPress={onNavigateToPattern ? () => onNavigateToPattern(result.wazn!) : undefined}
         >
-          <Text style={rowStyles.text}>
+          <Text style={[rowStyles.text, rowStyles.textWithArabic]}>
             {/^form_\d+$/i.test(result.wazn) ? (
               <Text style={rowStyles.waznLatin}>{patternLabel(result.wazn)}</Text>
             ) : (
@@ -1098,6 +1098,9 @@ const rowStyles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 18,
   },
+  textWithArabic: {
+    lineHeight: 28,
+  },
   note: {
     color: "#b4b4c8",
   },
@@ -1196,7 +1199,7 @@ const rowStyles = StyleSheet.create({
     color: "#7cb8ff",
     fontFamily: fontFamily.arabic,
     fontSize: 17,
-    lineHeight: 24,
+    lineHeight: 28,
   },
   rootMeaning: {
     color: "#7cb8ff",
@@ -1221,7 +1224,7 @@ const rowStyles = StyleSheet.create({
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
     fontSize: 17,
-    lineHeight: 24,
+    lineHeight: 28,
   },
   siblingEn: {
     color: "#c8c8dc",
