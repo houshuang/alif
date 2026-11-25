@@ -6,8 +6,8 @@ import { colors, fontFamily } from "../theme";
 
 const BASE_CAUSES: Array<{ value: WordFailureCause; label: string }> = [
   { value: "retrieval_lapse", label: "Forgot" },
-  { value: "mixed_up", label: "Mixed up" },
-  { value: "unfamiliar_form", label: "New form" },
+  { value: "mixed_up", label: "Mixed" },
+  { value: "unfamiliar_form", label: "Form" },
 ];
 
 export function AssistedRecognitionCauses({
@@ -32,18 +32,18 @@ export function AssistedRecognitionCauses({
   onMixedUpPress?: () => void;
   mixedUpExpanded?: boolean;
   /** Rendered below the chips — the review screen uses this for the
-   *  confusion picker once "Mixed up" is selected. */
+   *  confusion picker once "Mixed" is selected. */
   children?: React.ReactNode;
 }) {
   const legendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   useEffect(() => () => { if (legendTimer.current) clearTimeout(legendTimer.current); }, []);
   const [legend, setLegend] = useState<string | null>(null);
-  const legends: Record<WordFailureCause, string> = { retrieval_lapse: "Forgot — I could not recall this word", mixed_up: "Mixed up — I mistook this for another word", unfamiliar_form: "New form — familiar word, unfamiliar form", missing_tashkeel: "No tashkeel — missing vowel marks made it hard" };
+  const legends: Record<WordFailureCause, string> = { retrieval_lapse: "Forgot — I could not recall this word", mixed_up: "Mixed — I mistook this for another word", unfamiliar_form: "Form — familiar word, unfamiliar form", missing_tashkeel: "Vowels — missing vowel marks made it hard" };
   const causes = missingTashkeelApplicable
     ? [
         ...BASE_CAUSES,
-        { value: "missing_tashkeel" as const, label: "No tashkeel" },
+        { value: "missing_tashkeel" as const, label: "Vowels" },
       ]
     : BASE_CAUSES;
   const accent = rating === 1 ? colors.missed : colors.confused;

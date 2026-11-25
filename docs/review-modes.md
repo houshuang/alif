@@ -43,7 +43,7 @@ on the next front, auxiliary card, session completion, or navigation away;
 listening keeps its existing tabs and spacing.
 
 Optional failure reasons appear as a side rail: refresh = Forgot, shuffle =
-Mixed up, layers = New form. The conditional No tashkeel reason remains available.
+Mixed, layers = Form. The conditional Vowels reason (word shown without tashkeel) remains available.
 Each icon has a 44-point target, an accessibility label and a hover/focus legend.
 Each reason is a toggle. Turning Mixed up on for a red or yellow word opens a dismissible
 popover with an Arabic/English field and up to four suggestions; naming the word is
