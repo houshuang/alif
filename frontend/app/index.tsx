@@ -3660,7 +3660,7 @@ function SentenceReadingCard({
 
   return (
     <>
-      {!pairedReveal && <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }, showAnswer && styles.readingArabicRevealed]}>
+      {!pairedReveal && <Text style={[styles.sentenceArabic, showAnswer && styles.readingArabicRevealed, { fontFamily: currentFont.font }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -4902,7 +4902,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
   },
-  readingArabicRevealed: { lineHeight: 56 },
+  readingArabicRevealed: arabicText(fonts.arabicSentence, 56),
   readingSentenceArea: { paddingTop: 4, paddingBottom: 8 },
   wordDock: {
     flexGrow: 0, flexShrink: 1, marginTop: 4,
@@ -5051,9 +5051,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   passageRevealArabic: {
+    ...arabicText(27, 48),
     color: colors.arabic,
-    fontSize: 27,
-    lineHeight: 48,
     writingDirection: "rtl",
     textAlign: "right",
   },

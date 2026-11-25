@@ -45,4 +45,20 @@ describe("Arabic styles go through arabicText", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("has no Arabic-named style that changes lineHeight on its own", () => {
+    // A bare lineHeight override keeps the base style's paddingTop, which was
+    // sized for the old line height (the revealed sentence cropped its shadda).
+    const offenders: string[] = [];
+    for (const dir of SOURCE_DIRS) {
+      for (const file of sourceFiles(path.join(ROOT, dir))) {
+        const src = fs.readFileSync(file, "utf8");
+        for (const m of src.matchAll(/\b\w*(?:Arabic|arabic)\w*:\s*\{[^{}]*lineHeight:[^{}]*\}/g)) {
+          if (m[0].includes("arabic-line-ok:")) continue;
+          offenders.push(`${path.relative(ROOT, file)}:${src.slice(0, m.index).split("\n").length}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });

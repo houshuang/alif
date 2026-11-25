@@ -1094,6 +1094,7 @@ const rowStyles = StyleSheet.create({
     lineHeight: 18,
   },
   textWithArabic: {
+    // arabic-line-ok: English text with an inline Arabic word
     lineHeight: 28,
   },
   note: {
