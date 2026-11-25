@@ -596,6 +596,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "wazn_meaning": lemma.wazn_meaning,
         "forms_translit": lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
         "etymology_json": lemma.etymology_json,
+        "word_card": lemma.word_card_json,
         "root_family": [],
         "pattern_examples": [],
     }

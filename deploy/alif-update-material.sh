@@ -7,11 +7,12 @@
 #
 #     30 */3 * * * /opt/alif-update-material.sh >> /var/log/alif-update-material.log 2>&1
 #
-# Wraps four passes per run, in order:
+# Wraps five passes per run, in order:
 #   1. rotate stale sentences
 #   2. update_material.py in maintenance-only mode (no Step A generation)
 #   3. refill the due-coverage deficit (R4, 2026-06-16)
 #   4. maintain a selectable supply of embedded short stories
+#   5. write word-panel cards for the next words (enrich_word_cards.py)
 #
 # The material_jobs queue (plan/work) was retired 2026-06-16: it never drained
 # (a rescue-word flood starved everything else — ~3 jobs done/week against ~70
@@ -49,6 +50,8 @@ DEFICIT_REFILL_BUDGET="${ALIF_DEFICIT_REFILL_BUDGET:-30}"
 SHORT_STORY_TIMEOUT_SECONDS="${ALIF_SHORT_STORY_TIMEOUT_SECONDS:-1800}"
 SHORT_STORY_CRON_BUDGET="${ALIF_SHORT_STORY_CRON_BUDGET:-1}"
 SHORT_STORY_MIN_SELECTABLE="${ALIF_SHORT_STORY_MIN_SELECTABLE:-6}"
+WORD_CARD_TIMEOUT_SECONDS="${ALIF_WORD_CARD_TIMEOUT_SECONDS:-900}"
+WORD_CARD_LIMIT="${ALIF_WORD_CARD_LIMIT:-40}"
 
 # Intro supply chain — keep on by default in the cron context. The values are
 # still overridable from the environment (systemd Environment= or shell export
@@ -96,6 +99,11 @@ run_phase "maintain_short_story_supply.py" \
   ALIF_SHORT_STORY_MIN_SELECTABLE="$SHORT_STORY_MIN_SELECTABLE" \
   timeout "$SHORT_STORY_TIMEOUT_SECONDS" \
   "$VENV" scripts/maintain_short_story_supply.py
+
+# Word-panel cards (derivation chain, form glosses, set phrases), most useful
+# words first; 40 words per run fills the active vocabulary over a few weeks.
+run_phase "enrich_word_cards.py" timeout "$WORD_CARD_TIMEOUT_SECONDS" \
+  "$VENV" scripts/enrich_word_cards.py --limit "$WORD_CARD_LIMIT"
 
 echo "[$TIMESTAMP] Material cron done" >> "$LOG"
 echo "---" >> "$LOG"
