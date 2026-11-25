@@ -219,6 +219,24 @@ class FrequencyCoreEntry(Base):
     lemma = relationship("Lemma", foreign_keys=[lemma_id])
 
 
+class BookFrequencyEntry(Base):
+    """One word in the book-text frequency list (see scripts/build_book_frequency.py).
+
+    Ranked by running-text count in real books, independently of what the
+    learner already has: ``lemma_id`` is NULL for a word Alif has no lemma for.
+    """
+    __tablename__ = "book_frequency_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rank = Column(Integer, unique=True, nullable=False, index=True)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True)
+    lemma_key = Column(Text, nullable=False, index=True)
+    pos = Column(String(20), nullable=True)
+    count = Column(Integer, nullable=False, default=0)
+    version = Column(String(40), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class MaterialJob(Base):
     __tablename__ = "material_jobs"
 

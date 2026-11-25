@@ -79,6 +79,11 @@ _FREQ_CORE_TOP_500 = 240.0    # Primary general-reading curriculum
 _FREQ_CORE_TOP_1000 = 210.0
 _FREQ_CORE_TOP_2000 = 170.0
 _FREQ_CORE_TOP_5000 = 120.0
+# book_frequency_v1: a word in the top book bands outranks every stored-source
+# tier, including old textbook-scan backlog. A pick still enters at pick time.
+_BOOK_FREQ_TOP_500 = 340.0
+_BOOK_FREQ_TOP_1000 = 335.0
+_BOOK_FREQ_TOP_2000 = 330.0
 
 # Gloss prefixes that indicate Wiktionary reference entries, not real words
 _SKIP_GLOSS_PREFIXES = (
@@ -278,10 +283,14 @@ def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> fl
     return 1.0 / math.log2(frequency_rank + 2)
 
 
-def _frequency_core_bonus(core_rank: Optional[int]) -> float:
+def _frequency_core_bonus(core_rank: Optional[int], book_active: bool = False) -> float:
     """Strict priority bonus for the curated high-frequency core."""
     if core_rank is None or core_rank <= 0:
         return 0.0
+    if book_active and core_rank <= 2000:
+        if core_rank <= 500:
+            return _BOOK_FREQ_TOP_500
+        return _BOOK_FREQ_TOP_1000 if core_rank <= 1000 else _BOOK_FREQ_TOP_2000
     if core_rank <= 500:
         return _FREQ_CORE_TOP_500
     if core_rank <= 1000:
@@ -609,7 +618,9 @@ def select_next_words(
 
     now = datetime.now(timezone.utc)
     from app.services.automatic_attention import READING_REASON, modern_frequency_ranks
+    from app.services.frequency_lanes import book_frequency_active
     modern_ranks = modern_frequency_ranks(db)
+    book_active = book_frequency_active(db)
     reading_recurrence_ids = {
         lid for lid, in db.query(UserLemmaKnowledge.lemma_id).filter(
             UserLemmaKnowledge.attention_disposition == "maintain",
@@ -620,15 +631,15 @@ def select_next_words(
     # text, earliest chapter). A lemma targeted by several programs/chapters
     # keeps its largest count and its earliest chapter.
     reading_target_counts: dict[int, tuple[int, int]] = {}
-    for lid, count, chapter in db.query(
+    for lid, text_count, chapter in db.query(
         ReadingTarget.lemma_id, ReadingTarget.text_count, ReadingTarget.chapter
     ).filter(ReadingTarget.retired_at.is_(None)):
         prev = reading_target_counts.get(lid)
         chapter = chapter or 1
         if prev is None:
-            reading_target_counts[lid] = (count or 1, chapter)
+            reading_target_counts[lid] = (text_count or 1, chapter)
         else:
-            reading_target_counts[lid] = (max(prev[0], count or 1), min(prev[1], chapter))
+            reading_target_counts[lid] = (max(prev[0], text_count or 1), min(prev[1], chapter))
 
     # Grammar: get unlocked features once and batch-fetch exposure records
     from app.services.grammar_service import get_unlocked_features, compute_comfort
@@ -684,7 +695,7 @@ def select_next_words(
         core_rank = frequency_core_rank_by_id.get(lemma.lemma_id)
         # The mixed Quran/fused core remains inventory metadata, not the
         # learner's present-day reading priority.
-        core_bonus = _frequency_core_bonus(modern_ranks.get(lemma.lemma_id))
+        core_bonus = _frequency_core_bonus(modern_ranks.get(lemma.lemma_id), book_active)
         priority_source = ulk_source_by_id.get(lemma.lemma_id) or lemma.source
         priority_bonus = _SOURCE_TIER_BONUS.get(priority_source, 0.0)
         priority_tier = priority_source or "other"
@@ -728,6 +739,12 @@ def select_next_words(
         if priority_source in LEARNER_PICK_SOURCES:
             priority_bonus = _TIER_LEARNER_PICK
             priority_tier = "learner_pick"
+
+        # book_frequency_v1: the top book bands lead intake. Explicit picks and
+        # targets are not lost: they enter learning when the learner makes them.
+        if book_active and core_bonus > priority_bonus:
+            priority_bonus = core_bonus
+            priority_tier = f"book_frequency_{modern_ranks[lemma.lemma_id]}"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
