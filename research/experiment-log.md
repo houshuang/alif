@@ -137,12 +137,14 @@ that list was clipped (18 pt in a 20 pt line), fixed in PR #345.
 so one root was stored once per hamza seat. Production had 31 such groups (114 lemmas),
 e.g. أ.م.ن / ا.م.ن / ء.م.ن, so مُؤْمِن did not list اِئْتِمَان. Some roots had a hollow or
 weak radical written as alif (ج.ا.ز "jazz", ر.ا.ح for ر.و.ح, ا.ت.ج.ه for و.ج.ه).
-Fix: `morphology.find_or_create_root()` (reuses any hamza spelling, refuses a plain-alif
-radical) in every root-creating path; `scripts/merge_split_roots.py` applies the reviewed
+Fix: `morphology.find_or_create_root()` in every root-creating path: reuses any hamza
+spelling; a non-initial plain alif gives no root, because it often stands for و/ي (Fable's
+second pass: folding it would join ب.د.ا "seem" to ب.د.أ "begin", س.ا.ل "flow" to س.أ.ل); `scripts/merge_split_roots.py` applies the reviewed
 plan `root_merge_plan_2026_11_25.py`: 40 merges, 3 renames, 7 repoints (3 words to no
 root: loanword, interjection, name-derived), 23 single-word fixes (rootless words such as
 وَفْقاً, أَخِيرًا, حَوْل, عَبْرَ get their root; misfiled ones such as غَالِي → غ.ل.و,
-اسْتٌ → س.ت.ه, بِلا → none). Fable reviewed the plan and caught three errors in my draft
+اسْتٌ → س.ت.ه, بِلا → none); three root meanings rewritten (أ.و.ن had kept "provisions"
+after مُؤْنَة left) and enrichment cleared on the 22 changed roots for regeneration. Fable reviewed the plan and caught three errors in my draft
 (غَلَاء under "boil"; الآن under أ.ي.ن "where" instead of أ.و.ن; رِئَة "lung" must stay
 apart from ر.أ.ي "see"). Applied to a production copy: one hamza collision left (the
 intended رِئَة), no dangling root ids. Not changed: عِنْد and رُبَّمَا stay rootless

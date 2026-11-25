@@ -5,6 +5,8 @@ Applies the reviewed plan in `root_merge_plan_2026_11_25.py`: hamza-seat
 duplicates are merged into one row, misspelled roots are repointed, and a few
 rootless or misfiled words get their root. Dry run by default; `--apply` writes everything
 in one transaction and logs an ActivityLog entry. Back up the database first.
+It clears the enrichment of every root whose word family changed; afterwards run
+`scripts/backfill_root_enrichment.py` to regenerate it.
 
 Usage:
     cd backend && python scripts/merge_split_roots.py            # dry run
@@ -28,7 +30,14 @@ from app.database import SessionLocal
 from app.models import Lemma, Root, Sentence
 from app.services.activity_log import log_activity
 from app.services.morphology import is_valid_root, root_spellings
-from root_merge_plan_2026_11_25 import LEMMA_ROOTS, MERGES, NEW_ROOT_MEANINGS, RENAMES, REPOINT
+from root_merge_plan_2026_11_25 import (
+    LEMMA_ROOTS,
+    MEANING_OVERRIDES,
+    MERGES,
+    NEW_ROOT_MEANINGS,
+    RENAMES,
+    REPOINT,
+)
 
 
 class PlanError(RuntimeError):
@@ -87,15 +96,15 @@ def run(db: Session) -> dict:
     """Apply the plan to the session (caller commits or rolls back)."""
     stats = {"merged": 0, "renamed": 0, "repointed": 0, "unrooted": 0, "lemmas_set": 0, "roots_created": 0,
              "lemmas_moved": 0, "sentences_moved": 0}
+    changed: set[int] = set()
 
     for old, new in MERGES:
         loser, winner = _require(db, old), _require(db, new)
         print(f"MERGE  {old} [{_words(db, loser)}] -> {new} [{_words(db, winner)}]")
         if not winner.core_meaning_en and loser.core_meaning_en:
             winner.core_meaning_en = loser.core_meaning_en
-        if not winner.enrichment_json and loser.enrichment_json:
-            winner.enrichment_json = loser.enrichment_json
         n_lem, n_sent = _move(db, loser, winner.root_id)
+        changed.add(winner.root_id)
         stats["lemmas_moved"] += n_lem
         stats["sentences_moved"] += n_sent
         _delete(db, loser)
@@ -128,6 +137,7 @@ def run(db: Session) -> dict:
         stats["roots_created"] += created
         where = "(new root)" if created else f"[{_words(db, existing)}]"
         print(f"MOVE   {old} [{_words(db, row)}] -> {target} {where}")
+        changed.add(existing.root_id)
         n_lem, n_sent = _move(db, row, existing.root_id)
         stats["lemmas_moved"] += n_lem
         stats["sentences_moved"] += n_sent
@@ -138,6 +148,8 @@ def run(db: Session) -> dict:
         lemma = db.get(Lemma, lemma_id)
         if lemma is None or lemma.lemma_ar != lemma_ar:
             raise PlanError(f"lemma {lemma_id} is not {lemma_ar!r}")
+        if lemma.root_id is not None:
+            changed.add(lemma.root_id)
         if target is None:
             print(f"UNROOT {lemma_ar}")
             lemma.root_id = None
@@ -147,7 +159,22 @@ def run(db: Session) -> dict:
             where = "(new root)" if created else f"[{_words(db, root)}]"
             print(f"SET    {lemma_ar} -> {target} {where}")
             lemma.root_id = root.root_id
+            changed.add(root.root_id)
         stats["lemmas_set"] += 1
+
+    for root_str, meaning in MEANING_OVERRIDES.items():
+        row = _require(db, root_str)
+        print(f"MEANING {root_str}: {row.core_meaning_en!r} -> {meaning!r}")
+        row.core_meaning_en = meaning
+        changed.add(row.root_id)
+
+    # Enrichment describes the old word family; backfill_root_enrichment.py regenerates it.
+    cleared = 0
+    for row in db.query(Root).filter(Root.root_id.in_(changed)).all():
+        if row.enrichment_json is not None:
+            row.enrichment_json = None
+            cleared += 1
+    stats["enrichment_cleared"] = cleared
 
     db.flush()
     return stats

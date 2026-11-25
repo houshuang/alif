@@ -13,6 +13,7 @@ REPOINT: a misspelled root whose lemmas move to a correct root (created when
 missing) or to no root (loanwords, interjections); the old row is deleted.
 LEMMA_ROOTS: single lemmas moved to a root (created when missing) or to no root.
 NEW_ROOT_MEANINGS: core meaning for roots this plan creates.
+MEANING_OVERRIDES: roots whose stored meaning described a word that moved out.
 
 Reviewed by a second model (Fable) on 2026-11-25; its corrections are applied.
 """
@@ -125,7 +126,13 @@ NEW_ROOT_MEANINGS: dict[str, str] = {
     "ط.م.أ.ن": "calm, reassurance, peace of mind",
 }
 
+MEANING_OVERRIDES: dict[str, str] = {
+    "أ.و.ن": "time, moment; now",                  # was written for مُؤْنَة
+    "غ.ل.ي": "boiling",                            # غَالِي moved to غ.ل.و
+    "ش.ي.أ": "thing; to want, will",               # gains شَيْء, أَشْياء
+}
+
 # Kept separate on purpose (they collide once hamza seats are folded):
 #   ر.ئ.ي (رِئَة "lung") vs ر.أ.ي "see": formally one root in Lane, but no semantic link.
-#   ه.ي.ء (هَيْئَة) vs ه.ي.ا (هَيَّا, interjection, set to no root above).
+#   ه.ي.ء (هَيْئَة): not merged with ه.ي.ا, whose هَيَّا (interjection) loses its root above.
 # Left as is: ع.ن.د keeps عِنَاد; عِنْد and رُبَّمَا stay rootless (siblings would mislead).

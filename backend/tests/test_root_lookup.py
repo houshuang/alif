@@ -12,7 +12,9 @@ def test_clean_root_string_normalizes_initial_hamza_and_maqsura():
 
 def test_root_spellings_cover_every_hamza_seat():
     spellings = root_spellings("ر.أ.س")
-    assert {"ر.أ.س", "ر.ئ.س", "ر.ء.س", "ر.ا.س"} <= set(spellings)
+    assert {"ر.أ.س", "ر.ئ.س", "ر.ء.س"} <= set(spellings)
+    assert "ر.ا.س" not in spellings
+    assert "ا.م.ن" in root_spellings("أ.م.ن")
     assert root_spellings("ك.ت.ب") == ["ك.ت.ب"]
 
 
@@ -51,6 +53,14 @@ def test_creates_new_root_once(db_session):
 def test_refuses_to_create_root_with_plain_alif_radical(db_session):
     assert find_or_create_root(db_session, "ج.ا.ز") is None
     assert db_session.query(Root).count() == 0
+
+
+def test_medial_plain_alif_never_joins_a_hamza_root(db_session):
+    db_session.add_all([Root(root="ب.د.أ"), Root(root="س.أ.ل")])
+    db_session.flush()
+
+    assert find_or_create_root(db_session, "ب.د.ا") is None
+    assert find_or_create_root(db_session, "س.ا.ل") is None
 
 
 def test_invalid_root_returns_none(db_session):
