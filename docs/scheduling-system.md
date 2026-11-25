@@ -2368,7 +2368,9 @@ focus cohort and frequency lane and competes for a reserved share of base cards;
 
 **Phrase follow-ups (`fragment_followup_v1`, 2026-11-20).** The retry-card trial was
 switched off the day it launched (`RETEST_AB_ACTIVE = False`): every same-day retry is a
-word card. The running trial hashes each miss into `phrase` or `sentence`. A `phrase`
+word card. Until 2026-11-25 a trial hashed each miss into `phrase` or `sentence`; it was
+ended early by learner decision (`FOLLOWUP_AB_ACTIVE = False`, experiment log 2026-11-25)
+and every miss now gets phrase follow-ups. A
 word that is an open miss, due, with at least two required successes left gets a phrase
 card with the session (`followup_fragment_cards`) in place of a reserved sentence card;
 the session has one base card fewer per phrase. The phrase is the scheduled review

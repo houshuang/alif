@@ -236,9 +236,19 @@ def test_phrase_arm_followup_replaces_the_sentence_card(db_session):
     assert 500 not in {item["sentence_id"] for item in result["items"]}
 
 
-def test_sentence_arm_and_missing_stock_keep_the_sentence_card(db_session):
+def test_every_miss_gets_a_phrase_followup_since_the_trial_ended():
+    when = datetime.now(timezone.utc)
+    assert wf.FOLLOWUP_AB_ACTIVE is False
+    assert {wf.followup_arm(lemma_id, when) for lemma_id in range(1, 60)} == {wf.PHRASE_ARM}
+    assert {wf.followup_trial_arm(lemma_id, when) for lemma_id in range(1, 60)} == {
+        wf.PHRASE_ARM, wf.SENTENCE_ARM,
+    }
+
+
+def test_sentence_arm_and_missing_stock_keep_the_sentence_card(db_session, monkeypatch):
     from app.services.sentence_selector import build_session
 
+    monkeypatch.setattr(wf, "FOLLOWUP_AB_ACTIVE", True)
     _due_word_with_sentence(db_session)
     _miss_in_followup_arm(db_session, 1, wf.SENTENCE_ARM)
     db_session.add(WordFragment(lemma_id=1, arabic_text="a", english_translation="a", target_surface="a"))

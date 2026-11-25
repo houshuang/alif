@@ -84,7 +84,7 @@ This changes the model, not the existing Arabic quality calibration.
 
 **Corrections / same_lemma / no-auto-create (load-bearing — don't weaken)** — `2026-03-17 "Stop Auto-Creating Lemmas from Mapping Corrections"` · `2026-04-09 "Fix Same-Lemma Correction Silent Pass-Through"` · `2026-04-16 "Corpus sentence mapping bug — 63/74"`.
 
-**Missed words / same-day retries** — `2026-11-20 (2) "Phrase follow-ups replace the retry-card trial"` (definitive for the running fragment trial and its readout) · `2026-11-20 "Missed-word recovery lane, acquiring reserve, and the fragment retry A/B"` (definitive: open-miss rule, reserved shares, retry queue v4; its change 5 was switched off the same day) · `2026-10-15 "Continuous practice and elapsed-time missing-word retries"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-07-25 "Rapid re-exposure re-test after failure"`.
+**Missed words / same-day retries** — `2026-11-20 (2) "Phrase follow-ups replace the retry-card trial"` (phrase follow-up rules; the trial ended early, see `2026-11-25 (2) "Phrase follow-ups for every missed word"`) · `2026-11-20 "Missed-word recovery lane, acquiring reserve, and the fragment retry A/B"` (definitive: open-miss rule, reserved shares, retry queue v4; its change 5 was switched off the same day) · `2026-10-15 "Continuous practice and elapsed-time missing-word retries"` · `2026-07-26 "Established-lapse recovery lane"` · `2026-07-25 "Rapid re-exposure re-test after failure"`.
 
 **Sentence generation: density, writer, judge, lemma metadata (Nov 2026)** — start at `2026-11-19 (5) "Timeline and the one open measurement"`, which lists the six entries of 18–19 Nov in order with what to compare.
 
@@ -118,6 +118,53 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-25 (2): Phrase follow-ups for every missed word; `fragment_followup_v1` trial ended early
+
+**Decision (learner, 2026-11-25).** End the phrase-against-sentence comparison before its
+readout rule (50 completed outcomes per arm, not before 4 December) and give every missed
+word phrase follow-ups. Reasons given: phrases look at least as good, they are more
+enjoyable, and the open trial was holding back other work on missed words.
+
+**State when it ended** (snapshot 25 Nov 06:12 UTC,
+`research/analysis-2026-11-25-sentence-review-check.md`): primary endpoint, next full
+sentence correct, 33/39 (85%) in the phrase arm against 18/23 (78%) in the sentence arm.
+First follow-up correct 86% against 78%; median 27 h against 53 h from miss to follow-up;
+8 s per phrase card against 36 s for a sentence card that also carries other due words.
+This is not a readout: the samples are below the rule and the difference is within noise.
+The decision needs only that phrases are not clearly worse; on these numbers the chance
+that the phrase arm is truly ten points worse is roughly 6% (normal approximation).
+
+**Change.** `FOLLOWUP_AB_ACTIVE = False` in `word_fragments.py`: `followup_arm()` returns
+`phrase` for every miss; `followup_trial_arm()` keeps the hash for misses from 20–25 Nov.
+Unchanged: the last success needed to close a miss is a full sentence, a missed phrase is
+a new miss, no phrase in stock means the ordinary sentence card, the 30-minute hold after
+a word-card retry, the 6-hour repeat guard, the lane's 30% share, `ALIF_FRAGMENT_RETEST=0`
+as the off switch.
+
+**Expected.** About twice as many phrase cards (roughly 15–20 on a 50-card day), each
+taking one sentence card off its session; follow-ups of all misses at the phrase arm's
+pace. Phrase supply has to cover twice as many words: warm-cache phase 3g and generation
+after reviews are unchanged, so watch the share of first follow-ups delivered as a phrase
+(63% in the phrase arm during the trial, 88 of 140).
+
+**What is lost.** The randomized control. From here the check is observational: share
+correct at the full sentence that closes a miss, against 85% in the trial's phrase arm.
+If it falls clearly below 78% over 50 closes, set `FOLLOWUP_AB_ACTIVE = True` again.
+
+**Unblocked by this.** The 2026-11-21 timing entry deferred named confusion capture for
+red words until this readout; that hold no longer has a trial to protect. Not changed here.
+
+**Considered and not started: restoring the interval after a closed miss.** Idea: when a
+word with a long interval is missed and then closes the miss, give back part of the old
+interval. Calculation on history since March
+(`research/progress-check-2026-11-25/recall_after_closed_miss.py`): misses on words with
+stability ≥ 30 days followed by two correct reviews on separate occasions (n 782), recall
+at the third review by waiting time: 97% under 3 days, 91% at 3–10 days, 85% at 10–30
+days, 75% at 30–90 days. That corresponds to a stability of roughly 7–15 days after the
+second success; FSRS gives a median of about 9. Restoring a quarter of a 124-day interval
+(31 days) would buy fewer reviews at about 80% recall instead of 90%. The current rule is
+close to the data, so this trial is not recommended. Waiting times were not randomized
+(late reviews are of lower-priority words), so the curve is indicative only.
 ## 2026-11-25: Same-root words on every word card; split root families merged
 
 **Learner, 25 Nov:** likes same-root words on word cards; asked which cards lack them
