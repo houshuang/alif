@@ -65,7 +65,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 
 ## Active / in-flight projects
 - [Walk + bridge episodes (LIVE 2026-11-21, feedback pending)](project_walk_episodes.md) — daily two-host audio from firm words, private feed, cron with a stop rule; bridge episodes wrap authentic recordings; open questions to Stian and the readout plan.
-- [Missed-word recovery + fragment A/B (LIVE 2026-11-20, readout OPEN)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase-in-place-of-sentence follow-up trial (retry-card trial off); read after 2026-12-04 per experiment-log entry "2026-11-20 (2)".
+- [Missed-word recovery (LIVE 2026-11-20; phrase trial ended early 2026-11-25)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase follow-ups now for every miss; interval-restore trial and FSRS refit advised against; experiment-log entry "2026-11-25 (2)".
 - [Generation changes 18–19 Nov 2026 (measurement OPEN)](project_generation_changes_nov_2026.md) — dense cards, GPT writer, lemma repair, language-only judge; review-side check due after 2026-11-23, plan in experiment-log entry "2026-11-19 (5)".
 - [Codex routing on prod (back on since 2026-11-18)](project_codex_switched_off.md) — where the provider switches live (.env + crontab prefixes); off 11-15→11-18.
 - [Dialect Lines tab (LIVE 2026-11-20, first use pending)](project_dialect_lines.md) — Layl episodes + Egyptian clips as single lines grouped by expression; content in ~/Dropbox/Arabic/dialect-lines, recording/ASR pipeline and keys.
