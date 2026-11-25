@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, Modal, ScrollView, useWindowDimensions } from "react-native";
 import { PairWord, UnresolvedConfusion } from "../confusion-learning";
 import { confirmConfusor, searchConfusors } from "../api";
-import { colors, fontFamily } from "../theme";
+import { colors, fontFamily, arabicText } from "../theme";
 export default function ManualMatch({ capture, onSaved }: {capture: UnresolvedConfusion; onSaved: () => void}) {
   const [query, setQuery] = useState(capture.text), [options, setOptions] = useState<PairWord[]>(capture.candidates);
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
@@ -34,8 +34,8 @@ const styles=StyleSheet.create({
   overlay:{flex:1,backgroundColor:"rgba(0,0,0,.55)",justifyContent:"center",alignItems:"center"},
   card:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:14,overflow:"hidden"},
   title:{color:colors.text,fontSize:18,fontWeight:"600"}, row:{marginTop:12},
-  arabic:{color:colors.arabic,fontFamily:fontFamily.arabic,fontSize:30,lineHeight:46,writingDirection:"rtl",textAlign:"right"},
-  arabicSmall:{color:colors.arabic,fontFamily:fontFamily.arabic,fontSize:25,lineHeight:40,writingDirection:"rtl"},
+  arabic:{ ...arabicText(30, 46), color:colors.arabic,writingDirection:"rtl",textAlign:"right" },
+  arabicSmall:{ ...arabicText(25, 40), color:colors.arabic,writingDirection:"rtl" },
   text:{color:colors.text,fontSize:15,lineHeight:23},meta:{color:colors.textSecondary,fontSize:12,lineHeight:18,marginTop:5},
   search:{flexDirection:"row",gap:12,marginTop:10}, input:{flex:1,minHeight:44,paddingHorizontal:10,color:colors.text,borderWidth:1,borderColor:colors.border,borderRadius:6},
   action:{minHeight:44,justifyContent:"center"},link:{color:colors.accent,fontSize:15},error:{color:colors.missed,marginTop:10},

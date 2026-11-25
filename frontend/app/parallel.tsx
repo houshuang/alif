@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Tabs, useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, fontFamily } from "../lib/theme";
+import { colors, fontFamily, arabicText } from "../lib/theme";
 import { changeParallelProgress, currentParallelProgress, currentParallelText,
   loadParallelJournal, parallelLibrary, parallelWordRuns, ParallelAction, ParallelJournal,
   ParallelParagraph, ParallelToken, SupportLanguage, updateParallelJournal } from "../lib/parallel-reading";
@@ -218,6 +218,6 @@ const s = StyleSheet.create({
   error: { color: "#9D2525", fontSize: 14, lineHeight: 22 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(35,28,18,.35)", justifyContent: "flex-end", padding: 18 },
   wordCard: { backgroundColor: "#FFF7E8", borderRadius: 16, maxHeight: "65%", maxWidth: 640, width: "100%", alignSelf: "center" },
-  wordContent: { padding: 22, gap: 14 }, lookupArabic: { color: INK, fontFamily: fontFamily.arabic, fontSize: 34, lineHeight: 56, textAlign: "right", writingDirection: "rtl" },
+  wordContent: { padding: 22, gap: 14 }, lookupArabic: { ...arabicText(34, 56), color: INK, textAlign: "right", writingDirection: "rtl" },
   wordMeaning: { color: INK, fontSize: 20, lineHeight: 29 },
 });

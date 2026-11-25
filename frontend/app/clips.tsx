@@ -18,7 +18,7 @@ import { Audio, AVPlaybackStatus, ResizeMode, Video } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clipVideoUrl, getClips, recordClipEvent } from "../lib/api";
 import { Clip, ClipCatalogue, ClipPhrase, ClipProgress } from "../lib/types";
-import { colors, fontFamily } from "../lib/theme";
+import { colors, fontFamily, arabicText } from "../lib/theme";
 
 const SPEEDS = [0.5, 0.6, 0.75, 0.9, 1];
 const STAGES = ["Words", "Listen", "Blind", "TikTok"];
@@ -649,9 +649,7 @@ const styles = StyleSheet.create({
   },
   clipTitle: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 22,
-    lineHeight: 36,
+    ...arabicText(22, 36),
     textAlign: "left",
   },
   chip: {
@@ -671,7 +669,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   coreEn: { color: colors.text, fontSize: 15 },
-  coreAr: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 21, lineHeight: 34 },
+  coreAr: { ...arabicText(21, 34), color: colors.arabic },
   playerTop: { paddingHorizontal: 16 },
   videoBox: { height: 200, backgroundColor: "#000", borderRadius: 12, overflow: "hidden" },
   cover: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
@@ -706,9 +704,7 @@ const styles = StyleSheet.create({
   lineCur: { borderColor: colors.accent },
   ar: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 25,
-    lineHeight: 46,
+    ...arabicText(25, 46),
     textAlign: "right",
     writingDirection: "rtl",
   },
@@ -735,12 +731,10 @@ const styles = StyleSheet.create({
   },
   vocabHead: { flexDirection: "row", alignItems: "center", gap: 12 },
   vocabEn: { flex: 1, color: colors.text, fontSize: 15 },
-  vocabAr: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 25, lineHeight: 42 },
+  vocabAr: { ...arabicText(25, 42), color: colors.arabic },
   vocabContext: {
     color: colors.textSecondary,
-    fontFamily: fontFamily.arabic,
-    fontSize: 19,
-    lineHeight: 34,
+    ...arabicText(19, 34),
     textAlign: "right",
     writingDirection: "rtl",
   },

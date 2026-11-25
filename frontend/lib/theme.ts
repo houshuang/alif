@@ -52,6 +52,36 @@ export function arabicFontForSentence(sentenceId: number | null | undefined): { 
   return arabicFonts[sentenceId % arabicFonts.length];
 }
 
+/** Per font, in em: how far shaped words with stacked marks reach above the
+ *  baseline (measured with hb-shape on أُمُّ, إِلَّا, لِأَنَّ) and the descent the
+ *  font reserves below it (hhea). */
+const ARABIC_METRICS: Record<string, { above: number; descent: number }> = {
+  [fontFamily.arabic]: { above: 1.35, descent: 0.7 },
+  [fontFamily.arabicBold]: { above: 1.35, descent: 0.7 },
+  [fontFamily.arabicAmiri]: { above: 1.35, descent: 0.63 },
+  [fontFamily.arabicAmiriBold]: { above: 1.35, descent: 0.63 },
+  [fontFamily.arabicNoto]: { above: 1.15, descent: 0.63 },
+  [fontFamily.arabicNotoBold]: { above: 1.15, descent: 0.63 },
+};
+
+/** Style for Arabic text. Use it for every Arabic `fontSize`/`lineHeight` pair.
+ *
+ *  When `lineHeight` is below the font's natural height (2.04 em for Scheherazade), iOS keeps the
+ *  descent and crops the top of the first line, which cuts off vowel marks and
+ *  hamza. The returned `paddingTop` restores exactly the missing room, so the line
+ *  spacing can stay as tight as the design wants. Glyphs above later lines draw
+ *  into the previous line and are not cropped. */
+export function arabicText(
+  fontSize: number,
+  lineHeight: number = Math.round(fontSize * 1.75),
+  family: string = fontFamily.arabic,
+) {
+  const m = ARABIC_METRICS[family] ?? ARABIC_METRICS[fontFamily.arabic];
+  const visibleAbove = lineHeight - m.descent * fontSize;
+  const paddingTop = Math.max(0, Math.ceil(m.above * fontSize - visibleAbove));
+  return { fontFamily: family, fontSize, lineHeight, paddingTop };
+}
+
 /** Prepend Left-to-Right Mark so BiDi renders mixed Arabic/English text as LTR.
  *  Without this, text starting with Arabic characters gets RTL paragraph direction on iOS. */
 export const ltr = (s: string) => `\u200E${s}`;

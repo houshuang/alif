@@ -17,7 +17,7 @@ import { ReviewLaunchReadyContext } from "../lib/launch-ready";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, arabicFontForSentence, ltr } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicFontForSentence, ltr, arabicText } from "../lib/theme";
 import { showMnemonic } from "../lib/feature-flags";
 import {
   getSentenceReviewSession,
@@ -2187,7 +2187,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         >
           <View style={[styles.eiHero, { borderRadius: 16 }]}>
             {wc.fragment ? (
-              <Text style={[styles.eiArabic, { fontSize: 40, lineHeight: 72, textAlign: "center" }]}>
+              <Text style={[styles.eiArabic, arabicText(40, 72), { textAlign: "center" }]}>
                 {wc.fragment.arabic.split(/\s+/).map((token, i) => (
                   <Text
                     key={i}
@@ -2214,7 +2214,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     {wc.fragment.transliteration && (
                       <Text style={styles.eiTranslit}>{wc.fragment.transliteration}</Text>
                     )}
-                    <Text style={[styles.eiArabic, { fontSize: 30, lineHeight: 52, marginTop: 8 }]}>
+                    <Text style={[styles.eiArabic, arabicText(30, 52), { marginTop: 8 }]}>
                       {wcDisplay.arabic ?? wc.lemma_ar}
                     </Text>
                   </>
@@ -2270,7 +2270,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                       .slice(0, 4)
                       .map(f => (
                         <View key={f.lemma_id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <Text style={{ fontFamily: fontFamily.arabic, fontSize: 18, lineHeight: 30, color: colors.arabic, writingDirection: "rtl" }}>{f.lemma_ar}</Text>
+                          <Text style={{ ...arabicText(18, 30), color: colors.arabic, writingDirection: "rtl" }}>{f.lemma_ar}</Text>
                           <Text style={[styles.eiInfoText, { flex: 1 }]}>{ltr(f.gloss_en ?? "")}</Text>
                         </View>
                       ))}
@@ -2727,7 +2727,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             {card.example_ar && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Example</Text>
-                <Text style={{ fontSize: 18, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl", lineHeight: 30, textAlign: "right" }}>{card.example_ar}</Text>
+                <Text style={{ ...arabicText(18, 30), color: colors.arabic, writingDirection: "rtl", textAlign: "right" }}>{card.example_ar}</Text>
                 {card.example_en && (
                   <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 4 }}>{card.example_en}</Text>
                 )}
@@ -5026,12 +5026,10 @@ const styles = StyleSheet.create({
   },
 
   wordOnlyArabic: {
-    fontSize: 44,
-    fontFamily: fontFamily.arabicBold,
+    ...arabicText(44, 68, fontFamily.arabicBold),
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 68,
   },
   wordOnlyGloss: {
     fontSize: 22,
@@ -5963,12 +5961,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reintroExampleAr: {
-    fontSize: 20,
     color: colors.arabic,
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
+    ...arabicText(20, 32),
     textAlign: "center",
-    lineHeight: 32,
   },
   reintroExampleEn: {
     fontSize: 14,
@@ -6075,14 +6071,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   eiArabic: {
-    fontSize: 52,
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
+    ...arabicText(52, 84),
     marginBottom: 6,
     marginTop: 4,
-    lineHeight: 84,
   },
   eiEnglish: {
     fontSize: 24,

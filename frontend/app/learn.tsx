@@ -9,7 +9,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { colors, fonts, fontFamily, ltr } from "../lib/theme";
+import { colors, fonts, fontFamily, ltr, arabicText } from "../lib/theme";
 import { showMnemonic } from "../lib/feature-flags";
 import {
   BASE_URL,
@@ -638,13 +638,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   wordArabic: {
-    fontSize: 52,
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
+    ...arabicText(52, 72),
     marginBottom: 6,
-    lineHeight: 72,
   },
   wordEnglish: {
     fontSize: 24,

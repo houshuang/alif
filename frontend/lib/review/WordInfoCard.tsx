@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fontFamily, ltr } from "../theme";
+import { colors, fontFamily, ltr, arabicText } from "../theme";
 import { WordLookupResult, ConfusionAnalysis } from "../types";
 import { getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
@@ -1046,9 +1046,7 @@ const rowStyles = StyleSheet.create({
   },
   lemma: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 30,
-    lineHeight: 44,
+    ...arabicText(30, 44),
     writingDirection: "rtl",
     maxWidth: "100%",
     flexShrink: 1,
@@ -1120,9 +1118,7 @@ const rowStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   partAr: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 20,
-    lineHeight: 28,
+    ...arabicText(20, 28),
   },
   partEn: {
     color: "#a8a8c0",
@@ -1171,9 +1167,7 @@ const rowStyles = StyleSheet.create({
   },
   chipAr: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 20,
-    lineHeight: 30,
+    ...arabicText(20, 30),
   },
   wazn: {
     color: colors.accent,
@@ -1234,10 +1228,8 @@ const rowStyles = StyleSheet.create({
 
 const cfStyles = StyleSheet.create({
   highlightedWord: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 20,
+    ...arabicText(20, 30),
     writingDirection: "rtl",
-    lineHeight: 30,
   },
   highlightedChar: {
     fontFamily: fontFamily.arabic,
@@ -1250,7 +1242,7 @@ const cfStyles = StyleSheet.create({
 const miniStyles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, paddingHorizontal: 10, paddingBottom: 8 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
-  arabic: { fontFamily: fontFamily.arabic, color: colors.arabic, fontSize: 27, lineHeight: 40, flex: 1, minWidth: 0, writingDirection: "rtl" },
+  arabic: { ...arabicText(27, 40), color: colors.arabic, flex: 1, minWidth: 0, writingDirection: "rtl" },
   actions: { flexDirection: "row" },
   button: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gloss: { fontSize: 16, fontWeight: "600", color: colors.text },

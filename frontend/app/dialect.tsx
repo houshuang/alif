@@ -25,7 +25,7 @@ import {
   tokenAt,
 } from "../lib/dialect";
 import { DialectCatalogue, DialectEvent, DialectLine } from "../lib/types";
-import { colors, fontFamily } from "../lib/theme";
+import { colors, fontFamily, arabicText } from "../lib/theme";
 
 const PREFS_KEY = "@alif/dialect-prefs";
 const HARD_KEY = "hard";
@@ -516,9 +516,7 @@ const styles = StyleSheet.create({
   textArea: { flex: 1, justifyContent: "center", alignItems: "center", gap: 18 },
   arabic: {
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 28,
-    lineHeight: 50,
+    ...arabicText(28, 50),
     textAlign: "center",
     writingDirection: "rtl",
   },
@@ -567,7 +565,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sheetItem: { gap: 4 },
-  sheetAr: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 30, lineHeight: 50, textAlign: "right" },
+  sheetAr: { ...arabicText(30, 50), color: colors.arabic, textAlign: "right" },
   sheetEn: { color: colors.text, fontSize: 17 },
   sheetMsa: { color: colors.textSecondary, fontFamily: fontFamily.arabic, fontSize: 19, textAlign: "right" },
   playLines: {

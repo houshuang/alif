@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
-import { fontFamily } from "../lib/theme";
+import { fontFamily, arabicText } from "../lib/theme";
 import {
   getReadingPilot, loadPilotProgress, nextPilotProgress, pilotEvent,
   PilotEventKind, PilotProgress, ReadingPilot, rereadProgress, savePilotProgress,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, color: MUTED, letterSpacing: 1.1 },
   title: { fontSize: 27, color: INK, fontWeight: "600", lineHeight: 34 },
   body: { fontSize: 16, lineHeight: 25, color: MUTED },
-  arabic: { fontFamily: fontFamily.arabic, fontSize: 30, lineHeight: 53, textAlign: "right", writingDirection: "rtl", color: INK },
+  arabic: { ...arabicText(30, 53), textAlign: "right", writingDirection: "rtl", color: INK },
   block: { gap: 12, paddingVertical: 12 },
   translation: { fontSize: 17, lineHeight: 27, color: MUTED },
   controls: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   phraseArabic: { color: ACCENT, fontFamily: fontFamily.arabic, fontSize: 22, writingDirection: "rtl", textAlign: "right", flexShrink: 1 },
   hint: { color: ACCENT, fontSize: 19 },
   explanation: { backgroundColor: "#EBDDCA", padding: 16, borderRadius: 10, gap: 8 },
-  form: { fontFamily: fontFamily.arabic, fontSize: 28, lineHeight: 45, color: INK, textAlign: "right", writingDirection: "rtl" },
+  form: { ...arabicText(28, 45), color: INK, textAlign: "right", writingDirection: "rtl" },
   meaning: { fontSize: 17, fontWeight: "600", color: INK },
   button: { backgroundColor: ACCENT, minHeight: 50, justifyContent: "center", alignItems: "center", padding: 14, borderRadius: 8, marginTop: 10 },
   buttonText: { fontSize: 16, fontWeight: "600", color: "#FFF9ED", textAlign: "center" },

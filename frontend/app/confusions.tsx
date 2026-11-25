@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import { colors, fontFamily } from "../lib/theme";
+import { colors, fontFamily, arabicText } from "../lib/theme";
 import { ConfusionLibrary, ConfusionPair, pairStatusLabel } from "../lib/confusion-learning";
 import { listConfusions, prepareConfusion, refreshConfusions } from "../lib/api";
 import ManualMatch from "../lib/review/ManualConfusionMatch";
@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
   text: { color: colors.text, fontSize: 15, lineHeight: 23 }, meta: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 5 },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: 20, marginTop: 12 },
   row: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14, marginTop: 20 },
-  arabic: { color: colors.arabic, fontSize: 30, fontFamily: fontFamily.arabic, lineHeight: 46, textAlign: "right", writingDirection: "rtl" },
-  arabicSmall: { color: colors.arabic, fontSize: 25, fontFamily: fontFamily.arabic, lineHeight: 40, writingDirection: "rtl" },
+  arabic: { ...arabicText(30, 46), color: colors.arabic, textAlign: "right", writingDirection: "rtl" },
+  arabicSmall: { ...arabicText(25, 40), color: colors.arabic, writingDirection: "rtl" },
   status: { color: colors.text, fontSize: 14, fontWeight: "600", marginTop: 10 }, link: { color: colors.accent, fontSize: 15 },
   action: { minHeight: 44, justifyContent: "center" }, error: { color: colors.missed, marginTop: 12 },
   search: { flexDirection: "row", gap: 12, marginTop: 10 }, input: { flex: 1, minHeight: 44, paddingHorizontal: 10, color: colors.text, borderWidth: 1, borderColor: colors.border, borderRadius: 6 },
