@@ -352,6 +352,18 @@ export interface PassageExperimentMetadata {
   running_word_count?: number;
 }
 
+/** Lazily written per lemma by backend word_card.py; null until the word has one. */
+export interface WordCard {
+  version: number;
+  /** From the basic word to this one; the last step is this lemma. Empty when there is none. */
+  chain: { ar: string; en: string; tag: string; lemma_id: number | null }[];
+  /** Short glosses for stored forms, keyed like forms_json (present, masdar, active_participle…). */
+  forms: Record<string, string>;
+  /** Set phrases containing the word; attested = also counted in the book corpus. */
+  phrases: { ar: string; en: string; attested: boolean }[];
+  generated_at?: string;
+}
+
 export interface WordLookupResult {
   lemma_id: number;
   lemma_ar: string;
@@ -370,6 +382,7 @@ export interface WordLookupResult {
   cefr_level: string | null;
   memory_hooks_json?: MemoryHooksData | null;
   etymology_json?: EtymologyData | null;
+  word_card?: WordCard | null;
   word_category?: WordCategory | null;
   wazn?: string | null;
   wazn_meaning?: string | null;

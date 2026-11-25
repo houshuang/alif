@@ -48,6 +48,8 @@ class Lemma(Base):
     function_word_override = Column(Boolean, nullable=True)
     thematic_domain = Column(String(30), nullable=True)
     etymology_json = Column(JSON, nullable=True)
+    # Review word panel: derivation chain, form glosses, set phrases (word_card.py)
+    word_card_json = Column(JSON, nullable=True)
     memory_hooks_json = Column(JSON, nullable=True)
     wazn = Column(String(30), nullable=True, index=True)  # e.g. "fa'il", "maf'ul", "form_1"
     wazn_meaning = Column(Text, nullable=True)  # e.g. "doer/agent", "object/patient"

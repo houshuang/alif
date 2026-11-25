@@ -410,8 +410,12 @@ Reading word help is docked above the answer buttons, outside the sentence scrol
 Cap the card at 32% viewport (max 256pt), scroll only the card, preserve independent scrolling and the
 minimize/restore behavior, and never cover the final lines with an absolute overlay.
 
-Dock content: meaning, parts, at most three forms, up to three same-root words, the root's
-meaning and the memory note; it scrolls inside its height cap rather than growing.
+Dock content (Stack layout, 2026-11-25, `DockWordPanel.tsx`): headword + gloss (the sentence's
+form on the meta line), derivation chain, other forms with glosses, set phrases, root words in two
+columns. No row labels, no clitic split, no expand/minimise buttons (grab bar minimises, headword
+opens the full card). Chain, form glosses and phrases come from `Lemma.word_card_json`, written
+lazily by `scripts/enrich_word_cards.py` in the material cron (open misses first); every phrase
+must contain the word. It scrolls inside its height cap rather than growing.
 Open richer word details in a tap-dismissable modal, not an expanding inline panel.
 Mixed up is a plain toggle; turning it on for a yellow word opens the naming popover.
 Reason icons expose hover/focus legends and retain 44pt targets.
