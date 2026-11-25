@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
+import { colors, fonts, fontFamily, ltr, arabicText } from "../../lib/theme";
 import { showMnemonic } from "../../lib/feature-flags";
 import { getWordDetail, unsuspendWord, flagContent } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
@@ -552,12 +552,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   arabicText: {
-    fontSize: 52,
     color: colors.arabic,
     writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
+    ...arabicText(52, 72),
     fontWeight: "600",
-    lineHeight: 72,
   },
   englishText: {
     fontSize: 16,
@@ -692,11 +690,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   formVal: {
-    fontSize: 24,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(24, 34),
     writingDirection: "rtl",
-    lineHeight: 34,
   },
   statsRow: {
     flexDirection: "row",
@@ -899,11 +895,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   collocationAr: {
-    fontSize: 18,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(18, 26),
     writingDirection: "rtl",
-    lineHeight: 26,
   },
   collocationEn: {
     fontSize: 13,

@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fontFamily } from "../lib/theme";
+import { colors, fontFamily, arabicText } from "../lib/theme";
 import { BASE_URL } from "../lib/api";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -576,7 +576,7 @@ const st = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   sentNum: { fontSize: 11, color: colors.textSecondary, width: 18, textAlign: "right", paddingTop: 4 },
-  sentAr: { fontSize: 18, color: colors.arabic, fontFamily: fontFamily.arabic, textAlign: "right", lineHeight: 28 },
+  sentAr: { ...arabicText(18, 28), color: colors.arabic, textAlign: "right" },
   sentEn: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
 
   // Sticky player

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../../lib/theme";
+import { colors, fonts, fontFamily, arabicText } from "../../lib/theme";
 import {
   getStoryDetail,
   getPretestWords,
@@ -653,10 +653,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   storyWord: {
-    fontSize: 30,
-    lineHeight: 46,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(30, 46),
   },
   lookedUpChip: {
     backgroundColor: colors.missed + "15",
@@ -835,12 +833,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   pretestArabic: {
-    fontSize: 42,
     color: colors.text,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(42, 64),
     textAlign: "center",
     marginBottom: 20,
-    lineHeight: 64,
   },
   pretestHint: {
     fontSize: fonts.small,

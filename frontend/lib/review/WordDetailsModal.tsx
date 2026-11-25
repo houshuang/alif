@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { WordLookupResult, ConfusionAnalysis, ConfusionCaptureIn, WordDetail, WordSentenceStat } from "../types";
-import { colors, fontFamily, ltr } from "../theme";
+import { colors, fontFamily, ltr, arabicText } from "../theme";
 import { getWordDetail } from "../api";
 import { showMnemonic } from "../feature-flags";
 import { GrammarRow, PatternExamples } from "../WordCardComponents";
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 16, fontWeight: "600" },
   close: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   content: { paddingHorizontal: 16, paddingBottom: 18, paddingTop: 6 },
-  surface: { color: colors.arabic, fontSize: 38, lineHeight: 58, fontFamily: fontFamily.arabic, textAlign: "center", writingDirection: "rtl" },
+  surface: { ...arabicText(38, 58), color: colors.arabic, textAlign: "center", writingDirection: "rtl" },
   meaning: { color: colors.text, fontSize: 20, fontWeight: "600", textAlign: "center" },
   pronunciation: { color: colors.textSecondary, fontSize: 14, textAlign: "center", marginTop: 4 },
   section: { marginTop: 22 },
@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
   label: { color: colors.textSecondary, fontSize: 12, fontWeight: "600", marginBottom: 4 },
   text: { color: colors.text, fontSize: 14, lineHeight: 21 },
   meta: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
-  arabic: { color: colors.arabic, fontSize: 24, lineHeight: 38, fontFamily: fontFamily.arabic, writingDirection: "rtl" },
-  arabicSentence: { color: colors.arabic, fontSize: 26, lineHeight: 42, fontFamily: fontFamily.arabic, writingDirection: "rtl", textAlign: "right" },
+  arabic: { ...arabicText(24, 38), color: colors.arabic, writingDirection: "rtl" },
+  arabicSentence: { ...arabicText(26, 42), color: colors.arabic, writingDirection: "rtl", textAlign: "right" },
   dictionaryRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   forms: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8 },
   form: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },

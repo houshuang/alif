@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
+import { colors, fonts, fontFamily, ltr, arabicText } from "../../lib/theme";
 import { getRootDetail, searchRootByText } from "../../lib/api";
 import { RootDetail, RootEnrichment } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
@@ -261,11 +261,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rootLetters: {
-    fontSize: 52,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(52, 72),
     fontWeight: "600",
-    lineHeight: 72,
     writingDirection: "rtl",
   },
   coreMeaning: {
@@ -364,11 +362,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   showcaseArabic: {
-    fontSize: 22,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(22, 38),
     writingDirection: "rtl",
-    lineHeight: 38,
     textAlign: "right",
   },
   showcaseTranslit: {
@@ -455,11 +451,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   wordArabic: {
-    fontSize: 22,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(22, 30),
     writingDirection: "rtl",
-    lineHeight: 30,
     marginLeft: 8,
   },
 

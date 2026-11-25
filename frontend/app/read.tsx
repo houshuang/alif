@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { fontFamily, ltr } from "../lib/theme";
+import { fontFamily, ltr, arabicText } from "../lib/theme";
 import ReadingVoiceNote from "../components/reading-voice-note";
 import { ChapterBook, ChapterEventKind, ChapterProgress, ChapterToken, getChapterBook,
   loadChapterProgress, updateChapterProgress, withoutVowels } from "../lib/reading-chapters";
@@ -226,9 +226,9 @@ const s = StyleSheet.create({
   tools: { flexDirection: "row", flexWrap: "wrap", gap: 10 }, chapterTabs: { flexDirection: "row", gap: 10 },
   chapterTab: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#C8B599", minHeight: 44 }, selectedTab: { backgroundColor: "#E4D0AF", borderColor: ACCENT },
   preview: { gap: 14, paddingVertical: 18 }, previewRow: { flexDirection: "row", gap: 18, alignItems: "center" },
-  previewArabic: { color: INK, fontFamily: fontFamily.arabic, fontSize: 25, lineHeight: 42, textAlign: "right", writingDirection: "rtl", width: "43%" },
+  previewArabic: { ...arabicText(25, 42), color: INK, textAlign: "right", writingDirection: "rtl", width: "43%" },
   paragraph: { gap: 12, paddingVertical: 18 }, paragraphNumber: { color: MUTED, fontSize: 12, alignSelf: "center" },
-  arabic: { color: INK, fontFamily: fontFamily.arabic, fontSize: 30, lineHeight: 55, textAlign: "right", writingDirection: "rtl" },
+  arabic: { ...arabicText(30, 55), color: INK, textAlign: "right", writingDirection: "rtl" },
   english: { color: "#564936", fontSize: 17, lineHeight: 28, padding: 16, backgroundColor: "#ECDEC4", borderRadius: 8 },
   ending: { alignItems: "flex-start", gap: 15, paddingVertical: 20, borderTopWidth: 1, borderTopColor: "#D8C4A2" }, endMark: { color: ACCENT, alignSelf: "center" },
   reflection: { gap: 17, paddingVertical: 22, borderTopWidth: 1, borderTopColor: "#D8C4A2" },
@@ -236,6 +236,6 @@ const s = StyleSheet.create({
   errorBox: { gap: 12 }, error: { color: "#9B2828", fontSize: 15, lineHeight: 23 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(35,28,18,0.35)", justifyContent: "flex-end", padding: 18 },
   wordCard: { backgroundColor: "#FFF7E8", borderRadius: 16, padding: 24, gap: 16, maxWidth: 640, width: "100%", alignSelf: "center" },
-  lookupArabic: { color: INK, fontFamily: fontFamily.arabic, fontSize: 34, lineHeight: 56, textAlign: "right", writingDirection: "rtl" },
+  lookupArabic: { ...arabicText(34, 56), color: INK, textAlign: "right", writingDirection: "rtl" },
   wordMeaning: { color: INK, fontSize: 21, lineHeight: 30 },
 });

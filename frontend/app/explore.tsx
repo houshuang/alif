@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicText } from "../lib/theme";
 import {
   getWords,
   getFunctionWords,
@@ -892,18 +892,14 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   cardArabic: {
-    fontSize: 26,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(26, 36),
     writingDirection: "rtl",
-    lineHeight: 36,
   },
   rootArabic: {
-    fontSize: 22,
     color: colors.arabic,
-    fontFamily: fontFamily.arabic,
+    ...arabicText(22, 32),
     writingDirection: "rtl",
-    lineHeight: 32,
   },
   cardEnglish: {
     fontSize: 12,

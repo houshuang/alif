@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fontFamily, ltr } from "../theme";
+import { colors, fontFamily, ltr, arabicText } from "../theme";
 import { ConfusionPair, pairStatusLabel } from "../confusion-learning";
 import { recordConfusionAttempt } from "../api";
 
@@ -80,14 +80,14 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: colors.border },
   heading: { color: colors.text, fontSize: 18, fontWeight: "600", flex: 1 }, close: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   body: { padding: 16 }, meta: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
-  word: { marginTop: 16 }, arabic: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 32, lineHeight: 56, paddingTop: 4, textAlign: "center", writingDirection: "rtl" },
+  word: { marginTop: 16 }, arabic: { color: colors.arabic, ...arabicText(32, 46), textAlign: "center", writingDirection: "rtl" },
   meaning: { color: colors.text, fontSize: 17, fontWeight: "600", textAlign: "center", marginBottom: 4 },
   text: { color: colors.text, fontSize: 15, lineHeight: 23, marginTop: 6 },
   explanation: { color: colors.text, fontSize: 15, lineHeight: 23, marginVertical: 16 },
   primary: { minHeight: 48, backgroundColor: colors.accent, borderRadius: 8, alignItems: "center", justifyContent: "center", marginTop: 12, paddingHorizontal: 12 },
   primaryText: { color: colors.bg, fontSize: 15, fontWeight: "600" },
   prompt: { color: colors.text, fontSize: 20, lineHeight: 29, marginVertical: 22 },
-  sentence: { color: colors.arabic, fontFamily: fontFamily.arabic, fontSize: 30, lineHeight: 54, paddingTop: 4, writingDirection: "rtl", textAlign: "right", marginVertical: 22 },
+  sentence: { color: colors.arabic, ...arabicText(30, 48), writingDirection: "rtl", textAlign: "right", marginVertical: 22 },
   choices: { flexDirection: "row", gap: 12 }, choice: { flex: 1, minHeight: 62, borderWidth: 1, borderColor: colors.border, borderRadius: 8, justifyContent: "center", padding: 4 },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 8 },
   feedback: { color: colors.text, fontSize: 17, marginTop: 16, fontWeight: "600" },

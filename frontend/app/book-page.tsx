@@ -29,7 +29,7 @@ import {
 } from "../lib/book-reader";
 import { stripDiacritics } from "../lib/review/tashkeel-evidence";
 import { BookPageDetail, BookPageToken, WordLookupResult } from "../lib/types";
-import { fontFamily } from "../lib/theme";
+import { fontFamily, arabicText } from "../lib/theme";
 import ReadingPilotReader from "../components/reading-pilot-reader";
 
 const PAPER = "#F3E8D2";
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 30, alignItems: "center" },
   paper: { width: "100%", maxWidth: 720, paddingHorizontal: 4, paddingVertical: 8 },
-  arabicParagraph: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 22, lineHeight: 39, writingDirection: "rtl", textAlign: "right" },
+  arabicParagraph: { ...arabicText(22, 39, fontFamily.arabicNoto), color: INK, writingDirection: "rtl", textAlign: "right" },
   arabicWord: { color: INK, fontFamily: fontFamily.arabicNoto },
   arabicUnknown: { color: UNKNOWN, backgroundColor: "#D9968430" },
   arabicUnknownText: { color: UNKNOWN },
@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
   guidedTokenUnknown: { backgroundColor: "#D9968424" },
   guidedTokenLearning: { backgroundColor: "#E4BE5A55", borderColor: "#C9943588" },
   guidedTokenSelected: { backgroundColor: "#C98D5630" },
-  guidedArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 22, lineHeight: 27, writingDirection: "rtl" },
+  guidedArabic: { ...arabicText(22, 27, fontFamily.arabicNoto), color: INK, writingDirection: "rtl" },
   inlineHelp: { maxWidth: 90, alignItems: "center", marginTop: -1 },
   microLemma: { maxWidth: 90, color: ACCENT, fontFamily: fontFamily.arabicNoto, fontSize: 10, lineHeight: 13, textAlign: "center", writingDirection: "rtl" },
   microGloss: { maxWidth: 84, color: MUTED, fontFamily: fontFamily.translitRegular, fontSize: 8.5, lineHeight: 11, textAlign: "center" },
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   lookupClose: { position: "absolute", right: 14, top: 12, zIndex: 2, padding: 5 },
   lookupTitleRow: { flexDirection: "row-reverse", justifyContent: "flex-end", alignItems: "center", gap: 10, paddingRight: 30 },
   lookupForms: { alignItems: "flex-end" },
-  lookupArabic: { color: INK, fontFamily: fontFamily.arabicNoto, fontSize: 25, lineHeight: 38, textAlign: "right" },
+  lookupArabic: { ...arabicText(25, 38, fontFamily.arabicNoto), color: INK, textAlign: "right" },
   lookupSurface: { color: MUTED, fontFamily: fontFamily.arabicNoto, fontSize: 14, lineHeight: 20, textAlign: "right", writingDirection: "rtl", marginTop: -4 },
   lookupSummary: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 1 },
   lookupGloss: { color: INK, fontSize: 15, fontWeight: "700" },
