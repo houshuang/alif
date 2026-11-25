@@ -193,7 +193,7 @@ def test_three_spaced_runs_then_retired_until_error(db_session):
         run(db_session, p, a, b, session, day)
     assert schedule_at(db_session, p, 20)["practice_step"] == 3
     # The 60-day wait would end in January; a fourth clean run after it retires the pair.
-    from app.services.confusion_learning import practice_schedule, PRACTICE_INTERVALS
+    from app.services.confusion_learning import practice_schedule
     attempts = db_session.query(ConfusionAttempt).all()
     late = [ConfusionAttempt(session_id="s4", created_at=datetime(2027, 1, 20, 9, i), correct=True, assisted=False) for i in range(2)]
     retired = practice_schedule(attempts + late, datetime.min, at=datetime(2027, 6, 1))

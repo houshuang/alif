@@ -176,7 +176,7 @@ def pair_progress(db, pair):
     count = len((pair.lesson_json or {}).get("questions", []))
     # Each later run asks the next two questions, so reviews reach the sentence exercises.
     schedule["practice_start"] = (QUESTIONS_PER_RUN * schedule["practice_step"]) % count if count else 0
-    return dict(status=status, **schedule, first_practiced=naive(attempts[0].created_at).isoformat() if attempts else None, practice_correct=len(wins), practice_attempts=len(attempts), practice_total_correct=sum(bool(a.correct) for a in attempts), clean_contexts=len({e[1] for e in evidence}), clean_days=len(days),
+    return dict(status=status, **schedule, practice_correct=len(wins), practice_attempts=len(attempts), practice_total_correct=sum(bool(a.correct) for a in attempts), clean_contexts=len({e[1] for e in evidence}), clean_days=len(days),
         reports=len(captures), last_session_id=latest_capture.session_id if latest_capture else None, last_report=last_report.isoformat() if captures else None,
         explanation="Resolved requires four unaided practice answers covering both words, then clean reading of both words after 24 hours, in at least three contexts on two days. A new report or practice error reopens the pair.")
 
