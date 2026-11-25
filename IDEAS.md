@@ -1,6 +1,6 @@
 # Alif — Master Ideas File
 
-## 🔵 [DESIGN 2026-11-25 — mockups agreed, not built] Richer missed-word panel: derivation chain, set phrases, forms, root list
+## 🟡 [BUILT 2026-11-25 — branch sh/word-panel-stack] Richer missed-word panel: derivation chain, set phrases, forms, root list
 
 Learner's framing (2026-11-25): the review word panel (`WordInfoCard`) is seen constantly, so its
 space should carry the most learning value. Row labels (PARTS/FORMS/ROOT) and the separate expand

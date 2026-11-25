@@ -8,6 +8,7 @@ import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particle
 import { bareArabicForm, bestVocalizedDisplayForm, stripArabicDiacritics } from "../arabic-display";
 import { showMnemonic } from "../feature-flags";
 import { UNTRUSTED_FORM_KEYS, sliceSurface } from "./surface-parts";
+import DockWordPanel from "./DockWordPanel";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -201,37 +202,33 @@ export default function WordInfoCard({
   }
 
   if (minimal) {
-    const dockNav = (
-      <View style={miniStyles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open full word card" onPress={onOpenDetails} style={miniStyles.button}>
-          <Ionicons name="expand-outline" size={19} color={colors.textSecondary} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Minimize word explanation" onPress={onMinimize} style={miniStyles.button}>
-          <Ionicons name="remove-outline" size={19} color={colors.textSecondary} />
-        </Pressable>
-      </View>
+    // Reading dock: the grab bar minimises, the headword opens the full card.
+    const grab = (
+      <Pressable accessibilityRole="button" accessibilityLabel="Minimize word explanation" onPress={onMinimize}
+        hitSlop={{ top: 6, bottom: 2, left: 40, right: 40 }} style={miniStyles.grab}>
+        <View style={miniStyles.grabBar} />
+      </Pressable>
     );
     return <View style={miniStyles.card}>
-      {loading ? <View style={miniStyles.header}>
-        <Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>{dockNav}
-      </View> : null}
-      {loading ? <ActivityIndicator size="small" color={colors.accent} />
+      {loading ? <>{grab}<View style={miniStyles.header}>
+        <Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>
+      </View><ActivityIndicator size="small" color={colors.accent} /></>
         : particleInfo ? <>
-          <View style={miniStyles.header}><Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>{dockNav}</View>
+          {grab}
+          <Text style={miniStyles.arabic} numberOfLines={1}>{surfaceForm}</Text>
           <Text style={miniStyles.gloss} numberOfLines={2}>{particleInfo.meaning}</Text>
         </>
-        : <RevealedView
-            dock
+        : result ? <DockWordPanel
             result={result}
             surfaceForm={surfaceForm}
+            surfaceTranslit={surfaceTranslit}
             markState={markState}
+            confusionData={confusionData}
+            onMinimize={onMinimize}
+            onOpenDetails={onOpenDetails}
             onNavigateToDetail={onNavigateToDetail}
             onNavigateToRoot={onNavigateToRoot}
-            surfaceTranslit={surfaceTranslit}
-            confusionData={confusionData}
-            showConfusionCandidates={false}
-            nav={dockNav}
-          />}
+          /> : null}
     </View>;
   }
 
@@ -1242,4 +1239,6 @@ const miniStyles = StyleSheet.create({
   actions: { flexDirection: "row" },
   button: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gloss: { fontSize: 16, fontWeight: "600", color: colors.text },
+  grab: { alignItems: "center", paddingTop: 6, paddingBottom: 2 },
+  grabBar: { width: 34, height: 4, borderRadius: 2, backgroundColor: "#3a3a5c" },
 });
