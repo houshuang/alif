@@ -104,8 +104,22 @@ def retest_arm(lemma_id: int, missed_at: datetime) -> str:
     return FRAGMENT_ARM if digest[0] % 2 == 0 else WORD_CARD_ARM
 
 
+# The follow-up comparison (phrase against full sentence) ended on 2026-11-25 by
+# learner decision: every missed word now gets a phrase follow-up when one is in
+# stock. `followup_trial_arm` keeps the hash so misses from the trial period
+# (2026-11-20 to 2026-11-25) can still be attributed.
+FOLLOWUP_AB_ACTIVE = False
+
+
 def followup_arm(lemma_id: int, missed_at: datetime) -> str:
-    """Stable follow-up arm for one miss of one word, independent of the retry arm."""
+    """Follow-up kind for one miss of one word (always a phrase since the trial ended)."""
+    if not FOLLOWUP_AB_ACTIVE:
+        return PHRASE_ARM
+    return followup_trial_arm(lemma_id, missed_at)
+
+
+def followup_trial_arm(lemma_id: int, missed_at: datetime) -> str:
+    """Arm a miss was hashed into while `fragment_followup_v1` was randomized."""
     key = f"{FRAGMENT_FOLLOWUP_PROTOCOL}:{lemma_id}:{missed_at.replace(tzinfo=None).isoformat()}"
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     return PHRASE_ARM if digest[0] % 2 == 0 else SENTENCE_ARM
