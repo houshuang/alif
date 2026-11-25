@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,17 +6,20 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  Modal,
+  FlatList,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
-import { colors } from "../lib/theme";
-import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, BookCoverage, ComprehensionBreakdown, DailyGoal, DebtBreakdown, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, RecoveryStatus, StateTransitions, ProgressBenchmarks } from "../lib/types";
+import { useFocusEffect, useRouter } from "expo-router";
+import { colors, fontFamily } from "../lib/theme";
+import { getAnalytics, getBookFrequency, getBookFrequencyWords, getDeepAnalytics } from "../lib/api";
+import type { Analytics, BookFrequencyBand, BookFrequencyProgress, BookFrequencyState, BookFrequencyWord, DeepAnalytics, AcquisitionPipeline, BookCoverage, ComprehensionBreakdown, DailyGoal, DebtBreakdown, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, RecoveryStatus, StateTransitions, ProgressBenchmarks } from "../lib/types";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
+  const [bookFrequency, setBookFrequency] = useState<BookFrequencyProgress | null>(null);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -29,8 +32,12 @@ export default function StatsScreen() {
     setLoading(true);
     try {
       // Load basic analytics first so the page renders fast
-      const data = await getAnalytics();
+      const [data, book] = await Promise.all([
+        getAnalytics(),
+        getBookFrequency().catch(() => null),
+      ]);
       setAnalytics(data);
+      setBookFrequency(book);
       setLoading(false);
       // Then load deep analytics in background
       const deep = await getDeepAnalytics().catch(() => null);
@@ -115,8 +122,10 @@ export default function StatsScreen() {
         <BookCoverageCard key={book.title} book={book} />
       ))}
 
-      {analytics.frequency_core && (
-        <FrequencyCoreCard data={analytics.frequency_core} />
+      {bookFrequency?.active ? (
+        <BookFrequencyCard data={bookFrequency} />
+      ) : (
+        analytics.frequency_core && <FrequencyCoreCard data={analytics.frequency_core} />
       )}
 
       {analytics.quran_core && (
@@ -707,6 +716,138 @@ function FrequencyCoreCard({
         </View>
       )}
     </View>
+  );
+}
+
+const BOOK_FREQUENCY_CARD_BANDS = 4;
+
+const BOOK_FREQUENCY_STATES: { key: BookFrequencyState; label: string; color: string }[] = [
+  { key: "firm", label: "firm", color: colors.good },
+  { key: "in_review", label: "in review", color: colors.stateAcquiring },
+  { key: "acquiring", label: "acquiring", color: colors.confused },
+  { key: "suspended", label: "suspended", color: colors.missed },
+  { key: "not_started", label: "not started", color: colors.textSecondary },
+  { key: "not_in_alif", label: "not in Alif", color: colors.listening },
+];
+
+const BOOK_FREQUENCY_STATE_BY_KEY = Object.fromEntries(
+  BOOK_FREQUENCY_STATES.map((s) => [s.key, s])
+) as Record<BookFrequencyState, (typeof BOOK_FREQUENCY_STATES)[number]>;
+
+function bookBandLabel(band: BookFrequencyBand) {
+  return `${band.from_rank.toLocaleString()}–${band.to_rank.toLocaleString()}`;
+}
+
+function BookFrequencyCard({ data }: { data: BookFrequencyProgress }) {
+  const [openBand, setOpenBand] = useState<BookFrequencyBand | null>(null);
+  const bands = data.bands.slice(0, BOOK_FREQUENCY_CARD_BANDS);
+
+  return (
+    <View style={styles.freqCoreCard}>
+      <Text style={[styles.freqCoreTitle, { marginBottom: 14 }]}>Book Frequency</Text>
+      <View style={styles.freqCoreBands}>
+        {bands.map((band) => (
+          <Pressable
+            key={band.to_rank}
+            style={styles.bookFreqBand}
+            onPress={() => setOpenBand(band)}
+            accessibilityRole="button"
+            accessibilityLabel={`Words ${bookBandLabel(band)}`}
+          >
+            <View style={styles.freqCoreBandTop}>
+              <Text style={styles.freqCoreBandLabel}>{bookBandLabel(band)}</Text>
+              <Text style={styles.bookFreqPct}>{band.firm_pct}%</Text>
+            </View>
+            <View style={styles.bookFreqTrack}>
+              {BOOK_FREQUENCY_STATES.map((s) =>
+                band[s.key] > 0 ? (
+                  <View key={s.key} style={{ flex: band[s.key], backgroundColor: s.color }} />
+                ) : null
+              )}
+            </View>
+            <View style={styles.bookFreqLegend}>
+              {BOOK_FREQUENCY_STATES.map((s) =>
+                band[s.key] > 0 ? (
+                  <View key={s.key} style={styles.bookFreqLegendItem}>
+                    <View style={[styles.bookFreqDot, { backgroundColor: s.color }]} />
+                    <Text style={styles.bookFreqLegendText}>
+                      {band[s.key].toLocaleString()} {s.label}
+                    </Text>
+                  </View>
+                ) : null
+              )}
+            </View>
+          </Pressable>
+        ))}
+      </View>
+      {openBand && <BookFrequencyBandModal band={openBand} onClose={() => setOpenBand(null)} />}
+    </View>
+  );
+}
+
+function BookFrequencyBandModal({ band, onClose }: { band: BookFrequencyBand; onClose: () => void }) {
+  const router = useRouter();
+  const [words, setWords] = useState<BookFrequencyWord[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getBookFrequencyWords(band.from_rank, band.to_rank)
+      .then((res) => {
+        if (!cancelled) setWords(res.words);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [band.from_rank, band.to_rank]);
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.bookFreqBackdrop} onPress={onClose}>
+        <Pressable style={styles.bookFreqSheet} onPress={() => {}}>
+          <View style={styles.bookFreqSheetHeader}>
+            <Text style={styles.freqCoreTitle}>{bookBandLabel(band)}</Text>
+            <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Text style={styles.bookFreqClose}>✕</Text>
+            </Pressable>
+          </View>
+          {failed ? (
+            <Text style={styles.bookFreqStatus}>Failed to load</Text>
+          ) : words === null ? (
+            <ActivityIndicator style={{ marginVertical: 24 }} color={colors.accent} />
+          ) : (
+            <FlatList
+              data={words}
+              keyExtractor={(w) => String(w.rank)}
+              initialNumToRender={20}
+              renderItem={({ item }) => {
+                const state = BOOK_FREQUENCY_STATE_BY_KEY[item.state];
+                const lemmaId = item.lemma_id;
+                return (
+                  <Pressable
+                    style={styles.bookFreqWordRow}
+                    disabled={lemmaId == null}
+                    onPress={() => {
+                      onClose();
+                      router.push(`/word/${lemmaId}`);
+                    }}
+                  >
+                    <Text style={styles.bookFreqWordAr}>{item.lemma_ar}</Text>
+                    <Text style={styles.bookFreqWordGloss} numberOfLines={1}>
+                      {item.gloss_en ?? ""}
+                    </Text>
+                    <Text style={[styles.bookFreqWordState, { color: state.color }]}>{state.label}</Text>
+                  </Pressable>
+                );
+              }}
+            />
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1352,7 +1493,7 @@ function TodayHeroCard({
           />
           {dailyGoal.slow_lane_budget > 0 && (
             <GoalProgressRow
-              label="Slow lane"
+              label="Rare words"
               done={dailyGoal.slow_lane_done}
               target={dailyGoal.slow_lane_budget}
               pct={Math.min(100, (dailyGoal.slow_lane_done / Math.max(dailyGoal.slow_lane_budget, 1)) * 100)}
@@ -1748,6 +1889,22 @@ const styles = StyleSheet.create({
   freqCoreLearnedFill: { height: "100%", backgroundColor: colors.good, borderRadius: 4 },
   freqCoreMissingFill: { position: "absolute", right: 0, top: 0, bottom: 0, backgroundColor: colors.missed, opacity: 0.85 },
   freqCoreBandQuality: { fontSize: 10, color: colors.textSecondary, textAlign: "right" },
+  bookFreqBand: { gap: 6, paddingVertical: 4 },
+  bookFreqPct: { fontSize: 14, color: colors.good, fontWeight: "800" },
+  bookFreqTrack: { flexDirection: "row", height: 9, borderRadius: 5, backgroundColor: colors.surfaceLight, overflow: "hidden" },
+  bookFreqLegend: { flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 2 },
+  bookFreqLegendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  bookFreqDot: { width: 7, height: 7, borderRadius: 4 },
+  bookFreqLegendText: { fontSize: 10, color: colors.textSecondary },
+  bookFreqBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 16 },
+  bookFreqSheet: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, maxHeight: "80%" },
+  bookFreqSheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  bookFreqClose: { fontSize: 18, color: colors.textSecondary },
+  bookFreqStatus: { fontSize: 14, color: colors.textSecondary, textAlign: "center", marginVertical: 24 },
+  bookFreqWordRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, borderTopWidth: 1, borderTopColor: colors.border },
+  bookFreqWordAr: { minWidth: 84, fontSize: 20, color: colors.arabic, fontFamily: fontFamily.arabic, textAlign: "right" },
+  bookFreqWordGloss: { flex: 1, fontSize: 13, color: colors.textSecondary },
+  bookFreqWordState: { fontSize: 11, fontWeight: "600" },
   freqCoreGaps: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
   freqCoreGapTitle: { fontSize: 11, color: colors.textSecondary, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
   freqCoreGapRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },

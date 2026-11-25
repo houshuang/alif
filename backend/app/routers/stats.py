@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, or_
 from collections import Counter
@@ -26,7 +26,9 @@ from app.schemas import (
 )
 from app.services.frequency_lanes import (
     due_lane_snapshot,
+    BOOK_PROGRESS_STATES,
     book_frequency_progress,
+    book_frequency_words,
     lane_ranks,
 )
 from app.services.acquisition_service import (
@@ -1231,6 +1233,25 @@ def get_analytics(
 def get_book_frequency_progress(db: Session = Depends(get_db)) -> dict:
     """Firm / in-review / missing counts per book-frequency band."""
     return book_frequency_progress(db)
+
+
+@router.get("/book-frequency/words")
+def get_book_frequency_words(
+    from_rank: int = Query(1, ge=1),
+    to_rank: int = Query(500, ge=1),
+    state: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Words of one book-frequency band in a state (default: every state but firm)."""
+    if state is not None and state not in BOOK_PROGRESS_STATES:
+        raise HTTPException(
+            status_code=422, detail=f"state must be one of {', '.join(BOOK_PROGRESS_STATES)}")
+    return {
+        "from_rank": from_rank,
+        "to_rank": to_rank,
+        "state": state,
+        "words": book_frequency_words(db, from_rank, to_rank, state),
+    }
 
 
 @router.get("/cefr", response_model=CEFREstimate)

@@ -348,6 +348,39 @@ BOOK_PROGRESS_BANDS = (500, 1000, 2000, 3000, 5000)
 FIRM_STABILITY_DAYS = 30.0
 
 
+BOOK_PROGRESS_STATES = ("firm", "in_review", "acquiring", "suspended", "not_started", "not_in_alif")
+
+
+def _book_entry_state(lemma_id: int | None, knowledge: UserLemmaKnowledge | None) -> str:
+    if lemma_id is None:
+        return "not_in_alif"
+    if knowledge is None or knowledge.knowledge_state in (None, "new", "encountered"):
+        return "not_started"
+    if knowledge.knowledge_state == "suspended":
+        return "suspended"
+    if knowledge.knowledge_state == "acquiring":
+        return "acquiring"
+    card = knowledge.fsrs_card_json
+    if isinstance(card, str):
+        try:
+            card = json.loads(card)
+        except ValueError:
+            card = None
+    stability = (card.get("stability") or 0) if isinstance(card, dict) else 0
+    if knowledge.knowledge_state == "known" and stability >= FIRM_STABILITY_DAYS:
+        return "firm"
+    return "in_review"
+
+
+def _knowledge_by_lemma(db: Session, lemma_ids: set[int]) -> dict[int, UserLemmaKnowledge]:
+    if not lemma_ids:
+        return {}
+    return {
+        k.lemma_id: k
+        for k in db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids))
+    }
+
+
 def book_frequency_progress(db: Session) -> dict:
     """Learner state of every book-list word, per rank band.
 
@@ -358,41 +391,15 @@ def book_frequency_progress(db: Session) -> dict:
     entries = db.query(BookFrequencyEntry.rank, BookFrequencyEntry.lemma_id).filter(
         BookFrequencyEntry.rank <= BOOK_PROGRESS_BANDS[-1]
     ).all()
-    lemma_ids = {lid for _, lid in entries if lid is not None}
-    knowledge = {
-        k.lemma_id: k
-        for k in db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids))
-    } if lemma_ids else {}
-
-    def state(lemma_id: int | None) -> str:
-        if lemma_id is None:
-            return "not_in_alif"
-        k = knowledge.get(lemma_id)
-        if k is None or k.knowledge_state in (None, "new", "encountered"):
-            return "not_started"
-        if k.knowledge_state == "suspended":
-            return "suspended"
-        if k.knowledge_state == "acquiring":
-            return "acquiring"
-        card = k.fsrs_card_json
-        if isinstance(card, str):
-            try:
-                card = json.loads(card)
-            except ValueError:
-                card = None
-        stability = (card or {}).get("stability") or 0 if isinstance(card, dict) else 0
-        if k.knowledge_state == "known" and stability >= FIRM_STABILITY_DAYS:
-            return "firm"
-        return "in_review"
+    knowledge = _knowledge_by_lemma(db, {lid for _, lid in entries if lid is not None})
 
     bands = []
     lower = 0
     for upper in BOOK_PROGRESS_BANDS:
-        counts = {name: 0 for name in (
-            "firm", "in_review", "acquiring", "suspended", "not_started", "not_in_alif")}
+        counts = {name: 0 for name in BOOK_PROGRESS_STATES}
         for rank, lemma_id in entries:
             if lower < rank <= upper:
-                counts[state(lemma_id)] += 1
+                counts[_book_entry_state(lemma_id, knowledge.get(lemma_id))] += 1
         total = sum(counts.values())
         bands.append({
             "from_rank": lower + 1, "to_rank": upper, "total": total, **counts,
@@ -400,3 +407,37 @@ def book_frequency_progress(db: Session) -> dict:
         })
         lower = upper
     return {"version": BOOK_FREQUENCY_VERSION, "active": book_frequency_active(db), "bands": bands}
+
+
+def book_frequency_words(
+    db: Session, from_rank: int, to_rank: int, state: str | None = None,
+) -> list[dict]:
+    """Book-list words of one rank range in ``state``, most frequent first.
+
+    With no ``state`` every word that is not yet firm is returned.
+    """
+    rows = (
+        db.query(BookFrequencyEntry, Lemma)
+        .outerjoin(Lemma, Lemma.lemma_id == BookFrequencyEntry.lemma_id)
+        .filter(BookFrequencyEntry.rank >= from_rank, BookFrequencyEntry.rank <= to_rank)
+        .order_by(BookFrequencyEntry.rank)
+        .all()
+    )
+    knowledge = _knowledge_by_lemma(
+        db, {entry.lemma_id for entry, _ in rows if entry.lemma_id is not None})
+    words = []
+    for entry, lemma in rows:
+        entry_state = _book_entry_state(entry.lemma_id, knowledge.get(entry.lemma_id))
+        wanted = entry_state == state if state else entry_state != "firm"
+        if not wanted:
+            continue
+        words.append({
+            "rank": entry.rank,
+            "lemma_id": entry.lemma_id,
+            "lemma_ar": lemma.lemma_ar if lemma is not None else entry.lemma_key,
+            "gloss_en": lemma.gloss_en if lemma is not None else None,
+            "pos": (lemma.pos if lemma is not None else None) or entry.pos,
+            "count": entry.count,
+            "state": entry_state,
+        })
+    return words
