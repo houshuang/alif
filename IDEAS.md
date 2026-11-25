@@ -1,5 +1,27 @@
 # Alif — Master Ideas File
 
+## 🔵 [DESIGN 2026-11-25 — mockups agreed, not built] Richer missed-word panel: derivation chain, set phrases, forms, root list
+
+Learner's framing (2026-11-25): the review word panel (`WordInfoCard`) is seen constantly, so its
+space should carry the most learning value. Row labels (PARTS/FORMS/ROOT) and the separate expand
+and minimise buttons waste space. Splitting off clitics he knows (ـهَا, ـهُمْ, لِ, ال) is not useful.
+Wanted instead:
+- **Derivation chain** (a short etymology): Form I verb → derived verb → this word, each with a
+  gloss and form tag, e.g. عَلِمَ know → عَلَّمَ teach (II) → مُعَلِّم one who teaches.
+- **Two or three set phrases**: genuinely frequent combinations, not example sentences
+  (وَسَائِلُ التَّوَاصُلِ الاِجْتِمَاعِيِّ "social media"). Every phrase must contain the word or
+  one of its forms.
+- **Other forms** (mu- participles, ‑ing noun, plural) with short glosses.
+- **A scannable list of same-root words** with known/learning/new dots.
+- The form label ("plural", "past · we") goes on the header's meta line, if anywhere.
+- Taller panels are fine if they scroll inside their cap and never cover the sentence.
+
+Three layouts (Columns, Stack, Tree) were compared on 2026-11-25 in a design-explorer review.
+Proposed build: lazy per-lemma enrichment (chain + phrases), prioritised by words in reviewable
+sentences with the lowest stability or open misses, run in background/cron with a daily cap;
+phrases mined from the book-frequency corpus (co-occurrence counts) and only glossed and checked
+by a model; the panel falls back to today's content until a lemma is enriched.
+
 ## 🟡 [IMPLEMENTED 2026-11-20 — readout after 2026-12-04] Closing missed words; fragments as the same-day retry
 
 Learner's framing (2026-11-20): capacity is split between refreshing old words, learning
