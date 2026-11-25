@@ -65,7 +65,7 @@ export default function DockWordPanel({
         onPress={onMinimize}
         accessibilityRole="button"
         accessibilityLabel="Minimize word explanation"
-        hitSlop={{ top: 6, bottom: 2, left: 40, right: 40 }}
+        hitSlop={{ top: 10, bottom: 4, left: 60, right: 60 }}
         style={s.grab}
       >
         <View style={s.grabBar} />
@@ -175,7 +175,7 @@ export default function DockWordPanel({
 }
 
 const s = StyleSheet.create({
-  grab: { alignItems: "center", paddingTop: 6, paddingBottom: 2 },
+  grab: { alignItems: "center", paddingTop: 8, paddingBottom: 6 },
   grabBar: { width: 34, height: 4, borderRadius: 2, backgroundColor: "#3a3a5c" },
   head: { flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 4 },
   lemma: { ...arabicText(28, 42), color: colors.arabic, writingDirection: "rtl", flexShrink: 1 },

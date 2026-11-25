@@ -205,7 +205,7 @@ export default function WordInfoCard({
     // Reading dock: the grab bar minimises, the headword opens the full card.
     const grab = (
       <Pressable accessibilityRole="button" accessibilityLabel="Minimize word explanation" onPress={onMinimize}
-        hitSlop={{ top: 6, bottom: 2, left: 40, right: 40 }} style={miniStyles.grab}>
+        hitSlop={{ top: 10, bottom: 4, left: 60, right: 60 }} style={miniStyles.grab}>
         <View style={miniStyles.grabBar} />
       </Pressable>
     );
@@ -1239,6 +1239,6 @@ const miniStyles = StyleSheet.create({
   actions: { flexDirection: "row" },
   button: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   gloss: { fontSize: 16, fontWeight: "600", color: colors.text },
-  grab: { alignItems: "center", paddingTop: 6, paddingBottom: 2 },
+  grab: { alignItems: "center", paddingTop: 8, paddingBottom: 6 },
   grabBar: { width: 34, height: 4, borderRadius: 2, backgroundColor: "#3a3a5c" },
 });
