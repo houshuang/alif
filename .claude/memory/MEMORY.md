@@ -65,7 +65,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 
 ## Active / in-flight projects
 - [Walk + bridge episodes (LIVE 2026-11-21, feedback pending)](project_walk_episodes.md) — daily two-host audio from firm words, private feed, cron with a stop rule; bridge episodes wrap authentic recordings; open questions to Stian and the readout plan.
-- [Missed-word recovery (LIVE 2026-11-20; phrase trial ended early 2026-11-25)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase follow-ups now for every miss; interval-restore trial and FSRS refit advised against; experiment-log entry "2026-11-25 (2)".
+- [Missed-word recovery (LIVE 2026-11-20; phrase trial ended early 2026-11-25)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase follow-ups now for every miss; red-word naming on; verb-tense phrase trial `verb_phrase_forms_v1` RUNNING (readout ~late Jan 2027); interval-restore trial and FSRS refit advised against; experiment-log entry "2026-11-25 (2)".
 - [Generation changes 18–19 Nov 2026 (measurement OPEN)](project_generation_changes_nov_2026.md) — dense cards, GPT writer, lemma repair, language-only judge; review-side check due after 2026-11-23, plan in experiment-log entry "2026-11-19 (5)".
 - [Codex routing on prod (back on since 2026-11-18)](project_codex_switched_off.md) — where the provider switches live (.env + crontab prefixes); off 11-15→11-18.
 - [Dialect Lines tab (LIVE 2026-11-20, first use pending)](project_dialect_lines.md) — Layl episodes + Egyptian clips as single lines grouped by expression; content in ~/Dropbox/Arabic/dialect-lines, recording/ASR pipeline and keys.

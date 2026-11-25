@@ -32,4 +32,10 @@ Decided against on 2026-11-25 (my calculation, he had asked about it): restoring
 the old interval after a closed miss. History shows 91% recall at 3–10 days and 75% at
 30–90 days after a miss plus two correct reviews, so the short FSRS interval fits.
 Refitting FSRS weights was also advised against (April and June attempts, 18 Nov check).
+Also live since 2026-11-25 (PR #349): red-marked words can be named as mixed up (was
+yellow-only), and the trial `verb_phrase_forms_v1` (half of the verbs, by lemma hash, get
+phrases that must include present-tense forms). Readout at 50 closed verb misses per arm,
+roughly two months; rules in experiment-log entry "2026-11-25 (4)". Stian asked for both
+after the finding that verbs are missed 32–39% against 19–24% for nouns.
+
 Related: [[project-generation-changes-nov-2026]].
