@@ -1,0 +1,122 @@
+{
+ "content_tokens": 172309,
+ "all_tokens": 266211,
+ "tokens_linked": 144214,
+ "tokens_on_verbs": 46101,
+ "derived_tokens_min": 9137,
+ "derived_tokens_max": 12579,
+ "share_content_min_pct": 5.3,
+ "share_content_max_pct": 7.3,
+ "share_of_verb_tokens_min_pct": 19.8,
+ "share_of_verb_tokens_max_pct": 27.3,
+ "tokens_on_forms_without_separate_lemma_min": 8965,
+ "tokens_on_forms_without_separate_lemma_max": 12076,
+ "tokens_with_hamza_mismatch": 294,
+ "by_type_tokens": {
+  "masdar": {
+   "min": 6060,
+   "max": 9183,
+   "unamb": 4022,
+   "wide_extra": 480
+  },
+  "active_participle": {
+   "min": 1511,
+   "max": 1666,
+   "unamb": 1481,
+   "wide_extra": 1186
+  },
+  "passive_participle": {
+   "min": 825,
+   "max": 825,
+   "unamb": 825,
+   "wide_extra": 592
+  },
+  "active_participle+passive_participle": {
+   "min": 683,
+   "max": 683,
+   "unamb": 683,
+   "wide_extra": 692
+  },
+  "masdar+active_participle": {
+   "min": 47,
+   "max": 211,
+   "unamb": 3,
+   "wide_extra": 7
+  },
+  "masdar+passive_participle": {
+   "min": 11,
+   "max": 11,
+   "unamb": 11,
+   "wide_extra": 2
+  }
+ },
+ "wide_extra_total": 2959,
+ "forms_seen_in_book": 1171,
+ "forms_without_separate_lemma": {
+  ">=2": {
+   "min_count": 782,
+   "max_count": 868,
+   "min_count_incl_wide": 918,
+   "min_count_hamza_clean": 772
+  },
+  ">=5": {
+   "min_count": 433,
+   "max_count": 519,
+   "min_count_incl_wide": 571,
+   "min_count_hamza_clean": 426
+  },
+  ">=10": {
+   "min_count": 227,
+   "max_count": 303,
+   "min_count_incl_wide": 320,
+   "min_count_hamza_clean": 222
+  },
+  ">=20": {
+   "min_count": 107,
+   "max_count": 146,
+   "min_count_incl_wide": 155,
+   "min_count_hamza_clean": 105
+  },
+  ">=50": {
+   "min_count": 29,
+   "max_count": 50,
+   "min_count_incl_wide": 39,
+   "min_count_hamza_clean": 28
+  }
+ },
+ "forms_without_separate_lemma_by_type_min": {
+  "active_participle": {
+   ">=5": 75,
+   ">=20": 14
+  },
+  "active_participle+passive_participle": {
+   ">=5": 43,
+   ">=20": 3
+  },
+  "masdar": {
+   ">=5": 274,
+   ">=20": 79
+  },
+  "masdar+active_participle": {
+   ">=5": 2,
+   ">=20": 1
+  },
+  "masdar+passive_participle": {
+   ">=5": 1,
+   ">=20": 0
+  },
+  "passive_participle": {
+   ">=5": 38,
+   ">=20": 10
+  }
+ },
+ "verb_state_of_forms_ge5_min": {
+  "known": 330,
+  "suspended": 34,
+  "lapsed": 19,
+  "acquiring": 7,
+  "encountered": 33,
+  "learning": 6,
+  "no_ulk": 4
+ }
+}

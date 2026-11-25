@@ -1,0 +1,200 @@
+
+====================================================================================================
+1. WHAT EXISTS
+====================================================================================================
+first timed review: 2026-11-21 15:10:38.630548 | last: 2026-11-25 05:49:36.015161
+reading reviews 2026-11-03..snapshot: 624 | with timing object: 165 | eligible: 65
+            reading_reviews  timed  eligible  eligible_share
+day                                                         
+2026-11-21               47     47        21            0.45
+2026-11-22               50     50        23            0.46
+2026-11-23               40     40        13            0.32
+2026-11-24               17     17         6            0.35
+2026-11-25               11     11         2            0.18
+calendar days with timing: 5 (last day 2026-11-25 is a partial morning)
+eligible per day, all 5 days: 13.0; full days only: 15.8
+
+Exclusion reasons among timed, not eligible (a review can carry several):
+  assistance                         98    98% of excluded,   59% of timed
+  assistance_or_unknown              97    97% of excluded,   59% of timed
+  marked_word                        97    97% of excluded,   59% of timed
+  background                          8     8% of excluded,    5% of timed
+  clock_gap                           8     8% of excluded,    5% of timed
+  navigation                          2     2% of excluded,    1% of timed
+  excluded only for marks/help: 91; with an interruption/clock/manual reason: 9
+  timed and 'understood': 70; of those eligible: 65; lost to other reasons: Counter({'assistance': 3, 'background': 3, 'clock_gap': 3, 'assistance_or_unknown': 2, 'marked_word': 2})
+  comprehension of timed: {'partial': 95, 'understood': 70}
+
+Eligible reviews: distributions
+  seconds per sentence : {'p10': 12.8, 'p25': 14.5, 'p50': 17.1, 'p75': 21.9, 'p90': 30.4} min 8.085 max 45.629
+  running words        : {'p10': 6.0, 'p25': 7.0, 'p50': 9.0, 'p75': 10.0, 'p90': 10.6} | letters: {'p10': 27.0, 'p25': 35.0, 'p50': 38.0, 'p75': 43.0, 'p90': 50.2}
+  ms per running word  : {'p10': 1570.8, 'p25': 1900.6, 'p50': 2121.7, 'p75': 2721.8, 'p90': 3424.2}
+  ms per letter        : {'p10': 357.4, 'p25': 387.9, 'p50': 464.2, 'p75': 564.3, 'p90': 695.6}
+  words per minute     : {'p10': 17.5, 'p25': 22.0, 'p50': 28.3, 'p75': 31.6, 'p90': 38.2}
+  distinct sentences among eligible: 65 of 65
+  elapsed_ms vs legacy response_ms (eligible): pearson r = 0.926 | median response_ms - elapsed_ms = 1998.0
+  ms per word, all timed non-eligible 'partial/no_idea' for contrast: {'p10': 2010.4, 'p25': 2257.1, 'p50': 3072.4, 'p75': 3725.2, 'p90': 4491.4}
+
+====================================================================================================
+BASELINE: sentence time as a function of length (eligible only)
+====================================================================================================
+  linear ms ~ words         : intercept     1957 ms, slopes [2095.], R2 0.24
+  linear ms ~ letters       : intercept     2100 ms, slopes [450.], R2 0.26
+  linear ms ~ words+letters : intercept      329 ms, slopes [975. 284.], R2 0.27
+  log ms ~ log letters: exponent 0.90, R2 0.30
+  pace ratio (actual / expected for its length): {'p10': 0.8, 'p25': 0.8, 'p50': 1.0, 'p75': 1.2, 'p90': 1.5} | SD of log pace: 0.299
+  first-ever showing of the sentence: {1: 65} | median pace first-time vs repeat: {1: 1.0}
+  eligible cards with tashkeel shown on the front: {True: 34, False: 31} | median pace: {False: 0.88, True: 1.08}
+  pace vs position in session: spearman [-0.168  0.181] | first card of a session median pace: 1.04 n 7
+  pace by day: {'2026-11-21': 0.85, '2026-11-22': 1.18, '2026-11-23': 0.98, '2026-11-24': 0.97, '2026-11-25': 1.38}
+  day differences: Kruskal-Wallis p=0.001; share of log-pace variance between days 0.29
+  tashkeel shown vs hidden: Mann-Whitney p=0.044 (hidden n=31, shown n=34)
+
+====================================================================================================
+2a. PER-LEMMA MEDIAN over eligible sentences
+====================================================================================================
+content-word tokens in eligible reviews: 433 | distinct lemmas: 377
+  lemmas with >= 1 eligible appearances: 377  (in >= 1 distinct sentences: 377)
+  lemmas with >= 2 eligible appearances: 49  (in >= 2 distinct sentences: 49)
+  lemmas with >= 3 eligible appearances: 3  (in >= 3 distinct sentences: 3)
+  lemmas with >= 5 eligible appearances: 0  (in >= 5 distinct sentences: 0)
+  content lemmas per eligible sentence: {'p10': 5.0, 'p25': 6.0, 'p50': 7.0, 'p75': 7.0, 'p90': 8.0}
+  split-half (ms_per_word, >= 2 appearances): lemmas 49, mean spearman r 0.14, Spearman-Brown full-length 0.25
+  split-half (ms_per_word, >= 4 appearances): lemmas 0, mean spearman r nan, Spearman-Brown full-length nan
+  split-half (pace, >= 2 appearances): lemmas 49, mean spearman r -0.02, Spearman-Brown full-length -0.04
+  split-half (pace, >= 4 appearances): lemmas 0, mean spearman r nan, Spearman-Brown full-length nan
+  validity, lemmas with >= 1 appearances (n=377), Spearman rho (p):
+    ms_per_word : stability -0.01 (p=0.78, n=356); times_seen +0.00 (p=0.99, n=377); lem_letters +0.05 (p=0.31, n=377); book_rank -0.01 (p=0.85, n=353)
+    pace        : stability -0.09 (p=0.08, n=356); times_seen +0.01 (p=0.92, n=377); lem_letters -0.02 (p=0.69, n=377); book_rank -0.01 (p=0.92, n=353)
+  validity, lemmas with >= 3 appearances (n=3), Spearman rho (p):
+    ms_per_word : stability +nan (p=nan, n=3); times_seen +nan (p=nan, n=3); lem_letters +nan (p=nan, n=3); book_rank +nan (p=nan, n=3)
+    pace        : stability +nan (p=nan, n=3); times_seen +nan (p=nan, n=3); lem_letters +nan (p=nan, n=3); book_rank +nan (p=nan, n=3)
+
+====================================================================================================
+2b. REGRESSION / ATTRIBUTION on eligible data
+====================================================================================================
+observations (eligible sentences): 65; per-lemma parameters wanted: 377; lemmas appearing in >= 3 sentences: 3
+ridge on eligible data, 3 lemma effects: 5-fold CV R2 by penalty {1: -0.009, 3: -0.011, 10: -0.012, 30: -0.012, 100: -0.013}  (<= 0 means no better than length alone)
+
+====================================================================================================
+STAND-IN SAMPLE: legacy response_ms on clean reviews since 2026-08-18 (volume test only)
+====================================================================================================
+clean-by-marks reading reviews with response_ms: 839
+after dropping <1.5 s, >120 s and <3-word rows: 778 | days: 75 | first 2026-08-18 last 2026-11-25
+  share of stand-in log-pace variance between calendar weeks: 0.06
+length model: intercept 9725 ms + 472 ms/letter, R2 0.09; SD log pace 0.429
+all timed rows: spearman(elapsed_ms, response_ms) = 0.906 n 165
+stand-in rows on timing days: 68 vs eligible 65 (eligible / clean-by-marks = 0.96)
+distinct lemmas: 1996 | appearances per lemma: {'p10': 1.0, 'p25': 1.0, 'p50': 2.0, 'p75': 3.0, 'p90': 5.0} | lemmas with >=6: 135 >=10: 36 >=20: 2
+split-half reliability of the per-lemma median pace, by appearances per half:
+  >=  1 per half (>=  2 total): lemmas 1167, half-vs-half r +0.07, full-length +0.12
+  >=  2 per half (>=  4 total): lemmas  394, half-vs-half r +0.13, full-length +0.23
+  >=  3 per half (>=  6 total): lemmas  135, half-vs-half r +0.17, full-length +0.29
+  >=  5 per half (>= 10 total): lemmas   36, half-vs-half r +0.13, full-length +0.23
+  >=  8 per half (>= 16 total): lemmas   10, half-vs-half r +0.39, full-length +0.56
+  >= 12 per half (>= 24 total): lemmas    1, half-vs-half r +nan, full-length +nan
+same, exactly k per half (subsample k*2 appearances per lemma) to get reliability at fixed evidence:
+  pace     k=1 appearances per estimate: lemmas 1167, reliability r +0.042
+  pace     k=3 appearances per estimate: lemmas  135, reliability r +0.135
+  pace     k=5 appearances per estimate: lemmas   36, reliability r +0.127
+  pace_dt  k=1 appearances per estimate: lemmas 1167, reliability r +0.038
+  pace_dt  k=3 appearances per estimate: lemmas  135, reliability r +0.093
+  pace_dt  k=5 appearances per estimate: lemmas   36, reliability r +0.115
+  implied between-word SD of log pace: 0.081 (about 1.4 s on a median clean sentence)
+  projected reliability on the CLEAN clock (sentence SD 0.299), Spearman-Brown from one appearance r=0.069:
+    {1: 0.07, 3: 0.18, 5: 0.27, 10: 0.42, 20: 0.6, 30: 0.69, 50: 0.79}
+    chance that a fast/not-fast label (split at the median) repeats on fresh data of the same size (50% = coin): {3: 0.56, 5: 0.59, 10: 0.64, 20: 0.7, 50: 0.79}
+    SD of log pace after removing day means: 0.253
+ridge attribution on stand-in (240 lemmas with >=5 sentences, 778 sentences): CV R2 {3: -0.053, 10: 0.014, 30: 0.018, 100: 0.005, 300: -0.003}
+validity on stand-in, lemmas with >= 5 appearances (n=240), Spearman rho (p):
+  pace vs stability    -0.211 (p=0.001, n=239)
+  pace vs times_seen   -0.190 (p=0.003, n=239)
+  pace vs lem_letters  +0.008 (p=0.897, n=240)
+  pace vs book_rank    +0.136 (p=0.039, n=233)
+
+====================================================================================================
+LATER-MISSED CHECK
+====================================================================================================
+eligible timings: only 2 clean appearances followed by a miss (of 113 with a later review); no test possible
+stand-in response_ms (week-detrended): appearances with a later review 3876; next was a miss 346 (median pace 1.066), next was correct 3530 (median pace 1.001); one-sided Mann-Whitney p=0.030
+   difference in median pace +0.056, 95% sentence-bootstrap interval [-0.016, +0.151]
+
+====================================================================================================
+3. COVERAGE PER BAND
+====================================================================================================
+eligible timed appearances so far (65 reviews over 5 days):
+     band  list  in_app  firm  >=1  >=3  >=5  firm&>=3
+    1-500   500     496   368   81    1    0         1
+ 501-1000   500     471   279   70    0    0         0
+1001-2000  1000     833   422   85    2    0         1
+
+clean-by-marks reading reviews: last 10 days (since 11-16) 211, since timing began 70; eligible/clean ratio 0.93
+eligible rate used for projection: 13.0 per calendar day
+understood reading reviews in history: 8805 over 289 days (30.5 per calendar day all-time)
+  understood reviews last 30 days: 324 = 10.8 per calendar day; x eligible/understood ratio 0.93 = 10.0 eligible per day
+  understood reviews last 90 days: 768 = 8.5 per calendar day; x eligible/understood ratio 0.93 = 7.9 eligible per day
+Replay at 13.0 eligible/day (the 5 days observed): share of band words with >= 3 appearances after N days
+     band                 of 14d 30d 60d 90d 180d 365d
+    1-500       in-app words  4% 17% 36% 52%  70%  88%
+ 501-1000       in-app words  4% 11% 22% 33%  54%  72%
+1001-2000       in-app words  3%  9% 22% 31%  49%  67%
+    1-500 today's firm words  5% 21% 42% 59%  78%  95%
+ 501-1000 today's firm words  5% 13% 26% 40%  64%  86%
+1001-2000 today's firm words  3% 12% 30% 41%  62%  86%
+Replay at 7.9 eligible/day (90-day average activity): share of band words with >= 3 appearances after N days
+     band                 of 14d 30d 60d 90d 180d 365d
+    1-500       in-app words  2%  7% 21% 32%  56%  76%
+ 501-1000       in-app words  1%  5% 15% 20%  39%  60%
+1001-2000       in-app words  1%  4% 11% 19%  36%  54%
+    1-500 today's firm words  2%  9% 25% 39%  64%  83%
+ 501-1000 today's firm words  1%  6% 17% 24%  48%  72%
+1001-2000 today's firm words  1%  5% 15% 26%  47%  67%
+band 1-500: in the last 90 days of clean reviews, 370 of 496 in-app words appeared at all; >=3 times: 174
+band 501-1000: in the last 90 days of clean reviews, 286 of 471 in-app words appeared at all; >=3 times: 102
+band 1001-2000: in the last 90 days of clean reviews, 463 of 833 in-app words appeared at all; >=3 times: 178
+
+====================================================================================================
+4. PROPOSED 'FAST' DEFINITION — today's counts
+====================================================================================================
+baseline today: expected_ms = 2100 + 450 * letters (fit on 65 eligible reviews)
+lemmas (any kind) with >= 5 distinct eligible sentences: 8; meeting the definition: 3
+band                                1-500  501-1000  1001-2000
+list                                  500       500       1000
+in_app                                496       471        833
+firm                                  368       279        422
+enough timing (>=5 sent.)               0         0          0
+firm, enough timing                     0         0          0
+fast                                    0         0          0
+firm and fast                           0         0          0
+firm, measured, not fast                0         0          0
+relaxed to >=3 sentences: measured      1         0          2
+relaxed: firm and measured              1         0          1
+relaxed: firm and fast                  1         0          0
+lemmas labelled fast if sentence paces are shuffled at random (no word effect at all): mean 8.7, 95% range [6, 12] vs observed 8 (relaxed >=3-sentence rule, all lemmas)
+
+noise budget: SD of log pace between eligible sentences = 0.299  (a typical sentence is 35% above or below its expected time)
+  a word that costs 1 s extra in a median sentence (17 s) shifts log pace by 0.057; appearances needed for the word's mean to stand 2 SE clear of baseline: 111
+  a word that costs 2 s extra in a median sentence (17 s) shifts log pace by 0.111; appearances needed for the word's mean to stand 2 SE clear of baseline: 29
+  a word that costs 4 s extra in a median sentence (17 s) shifts log pace by 0.210; appearances needed for the word's mean to stand 2 SE clear of baseline: 8
+
+====================================================================================================
+5. NUMBERS BEHIND THE SUGGESTIONS
+====================================================================================================
+SD of log pace by sentence length (eligible): {Interval(0, 6, closed='right'): {'count': 10, 'std': 0.372}, Interval(6, 8, closed='right'): {'count': 15, 'std': 0.243}, Interval(8, 10, closed='right'): {'count': 33, 'std': 0.276}, Interval(10, 30, closed='right'): {'count': 7, 'std': 0.395}}
+stand-in: SD of log pace by sentence length: {Interval(2, 4, closed='right'): {'count': 18, 'std': 0.462}, Interval(4, 6, closed='right'): {'count': 202, 'std': 0.485}, Interval(6, 8, closed='right'): {'count': 248, 'std': 0.441}, Interval(8, 10, closed='right'): {'count': 240, 'std': 0.39}, Interval(10, 14, closed='right'): {'count': 69, 'std': 0.311}, Interval(14, 40, closed='right'): {'count': 1, 'std': nan}}
+timed reviews per number of marked (rating<3) content tokens:
+   {0: 70, 1: 46, 2: 28, 3: 15, 4: 5, 5: 1}
+   timed reviews with marks but no interruption (clock itself valid): 89; with exactly one marked word and a valid clock: 46
+review_log rows since 2026-11-21 by mode (fragment/quiz are single-word or phrase cards):
+review_mode   n  with_ms
+   fragment  57       57
+       quiz 119      119
+    reading 626      164
+  response_ms on fragment/quiz cards since 11-01: {'p10': 682.0, 'p25': 882.0, 'p50': 1215.0, 'p75': 3478.0, 'p90': 8455.0} n 481
+band 1-500: band words per eligible sentence, mean 1.42
+band 501-1000: band words per eligible sentence, mean 1.28
+band 1001-2000: band words per eligible sentence, mean 1.52
+most-timed lemmas (appearances): [('في', 19), ('الى', 9), ('ثم', 8), ('هذا', 7), ('هناك', 6), ('ايضا', 5), ('على', 5), ('جدا', 5), ('هنا', 4), ('عن', 4), ('شرح', 3), ('لان', 3)]
+word cards (quiz) with response_ms: 1273 on 915 lemmas since 2026-02-13; median ms correct 832, missed 1682
+  word cards: first vs second correct answer on the same word, n=208 words, pearson r = 0.14 (reliability of ONE word-card timing)
+  word cards on band 1-2000 words: 599 on 426 lemmas

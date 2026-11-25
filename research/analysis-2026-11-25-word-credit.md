@@ -77,3 +77,38 @@ is inflated by another word (انتبه by the noun انتباه, جادّ by و
 - Duplicate entries for one word (بلد and بِلاد both canonical), and entries whose headword
   is a plural or feminine.
 - The knowledge already credited to an entry for another word's tokens is left as it is.
+
+## Participles and verbal nouns under their verb (mechanism and size)
+
+Evidence in `research/word-credit-2026-11-25/derived-forms/` (`candidates.tsv`: 1,274
+verb/form pairs ranked by book tokens; `reverse.tsv`; `app_forms.tsv`; scripts).
+
+- **Mechanism.** Enrichment stores `masdar`, `active_participle` and `passive_participle` in
+  nearly every verb's `forms_json` (1,017 / 1,015 / 922 of 1,029 verbs). The lookup builder
+  registers every stored form as a key for the verb in its second pass
+  (`sentence_validator.py` `build_lemma_lookup`); a derived word's own lemma wins only if it
+  exists, because lemma headwords are registered in the first pass. Imports check for an
+  existing lemma through the same lookup (`resolve_existing_lemma`), so a scanned participle
+  matches the verb's key and never gets its own lemma. The variant system is not involved.
+- **No decision to fold exists.** `docs/design-principles.md` says the opposite: participle
+  and verbal noun are "distinct dictionary entries", the masdar has "its own FSRS card". The
+  fold is a side effect of indexing stored forms (February 2026).
+- **Size in book text.** 9,137–12,579 tokens reach a verb through a derived form: 5.3–7.3%
+  of content tokens and 20–27% of all tokens credited to verbs. The range exists because an
+  unvocalised verbal noun spelled like its verb (نظر, علم) cannot be told apart. 433 derived
+  forms occur at least 5 times without their own lemma (107 at least 20 times); 330 of the
+  433 sit under a verb the learner knows.
+- **Size in the app's own sentences.** 4,091 `sentence_words` rows in 3,754 sentences (30
+  currently reviewable); 1,051 review-log rows (1.3%) on 270 verbs; 216 sentences whose verb
+  target appears only as a derived form.
+- **The candidate list is not clean.** Some stored forms catch a different word (the
+  participle of شَنَّ catches 128 tokens of شأن; عَصْر "squeezing" catches عصر "era"), so
+  every row needs a sense check before a lemma is created.
+
+The 421 words created on 2026-11-25 include the derived forms with at least 17 book tokens
+that are spelled differently from their verb. Still open: verbal nouns spelled like their
+verb (عِلْم, نَظَر, بَحْث; 106 of the 433), which need a homograph entry and tie on
+unvocalised text; the forms between 5 and 16 tokens; whether the lookup should stop
+registering derived forms for the verb once the rows exist (ends wrong catches, but leaves a
+derived word without a row unmapped); whether review history moves; and what state a new
+entry starts in when the learner already knows the verb.
