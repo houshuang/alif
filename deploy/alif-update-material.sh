@@ -50,8 +50,8 @@ DEFICIT_REFILL_BUDGET="${ALIF_DEFICIT_REFILL_BUDGET:-30}"
 SHORT_STORY_TIMEOUT_SECONDS="${ALIF_SHORT_STORY_TIMEOUT_SECONDS:-1800}"
 SHORT_STORY_CRON_BUDGET="${ALIF_SHORT_STORY_CRON_BUDGET:-1}"
 SHORT_STORY_MIN_SELECTABLE="${ALIF_SHORT_STORY_MIN_SELECTABLE:-6}"
-WORD_CARD_TIMEOUT_SECONDS="${ALIF_WORD_CARD_TIMEOUT_SECONDS:-900}"
-WORD_CARD_LIMIT="${ALIF_WORD_CARD_LIMIT:-40}"
+WORD_CARD_TIMEOUT_SECONDS="${ALIF_WORD_CARD_TIMEOUT_SECONDS:-3600}"
+WORD_CARD_LIMIT="${ALIF_WORD_CARD_LIMIT:-120}"
 
 # Intro supply chain — keep on by default in the cron context. The values are
 # still overridable from the environment (systemd Environment= or shell export
@@ -101,7 +101,7 @@ run_phase "maintain_short_story_supply.py" \
   "$VENV" scripts/maintain_short_story_supply.py
 
 # Word-panel cards (derivation chain, form glosses, set phrases), most useful
-# words first; 40 words per run fills the active vocabulary over a few weeks.
+# words first; 120 words per run (8 per model call) fills the active vocabulary in about a week.
 run_phase "enrich_word_cards.py" timeout "$WORD_CARD_TIMEOUT_SECONDS" \
   "$VENV" scripts/enrich_word_cards.py --limit "$WORD_CARD_LIMIT"
 
