@@ -1,5 +1,25 @@
 # Alif — Master Ideas File
 
+## 🔴 [FOUND 2026-11-26 — not fixed] Snap/Pre-read store the sentence meaning as the word's gloss
+
+The learner caught أَبْصَرَ (lemma 4990) glossed "was born": created by a Snap Add on 2026-11-24
+from «اللذين أبصرا النور». `_gloss()` in `routers/discover.py` asks for the gloss "AS USED in its
+example clause … the core meaning in context" (claude_haiku), and that answer becomes the
+lemma's permanent `gloss_en`; no quality gate caught it. Wrong glosses entering the general
+vocabulary are serious: every later card and lookup for the word teaches the wrong meaning.
+
+Of ~59 non-name lemmas created by `snap`/`preread`, at least 7 carry a sentence meaning or a
+non-citation form: 4990 أَبْصَرَ "was born", 5009 جَارَى "be matched or rivaled", 4996 مَطَاف
+"journey", 4992 تَعَاقُد "contractual employment", 4999 يُثِيرُ (present form as lemma),
+4998 مُعَايَنَات (plural as lemma), 4806 قِيل (passive verb stored as a noun). Bookifier (185)
+and Dragoman (19) lemmas used the same gloss function and need the same audit.
+
+- Fix the prompt: a general dictionary gloss that includes the sense used here; an idiom
+  (أبصر النور "was born") goes to the word card's set phrases, never into `gloss_en`.
+- Add a gate: an independent check that the stored gloss is a dictionary meaning of the
+  citation form, and that the citation form is one (no plurals, present tense, passives).
+- Audit and repair existing discover-created lemmas (backup first; log via `log_activity`).
+
 ## 🔵 [PROPOSED 2026-11-26 — prototype in review] Snap: instant word taps and known-word evidence
 
 Taps on Snap words wait for a per-tap sense check (Sonnet via Claude CLI, median 4.1 s, ≈5.8 s
