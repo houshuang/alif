@@ -415,6 +415,8 @@ def discover_words_in_text(
         if entry:
             if entry.get("db_lemma_id") == existing_id:
                 entry["tied"].extend(t for t in tied if t not in entry["tied"])
+                if existing is not None and not provenance.is_guess:
+                    entry["guess"] = False
             entry["count"] += 1
             entry["surfaces"][tok] = entry["surfaces"].get(tok, 0) + 1
             # A confident CAMeL analysis upgrades an earlier surface-fallback guess.
@@ -431,6 +433,9 @@ def discover_words_in_text(
                 "register": existing.register if existing is not None else None,
                 "dialect": existing.dialect if existing is not None else None,
                 "db_lemma_id": existing_id if existing is not None else None,
+                # Only CAMeL's last resort matched (no vocabulary key): the
+                # sense checks are told to look harder.
+                "guess": existing is not None and provenance.is_guess,
                 # Same-spelling entries the token could not rule out.
                 "tied": list(tied),
             }
@@ -536,6 +541,7 @@ def discover_words_in_text(
                 "homograph_candidates": (
                     v["tied"] if state_id is not None and state_id == v["db_lemma_id"] else []
                 ),
+                "match_guess": bool(v.get("guess")) and state_id == v["db_lemma_id"],
             }
         )
     return words
@@ -883,7 +889,7 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
     for i, w in enumerate(matched):
         item = {"index": i, "lemma_id": w.get("lemma_id"), "lemma_ar": w["lemma_ar"],
                 "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
-                "forms": w.get("surface_forms") or [w["surface"]]}
+                "forms": w.get("surface_forms") or [w["surface"]], "guess": w.get("match_guess")}
         candidates = load_candidates(db, w.get("homograph_candidates"))
         if candidates:
             item["candidates"] = candidates

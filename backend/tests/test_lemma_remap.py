@@ -144,3 +144,10 @@ def test_neither_without_an_existing_word_changes_nothing(db_session, monkeypatc
     assert db_session.get(SentenceWord, sw_river.id).lemma_id == day.lemma_id
     assert all(v.repair_checked_at is not None and v.repair_lemma_id is None
                for v in db_session.query(LemmaRemapVerdict))
+
+
+def test_same_citation_tolerates_a_missing_mark_but_not_a_contradiction():
+    assert lemma_remap.same_citation("داخِلِيّ", "دَاخِلِيّ")
+    assert not lemma_remap.same_citation("ظَهَرَ", "ظَهْر")
+    assert not lemma_remap.same_citation("مَلِك", "مَلَكَ")
+    assert not lemma_remap.same_citation("نُصْب", "نَصَبَ")

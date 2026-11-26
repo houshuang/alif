@@ -118,6 +118,21 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (12): Missing words from the remap; last OCR-audit items
+
+- 23 words the remap judge named but the vocabulary lacked (مَلَكَ "to own", مَرَّ "to pass",
+  ظَهْر "back", عَالِم "scholar", بَرَكَة "blessing" …) staged through `stage_word_list.py`
+  (`data/word_lists/remap_gap_words_2026-11-26.tsv`, source `link_remap`); rare homographs of
+  frequent words left out (كَادَ "to plot", تَلَّ, نُصْب "hardship", قَرَّ). Derived words seeded
+  from their verb per the 2026-11-25 rule. `resolve_repairs` accepts a stored headword missing a
+  vowel mark (`same_citation`, داخِلِيّ = دَاخِلِيّ) and rechecks unresolved repairs each pass.
+- `check_senses` gets the per-tap check's clitic/root examples and a "[guessed match]" marker for
+  CAMeL-only matches (Snap, chips, pre-read).
+- `bookify_arabic.py`: lookup keeps the token's vowels and treats CAMeL guesses as no match;
+  `introduce` seeds knowledge rows on canonical lemmas.
+- Failure behaviour of every intake check documented in `docs/backend-services.md`.
+Branch `sh/remap-missing-words`.
+
 ## 2026-11-26 (11): Stale-link remap repairs "neither" links to the named existing word
 
 The first remap left 62 distinct "neither" verdicts: the stored link and the proposed one were
