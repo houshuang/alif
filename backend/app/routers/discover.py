@@ -902,8 +902,9 @@ def get_snap_prematch(
     """Every word of a saved page, matched and sense-checked in the background
     after OCR: ``{"status": "pending"|"ready"|"failed", "words": {surface:
     {word, sense?}}}``, in the shapes /lookup and /lookup/sense return. A page
-    without a pass (snapped before it existed) gets one started here."""
-    from app.services.snap_prematch import PREMATCH_VERSION, is_running, run_prematch
+    without a pass (snapped before it existed), or whose pass failed ten or more
+    minutes ago, gets one started here."""
+    from app.services.snap_prematch import is_running, needs_pass, run_prematch
 
     page = db.get(SnapPage, snap_id)
     if page is None:
@@ -911,7 +912,7 @@ def get_snap_prematch(
     pm = page.prematch_json or {}
     if is_running(snap_id):
         return {"status": "pending"}
-    if pm.get("version") != PREMATCH_VERSION:
+    if needs_pass(pm):
         background_tasks.add_task(run_prematch, snap_id)
         return {"status": "pending"}
     if pm.get("status") != "ready":

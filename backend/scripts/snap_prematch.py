@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.database import SessionLocal  # noqa: E402
 from app.models import SnapPage  # noqa: E402
-from app.services.snap_prematch import PREMATCH_VERSION, run_prematch  # noqa: E402
+from app.services.snap_prematch import needs_pass, run_prematch  # noqa: E402
 
 
 def main() -> None:
@@ -32,7 +32,7 @@ def main() -> None:
     try:
         if args.missing:
             ids = [p.id for p in db.query(SnapPage).order_by(SnapPage.id)
-                   if (p.prematch_json or {}).get("version") != PREMATCH_VERSION]
+                   if needs_pass(p.prematch_json)]
         else:
             ids = args.snap_id
     finally:

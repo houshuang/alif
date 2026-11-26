@@ -23,7 +23,7 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.database import SessionLocal
 from app.models import SnapPage
@@ -31,6 +31,8 @@ from app.models import SnapPage
 logger = logging.getLogger(__name__)
 
 PREMATCH_VERSION = 1
+# A failed pass is retried when the page is opened again after this long.
+RETRY_FAILED_AFTER = timedelta(minutes=10)
 # Surfaces per sense-check call; a page has about 100, so three calls in parallel.
 SENSE_CHUNK = 40
 _MAX_PAGE_WORDS = 1000
@@ -54,12 +56,31 @@ def run_prematch(snap_id: int) -> None:
         result = prematch_page(snap_id)
     except Exception:
         logger.exception("snap prematch failed for page %s", snap_id)
-        result = {"status": "failed", "version": PREMATCH_VERSION}
+        result = _failed()
     try:
         _store(snap_id, result)
     finally:
         with _lock:
             _running.discard(snap_id)
+
+
+def _failed() -> dict:
+    return {"status": "failed", "version": PREMATCH_VERSION,
+            "finished_at": datetime.now(timezone.utc).isoformat()}
+
+
+def needs_pass(pm: dict | None, now: datetime | None = None) -> bool:
+    """No current pass on the page, or a failed one old enough to retry."""
+    pm = pm or {}
+    if pm.get("version") != PREMATCH_VERSION:
+        return True
+    if pm.get("status") != "failed":
+        return False
+    try:
+        finished = datetime.fromisoformat(pm["finished_at"])
+    except (KeyError, TypeError, ValueError):
+        return True
+    return (now or datetime.now(timezone.utc)) - finished >= RETRY_FAILED_AFTER
 
 
 def _store(snap_id: int, result: dict) -> None:
@@ -151,7 +172,7 @@ def prematch_page(snap_id: int) -> dict:
     started = time.monotonic()
     text = _page_text(snap_id)
     if not text:
-        return {"status": "failed", "version": PREMATCH_VERSION}
+        return _failed()
 
     matched, items, owners = _database_matches(text)
     # The gloss for unmatched words and the sense checks run side by side.

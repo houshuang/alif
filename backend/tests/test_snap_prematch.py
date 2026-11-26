@@ -123,6 +123,18 @@ def test_endpoint_starts_a_pass_and_reports_current_states(client, db_session, m
     assert client.get("/api/discover/snaps/999999/prematch").status_code == 404
 
 
+def test_failed_pass_is_retried_after_a_while():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    failed = snap_prematch._failed()
+    assert snap_prematch.needs_pass(None)
+    assert snap_prematch.needs_pass({"status": "ready", "version": 0})
+    assert not snap_prematch.needs_pass({"status": "ready", "version": snap_prematch.PREMATCH_VERSION})
+    assert not snap_prematch.needs_pass(failed, now)
+    assert snap_prematch.needs_pass(failed, now + timedelta(minutes=11))
+
+
 def test_snap_schedules_the_pass(client, db_session, monkeypatch):
     from starlette.background import BackgroundTasks
 
