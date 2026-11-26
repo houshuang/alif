@@ -247,12 +247,8 @@ def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: lis
     """Quality-gate new lemmas, generate review sentences in batches for every
     word that has fewer than the minimum, then regenerate memory hooks cleared
     by a regloss."""
-    from sqlalchemy import exists, or_
-
-    from app.models import Sentence, SentenceWord
     from app.services.lemma_quality import run_quality_gates
-    from app.services.material_generator import MIN_SENTENCES_PER_WORD, batch_generate_material
-    from app.services.sentence_eligibility import reviewable_sentence_clauses
+    from app.services.material_generator import ensure_material
 
     if new_ids:
         db = SessionLocal()
@@ -265,36 +261,10 @@ def _prepare_material(new_ids: list[int], existing_ids: list[int], hook_ids: lis
         finally:
             db.close()
 
-    db = SessionLocal()
     try:
-        needy = []
-        for lid in new_ids + existing_ids:
-            have = (
-                db.query(Sentence.id)
-                .filter(
-                    reviewable_sentence_clauses(),
-                    or_(
-                        Sentence.target_lemma_id == lid,
-                        exists().where(
-                            SentenceWord.sentence_id == Sentence.id,
-                            SentenceWord.lemma_id == lid,
-                        ),
-                    ),
-                )
-                .limit(MIN_SENTENCES_PER_WORD)
-                .count()
-            )
-            if have < MIN_SENTENCES_PER_WORD:
-                needy.append(lid)
-    finally:
-        db.close()
-    for i in range(0, len(needy), 10):
-        chunk = needy[i:i + 10]
-        try:
-            res = batch_generate_material(chunk, count_per_word=MIN_SENTENCES_PER_WORD)
-            logger.info("preread material batch %s: %s", chunk, res)
-        except Exception as e:
-            logger.warning("preread material batch failed for %s: %s", chunk, e)
+        logger.info("preread material: %s", ensure_material(new_ids + existing_ids))
+    except Exception as e:
+        logger.warning("preread material failed: %s", e)
 
     try:
         from app.services.material_generator import generate_paired_material

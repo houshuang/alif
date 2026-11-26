@@ -3328,3 +3328,71 @@ def _generate_audio_for_lemma(db, lemma_id: int) -> None:
         db.commit()
     finally:
         loop.close()
+
+
+def sentence_shortfall(db, lemma_ids: list[int]) -> dict[int, int]:
+    """Words with fewer than MIN_SENTENCES_PER_WORD reviewable sentences, and
+    how many each lacks. A sentence counts when the word is its target or one
+    of its words (a word practised only as collateral still gets practice)."""
+    from sqlalchemy import exists, or_
+
+    from app.models import Sentence, SentenceWord
+    from app.services.sentence_eligibility import reviewable_sentence_clauses
+
+    out: dict[int, int] = {}
+    for lid in dict.fromkeys(lemma_ids):
+        have = (
+            db.query(Sentence.id)
+            .filter(
+                reviewable_sentence_clauses(),
+                or_(
+                    Sentence.target_lemma_id == lid,
+                    exists().where(SentenceWord.sentence_id == Sentence.id, SentenceWord.lemma_id == lid),
+                ),
+            )
+            .limit(MIN_SENTENCES_PER_WORD)
+            .count()
+        )
+        if have < MIN_SENTENCES_PER_WORD:
+            out[lid] = MIN_SENTENCES_PER_WORD - have
+    return out
+
+
+def ensure_material(lemma_ids: list[int]) -> dict:
+    """Give each word enough reviewable sentences: batches of BATCH_WORD_SIZE
+    through the verified batch path when three or more words need them, with a
+    single-word fallback for words a batch failed; single-word generation for
+    fewer. Shared by the textbook scan, Snap/discover adds and pre-read. Own
+    session; the read is closed before any model call."""
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        needed = sentence_shortfall(db, lemma_ids)
+    finally:
+        db.close()
+    stats = {"checked": len(set(lemma_ids)), "needing": len(needed), "generated": 0, "failed": 0}
+    if not needed:
+        return stats
+    ids = list(needed)
+    singles: list[int] = []
+    if len(ids) >= 3:
+        for i in range(0, len(ids), BATCH_WORD_SIZE):
+            chunk = ids[i:i + BATCH_WORD_SIZE]
+            try:
+                result = batch_generate_material(chunk, count_per_word=MIN_SENTENCES_PER_WORD)
+                stats["generated"] += result.get("generated", 0)
+                singles.extend(result.get("words_failed", []))
+            except Exception:
+                logger.exception("material batch failed for %s", chunk)
+                singles.extend(chunk)
+    else:
+        singles = ids
+    for lid in singles:
+        try:
+            stats["generated"] += generate_material_for_word(lid, needed=needed.get(lid, MIN_SENTENCES_PER_WORD))
+        except Exception:
+            stats["failed"] += 1
+            logger.exception("material generation failed for %s", lid)
+    logger.info("ensure_material: %s", stats)
+    return stats

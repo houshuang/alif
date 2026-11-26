@@ -118,6 +118,17 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (10): Textbook scan on one path with a sense gate; shared sentence top-up
+
+OCR audit gaps 7, 9, 10. The live `process_batch` enrolled any plain bare-form match (مَلِك "king"
+→ the stored مَلَك "angel") and stored the scanned surface as headword; only the dead
+`process_textbook_page` had the headword fix. Now `process_textbook_page` wraps `process_batch`
+(all 36 of its tests pass on the live path), plain matches go through the `/add` gloss/POS gate,
+and new words get CAMeL's vocalized headword. Three drifted "enough sentences?" checks became
+`material_generator.ensure_material`. Uthmani open tanween (U+0657/065E/0656) is folded in the
+stale-link remap, which covers the last four أَنۡهَٰرٗا rows on the next cron. Branch
+`sh/textbook-one-path`.
+
 ## 2026-11-26 (9): Names are names in the page check
 
 On a test snap the chips offered «رُوزِي» ("Rosie (personal name)") as a word to learn: the batched

@@ -1133,42 +1133,15 @@ def _gate_and_generate(lemma_ids: list[int]) -> None:
 
 def _ensure_material(lemma_ids: list[int]) -> None:
     """Background: give each newly acquiring existing word enough review
-    sentences. A word that already existed skips quality gating, but it may
-    have no reviewable sentence, and an acquiring word without one is never
-    practised. Own session; the read is closed before any LLM call."""
-    from sqlalchemy import exists, or_
+    sentences (shared ``material_generator.ensure_material``). A word that
+    already existed skips quality gating, but it may have no reviewable
+    sentence, and an acquiring word without one is never practised."""
+    from app.services.material_generator import ensure_material
 
-    from app.models import Sentence, SentenceWord
-    from app.services.sentence_eligibility import reviewable_sentence_clauses
-
-    db = SessionLocal()
     try:
-        missing = []
-        for lid in lemma_ids:
-            have = (
-                db.query(Sentence.id)
-                .filter(
-                    reviewable_sentence_clauses(),
-                    or_(
-                        Sentence.target_lemma_id == lid,
-                        exists().where(
-                            SentenceWord.sentence_id == Sentence.id,
-                            SentenceWord.lemma_id == lid,
-                        ),
-                    ),
-                )
-                .limit(MIN_SENTENCES_PER_WORD)
-                .count()
-            )
-            if have < MIN_SENTENCES_PER_WORD:
-                missing.append((lid, MIN_SENTENCES_PER_WORD - have))
-    finally:
-        db.close()
-    for lid, needed in missing:
-        try:
-            generate_material_for_word(lid, needed=needed)
-        except Exception as e:
-            logger.warning("discover material gen failed for %s: %s", lid, e)
+        ensure_material(lemma_ids)
+    except Exception as e:
+        logger.warning("discover material gen failed for %s: %s", lemma_ids, e)
 
 
 def _create_and_introduce(

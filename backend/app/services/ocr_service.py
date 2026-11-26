@@ -965,380 +965,21 @@ def process_textbook_page(
     image_bytes: bytes,
     preserve_known: bool = False,
 ) -> None:
-    """Process a single textbook page image: OCR, match words, import new ones.
-
-    This runs as a background task. Updates the PageUpload record with results.
-    Triggers sentence generation for imported words. The preserve_known flag is
-    kept for old callers, but textbook scans now always enter as encountered
-    new-word candidates rather than known review cards.
-    """
-    _ = preserve_known
-    try:
-        upload.status = "processing"
-        db.commit()
-
-        # Extract words from image (3-step pipeline)
-        extracted, page_number = extract_words_from_image(image_bytes)
-        upload.textbook_page_number = page_number
-        if not extracted:
-            upload.status = "completed"
-            upload.extracted_words_json = []
-            upload.new_words = 0
-            upload.existing_words = 0
-            upload.completed_at = datetime.now(timezone.utc)
-            db.commit()
-            return
-
-        # Quality gate: filter out junk + classify (names, sounds)
-        from app.services.import_quality import classify_lemmas
-        useful, rejected = classify_lemmas([
-            {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
-            for w in extracted
-        ])
-        _category_by_bare, _cleaned_by_bare = _build_import_category_maps(useful)
-        if rejected:
-            rejected_bares = {r["arabic"] for r in rejected}
-            extracted = [w for w in extracted if w.get("arabic_bare", "") not in rejected_bares]
-
-        # Build lookup for existing lemmas
-        all_lemmas = db.query(Lemma).all()
-        lemma_lookup = build_lemma_lookup(all_lemmas)
-
-        # Also build a bare→lemma map for quick dedup
-        bare_to_lemma: dict[str, Lemma] = {}
-        for lemma in all_lemmas:
-            bare_to_lemma[lemma.lemma_ar_bare] = lemma
-
-        knowledge_map: dict[int, UserLemmaKnowledge] = {}
-        for ulk in db.query(UserLemmaKnowledge).all():
-            knowledge_map[ulk.lemma_id] = ulk
-        scan_accepted, scan_skip = _check_scan_guesses(db, extracted, lemma_lookup)
-
-        results = []
-        new_count = 0
-        existing_count = 0
-        new_lemma_ids: list[int] = []
-        textbook_lemma_ids: set[int] = set()
-
-        seen_bares: set[str] = set()  # dedup within this page
-
-        for word_data in extracted:
-            arabic = word_data.get("arabic", "").strip()
-            if not arabic:
-                continue
-
-            # Sanitize: strip punctuation, reject multi-word + letter-free tokens
-            arabic, san_warnings = sanitize_arabic_word(arabic)
-            if (
-                not arabic
-                or "multi_word" in san_warnings
-                or "too_short" in san_warnings
-                or "no_letters" in san_warnings
-            ):
-                continue
-
-            # Compute bare form and get base_lemma from morphological analysis
-            bare = compute_bare_form(arabic)
-            base_lemma_bare = word_data.get("base_lemma")  # from Step 2 morphology
-            alias = resolve_exact_running_text_alias(arabic, lemma_lookup)
-
-            # Skip function words (check both bare and base_lemma)
-            if alias.applicable:
-                if alias.lemma_id is None or alias.is_function_word:
-                    continue
-            else:
-                if _is_function_word(bare):
-                    continue
-                if base_lemma_bare and _is_function_word(base_lemma_bare):
-                    continue
-
-            # Dedup: use base_lemma if available, fall back to bare
-            dedup_key = (
-                f"lemma:{alias.lemma_id}"
-                if alias.applicable
-                else base_lemma_bare or bare
-            )
-            if dedup_key in seen_bares:
-                continue
-            seen_bares.add(dedup_key)
-            if base_lemma_bare and bare != base_lemma_bare:
-                seen_bares.add(bare)
-
-            # Try to find existing lemma — try base_lemma first, then bare
-            lemma_id = alias.lemma_id if alias.applicable else None
-            if not alias.applicable:
-                guess_key = (base_lemma_bare, bare)
-                if guess_key in scan_skip:
-                    continue
-                lemma_id = scan_accepted.get(guess_key) or _lookup_vocabulary_match(
-                    base_lemma_bare, bare, lemma_lookup, arabic
-                )
-
-            if lemma_id:
-                # If lookup landed on a variant, redirect to its canonical so
-                # we never create or update a variant-scoped ULK row.
-                from app.services.canonical_resolution import resolve_canonical_lemma_id
-                lemma_id = resolve_canonical_lemma_id(db, lemma_id)
-
-                # Existing word — increment encounter count
-                lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                ulk = knowledge_map.get(lemma_id)
-
-                if ulk:
-                    ulk = _record_textbook_encounter(db, lemma_id)
-                    lemma_id = ulk.lemma_id
-                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                    knowledge_map[lemma_id] = ulk
-                    textbook_lemma_ids.add(lemma_id)
-                    existing_count += 1
-                    results.append({
-                        "arabic": lemma.lemma_ar if lemma else arabic,
-                        "arabic_bare": bare,
-                        "english": lemma.gloss_en if lemma else word_data.get("english"),
-                        "status": "existing",
-                        "lemma_id": lemma_id,
-                        "knowledge_state": ulk.knowledge_state,
-                    })
-                else:
-                    # Lemma exists but no knowledge record
-                    new_ulk = _record_textbook_encounter(db, lemma_id)
-                    lemma_id = new_ulk.lemma_id
-                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                    textbook_lemma_ids.add(lemma_id)
-                    knowledge_map[lemma_id] = new_ulk
-                    existing_count += 1
-                    results.append({
-                        "arabic": lemma.lemma_ar if lemma else arabic,
-                        "arabic_bare": bare,
-                        "english": lemma.gloss_en if lemma else word_data.get("english"),
-                        "status": "existing",
-                        "lemma_id": lemma_id,
-                        "knowledge_state": new_ulk.knowledge_state,
-                    })
-            else:
-                # New word — create lemma + knowledge record
-                # Use base_lemma for the canonical bare form if available
-                import_bare = base_lemma_bare if base_lemma_bare else bare
-                # Apply LLM-cleaned bare form if available (fixes ال-prefix, ه→ة)
-                if import_bare in _cleaned_by_bare:
-                    import_bare = _cleaned_by_bare[import_bare]
-                english = (word_data.get("english") or "").strip()
-                pos = word_data.get("pos")
-                root_str = word_data.get("root")
-                # Prefer CAMeL's vocalized lex for the headword when its
-                # stripped bare matches our chosen import_bare. This avoids
-                # storing al-prefixed surfaces like 'الْمَاشِي' as the
-                # displayed lemma_ar when CAMeL clearly canonicalized to
-                # 'ماشِي' (prc0='Al_det'). Falls back to the OCR surface if
-                # CAMeL gave nothing or its stripped form would change the
-                # bare key.
-                import_lemma_ar = arabic
-                base_voc = word_data.get("base_lemma_vocalized")
-                if base_voc and normalize_alef(strip_diacritics(base_voc)) == normalize_alef(import_bare):
-                    import_lemma_ar = base_voc
-
-                # Never create a Lemma without an English gloss
-                if not english:
-                    logger.warning("Skipping lemma creation for %s: no English gloss", arabic)
-                    results.append({
-                        "arabic": arabic,
-                        "arabic_bare": bare,
-                        "english": "",
-                        "status": "skipped_no_gloss",
-                    })
-                    continue
-
-                # Find or create root (with validation)
-                root_id = None
-                root_obj = find_or_create_root(db, root_str) if root_str else None
-                if root_obj is not None:
-                    root_id = root_obj.root_id
-
-                word_cat = _storage_word_category(_category_by_bare, import_bare, bare)
-                pos = _normalize_import_pos(pos, word_cat)
-                lemma_gloss = english
-                if word_cat == "proper_name" and english and not english.startswith("(name)"):
-                    lemma_gloss = f"(name) {english}"
-
-                new_lemma = Lemma(
-                    lemma_ar=import_lemma_ar,
-                    lemma_ar_bare=import_bare,
-                    root_id=root_id,
-                    pos=pos,
-                    gloss_en=lemma_gloss,
-                    source="textbook_scan",
-                    word_category=word_cat,
-                )
-                db.add(new_lemma)
-                db.flush()
-
-                new_ulk = _record_textbook_encounter(db, new_lemma.lemma_id)
-                textbook_lemma_ids.add(new_ulk.lemma_id)
-
-                # Update lookup for subsequent words in same batch
-                lemma_lookup[import_bare] = new_lemma.lemma_id
-                if import_bare != bare:
-                    lemma_lookup[bare] = new_lemma.lemma_id
-                if import_bare.startswith("ال") and len(import_bare) > 2:
-                    lemma_lookup[import_bare[2:]] = new_lemma.lemma_id
-                else:
-                    lemma_lookup["ال" + import_bare] = new_lemma.lemma_id
-                knowledge_map[new_lemma.lemma_id] = new_ulk
-                bare_to_lemma[import_bare] = new_lemma
-
-                new_count += 1
-                new_lemma_ids.append(new_lemma.lemma_id)
-                results.append({
-                    "arabic": arabic,
-                    "arabic_bare": import_bare,
-                    "english": english,
-                    "status": "new",
-                    "lemma_id": new_lemma.lemma_id,
-                    "knowledge_state": new_ulk.knowledge_state,
-                    "root": root_str,
-                    "pos": pos,
-                })
-
-        # Update the upload record
-        upload.status = "completed"
-        upload.extracted_words_json = results
-        upload.new_words = new_count
-        upload.existing_words = existing_count
-        upload.completed_at = datetime.now(timezone.utc)
-        db.commit()
-
-        # Run centralized quality gates (finalize + variants + enrich + stamp)
-        variants_detected = 0
-        variant_ids: set[int] = set()
-        if new_lemma_ids:
-            from app.services.lemma_quality import run_quality_gates
-            gate_result = run_quality_gates(db, new_lemma_ids)
-            variants_detected = gate_result.get("variants", 0)
-
-            if variants_detected:
-                variant_lemmas = db.query(Lemma).filter(
-                    Lemma.lemma_id.in_(new_lemma_ids),
-                    Lemma.canonical_lemma_id.isnot(None),
-                ).all()
-                variant_ids = {vl.lemma_id for vl in variant_lemmas}
-                for vlem in variant_lemmas:
-                    vulk = knowledge_map.get(vlem.lemma_id)
-                    if vulk and vulk.knowledge_state not in ("suspended",):
-                        vulk.knowledge_state = "encountered"
-                        vulk.fsrs_card_json = None
-                        vulk.last_reviewed = None
-                        vulk.experiment_group = None
-                        vulk.experiment_intro_shown_at = None
-                        vulk.acquisition_box = None
-                        vulk.acquisition_next_due = None
-                        vulk.acquisition_started_at = None
-                        vulk.entered_acquiring_at = None
-                        vulk.introduced_at = None
-                    if vlem.canonical_lemma_id:
-                        canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
-                        textbook_lemma_ids.add(canonical_ulk.lemma_id)
-                db.commit()
-
-        log_interaction(
-            event="textbook_page_processed",
-            upload_id=upload.id,
-            new_words=new_count,
-            existing_words=existing_count,
-            total_extracted=len(extracted),
-            variants_detected=variants_detected,
-        )
-
-        # Commit before backfill_root_meanings which makes LLM calls
-        db.commit()
-        backfill_root_meanings(db)
-        db.commit()
-
-        # Generate material for textbook words so they can later enter the
-        # normal new-word acquisition path with ready sentence practice.
-        if not variant_ids and new_lemma_ids:
-            variant_ids = {
-                r[0] for r in db.query(Lemma.lemma_id)
-                .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
-                .all()
-            }
-        gen_ids = [lid for lid in set(new_lemma_ids) | textbook_lemma_ids if lid not in variant_ids]
-        _schedule_material_generation(db, gen_ids)
-
-    except Exception as e:
-        logger.exception(f"Failed to process textbook page upload {upload.id}: {e}")
-        upload.status = "failed"
-        upload.error_message = str(e)[:500]
-        db.commit()
+    """Process one textbook page image: the single-page form of
+    ``process_batch`` (one import path, so a fix there covers both). Updates
+    the PageUpload record with results."""
+    process_batch(db, upload.batch_id, [(upload.filename, image_bytes)], preserve_known)
+    db.refresh(upload)
 
 
 def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
-    """Generate sentences for words touched by a textbook scan.
+    """Generate sentences for words touched by a textbook scan (shared
+    ``material_generator.ensure_material``). Commits first: no write lock is
+    held across the model calls."""
+    from app.services.material_generator import ensure_material
 
-    Uses batch generation (2 CLI calls for ~15 words) when ≥3 words need
-    sentences. Falls back to single-word generation for small batches and
-    for words that fail in the batch.
-    """
-    from sqlalchemy import func
-
-    from app.services.material_generator import (
-        batch_generate_material,
-        BATCH_WORD_SIZE,
-        generate_material_for_word,
-    )
-
-    # Filter to words that actually need sentences
-    words_needing: list[int] = []
-    for lemma_id in lemma_ids:
-        existing_count = (
-            db.query(func.count(Sentence.id))
-            .filter(
-                Sentence.target_lemma_id == lemma_id,
-                reviewable_sentence_clauses(),
-            )
-            .scalar() or 0
-        )
-        if existing_count < MIN_SENTENCES_PER_WORD:
-            words_needing.append(lemma_id)
-
-    if not words_needing:
-        logger.info("Post-scan generation: all %d words already have sentences", len(lemma_ids))
-        return
-
-    if len(words_needing) >= 3:
-        # Batch path: 2 CLI calls per chunk of ~15 words
-        total_generated = 0
-        total_failed = 0
-        for i in range(0, len(words_needing), BATCH_WORD_SIZE):
-            chunk = words_needing[i:i + BATCH_WORD_SIZE]
-            result = batch_generate_material(chunk, count_per_word=MIN_SENTENCES_PER_WORD)
-            total_generated += result.get("generated", 0)
-            # Single-word fallback for words that failed in the batch
-            for lid in result.get("words_failed", []):
-                try:
-                    stored = generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
-                    total_generated += stored
-                except Exception:
-                    total_failed += 1
-                    logger.exception("Single-word fallback failed for %d", lid)
-        logger.info(
-            "Post-scan batch generation: %d sentences generated, %d words failed, %d skipped",
-            total_generated, total_failed, len(lemma_ids) - len(words_needing),
-        )
-    else:
-        # Small batch: single-word path
-        generated = 0
-        failed = 0
-        for lid in words_needing:
-            try:
-                stored = generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
-                generated += stored
-            except Exception:
-                failed += 1
-                logger.exception("Material generation failed for OCR word %d", lid)
-        logger.info(
-            "Post-scan generation: %d sentences generated, %d words failed, %d skipped",
-            generated, failed, len(lemma_ids) - len(words_needing),
-        )
+    db.commit()
+    ensure_material(lemma_ids)
 
 
 def _commit_with_retry(db: Session, label: str = "ocr", max_retries: int = 3) -> None:
@@ -1354,6 +995,30 @@ def _commit_with_retry(db: Session, label: str = "ocr", max_retries: int = 3) ->
                 time.sleep(1)
             else:
                 raise
+
+
+def _sense_gate_scan_match(
+    db: Session, lemma_id: int, arabic: str, english: str | None, pos: str | None,
+    lemma_lookup: dict,
+) -> int | None:
+    """Hold a plain vocabulary match to the scanned word's own gloss, as /add
+    does: a bare-form match can be the wrong same-skeleton word (مَلِك "king"
+    bare-matches مَلَك "angel"), and the scan enrols what it matches. On a
+    gloss/POS conflict, take a sense-compatible same-bare entry or create the
+    word (``None``)."""
+    from app.services.sentence_validator import _candidate_matches_correction, correct_mapping
+
+    if not (english or "").strip():
+        return lemma_id
+    lemma = db.get(Lemma, lemma_id)
+    if lemma is None or _candidate_matches_correction(lemma, english, pos or ""):
+        return lemma_id
+    sibling = correct_mapping(db, arabic, english, pos or "", current_lemma_id=lemma_id,
+                              lemma_lookup=lemma_lookup)
+    chosen = sibling if sibling is not None and sibling != lemma_id else None
+    logger.info("textbook scan: %r (%s) conflicts with match #%s (%s) -> %s",
+                arabic, english, lemma_id, lemma.gloss_en, chosen)
+    return chosen
 
 
 def process_batch(
@@ -1500,9 +1165,14 @@ def process_batch(
             guess_key = (base_lemma_bare, bare)
             if guess_key in scan_skip:
                 continue
+            checked_match = guess_key in scan_accepted
             lemma_id = scan_accepted.get(guess_key) or _lookup_vocabulary_match(
                 base_lemma_bare, bare, lemma_lookup, arabic
             )
+            if lemma_id and not checked_match:
+                lemma_id = _sense_gate_scan_match(
+                    db, lemma_id, arabic, word_data.get("english"), word_data.get("pos"), lemma_lookup
+                )
 
         if lemma_id:
             from app.services.canonical_resolution import resolve_canonical_lemma_id
@@ -1569,8 +1239,15 @@ def process_batch(
             if word_cat == "proper_name" and english and not english.startswith("(name)"):
                 lemma_gloss = f"(name) {english}"
 
+            # The headword is CAMeL's vocalized lex when it spells the chosen
+            # bare key (الْمَاشِي → ماشِي), else the scanned form.
+            import_lemma_ar = arabic
+            base_voc = word_data.get("base_lemma_vocalized")
+            if base_voc and normalize_alef(strip_diacritics(base_voc)) == normalize_alef(import_bare):
+                import_lemma_ar = base_voc
+
             new_lemma = Lemma(
-                lemma_ar=arabic,
+                lemma_ar=import_lemma_ar,
                 lemma_ar_bare=import_bare,
                 root_id=root_id,
                 pos=pos,

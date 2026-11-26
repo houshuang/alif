@@ -51,11 +51,10 @@ class TestLemmaQualityGate:
         source = inspect.getsource(_import_unknown_words)
         assert "run_quality_gates" in source
 
-    def test_ocr_calls_quality_gates(self):
+    def test_single_page_ocr_uses_the_batch_path(self):
         import inspect
         from app.services.ocr_service import process_textbook_page
-        source = inspect.getsource(process_textbook_page)
-        assert "run_quality_gates" in source
+        assert "process_batch(" in inspect.getsource(process_textbook_page)
 
     def test_ocr_batch_calls_quality_gates(self):
         import inspect

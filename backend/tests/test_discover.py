@@ -741,16 +741,16 @@ def test_adding_existing_word_schedules_material(client, db_session, monkeypatch
 
 
 def test_ensure_material_only_tops_up_missing(db_session, monkeypatch):
+    from app.services import material_generator as mg
+
     lem = Lemma(lemma_ar="وَفِيّ", lemma_ar_bare="وفي", gloss_en="loyal", pos="adj")
     db_session.add(lem)
     db_session.commit()
     calls = []
-    monkeypatch.setattr(discover, "SessionLocal", lambda: db_session)
-    monkeypatch.setattr(db_session, "close", lambda: None)
-    monkeypatch.setattr(discover, "generate_material_for_word",
-                        lambda lid, needed: calls.append((lid, needed)))
+    monkeypatch.setattr(mg, "generate_material_for_word",
+                        lambda lid, needed: calls.append((lid, needed)) or 0)
     discover._ensure_material([lem.lemma_id])
-    assert calls == [(lem.lemma_id, discover.MIN_SENTENCES_PER_WORD)]
+    assert calls == [(lem.lemma_id, mg.MIN_SENTENCES_PER_WORD)]
 
 
 def test_snap_does_not_offer_proper_names(client, db_session, monkeypatch):

@@ -52,15 +52,21 @@ _JUDGE_BATCH = 30
 _EXAMPLES = 3
 
 
+# Uthmani open tanween (أَنۡهَٰرٗا, فِتۡنَةٞ, نَصِيرٖ) → the standard marks.
+_OPEN_TANWEEN = {"\u0657": "\u064b", "\u065e": "\u064c", "\u0656": "\u064d"}
+
+
 def fold_quranic(text: str) -> str:
     """Quranic orthography to standard: dagger alif → alif, wasla → alif,
-    Quranic sukun → sukun, small high signs dropped."""
+    Quranic sukun → sukun, open tanween → tanween, small high signs dropped."""
     out = []
     for ch in text or "":
         if ch == "ٰ" or ch == "ٱ":
             out.append("ا")
         elif ch == "ۡ":
             out.append("ْ")
+        elif ch in _OPEN_TANWEEN:
+            out.append(_OPEN_TANWEEN[ch])
         elif "ۖ" <= ch <= "ۭ":
             continue
         else:
