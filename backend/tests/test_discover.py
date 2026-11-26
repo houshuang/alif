@@ -56,6 +56,26 @@ def _rich_gloss(monkeypatch, mapping):
     monkeypatch.setattr(discover, "_gloss", fake_gloss)
 
 
+def _snap(client, db_session, monkeypatch):
+    """POST /snap, then run its background step (suggested words) as the server
+    would after the response, and return (response body, reopened page)."""
+    from starlette.background import BackgroundTasks
+
+    tasks = []
+    monkeypatch.setattr(BackgroundTasks, "add_task",
+                        lambda self, func, *args, **kw: tasks.append((func, args)))
+    r = client.post("/api/discover/snap", files={"file": ("page.jpg", b"\xff\xd8img", "image/jpeg")})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["words"] == [] and body["words_pending"] is True
+    assert [f for f, _ in tasks] == [discover._finish_snap]
+    discover._store_snap_chips(*tasks[0][1])
+    db_session.expire_all()
+    page = client.get(f"/api/discover/snaps/{body['snap_id']}").json()
+    assert page["words_pending"] is False
+    return body, page
+
+
 def _seed_faqad_collision(db_session):
     now = datetime.now(timezone.utc)
     qad = Lemma(
@@ -426,15 +446,10 @@ def test_snap_returns_translation_and_words(client, seeded, monkeypatch):
         "translation_en": "I visited the library and read the constitution.",
     })
     _no_llm_gloss(monkeypatch, {"دستور": ("constitution", "noun", False)})
-    r = client.post(
-        "/api/discover/snap",
-        files={"file": ("page.jpg", b"\xff\xd8fakejpeg", "image/jpeg")},
-    )
-    assert r.status_code == 200
-    body = r.json()
+    body, page = _snap(client, seeded, monkeypatch)
     assert body["translation_en"].startswith("I visited the library")
     assert body["arabic_text"]
-    bares = {w["lemma_ar_bare"] for w in body["words"]}
+    bares = {w["lemma_ar_bare"] for w in page["words"]}
     assert "دستور" in bares       # new word surfaced
     assert "مكتبة" not in bares   # already known → excluded
 
@@ -699,11 +714,9 @@ def test_snap_returns_page_when_word_discovery_fails(client, db_session, monkeyp
         raise AttributeError("'list' object has no attribute 'get'")
 
     monkeypatch.setattr(discover, "discover_words_in_text", boom)
-    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
-    assert r.status_code == 200
-    body = r.json()
+    body, page = _snap(client, db_session, monkeypatch)
     assert body["translation_en"] == "This is a book."
-    assert body["words"] == []
+    assert page["words"] == []
 
 
 def test_adding_existing_word_schedules_material(client, db_session, monkeypatch):
@@ -747,8 +760,8 @@ def test_snap_does_not_offer_proper_names(client, db_session, monkeypatch):
         {"lemma_ar_bare": "ماكرون", "is_proper_noun": True},
         {"lemma_ar_bare": "زار", "is_proper_noun": False},
     ])
-    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
-    assert [w["lemma_ar_bare"] for w in r.json()["words"]] == ["زار"]
+    _, page = _snap(client, db_session, monkeypatch)
+    assert [w["lemma_ar_bare"] for w in page["words"]] == ["زار"]
 
 
 def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatch):
@@ -761,8 +774,8 @@ def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatc
     monkeypatch.setattr(discover, "discover_words_in_text", lambda *a, **k: [
         {"lemma_ar_bare": "مرشح", "lemma_id": lem.lemma_id, "knowledge_state": None,
          "is_proper_noun": False}])
-    r = client.post("/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")})
-    snap_id = r.json()["snap_id"]
+    body, _ = _snap(client, db_session, monkeypatch)
+    snap_id = body["snap_id"]
     assert snap_id
 
     listed = client.get("/api/discover/snaps").json()["snaps"]
@@ -772,6 +785,7 @@ def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatc
     # The word was added after the snap: reopening shows its current state.
     db_session.add(UserLemmaKnowledge(lemma_id=lem.lemma_id, knowledge_state="acquiring"))
     db_session.commit()
+    db_session.expire_all()
     page = client.get(f"/api/discover/snaps/{snap_id}").json()
     assert page["sentences"][0]["en"] == "The candidate won."
     assert page["words"][0]["knowledge_state"] == "acquiring"
@@ -856,3 +870,17 @@ def test_lookup_sense_fits_and_failure(client, db_session, monkeypatch):
     r = client.post("/api/discover/lookup/sense", json={
         "lemma_id": lem.lemma_id, "surface": "الوقت", "context": "الوقت"})
     assert r.json() == {"verdict": None}
+
+
+def test_snap_suggestions_stop_pending_when_the_task_never_finished(client, db_session):
+    from datetime import timedelta
+
+    from app.models import SnapPage
+
+    fresh = SnapPage(arabic_text="هذا", translation_en="This.", words_json=None)
+    stale = SnapPage(arabic_text="هذا", translation_en="This.", words_json=None,
+                     created_at=datetime.now(timezone.utc) - timedelta(minutes=10))
+    db_session.add_all([fresh, stale])
+    db_session.commit()
+    assert client.get(f"/api/discover/snaps/{fresh.id}").json()["words_pending"] is True
+    assert client.get(f"/api/discover/snaps/{stale.id}").json()["words_pending"] is False

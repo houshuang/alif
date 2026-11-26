@@ -26,7 +26,7 @@ collisions like كناس→نَاس — 2026-07-15 lesson, spec-2026-07-15-looku
 import logging
 import math
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
@@ -711,6 +711,73 @@ class SnapOut(BaseModel):
     sentences: list[dict] = []
     words: list[dict]
     count: int
+    # The suggested words are still being found (in the background after a new
+    # snap); reload the page with GET /snaps/{snap_id} to get them.
+    words_pending: bool = False
+
+
+# A page whose suggestions never arrived (a restart killed the task) stops
+# reporting them as pending after this long.
+_WORDS_PENDING_MAX = timedelta(minutes=5)
+
+
+def _snap_chips(
+    db: Session, text: str, count: int, selection: str, include_oov: bool
+) -> list[dict]:
+    """The page's suggested words: discovered, names dropped, checked against
+    the page. A failure in either step keeps what it has."""
+    try:
+        words = discover_words_in_text(
+            db, text, count=count, selection=selection, include_oov=include_oov
+        )
+    except Exception:
+        logger.exception("snap word discovery failed; the page gets no suggestions")
+        db.rollback()
+        return []
+    # Names are not vocabulary to learn; /add refuses them anyway.
+    words = [w for w in words if not w.get("is_proper_noun")]
+    try:
+        words = _sense_check_chips(db, text, words)
+    except Exception:
+        logger.exception("snap chip sense check failed; keeping unchecked chips")
+        db.rollback()
+    return words
+
+
+def _store_snap_chips(snap_id: int, count: int, selection: str, include_oov: bool) -> None:
+    db = SessionLocal()
+    try:
+        page = db.get(SnapPage, snap_id)
+        if page is None:
+            return
+        text = page.arabic_text
+        db.rollback()
+        words = _snap_chips(db, text, count, selection, include_oov)
+        page = db.get(SnapPage, snap_id)
+        page.words_json = words
+        db.commit()
+        log_interaction(event="snap_words_ready", snap_id=snap_id, word_count=len(words))
+    except Exception:
+        logger.exception("snap suggestions failed for page %s", snap_id)
+        db.rollback()
+        page = db.get(SnapPage, snap_id)
+        if page is not None and page.words_json is None:
+            page.words_json = []
+            db.commit()
+    finally:
+        db.close()
+
+
+def _finish_snap(snap_id: int, count: int, selection: str, include_oov: bool) -> None:
+    """After a new page is returned: its suggested words and the page pre-match,
+    side by side (background tasks would otherwise run one after the other)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services.snap_prematch import run_prematch
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pool.submit(_store_snap_chips, snap_id, count, selection, include_oov)
+        pool.submit(run_prematch, snap_id)
 
 
 def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
@@ -804,31 +871,15 @@ async def discover_snap(
     if not arabic_text:
         raise HTTPException(status_code=422, detail="No Arabic text found in image")
 
-    # The page and its translation are the main result; a failure in the word
-    # suggestions must not discard them.
-    try:
-        words = discover_words_in_text(
-            db, arabic_text, count=count, selection=selection, include_oov=include_oov
-        )
-    except Exception:
-        logger.exception("snap word discovery failed; returning the page without words")
-        db.rollback()
-        words = []
-    # Names are not vocabulary to learn; /add refuses them anyway.
-    words = [w for w in words if not w.get("is_proper_noun")]
-    try:
-        words = _sense_check_chips(db, arabic_text, words)
-    except Exception:
-        logger.exception("snap chip sense check failed; keeping unchecked chips")
-        db.rollback()
     sentences = ocr.get("sentences") or []
-    # Keep the page so it survives a reload; a failed save must not cost the
-    # reader the page they just paid for.
+    # The page and its translation go back as soon as they exist; the suggested
+    # words (two model calls, 8-17 s) and the page pre-match follow in the
+    # background. Keep the page so it survives a reload.
     snap_id = None
     try:
         page = SnapPage(
             arabic_text=arabic_text, translation_en=translation,
-            sentences_json=sentences, words_json=words,
+            sentences_json=sentences, words_json=None,
         )
         db.add(page)
         db.commit()
@@ -836,14 +887,16 @@ async def discover_snap(
     except Exception:
         logger.exception("snap page could not be saved")
         db.rollback()
+    if snap_id is None:
+        # Nowhere to store background results: find the words now, as before.
+        words = _snap_chips(db, arabic_text, count, selection, include_oov)
+    else:
+        words = []
+        background_tasks.add_task(_finish_snap, snap_id, count, selection, include_oov)
     log_interaction(
         event="discover_snap", word_count=len(words), text_len=len(arabic_text),
-        snap_id=snap_id,
+        snap_id=snap_id, words_pending=snap_id is not None,
     )
-    if snap_id is not None:
-        from app.services.snap_prematch import run_prematch
-
-        background_tasks.add_task(run_prematch, snap_id)
     return {
         "snap_id": snap_id,
         "arabic_text": arabic_text,
@@ -851,6 +904,7 @@ async def discover_snap(
         "sentences": sentences,
         "words": words,
         "count": len(words),
+        "words_pending": snap_id is not None,
     }
 
 
@@ -876,6 +930,12 @@ def get_snap(snap_id: int, db: Session = Depends(get_db)):
     if page is None:
         raise HTTPException(status_code=404, detail="Snap page not found")
     words = [dict(w) for w in (page.words_json or []) if isinstance(w, dict)]
+    created = page.created_at
+    if created is not None and created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    words_pending = page.words_json is None and (
+        created is None or datetime.now(timezone.utc) - created < _WORDS_PENDING_MAX
+    )
     ids = {w["lemma_id"] for w in words if w.get("lemma_id")}
     if ids:
         states = dict(
@@ -892,6 +952,7 @@ def get_snap(snap_id: int, db: Session = Depends(get_db)):
         "sentences": page.sentences_json or [],
         "words": words,
         "count": len(words),
+        "words_pending": words_pending,
     }
 
 

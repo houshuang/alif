@@ -2,7 +2,7 @@
 
 New pages get it in the background after OCR, and opening an older page starts
 it; this runs it by hand, for pages snapped before it existed or to time it.
-A "broader" verdict widens a stored gloss (compare-and-set), as on a tap.
+It never writes glosses: a "broader" verdict is stored on the page as a proposal.
 
     python3 scripts/snap_prematch.py --snap-id 16
     python3 scripts/snap_prematch.py --missing     # every page without a pass

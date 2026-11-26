@@ -65,7 +65,7 @@ def test_each_surface_is_checked_on_its_own(db_session, monkeypatch):
     assert diff["word"]["lemma_id"] == spend.lemma_id
 
 
-def test_broader_widens_the_gloss_and_new_words_are_glossed(db_session, monkeypatch):
+def test_broader_is_a_proposal_and_new_words_are_glossed(db_session, monkeypatch):
     lem = _lemma(db_session, "حِصَّة", "حصة", "class period", "noun", "known")
     page = _page(db_session, "الحصة دستور")
     _stub_checks(monkeypatch, {"الحصة": {"index": 0, "verdict": "broader",
@@ -75,9 +75,10 @@ def test_broader_widens_the_gloss_and_new_words_are_glossed(db_session, monkeypa
     out = snap_prematch.prematch_page(page.id)
 
     sense = out["words"]["الحصة"]["sense"]
-    assert sense["verdict"] == "broader" and sense["written"] is True
+    assert sense["verdict"] == "broader" and sense["written"] is False
+    assert sense["gloss_en"] == "share, portion; class period"
     db_session.refresh(lem)
-    assert lem.gloss_en == "share, portion; class period"
+    assert lem.gloss_en == "class period"  # the stored gloss is never written
     new = out["words"]["دستور"]
     assert "sense" not in new
     assert new["word"]["gloss_en"] == "constitution"
@@ -149,4 +150,13 @@ def test_snap_schedules_the_pass(client, db_session, monkeypatch):
         "/api/discover/snap", files={"file": ("p.jpg", b"img", "image/jpeg")}
     ).json()["snap_id"]
 
-    assert scheduled == [(snap_prematch.run_prematch, (snap_id,))]
+    assert [f for f, _ in scheduled] == [discover._finish_snap]
+    assert scheduled[0][1][0] == snap_id
+
+
+def test_finish_snap_runs_suggestions_and_prematch(monkeypatch):
+    calls = []
+    monkeypatch.setattr(discover, "_store_snap_chips", lambda *a: calls.append(("chips", a)))
+    monkeypatch.setattr(snap_prematch, "run_prematch", lambda sid: calls.append(("prematch", sid)))
+    discover._finish_snap(7, 5, "common_first", True)
+    assert sorted(calls) == [("chips", (7, 5, "common_first", True)), ("prematch", 7)]

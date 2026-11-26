@@ -13,8 +13,11 @@ puts different words under one entry (عيون and عيّنت both → عَيْ�
 verdict per entry then mislabels the other. Evidence:
 research/snap-prematch-2026-11/README.md.
 
-Like pre-read and the Snap chip check, a "broader" verdict widens the stored
-gloss (compare-and-set, keeping the stored meanings).
+A "broader" verdict is stored as a proposal and never written to the lemma.
+Version 1 wrote them (compare-and-set, like pre-read) for every flagged word on
+the page; a review of its 113 writes found 14 wrong (another word's meaning,
+a narrowing, a book-specific sense) and 80 memory hooks cleared, mostly on known
+words nobody tapped, and all 110 lemmas were restored from backup (2026-11-26).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from app.models import SnapPage
 
 logger = logging.getLogger(__name__)
 
-PREMATCH_VERSION = 1
+PREMATCH_VERSION = 2
 # A failed pass is retried when the page is opened again after this long.
 RETRY_FAILED_AFTER = timedelta(minutes=10)
 # Surfaces per sense-check call; a page has about 100, so three calls in parallel.
@@ -166,7 +169,6 @@ def prematch_page(snap_id: int) -> dict:
     """Run the pass for one page and return what to store on it."""
     from app.routers.discover import _resolve_different_word, _sibling_word
     from app.services.interaction_logger import log_interaction
-    from app.services.preread_service import regloss
     from app.services.sentence_validator import build_comprehensive_lemma_lookup
 
     started = time.monotonic()
@@ -205,15 +207,8 @@ def prematch_page(snap_id: int) -> dict:
             v = verdicts.get(i) or {"verdict": "fits"}
             counts[v["verdict"]] = counts.get(v["verdict"], 0) + 1
             if v["verdict"] == "broader":
-                rg = {"lemma_id": w["lemma_id"], "regloss": {"from": w.get("gloss_en"), "to": v["gloss_en"]}}
-                try:
-                    regloss(db, [rg])
-                    db.commit()
-                except Exception:
-                    logger.exception("snap prematch regloss failed for %s", w["lemma_id"])
-                    db.rollback()
                 sense = {"verdict": "broader", "gloss_en": v["gloss_en"],
-                         "gloss_from": w.get("gloss_en"), "written": bool(rg.get("reglossed"))}
+                         "gloss_from": w.get("gloss_en"), "written": False}
             elif v["verdict"] == "sibling":
                 real = _sibling_word(db, v["lemma_id"], form)
                 db.rollback()
