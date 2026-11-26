@@ -21,3 +21,9 @@ Since 2026-11-18 the server's Claude CLI authenticates with a 1-year `CLAUDE_COD
   rotating session and log each other out.
 
 Related: [[project-codex-switched-off]] (Codex routing; sentence generation never uses Codex).
+
+**2026-11-25:** the token account hit its weekly limit (resets 2026-11-29 03:00 UTC). At Stian's
+request the `CLAUDE_CODE_OAUTH_TOKEN` line is commented out in both files, so the server uses its
+own stored login (`/root/.claude/.credentials.json`), which worked. Backups `*.bak-20261125_142413`.
+To go back, uncomment the line in both files and restart the two backends. `/etc/environment`
+also feeds the other projects' cron jobs on the server.

@@ -32,3 +32,8 @@ restores Sonnet), so that one generation call does route through Codex.
 switch off the same way if `codex login status` fails again.
 **How to apply:** ordinary sentence and story generation (`claude_sonnet`) never route through Codex;
 when the Claude CLI on the server hits its limit, generation stops regardless of this switch.
+
+**Switched off again 2026-11-25** (Stian: Codex is down for a few days): `ALIF_AUDIT_PROVIDER=claude`
+in `/opt/alif/.env`, `POLYGLOT_LLM_PROVIDER=claude` in `/opt/alif/polyglot/.env`, and the same
+prefixes on the alif material, polyglot material and walk-daily cron lines. Backups
+`*.bak-20261125_142413`, `/root/crontab.bak-20261125_142413`. Switch back when Stian says Codex works.

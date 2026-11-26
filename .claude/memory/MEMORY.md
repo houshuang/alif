@@ -24,7 +24,7 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Don't scp files into the server working tree](feedback_no_scp_to_server_workdir.md) — untracked files block `git pull`, then restart runs stale code silently.
 - [Local DBs are stale — fetch prod for analysis](feedback_polyglot_local_db_stale.md) — local alif.db/polyglot.db are dev copies; real review data lives on prod (`ssh alif`).
 - [Backups & restore](reference_backups.md) — server cron 6h + local `scripts/backup.sh` + GFS retention; back up before any manual data change.
-- [Server Claude CLI token](reference_server_claude_token.md) — `CLAUDE_CODE_OAUTH_TOKEN` in /opt/alif/.env + /etc/environment since 2026-11-18; how to swap accounts.
+- [Server Claude CLI token](reference_server_claude_token.md) — token line commented out since 2026-11-25 (weekly limit), server uses its stored login; how to swap back.
 - [Deploy & LLM gotchas](reference_deployment_gotchas.md) — valid model IDs, alembic-on-fresh-DB, `.env` key names, TTS model.
 - [Activity logging](reference_activity_logging.md) — batch scripts + manual Claude actions log to ActivityLog; event-type list + the manual CLI command.
 
@@ -64,12 +64,13 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Audit a "translation" complaint = check glosses too](feedback_audit_translation_check_glosses_too.md) — check BOTH `sentences.translation_en` AND `lemmas.gloss_en` (the lookup-card surface).
 
 ## Active / in-flight projects
+- [Snap word sheet + gloss safety (backend LIVE 2026-11-26)](project_snap_word_sheet.md) — missed-word card + reasons in Snap, general glosses on Add, 24 imported words repaired; OTA, background page parsing and translation-first still open.
 - [Stack word panel + word cards (LIVE 2026-11-25, feedback pending)](project_word_cards.md) — derivation chain, set phrases, forms, root list in the review dock; lazy `word_card_json` backlog; his design preferences.
 - [Book-frequency steering (LIVE 2026-11-25)](project_book_frequency.md) — Stian's goal: all high-frequency book words firm and fast, band by band; what is live, baseline, readouts 12-09 / 12-23, agreed next steps (missing lemmas, participle split, speed measure, ACTFL test).
 - [Walk + bridge episodes (LIVE 2026-11-21, feedback pending)](project_walk_episodes.md) — daily two-host audio from firm words, private feed, cron with a stop rule; bridge episodes wrap authentic recordings; open questions to Stian and the readout plan.
 - [Missed-word recovery (LIVE 2026-11-20; phrase trial ended early 2026-11-25)](project_missed_word_recovery.md) — reserved cards for open misses and acquiring words, retry queue v4, phrase follow-ups now for every miss; red-word naming on; verb-tense phrase trial `verb_phrase_forms_v1` RUNNING (readout ~late Jan 2027); interval-restore trial and FSRS refit advised against; experiment-log entry "2026-11-25 (2)".
 - [Generation changes 18–19 Nov 2026 (measurement OPEN)](project_generation_changes_nov_2026.md) — dense cards, GPT writer, lemma repair, language-only judge; review-side check due after 2026-11-23, plan in experiment-log entry "2026-11-19 (5)".
-- [Codex routing on prod (back on since 2026-11-18)](project_codex_switched_off.md) — where the provider switches live (.env + crontab prefixes); off 11-15→11-18.
+- [Codex routing on prod (OFF again since 2026-11-25)](project_codex_switched_off.md) — where the provider switches live (.env + crontab prefixes); switch back when Stian says Codex works.
 - [Dialect Lines tab (LIVE 2026-11-20, first use pending)](project_dialect_lines.md) — Layl episodes + Egyptian clips as single lines grouped by expression; content in ~/Dropbox/Arabic/dialect-lines, recording/ASR pipeline and keys.
 - [Egyptian Clips in the app (ACTIVE, paused 2026-11-08)](project_egyptian_clips.md) — 🔴 "TikTok/clips/Egyptian" → read this first: state, next step, handoff path, how to add clips. Stian is testing at 0.5×/0.6×.
 - [Pre-read (LIVE since 2026-11-16)](project_preread.md) — photographed pages → automatic word/name prep + sense check; how to inspect a batch; restart kills sentence gen.
