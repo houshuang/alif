@@ -92,7 +92,7 @@ def test_check_senses_offers_and_validates_siblings(monkeypatch):
 def _fake_check(monkeypatch, verdicts):
     calls = []
 
-    def fake(text, items):
+    def fake(text, items, **kw):
         calls.append(items)
         return verdicts(items) if callable(verdicts) else verdicts
     monkeypatch.setattr(ps, "check_senses", fake)

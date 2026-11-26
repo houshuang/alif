@@ -41,7 +41,7 @@ def setup(db_session, monkeypatch):
     calls = []
 
     def use_verdicts(verdicts):
-        def fake(text, items):
+        def fake(text, items, **kw):
             assert not db_session.new and not db_session.dirty
             calls.append((text, items))
             return verdicts(items) if callable(verdicts) else verdicts

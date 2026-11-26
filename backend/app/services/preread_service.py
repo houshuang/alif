@@ -269,7 +269,7 @@ _SENSE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "index": {"type": "integer"},
-                    "verdict": {"type": "string", "enum": ["broader", "different", "sibling"]},
+                    "verdict": {"type": "string", "enum": ["broader", "different", "sibling", "name"]},
                     "lemma_ar": {"type": "string"},
                     "gloss_en": {"type": "string"},
                     "pos": {"type": "string"},
@@ -361,7 +361,7 @@ def _is_widening(old: str, new: str) -> bool:
     return not old_words or bool(old_words & _gloss_words(new))
 
 
-def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
+def check_senses(text: str, items: list[dict], allow_name: bool = False) -> dict[int, dict] | None:
     """One LLM pass: does each stored gloss cover how the pages use the word?
 
     ``items``: [{index, lemma_ar, gloss_en, pos, forms, candidates?}]. Returns
@@ -371,7 +371,11 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
     ``candidates`` ([{lemma_id, lemma_ar, gloss_en, pos}]) are the other
     vocabulary entries a homograph tie left open for that word. The check may
     then answer ``{"verdict": "sibling", "lemma_id": <offered id>}``; a sibling
-    is never reported as ``different``."""
+    is never reported as ``different``.
+
+    With ``allow_name`` the check may also answer ``{"verdict": "name"}`` for a
+    spelling used as (part of) a proper name; without it, names are not
+    reported (callers that cannot handle the verdict)."""
     if not items:
         return {}
     from app.services.llm import generate_completion
@@ -410,9 +414,13 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
         '- "sibling": only for an entry listing other entries with this spelling, '
         "when the pages use one of those instead. Give candidate_id: that entry's "
         "id. Prefer it over \"different\" whenever a listed entry is the word used.\n"
-        "Do not report entries that fit, rewordings or reorderings of a gloss that "
-        "already covers the use, or words used as part of a name. Keep glosses "
-        "under 80 characters.\n\n"
+        + ('- "name": the pages use this spelling as (part of) a proper name of a '
+           "person, place or organization. Give no gloss.\n"
+           if allow_name else "")
+        + "Do not report entries that fit, or rewordings or reorderings of a gloss "
+        "that already covers the use"
+        + ("" if allow_name else ", or words used as part of a name")
+        + ". Keep glosses under 80 characters.\n\n"
         f"PAGES:\n{text[:_TEXT_CHAR_LIMIT]}\n\nENTRIES:\n" + "\n".join(lines)
     )
     try:
@@ -437,6 +445,10 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
         sibling = sibling_choice(r, item.get("candidates"))
         if sibling is not None:
             out[r["index"]] = {"verdict": "sibling", "lemma_id": sibling}
+            continue
+        if r.get("verdict") == "name":
+            if allow_name:
+                out[r["index"]] = {"verdict": "name"}
             continue
         gloss = (r.get("gloss_en") or "").strip()
         verdict = r.get("verdict")
@@ -551,6 +563,8 @@ def stored_verdict(w: dict, page_senses: list[dict]) -> dict | None:
                 used = sense["word"]
                 return {"verdict": "different", "lemma_ar": used.get("lemma_ar"),
                         "gloss_en": used.get("gloss_en"), "pos": used.get("pos")}
+            if verdict == "name":
+                return {"verdict": "name"}
             if verdict == "broader" and sense.get("written"):
                 # Already widened by the pre-match; show the stored gloss.
                 return {"verdict": "broader", "gloss_en": sense["gloss_en"], "approved": True}
@@ -585,7 +599,7 @@ def _apply_senses(
         if w.get("tie_candidates"):
             item["candidates"] = w["tie_candidates"]
         items.append(item)
-    verdicts = check_senses(text, items) if items else {}
+    verdicts = check_senses(text, items, allow_name=True) if items else {}
     held: set[int] = set()
     if verdicts is None:
         # An unchecked match can be a same-skeleton neighbour (أمضت → ماضٍ):
@@ -604,6 +618,11 @@ def _apply_senses(
         w["sense_checked"] = True
         v = by_word.get(id(w))
         if not v:
+            continue
+        if v["verdict"] == "name":
+            # A name here, not the matched vocabulary word: neither entered
+            # nor pulled forward.
+            groups[id(w)] = None
             continue
         if v["verdict"] == "sibling":
             sib = next(c for c in w["tie_candidates"] if c["lemma_id"] == v["lemma_id"])

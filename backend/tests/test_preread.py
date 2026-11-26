@@ -17,7 +17,7 @@ _real_check_senses = ps.check_senses
 
 @pytest.fixture(autouse=True)
 def _senses_fit(monkeypatch):
-    monkeypatch.setattr(ps, "check_senses", lambda text, items: {})
+    monkeypatch.setattr(ps, "check_senses", lambda text, items, **kw: {})
 
 
 def _word(bare, *, lemma_id=None, count=1, rank=None, gloss="x", proper=False, surface=None):
@@ -359,7 +359,7 @@ def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypa
     monkeypatch.setattr("app.routers.discover.discover_words_in_text", lambda *a, **k: [dict(w) for w in words])
     monkeypatch.setattr(ps, "rate_importance", lambda text, items: {it["index"]: 2 for it in items})
 
-    def fake_senses(text, items):
+    def fake_senses(text, items, **kw):
         by = {it["lemma_ar"]: it["index"] for it in items}
         return {
             by["قرن"]: {"verdict": "broader", "gloss_en": "century; horn", "lemma_ar": None, "pos": None,
@@ -434,7 +434,7 @@ def test_stored_page_answers_replace_the_batch_check(monkeypatch):
     """Words the pages' pre-match covered take its per-surface answer; only the
     rest go to check_senses."""
     calls = []
-    monkeypatch.setattr(ps, "check_senses", lambda text, items: calls.append(items) or {})
+    monkeypatch.setattr(ps, "check_senses", lambda text, items, **kw: calls.append(items) or {})
     past = {"lemma_id": 1, "lemma_ar": "مَاضٍ", "gloss_en": "past", "surface_forms": ["أمضت"]}
     qarn = {"lemma_id": 2, "lemma_ar": "قَرْن", "gloss_en": "horn", "surface_forms": ["القرن"]}
     other = {"lemma_id": 3, "lemma_ar": "وَقْت", "gloss_en": "time", "surface_forms": ["الوقت"]}

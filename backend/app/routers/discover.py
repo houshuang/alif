@@ -621,10 +621,13 @@ def _resolve_different_word(
             .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id).scalar()
         )
         return _word_out(lemma, surface, state, "sense_check_existing")
+    pos = (v.get("pos") or "").lower()
+    is_name = pos.startswith("proper") or pos == "noun_prop" or bool(
+        re.search(r"\((?:personal |place |proper )?name\)|\bproper name\b", v.get("gloss_en") or "", re.I))
     return {
         "surface": surface, "surface_forms": [surface],
         "lemma_ar": v["lemma_ar"], "lemma_ar_bare": bare, "root": None,
-        "gloss_en": v["gloss_en"], "pos": v["pos"], "is_proper_noun": False,
+        "gloss_en": v["gloss_en"], "pos": v["pos"], "is_proper_noun": is_name,
         "register": None, "dialect": None, "transliteration": None,
         "freq_rank": None, "count_in_text": 1, "example_ar": None,
         "lemma_source": "sense_check_new", "lemma_id": None, "knowledge_state": None,
@@ -789,6 +792,8 @@ def chips_from_prematch(text: str, words: dict, count: int, selection: str) -> l
         if rerouted:
             w["sense_from"] = {"lemma_id": base.get("lemma_id"), "lemma_ar": base.get("lemma_ar"),
                                "gloss_en": base.get("gloss_en")}
+        if sense.get("verdict") == "name":
+            continue
         if sense.get("verdict") == "broader":
             if sense.get("written"):
                 w["gloss_en"] = sense["gloss_en"]
