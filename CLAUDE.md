@@ -108,7 +108,7 @@ Sentence review continues automatically across ten-card batches (2026-10-15). Mi
 Sentence review keeps the progress header focused on review controls; it has no passage-reading link or reading prompt.
 Supported chapter reading (`/read`) preserves its no-review-credit behavior, with temporary vocabulary reminders and optional voice/text feedback. Under automatic attention v2, repeated uniquely resolved word help in distinct paragraphs can inform later maintenance eligibility. See `docs/supported-reading-chapters.md`; do not route its help/completion through review-credit APIs.
 
-Reading review layout: revealed cards hide the tabs and pin actions above the safe area; Arabic/English and the minimizable word explanation share a scroll area, with failure-reason icons beside the explanation. See `docs/review-modes.md` for details.
+Reading review layout: revealed cards hide the tabs and pin actions above the safe area; Arabic/English and the minimizable word explanation share a scroll area, with the failure reasons in one full-width row under the explanation. See `docs/review-modes.md` for details.
 
 Dialect Lines (`app/dialect.tsx`, the Dialect tab, `/api/dialect`) plays single lines from recorded TV episodes (Layl) and the Egyptian clips, with blind → Arabic → English reveal and series of other lines sharing an expression. It has its own `dialect_line_state` table and no lemma, FSRS or acquisition effects; its lines and audio stay out of Git in `data/dialect/`. Egyptian Clips (`app/clips.tsx`, `/api/clips`) is an isolated dialect listening practice with its own progress table and no lemma, FSRS or acquisition effects. Its transcripts and videos are third-party content kept out of Git in `data/clips/`.
 
@@ -407,8 +407,10 @@ unmarked word is dropped by the server.
 See `docs/review-modes.md` and `research/automaticity-2026-11-03/README.md`.
 
 Reading word help is docked above the answer buttons, outside the sentence scroll.
-Cap the card at 32% viewport (max 256pt), scroll only the card, preserve independent scrolling and the
-minimize/restore behavior, and never cover the final lines with an absolute overlay.
+The card takes the height the sentence leaves (measured), up to 60% of the reading area; it never goes
+below the old cap of 32% viewport (max 256pt), counted together with the reason row. Scroll only the card,
+preserve independent scrolling and the minimize/restore behavior, and never cover the final lines with an
+absolute overlay. Checked at iPhone 16 size (393×759 pt usable) on 2026-11-26.
 
 Dock content (Stack layout, 2026-11-25, `DockWordPanel.tsx`): headword + gloss (the sentence's
 form on the meta line), derivation chain, other forms with glosses, set phrases, root words in two

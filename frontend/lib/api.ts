@@ -1087,10 +1087,20 @@ export interface CardShownPayload {
 /** Fire-and-forget: tell the backend the user is now seeing this card. */
 export function logCardShown(payload: CardShownPayload): void {
   if (!netStatus.isOnline) return;
+  // Window size and text scale, so a layout complaint can be checked against
+  // the screen the learner actually had.
+  let screen: { w: number; h: number; fs: number } | undefined;
+  try {
+    // Required here so plain-Node tests that load this module need no RN transform.
+    const { width, height, fontScale } = require("react-native").Dimensions.get("window");
+    screen = { w: Math.round(width), h: Math.round(height), fs: Math.round(fontScale * 100) / 100 };
+  } catch {
+    screen = undefined;
+  }
   fetch(`${BASE_URL}/api/review/log-card-shown`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, detail: { ...(payload.detail ?? {}), screen } }),
   }).catch(() => {});
 }
 
