@@ -1,5 +1,15 @@
 # Alif — Master Ideas File
 
+## 🔵 [PROPOSED 2026-11-26] Pre-read, story import and scan checks: one line per surface, not per entry
+
+The Snap page measurement (`research/snap-prematch-2026-11/README.md`) found that checking one
+line per vocabulary entry with all its page spellings mislabels a spelling when the resolver put
+two different words under one entry: عيون and عيّنت both → عَيْن, so the entry was judged as
+عَيَّنَ "to appoint" and عيون got that gloss; آثار and إثر both → إِثْر. Snap now checks one line
+per surface (`services/snap_prematch.py`). `preread_service.analyze_pages` still sends one line
+per entry (`forms` = all spellings), and its verdict re-routes or re-glosses the whole entry.
+Split its items per surface, as Snap does, and check the cost (~1.2× the lines).
+
 ## 🔴 [FOUND 2026-11-26 — not fixed] Snap/Pre-read store the sentence meaning as the word's gloss
 
 The learner caught أَبْصَرَ (lemma 4990) glossed "was born": created by a Snap Add on 2026-11-24

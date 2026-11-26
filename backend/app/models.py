@@ -591,6 +591,10 @@ class SnapPage(Base):
     translation_en = Column(Text, nullable=False, default="")
     sentences_json = Column(JSON, nullable=True)
     words_json = Column(JSON, nullable=True)
+    # Every page word matched and sense-checked in the background after OCR
+    # (services/snap_prematch.py), so a tap reads it instead of waiting on a
+    # model: {"status": "ready"|"failed", "words": {surface: {word, sense}}, ...}.
+    prematch_json = Column(JSON, nullable=True)
 
 
 class LookupMiss(Base):

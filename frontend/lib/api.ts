@@ -25,6 +25,7 @@ import {
   PrereadSummary,
   PrereadDetail,
   SnapResult,
+  SnapPrematch,
   DiscoverAddResult,
   AskAIResponse,
   ConversationSummary,
@@ -1076,7 +1077,7 @@ export async function acknowledgeReintro(
 }
 
 export interface CardShownPayload {
-  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint" | "followup_fragment" | "progress";
+  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup" | "checkpoint" | "followup_fragment" | "progress" | "snap_tap";
   session_id?: string | null;
   lemma_id?: number | null;
   sentence_id?: number | null;
@@ -1239,6 +1240,10 @@ export async function getSnapHistory(): Promise<SnapHistoryItem[]> {
 
 export async function getSnapPage(snapId: number): Promise<SnapResult> {
   return fetchApi<SnapResult>(`/api/discover/snaps/${snapId}`);
+}
+
+export async function getSnapPrematch(snapId: number): Promise<SnapPrematch> {
+  return fetchApi<SnapPrematch>(`/api/discover/snaps/${snapId}/prematch`);
 }
 
 export async function lookupSnapWord(

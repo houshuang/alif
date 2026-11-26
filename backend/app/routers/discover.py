@@ -319,6 +319,7 @@ def discover_words_in_text(
     include_learning: bool = False,
     context: str | None = None,
     max_words: int = _MAX_WORDS,
+    database_only: bool = False,
 ) -> list[dict]:
     """Core word-discovery: the highest-value lemmas in `text` not yet being learned,
     glossed. Shared by the /words endpoint and the photo /snap endpoint so both go
@@ -328,7 +329,8 @@ def discover_words_in_text(
     tap-a-word lookup wants every word); each result carries ``knowledge_state``.
     ``context`` is the running text used for example clauses and sense-aware
     glossing when ``text`` is a single tapped word. ``max_words`` lifts the
-    per-call cap for multi-page pre-reading."""
+    per-call cap for multi-page pre-reading. ``database_only`` keeps only
+    tokens that matched a vocabulary entry, so no model call is made."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
     state_by_id = dict(
         db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state).all()
@@ -378,6 +380,8 @@ def discover_words_in_text(
         if existing_id is None and exact_alias_required:
             continue
         existing = get_lemma(existing_id) if existing_id is not None else None
+        if existing is None and database_only:
+            continue
         if existing is not None:
             existing_bare = _normalize(existing.lemma_ar_bare)
             c = (
@@ -596,10 +600,13 @@ def _word_out(lemma: Lemma, surface: str, state: str | None, source: str) -> dic
     }
 
 
-def _resolve_different_word(db: Session, surface: str, matched_id: int, v: dict) -> dict:
+def _resolve_different_word(
+    db: Session, surface: str, matched_id: int, v: dict, lookup: dict | None = None
+) -> dict:
     """The word the sentence actually uses: an existing sense-compatible entry
     when there is one, otherwise a proposal that /add can create."""
-    lookup = build_comprehensive_lemma_lookup(db)
+    if lookup is None:
+        lookup = build_comprehensive_lemma_lookup(db)
     bare = _normalize(v["lemma_ar"])
     lid = lookup_lemma_citation(bare, lookup, original_bare=v["lemma_ar"])
     lemma = db.get(Lemma, lid) if lid is not None and lid != matched_id else None
@@ -761,6 +768,7 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
 
 @router.post("/snap", response_model=SnapOut)
 async def discover_snap(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     count: int = Query(default=5, ge=1, le=_MAX_WORDS),
     # "common_first" surfaces the most generally-frequent unknown words on the page
@@ -832,6 +840,10 @@ async def discover_snap(
         event="discover_snap", word_count=len(words), text_len=len(arabic_text),
         snap_id=snap_id,
     )
+    if snap_id is not None:
+        from app.services.snap_prematch import run_prematch
+
+        background_tasks.add_task(run_prematch, snap_id)
     return {
         "snap_id": snap_id,
         "arabic_text": arabic_text,
@@ -881,6 +893,44 @@ def get_snap(snap_id: int, db: Session = Depends(get_db)):
         "words": words,
         "count": len(words),
     }
+
+
+@router.get("/snaps/{snap_id}/prematch")
+def get_snap_prematch(
+    snap_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
+    """Every word of a saved page, matched and sense-checked in the background
+    after OCR: ``{"status": "pending"|"ready"|"failed", "words": {surface:
+    {word, sense?}}}``, in the shapes /lookup and /lookup/sense return. A page
+    without a pass (snapped before it existed), or whose pass failed ten or more
+    minutes ago, gets one started here."""
+    from app.services.snap_prematch import is_running, needs_pass, run_prematch
+
+    page = db.get(SnapPage, snap_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Snap page not found")
+    pm = page.prematch_json or {}
+    if is_running(snap_id):
+        return {"status": "pending"}
+    if needs_pass(pm):
+        background_tasks.add_task(run_prematch, snap_id)
+        return {"status": "pending"}
+    if pm.get("status") != "ready":
+        return {"status": pm.get("status") or "failed"}
+    words = pm.get("words") or {}
+    # Learning states change while the reader works; report the current ones.
+    entries = [e.get("word") for e in words.values()] + [
+        (e.get("sense") or {}).get("word") for e in words.values()
+    ]
+    ids = {w["lemma_id"] for w in entries if w and w.get("lemma_id")}
+    states = dict(
+        db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state)
+        .filter(UserLemmaKnowledge.lemma_id.in_(ids)).all()
+    ) if ids else {}
+    for w in entries:
+        if w and w.get("lemma_id"):
+            w["knowledge_state"] = states.get(w["lemma_id"])
+    return {"status": "ready", "words": words}
 
 
 class WordIn(BaseModel):

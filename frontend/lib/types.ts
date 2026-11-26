@@ -1525,6 +1525,13 @@ export interface LookupSense {
   word?: DiscoverWord;
 }
 
+// Every word of a saved Snap page, matched and sense-checked in the background
+// after OCR (GET /api/discover/snaps/{id}/prematch), keyed by Arabic token.
+export interface SnapPrematch {
+  status: "pending" | "ready" | "failed";
+  words?: Record<string, { word: DiscoverWord; sense?: LookupSense }>;
+}
+
 // An added word whose saved sentence uses a different word than the entry that
 // was enrolled (GET /api/discover/add-checks).
 export interface AddCheck {
