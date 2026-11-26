@@ -436,9 +436,11 @@ def resolve_repairs() -> dict[tuple, int]:
 
     db = SessionLocal()
     try:
+        # Unresolved repairs are looked up again on every pass (no model call),
+        # so a link moves once its word enters the vocabulary.
         pending = (db.query(LemmaRemapVerdict)
                    .filter(LemmaRemapVerdict.repair_lemma_ar.isnot(None),
-                           LemmaRemapVerdict.repair_checked_at.is_(None)).all())
+                           LemmaRemapVerdict.repair_lemma_id.is_(None)).all())
         if pending:
             lookup = build_comprehensive_lemma_lookup(db)
             now = datetime.now(timezone.utc)
