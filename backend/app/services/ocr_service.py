@@ -249,17 +249,19 @@ def _call_gemini_vision(
         raise
 
 
-def _call_llm_text(prompt: str, system_prompt: str = "") -> dict:
+def _call_llm_text(prompt: str, system_prompt: str = "", json_schema: dict | None = None) -> dict:
     """Call LLM with text-only prompt. Returns parsed JSON.
 
-    Routes through generate_completion (Claude CLI, free) instead of Gemini API.
+    Routes through generate_completion (Claude CLI, free) instead of Gemini API,
+    with a JSON schema for constrained decoding (CLAUDE.md: prefer json_schema).
     """
     from app.services.llm import generate_completion
 
     return generate_completion(
         prompt=prompt,
         system_prompt=system_prompt,
-        json_mode=True,
+        json_schema=json_schema,
+        json_mode=json_schema is None,
         temperature=0.1,
         timeout=60,
         model_override="claude_haiku",
@@ -502,6 +504,8 @@ def extract_text_and_translation(image_bytes: bytes) -> dict:
                 f"Arabic:\n{arabic_text}\n\n"
                 'Schema: {"translation_en": "the English translation"}',
                 system_prompt="You are an expert Arabic-English translator.",
+                json_schema={"type": "object", "properties": {"translation_en": {"type": "string"}},
+                             "required": ["translation_en"]},
             )
             translation = translated.get("translation_en") or ""
         except Exception as e:
@@ -682,7 +686,9 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
 
         prompt = (
             "Translate these Arabic words to English. For each word, provide:\n"
-            "- english: a concise English gloss (1-3 words, e.g. 'book', 'to write', 'beautiful')\n"
+            "- english: a concise English gloss (1-3 words, e.g. 'book', 'to write', 'beautiful'): "
+            "the word's own general dictionary meaning, which is stored and shown in every "
+            "future sentence\n"
             "- pos: part of speech (noun/verb/adj/adv/prep/particle)\n\n"
             "Words:\n"
             + json.dumps(word_list, ensure_ascii=False)
@@ -698,6 +704,15 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
                     "Provide concise, accurate English glosses for Arabic vocabulary words. "
                     "Respond with JSON only."
                 ),
+                json_schema={
+                    "type": "object",
+                    "properties": {"translations": {"type": "array", "items": {
+                        "type": "object",
+                        "properties": {"bare": {"type": "string"}, "english": {"type": "string"},
+                                       "pos": {"type": "string"}},
+                        "required": ["bare", "english", "pos"]}}},
+                    "required": ["translations"],
+                },
             )
             translations = result.get("translations", [])
             if isinstance(translations, list):

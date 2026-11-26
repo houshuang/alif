@@ -478,6 +478,28 @@ def _check_story_guesses(
     return different
 
 
+_STORY_WORDS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "words": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "arabic": {"type": "string"},
+                    "english": {"type": "string"},
+                    "pos": {"type": "string"},
+                    "name_type": {"type": ["string", "null"]},
+                },
+                "required": ["index", "arabic", "english", "pos"],
+            },
+        }
+    },
+    "required": ["words"],
+}
+
+
 def _import_unknown_words(
     db: Session,
     story: Story,
@@ -738,6 +760,9 @@ def _import_unknown_words(
             dedup_gloss_map[lem.lemma_id] = lem.gloss_en or ""
 
     # ── Phase 2: All LLM calls (no DB writes) ───────────────────────────
+    # The caller has added and flushed the story and its words; commit them so
+    # no write lock is held across the model calls (CLAUDE.md rule 10).
+    db.commit()
 
     # Step 2a: LLM batch translation — use lex (base form) not surface form
     gloss_map: dict[str, dict] = {}
@@ -765,6 +790,11 @@ IMPORTANT: Give dictionary-form glosses, NOT conjugated translations:
 - Nouns: use bare singular ("book", "school"), NOT ("his books", "the schools")
 - Adjectives: use base form ("big", "beautiful"), NOT ("bigger", "the big one")
 
+The gloss is stored in a learner's dictionary and shown for this word in every
+future sentence, so it must be the lemma's own general meaning, never a meaning
+that only an idiom or this one context gives it: أَبْصَرَ in «أبصر النور» is
+"to see, perceive", not "was born".
+
 Return exactly one result for every numbered item, in the same order. Use the
 context to repair an inflected, cliticized, fused, or imperfect candidate.
 Never refuse the whole batch because one item is uncertain: give the safest
@@ -774,8 +804,7 @@ Respond with JSON: {{"words": [{{"index": 1, "arabic": "the corrected base-form 
 
 Set name_type to "personal" for personal names (people, characters), "place" for place names (cities, countries, landmarks), or null for regular vocabulary words.""",
                 system_prompt="You translate Arabic words to English. Give concise, dictionary-form glosses (1-3 words). For verbs use infinitive ('to X'). For proper names, provide the transliterated name. Respond with JSON only.",
-                json_mode=True,
-                model_override="openai",
+                json_schema=_STORY_WORDS_SCHEMA,
                 task_type="story_word_import",
             )
 
