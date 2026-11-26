@@ -118,6 +118,14 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (11): Stale-link remap repairs "neither" links to the named existing word
+
+The first remap left 62 distinct "neither" verdicts: the stored link and the proposed one were
+both wrong (ظُهُورِهِم on ظَهَرَ "to appear", proposed ظُهُور; it is ظَهْر "back"). The judge now
+names the word used; `resolve_repairs` moves the link only to an existing entry with exactly
+that vocalized headword and a fitting gloss/POS. Missing words stay put (no auto-created
+lemmas); names and garbled text are recorded as checked. Branch `sh/remap-repair`.
+
 ## 2026-11-26 (10): Textbook scan on one path with a sense gate; shared sentence top-up
 
 OCR audit gaps 7, 9, 10. The live `process_batch` enrolled any plain bare-form match (مَلِك "king"
