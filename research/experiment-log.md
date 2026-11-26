@@ -118,6 +118,16 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (7): Intake gloss prompts share the general-meaning rule; story import write lock
+
+From the OCR-surface audit (`research/snap-prematch-2026-11/ocr-surfaces-audit-2026-11-26.md`).
+Story and book import glossed new words through the paid OpenAI API with `json_mode` and no
+"general meaning, never this context's" rule (the conditions of the أَبْصَرَ "was born" bug);
+they now use the Claude CLI with a JSON schema and the rule (checked live: أبصر in «أبصرا النور»
+→ "to see; to perceive"). `_import_unknown_words` commits the caller's story and words before its
+model calls (it held the write lock through them). The textbook gloss call and Snap's translation
+fallback get JSON schemas. Branch `sh/intake-glosses`.
+
 ## 2026-11-26 (6): Stale word links moved automatically (cron Step 0c)
 
 **Why.** Another session found نهر "river" stored on نَهار "day time" in imported sentences and
