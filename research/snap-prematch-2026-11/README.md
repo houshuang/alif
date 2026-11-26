@@ -49,9 +49,24 @@ surfaces whose check failed, use the per-tap path. Every tap is logged as
 `card_shown` with `card_type="snap_tap"`, `detail.source` (`prematch`/`live`)
 and `detail.ms`, so the change in waiting time can be read from the logs.
 
+## Review of the deployed version and the gloss restore (same day)
+
+Version 1, deployed on 2026-11-26, wrote every "broader" widening it found to the
+lemma (compare-and-set, as pre-read does). A Fable review of all 16 stored pages
+(`review-2026-11-26.md`) judged its 113 writes: 78 good, 10 no-value rewrites,
+11 doubtful, 14 bad (حَيّ → "life; alive", which is حَيَاة; سَمَّى → "to poison",
+which is سَمَّ; عَشْرَة narrowed to compound numbers; book-specific senses on
+تَنْظِيم, جَمْعِيَّة, دَاخِلِيَّة …), and 80 memory hooks cleared. All 110 lemmas
+were restored from the pre-deploy backup (gloss and hooks; list in
+`/opt/alif-backups/snap_prematch_gloss_restore_20261126.json`). Version 2 stores
+the proposal on the page and shows it as "Here: …"; it never writes. The review's
+other findings (verdict for every line, names, repeated surfaces with different
+meanings, partial-failure retry) are open; see its fix list.
+
 ## Files
 
 - `measure_prematch.py` — the per-surface measurement run.
 - `compare_final_word.py` — the final-word comparison.
+- `review-2026-11-26.md` — the Fable review of the deployed version.
 - `per_tap_comparison.txt` — its output for the 34 checks. In the "pre" column
   the gloss shown is today's stored gloss; the check itself used the tap's.

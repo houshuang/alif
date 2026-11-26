@@ -118,6 +118,35 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (4): Snap pre-match no longer writes glosses; 110 widenings restored
+
+**Why.** A Fable review of the deployed pre-match (`research/snap-prematch-2026-11/review-2026-11-26.md`)
+judged the 113 widenings it wrote across 16 pages: 14 bad (another word's meaning, narrowings,
+book-specific senses), 11 doubtful, 10 no-value rewrites, and 80 memory hooks cleared, mostly on
+known words the learner never tapped. `_is_widening` passes any gloss that shares one word.
+
+**Action.** All 110 lemmas restored to the pre-deploy backup (gloss + hooks, compare-and-set on
+the pass's own value; backup `alif_pre_gloss_restore_20261126_095135.db`, ActivityLog entry).
+`PREMATCH_VERSION` 2 stores "broader" as a proposal (`written: false`), shown on tap as
+"Here: …"; pages rerun without writes when opened. The per-tap check and the chip check still
+write widenings with the same `_is_widening` test (unchanged since 2026-11-18); tightening that
+test is the next decision.
+
+## 2026-11-26 (3): Snap shows the page before the suggested words
+
+**Why.** Stian wants the translation as early as possible. Log timelines of the last four snaps:
+Gemini OCR+translation+alignment 10–13 s, then the chip gloss (3–10 s) and the chip sense check
+(4–8 s) before `/snap` answered, so the page appeared 18–27 s after upload and 8–17 s of that was
+the chips. (Snaps use `gemini-3-flash-preview`, median 7 s over 40 calls in November; the
+`gemini-4-hydrogen` timings in the earlier handoff are book imports.)
+
+**Change (branch `sh/snap-page-first`).** `/snap` saves the page and returns after OCR with
+`words_pending: true`; the chips and the page pre-match run side by side in the background
+(`discover._finish_snap`), and the Snap screen fetches the chips when stored. No change to how
+chips are chosen or checked. Not done: splitting OCR from translation (a 3 s OCR-only call on
+short pages, then translation; would show the Arabic a few seconds sooner at the cost of a
+second call and a new alignment path).
+
 ## 2026-11-26 (2): Snap page pre-match — every page word matched and checked in the background
 
 **Why.** A Snap tap waited on `/lookup` and then a Sonnet sense check (3.7 s median, 6.0 s p90).

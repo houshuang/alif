@@ -203,6 +203,38 @@ export default function SnapScreen() {
   const [selected, setSelected] = useState<Token | null>(null);
   // lookupKey(token) -> lookup result, so re-tapping a word is instant
   const [lookups, setLookups] = useState<Record<string, Lookup>>({});
+  // A new page comes back before its suggested words; fetch them when ready.
+  useEffect(() => {
+    const id = result?.snap_id;
+    if (!id || !result?.words_pending) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
+    const poll = async () => {
+      try {
+        const fresh = await getSnapPage(id);
+        if (cancelled) return;
+        if (!fresh.words_pending) {
+          setResult((prev) => {
+            if (!prev || prev.snap_id !== id) return prev;
+            const next = { ...prev, words: fresh.words, count: fresh.count, words_pending: false };
+            rememberOpenPage(next);
+            return next;
+          });
+          return;
+        }
+      } catch {
+        // Try again on the next tick.
+      }
+      if (!cancelled && ++tries < PREMATCH_POLL_TRIES) timer = setTimeout(poll, PREMATCH_POLL_MS);
+    };
+    timer = setTimeout(poll, PREMATCH_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [result?.snap_id, result?.words_pending]);
+
   // The page's words matched and checked in the background; a tap on one of
   // them needs no model call. Until it arrives, taps use the per-tap lookup.
   const [prematch, setPrematch] = useState<NonNullable<SnapPrematch["words"]>>({});
@@ -664,7 +696,7 @@ export default function SnapScreen() {
           {/* Top words */}
           <View style={styles.wordsHeader}>
             <Text style={styles.sectionLabel}>
-              Top words ({result.words.length})
+              {result.words_pending ? "Top words" : `Top words (${result.words.length})`}
             </Text>
             {result.words.length > 0 && (
               <Pressable onPress={addAll} hitSlop={8}>
@@ -675,7 +707,14 @@ export default function SnapScreen() {
             )}
           </View>
 
-          {result.words.length === 0 && (
+          {result.words_pending && (
+            <View style={styles.wordsPending}>
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+              <Text style={styles.introBody}>Finding words…</Text>
+            </View>
+          )}
+
+          {!result.words_pending && result.words.length === 0 && (
             <Text style={styles.introBody}>
               No new words here — looks like you already know this page's vocabulary.
             </Text>
@@ -749,7 +788,11 @@ function WordPanel({
   const replaced = verdict?.verdict === "different" && verdict.word ? matched : null;
   let word = replaced ? verdict!.word! : matched;
   if (word && verdict?.verdict === "broader" && verdict.gloss_en) {
-    word = { ...word, gloss_en: verdict.gloss_en };
+    // A written widening is the stored gloss now; an unwritten one (the page
+    // pass only proposes) is shown as the meaning here.
+    word = verdict.written
+      ? { ...word, gloss_en: verdict.gloss_en }
+      : { ...word, gloss_here: word.gloss_here || verdict.gloss_en };
   }
   const isName = verdict?.verdict === "name" || !!word?.is_proper_noun
     || (word?.pos || "").toLowerCase().startsWith("proper");
@@ -1131,6 +1174,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 
+  wordsPending: { flexDirection: "row", alignItems: "center", gap: 8 },
   wordsHeader: {
     flexDirection: "row",
     alignItems: "center",

@@ -1576,6 +1576,8 @@ export interface SnapResult {
   sentences?: SnapSentence[];
   words: DiscoverWord[];
   count: number;
+  /** The suggested words are still being found; reload the page to get them. */
+  words_pending?: boolean;
 }
 
 export interface DiscoverAddResult {
