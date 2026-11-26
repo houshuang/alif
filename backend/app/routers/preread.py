@@ -107,9 +107,16 @@ def _read_one(set_id: int, page: dict) -> dict:
         )
         db.add(snap)
         db.commit()
-        return {**page, "snap_id": snap.id, "error": None}
+        snap_id = snap.id
     finally:
         db.close()
+    # Every word of the page matched and checked against this page (the same
+    # pass Snap runs): pre-read's plan reads its verdicts, and the page opens
+    # in Snap with taps answered.
+    from app.services.snap_prematch import run_prematch
+
+    run_prematch(snap_id)
+    return {**page, "snap_id": snap_id, "error": None}
 
 
 def _read_pages(set_id: int) -> list[dict]:
@@ -318,9 +325,13 @@ def run_preread(set_id: int) -> None:
         _set_status(set_id, "analyzing")
         db = SessionLocal()
         try:
-            texts = {s.id: s.arabic_text for s in db.query(SnapPage).filter(SnapPage.id.in_(snap_ids)).all()}
+            rows = {s.id: s for s in db.query(SnapPage).filter(SnapPage.id.in_(snap_ids)).all()}
+            texts = {i: s.arabic_text for i, s in rows.items()}
+            page_senses = [((rows[i].prematch_json or {}).get("words") or {})
+                           for i in snap_ids if i in rows
+                           and (rows[i].prematch_json or {}).get("status") == "ready"]
             db.rollback()
-            plan = analyze_pages(db, [texts[i] for i in snap_ids if i in texts])
+            plan = analyze_pages(db, [texts[i] for i in snap_ids if i in texts], page_senses)
         finally:
             db.close()
 

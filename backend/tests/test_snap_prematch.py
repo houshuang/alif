@@ -154,12 +154,38 @@ def test_snap_schedules_the_pass(client, db_session, monkeypatch):
     assert scheduled[0][1][0] == snap_id
 
 
-def test_finish_snap_runs_suggestions_and_prematch(monkeypatch):
+def test_finish_snap_runs_prematch_then_picks_chips_from_it(monkeypatch):
     calls = []
-    monkeypatch.setattr(discover, "_store_snap_chips", lambda *a: calls.append(("chips", a)))
     monkeypatch.setattr(snap_prematch, "run_prematch", lambda sid: calls.append(("prematch", sid)))
+    monkeypatch.setattr(discover, "_store_chips_from_prematch",
+                        lambda *a: calls.append(("chips", a)))
     discover._finish_snap(7, 5, "common_first", True)
-    assert sorted(calls) == [("chips", (7, 5, "common_first", True)), ("prematch", 7)]
+    assert calls == [("prematch", 7), ("chips", (7, 5, "common_first", True))]
+
+
+def test_chips_come_from_the_prematch_answers():
+    words = {
+        # Studied word: no chip.
+        "الوقت": {"word": {"lemma_ar": "وَقْت", "lemma_ar_bare": "وقت", "lemma_id": 1,
+                           "gloss_en": "time", "knowledge_state": "known"}, "sense": {"verdict": "fits"}},
+        # A rerouted word: the chip is the word used, with the wrong match noted.
+        "أمضت": {"word": {"lemma_ar": "مَاضٍ", "lemma_ar_bare": "ماض", "lemma_id": 2, "gloss_en": "past"},
+                 "sense": {"verdict": "different", "word": {"lemma_ar": "أَمْضَى", "lemma_ar_bare": "امضى",
+                                                            "lemma_id": None, "gloss_en": "to spend (time)"}}},
+        # An unwritten widening is shown as the meaning here.
+        "الحصة": {"word": {"lemma_ar": "حِصَّة", "lemma_ar_bare": "حصة", "lemma_id": 3, "gloss_en": "class period"},
+                  "sense": {"verdict": "broader", "gloss_en": "share; class period", "written": False}},
+        "دستور": {"word": {"lemma_ar": "دُسْتُور", "lemma_ar_bare": "دستور", "lemma_id": None,
+                           "gloss_en": "constitution"}},
+        "باريس": {"word": {"lemma_ar": "بَارِيس", "lemma_ar_bare": "باريس", "is_proper_noun": True,
+                           "gloss_en": "Paris"}},
+    }
+    chips = discover.chips_from_prematch("الوقت أمضت الحصة دستور دستور باريس", words, 10, "common_first")
+    by = {c["lemma_ar_bare"]: c for c in chips}
+    assert set(by) == {"امضى", "حصة", "دستور"}
+    assert by["امضى"]["sense_from"]["lemma_ar"] == "مَاضٍ"
+    assert by["حصة"]["gloss_en"] == "class period" and by["حصة"]["gloss_here"] == "share; class period"
+    assert by["دستور"]["count_in_text"] == 2
 
 
 def test_regloss_writes_only_gate_approved_widenings(db_session):
