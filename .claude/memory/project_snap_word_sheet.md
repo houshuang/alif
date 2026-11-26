@@ -1,6 +1,6 @@
 ---
 name: project-snap-word-sheet
-description: "Snap word sheet = missed-word card + reasons (lookup_miss_v1), general glosses on Add, import gloss repair — LIVE backend 2026-11-26; OTA + parsing/translation-speed work open"
+description: "Snap word sheet = missed-word card + reasons (lookup_miss_v1), general glosses on Add, import gloss + root repair — LIVE (backend, OTA, web) 2026-11-26; parsing/translation-speed work open"
 metadata:
   node_type: memory
   type: project
@@ -19,11 +19,13 @@ and open a recovery miss for FSRS words only; `_gloss()` returns `gloss_en` (gen
 (`scripts/fix_import_glosses_2026_11_26.py`, audit in `research/gloss-audit-2026-11-26/`,
 backup `alif_pre_gloss_repair_20261126_080636.db`).
 
-**Open, in his order:** (1) OTA publish of the frontend (blocked 2026-11-26 because the main
-checkout had another session's uncommitted `.claude/memory` edits); (2) iterate page parsing on
+Roots of 4305/4307/4362/4367 fixed (`scripts/fix_roots_2026_11_26.py`); OTA
+01a216f7 and web deployed 2026-11-26. Handoff: `research/handoffs/SESSION-HANDOFF-20261126-*-snap.md`.
+
+**Open, in his order:** (2) iterate page parsing on
 stored snaps: pre-match every page word in the background after OCR (~140 model items/page;
 resolver alone is not enough — sense check corrected 6/17 "clean" matches); (3) show the
 translation first (OCR+translate+align is one ~14 s Gemini call; stream or split by paragraph,
-client polls); (4) "Mixed" naming popover in Snap; wrong roots 4305/4307/4362/4367; resolver
+client polls); (4) "Mixed" naming popover in Snap; resolver
 picked عَيْن for عيّنت although عَيَّنَ exists (shadda should break the tie). Related:
 [[project-word-cards]], [[project-missed-word-recovery]].
