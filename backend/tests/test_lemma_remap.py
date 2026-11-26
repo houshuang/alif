@@ -41,6 +41,7 @@ def _seed(db):
 
 def test_spelling_guards():
     assert lemma_remap.fold_quranic("ٱلۡأَنۡهَٰرُ") == "الْأَنْهَارُ"
+    assert lemma_remap.fold_quranic("أَنۡهَٰرٗا") == "أَنْهَارًا"
     # كذلك spells ذلك (proclitic ك), so a link on ذلك never moves to ذُلّ.
     assert lemma_remap.spells_headword("كذلك", "ذَلِكَ")
     assert not lemma_remap.spells_headword("النهر", "نَهار")

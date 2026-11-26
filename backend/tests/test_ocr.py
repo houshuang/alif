@@ -993,3 +993,57 @@ class TestOCREndpoints:
         )
 
         assert response.status_code == 422
+
+
+@patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
+@patch("app.services.ocr_service._schedule_material_generation")
+@patch("app.services.import_quality.classify_lemmas")
+@patch("app.services.ocr_service.extract_words_from_image")
+def test_scan_match_with_conflicting_gloss_is_not_enrolled(
+    mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+):
+    """مَلِك "king" bare-matches the stored مَلَك "angel": the scan must not enrol
+    the angel; it creates the king."""
+    from app.services.ocr_service import process_batch
+
+    angel = Lemma(lemma_ar="مَلَك", lemma_ar_bare="ملك", pos="noun", gloss_en="angel",
+                  source="duolingo")
+    db_session.add(angel)
+    upload = PageUpload(batch_id="b_king", filename="p.jpg", status="pending")
+    db_session.add(upload)
+    db_session.commit()
+    mock_extract.return_value = ([
+        {"arabic": "مَلِك", "arabic_bare": "ملك", "english": "king", "pos": "noun", "root": "م.ل.ك",
+         "base_lemma_vocalized": "مَلِك"},
+    ], None)
+    mock_classify.return_value = ([{"arabic": "ملك", "word_category": "standard"}], [])
+
+    process_batch(db_session, "b_king", [("p.jpg", b"img")])
+
+    assert db_session.query(UserLemmaKnowledge).filter_by(lemma_id=angel.lemma_id).first() is None
+    king = db_session.query(Lemma).filter(Lemma.gloss_en == "king").one()
+    assert king.lemma_ar == "مَلِك" and king.lemma_id != angel.lemma_id
+
+
+@patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
+@patch("app.services.ocr_service._schedule_material_generation")
+@patch("app.services.import_quality.classify_lemmas")
+@patch("app.services.ocr_service.extract_words_from_image")
+def test_batch_scan_stores_the_dictionary_headword(
+    mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+):
+    from app.services.ocr_service import process_batch
+
+    upload = PageUpload(batch_id="b_head", filename="p.jpg", status="pending")
+    db_session.add(upload)
+    db_session.commit()
+    mock_extract.return_value = ([
+        {"arabic": "الْمَاشِي", "arabic_bare": "الماشي", "english": "walking", "pos": "adj",
+         "root": "م.ش.ي", "base_lemma": "ماشي", "base_lemma_vocalized": "ماشِي"},
+    ], None)
+    mock_classify.return_value = ([{"arabic": "ماشي", "word_category": "standard"}], [])
+
+    process_batch(db_session, "b_head", [("p.jpg", b"img")])
+
+    lem = db_session.query(Lemma).filter(Lemma.gloss_en == "walking").one()
+    assert lem.lemma_ar == "ماشِي"
