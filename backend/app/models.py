@@ -613,6 +613,13 @@ class LemmaRemapVerdict(Base):
     approved = Column(Boolean, nullable=False)
     reason = Column(Text, nullable=True)
     judged_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    # For a "neither" verdict: the word the judge says it is, and the existing
+    # entry it resolved to (NULL when the vocabulary lacks it).
+    repair_lemma_ar = Column(Text, nullable=True)
+    repair_pos = Column(Text, nullable=True)
+    repair_gloss = Column(Text, nullable=True)
+    repair_lemma_id = Column(Integer, nullable=True)
+    repair_checked_at = Column(DateTime, nullable=True)
 
 
 class LookupMiss(Base):

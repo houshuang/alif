@@ -98,3 +98,49 @@ def test_failed_judge_moves_nothing(db_session, monkeypatch):
     db_session.expire_all()
     assert db_session.get(SentenceWord, sw_river.id).lemma_id == day.lemma_id
     assert db_session.query(LemmaRemapVerdict).count() == 0
+
+
+def test_neither_verdict_moves_to_the_named_existing_word(db_session, monkeypatch):
+    """ظُهُورِهِم is linked to ظَهَرَ "to appear"; the resolver proposes ظُهُور
+    "appearance"; the judge says neither: it is ظَهْر "back" (plural), which
+    exists. The link moves to ظَهْر. A name stays where it was."""
+    appear = _lemma(db_session, "ظَهَرَ", "ظهر", "to appear", "verb")
+    emerge = _lemma(db_session, "ظُهُورٌ", "ظهور", "appearance, emergence", "noun")
+    back = _lemma(db_session, "ظَهْر", "ظهر", "back", "noun")
+    s = Sentence(arabic_text="حملوا الأمتعة على ظُهُورِهِم", english_translation="They carried the bags on their backs")
+    db_session.add(s)
+    db_session.flush()
+    sw = SentenceWord(sentence_id=s.id, position=3, surface_form="ظُهُورِهِم", lemma_id=appear.lemma_id)
+    db_session.add(sw)
+    db_session.commit()
+
+    def fake(**kw):
+        n = kw["prompt"].count("ITEM ")
+        return {"verdicts": [{"index": i, "word": "neither", "lemma_ar": "ظَهْر", "pos": "noun",
+                              "gloss_en": "back"} for i in range(n)]}
+
+    monkeypatch.setattr("app.services.llm.generate_completion", fake)
+    stats = lemma_remap.run(apply=True, reverify=False)
+    assert stats["repaired_rows"] == 1
+    db_session.expire_all()
+    assert db_session.get(SentenceWord, sw.id).lemma_id == back.lemma_id
+    v = db_session.query(LemmaRemapVerdict).one()
+    assert v.approved is False and v.repair_lemma_id == back.lemma_id
+    assert emerge.lemma_id != back.lemma_id
+
+
+def test_neither_without_an_existing_word_changes_nothing(db_session, monkeypatch):
+    day, river, sw_river, *_ = _seed(db_session)
+
+    def fake(**kw):
+        n = kw["prompt"].count("ITEM ")
+        return {"verdicts": [{"index": i, "word": "neither", "lemma_ar": "نَهَرَ", "pos": "verb",
+                              "gloss_en": "to scold"} for i in range(n)]}
+
+    monkeypatch.setattr("app.services.llm.generate_completion", fake)
+    stats = lemma_remap.run(apply=True, reverify=False)
+    assert stats.get("repaired_rows") == 0
+    db_session.expire_all()
+    assert db_session.get(SentenceWord, sw_river.id).lemma_id == day.lemma_id
+    assert all(v.repair_checked_at is not None and v.repair_lemma_id is None
+               for v in db_session.query(LemmaRemapVerdict))

@@ -274,6 +274,9 @@ _SCHEMA = {
                     "index": {"type": "integer"},
                     "word": {"type": "string", "enum": ["new", "old", "neither", "unsure"]},
                     "note": {"type": "string"},
+                    "lemma_ar": {"type": "string"},
+                    "pos": {"type": "string"},
+                    "gloss_en": {"type": "string"},
                 },
                 "required": ["index", "word"],
             },
@@ -300,7 +303,10 @@ def judge(items: list[dict]) -> dict[int, dict] | None:
         "(with any prefix such as و ف ب ل ك ال and any attached pronoun removed):\n"
         '- "new": the word is NEW in every sentence shown.\n'
         '- "old": the word is OLD (in at least one sentence).\n'
-        '- "neither": it is some other word, or a name.\n'
+        '- "neither": it is some other word, or a name. For another word, also give '
+        "lemma_ar (its fully vocalized citation form: singular noun, past-tense 3ms verb, "
+        "no ال or pronoun), pos (noun/verb/adj/adv/particle) and gloss_en (a short "
+        "general English gloss); for a name or garbled text leave them empty.\n"
         '- "unsure": the sentences do not settle it (e.g. unvowelled and both readings fit).\n'
         "Judge the word's form and meaning in context, not the entries' spellings alone: "
         "كذلك is ك + ذلك, not a form of ذُلّ; المقال \"the article\" is مَقَال, not the "
@@ -324,7 +330,10 @@ def judge(items: list[dict]) -> dict[int, dict] | None:
     wanted = {it["index"] for it in items}
     return {
         r["index"]: {"approved": r.get("word") == "new", "reason": r.get("word"),
-                     "note": (r.get("note") or "")[:200]}
+                     "note": (r.get("note") or "")[:200],
+                     "lemma_ar": (r.get("lemma_ar") or "").strip() or None,
+                     "pos": (r.get("pos") or "").strip() or None,
+                     "gloss_en": (r.get("gloss_en") or "").strip() or None}
         for r in rows
         if isinstance(r, dict) and r.get("index") in wanted
     }
@@ -341,13 +350,15 @@ def judge_moves(moves: list[Move], lemmas: dict, limit: int | None = None) -> di
 
     db = SessionLocal()
     try:
-        verdicts = {
-            (v.old_lemma_id, v.new_lemma_id, v.surface_key): v.approved
-            for v in db.query(LemmaRemapVerdict).all()
-        }
+        rows = db.query(LemmaRemapVerdict).all()
+        verdicts = {(v.old_lemma_id, v.new_lemma_id, v.surface_key): v.approved for v in rows}
+        # "neither" verdicts judged before the judge named the word: ask again.
+        undescribed = {(v.old_lemma_id, v.new_lemma_id, v.surface_key) for v in rows
+                       if (v.reason or "").startswith("neither") and v.repair_checked_at is None
+                       and not v.repair_lemma_ar}
         by_key: dict[tuple, list[Move]] = defaultdict(list)
         for m in moves:
-            if m.key not in verdicts:
+            if m.key not in verdicts or m.key in undescribed:
                 by_key[m.key].append(m)
         keys = list(by_key)[: limit if limit is not None else None]
         examples: dict[tuple, list[str]] = {}
@@ -382,24 +393,103 @@ def judge_moves(moves: list[Move], lemmas: dict, limit: int | None = None) -> di
         try:
             now = datetime.now(timezone.utc)
             for (old, new, skey), d in decided.items():
+                repair = ({"repair_lemma_ar": d.get("lemma_ar"), "repair_pos": d.get("pos"),
+                           "repair_gloss": d.get("gloss_en")}
+                          if d["reason"] == "neither" else {})
+                if (old, new, skey) in undescribed:
+                    row = (db.query(LemmaRemapVerdict)
+                           .filter_by(old_lemma_id=old, new_lemma_id=new, surface_key=skey).first())
+                    if row is not None and d["reason"] == "neither":
+                        for k, val in repair.items():
+                            setattr(row, k, val)
+                        if not repair.get("repair_lemma_ar"):
+                            row.repair_checked_at = now  # a name or garbled text
+                    continue
                 db.add(LemmaRemapVerdict(old_lemma_id=old, new_lemma_id=new, surface_key=skey,
                                          approved=d["approved"],
                                          reason=f"{d['reason']}: {d['note']}".strip(": "),
-                                         judged_at=now))
+                                         judged_at=now,
+                                         repair_checked_at=None if repair.get("repair_lemma_ar") else
+                                         (now if d["reason"] == "neither" else None),
+                                         **repair))
             db.commit()
         finally:
             db.close()
-        verdicts.update({k: d["approved"] for k, d in decided.items()})
+        verdicts.update({k: d["approved"] for k, d in decided.items() if k not in undescribed})
     return verdicts
 
 
-def apply_moves(moves: list[Move], verdicts: dict, lemmas: dict) -> dict:
-    """Apply approved moves compare-and-set. Returns stats with the reviewable
-    sentence ids that changed."""
+def resolve_repairs() -> dict[tuple, int]:
+    """For "neither" verdicts that name the word used, find that word in the
+    vocabulary: a gated canonical entry whose vocalized headword is the named
+    citation form and whose gloss/POS fit (``_candidate_matches_correction``).
+    No entry is ever created (corrections may not create lemmas). Returns
+    {verdict key: repair lemma id} for every resolved verdict."""
+    from app.models import Lemma, LemmaRemapVerdict
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    from app.services.preread_service import _vocalized_key
+    from app.services.sentence_validator import (
+        _candidate_matches_correction,
+        build_comprehensive_lemma_lookup,
+        lookup_lemma_citation,
+    )
+
+    db = SessionLocal()
+    try:
+        pending = (db.query(LemmaRemapVerdict)
+                   .filter(LemmaRemapVerdict.repair_lemma_ar.isnot(None),
+                           LemmaRemapVerdict.repair_checked_at.is_(None)).all())
+        if pending:
+            lookup = build_comprehensive_lemma_lookup(db)
+            now = datetime.now(timezone.utc)
+            for v in pending:
+                found = None
+                lid = lookup_lemma_citation(bare_key_for(v.repair_lemma_ar), lookup,
+                                            original_bare=v.repair_lemma_ar)
+                if lid is not None:
+                    lid = resolve_canonical_lemma_id(db, lid)
+                    lemma = db.get(Lemma, lid)
+                    if (lemma is not None and lemma.gates_completed_at is not None
+                            and _vocalized_key(lemma.lemma_ar or "") == _vocalized_key(v.repair_lemma_ar)
+                            and _candidate_matches_correction(lemma, v.repair_gloss or "", v.repair_pos or "")
+                            and lid not in (v.old_lemma_id, v.new_lemma_id)):
+                        found = lid
+                v.repair_lemma_id = found
+                v.repair_checked_at = now
+            db.commit()
+        return {(v.old_lemma_id, v.new_lemma_id, v.surface_key): v.repair_lemma_id
+                for v in db.query(LemmaRemapVerdict).filter(LemmaRemapVerdict.repair_lemma_id.isnot(None))}
+    finally:
+        db.close()
+
+
+def bare_key_for(ar: str) -> str:
+    """The bare lookup key of a citation form (no vowel marks, alif folded)."""
+    from app.services.sentence_validator import normalize_alef, strip_diacritics
+
+    return normalize_alef(strip_diacritics(ar or ""))
+
+
+def _targets(moves: list[Move], verdicts: dict, repairs: dict) -> list[Move]:
+    """Approved moves, plus "neither" moves redirected to the repaired word."""
+    from dataclasses import replace
+
+    out = []
+    for m in moves:
+        if verdicts.get(m.key) is True:
+            out.append(m)
+        elif repairs.get(m.key) and repairs[m.key] != m.old:
+            out.append(replace(m, new=repairs[m.key]))
+    return out
+
+
+def apply_moves(moves: list[Move], verdicts: dict, lemmas: dict, repairs: dict | None = None) -> dict:
+    """Apply approved (and repaired) moves compare-and-set. Returns stats with
+    the reviewable sentence ids that changed."""
     from app.models import ActivityLog, Sentence
     from app.services.sentence_eligibility import MAPPING_VERIFICATION_MIN_AT
 
-    approved = [m for m in moves if verdicts.get(m.key) is True]
+    approved = _targets(moves, verdicts, repairs or {})
     models = {name: model for name, model, _ in _tables()}
     db = SessionLocal()
     try:
@@ -466,6 +556,7 @@ def run(apply: bool = False, judge_limit: int | None = None, reverify: bool = Tr
     finally:
         db.close()
     verdicts = judge_moves(moves, lemmas, limit=judge_limit) if moves else {}
+    repairs = resolve_repairs()
     keys = {m.key for m in moves}
     stats = {
         "candidates": len(moves),
@@ -474,9 +565,11 @@ def run(apply: bool = False, judge_limit: int | None = None, reverify: bool = Tr
         "refused_distinct": sum(1 for k in keys if verdicts.get(k) is False),
         "unjudged_distinct": sum(1 for k in keys if k not in verdicts),
         "approved_rows": sum(1 for m in moves if verdicts.get(m.key) is True),
+        "repaired_distinct": sum(1 for k in keys if repairs.get(k)),
+        "repaired_rows": sum(1 for m in moves if verdicts.get(m.key) is not True and repairs.get(m.key)),
     }
-    if apply and stats["approved_rows"]:
-        applied = apply_moves(moves, verdicts, lemmas)
+    if apply and (stats["approved_rows"] or stats["repaired_rows"]):
+        applied = apply_moves(moves, verdicts, lemmas, repairs)
         stats.update(applied)
         if reverify and applied["reviewable"]:
             from app.services.mapping_rescue import reverify_all_active_sentences
