@@ -1,5 +1,28 @@
 # Alif — Master Ideas File
 
+## 🔵 [PROPOSED 2026-11-26 — prototype in review] Snap: instant word taps and known-word evidence
+
+Taps on Snap words wait for a per-tap sense check (Sonnet via Claude CLI, median 4.1 s, ≈5.8 s
+end to end; Codex gloss for new words, median 7.4 s). The check earns its place: 14 of 38 checked
+taps (37%) were rerouted to a different word or sense. Of 62 taps since 2026-11-18, 17 matched a
+word recorded as known, and most were a different word on a known root (عيّنت matched عَيْن
+"eye" for عَيَّنَ "to appoint"; أتحضر → حَاضِر for تَحَضَّرَ; مردوده → رَدَّ; الأعصاب → عَصَبَ).
+
+- Pre-check the whole page in the background right after OCR: one batched `check_senses` call
+  (as pre-read does) over every content word, cached per snap; a tap reads the cache and falls
+  back to today's per-tap check. Apply reglosses only when a word is tapped, not from the batch.
+- Optionally move the per-tap fallback to the direct API (the CLI start-up is 2–3 s); cost
+  decision for the learner.
+- Never say "you know this word" before the sense check confirms the same word; when it is a
+  different word on a known root, show the derivation link instead.
+- Known-word reasons (Forgot / Mixed / Form / Vowels) or look-alike words to name a mix-up:
+  three directions prototyped in design-explorer (`snap-known-word`, round 1). Recording a
+  reason as a miss is a scheduling change and needs an experiment-log entry first.
+- Resolver: عيّنت resolved to عَيْن although عَيَّنَ is in the vocabulary; the shadda should
+  break that homograph tie (`docs/nlp-pipeline.md` § "Homograph keys").
+- Word cards (chain, set phrases) are not shown on intro cards or phrase follow-up cards yet,
+  and new intake words get a card only at the next cron run.
+
 ## 🟡 [BUILT 2026-11-25 — branch sh/word-panel-stack] Richer missed-word panel: derivation chain, set phrases, forms, root list
 
 Learner's framing (2026-11-25): the review word panel (`WordInfoCard`) is seen constantly, so its
