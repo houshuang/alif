@@ -151,3 +151,31 @@ def test_same_citation_tolerates_a_missing_mark_but_not_a_contradiction():
     assert not lemma_remap.same_citation("ظَهَرَ", "ظَهْر")
     assert not lemma_remap.same_citation("مَلِك", "مَلَكَ")
     assert not lemma_remap.same_citation("نُصْب", "نَصَبَ")
+
+
+def test_a_resolved_repair_moves_rows_the_resolver_no_longer_proposes(db_session, monkeypatch):
+    """نَمْلِكُ sat on مَلَل "boredom"; the judge named the verb مَلَكَ, which was
+    added later. Verbs are never proposed by the resolver, so the stored rows
+    are moved directly."""
+    from app.models import LemmaRemapVerdict
+
+    boredom = _lemma(db_session, "مَلَلٌ", "ملل", "boredom", "noun")
+    ant = _lemma(db_session, "نَمْلَة", "نملة", "ant", "noun")
+    own = _lemma(db_session, "مَلَكَ", "ملك", "to own", "verb")
+    s = Sentence(arabic_text="نَمْلِكُ بيتا", english_translation="We own a house")
+    db_session.add(s)
+    db_session.flush()
+    sw = SentenceWord(sentence_id=s.id, position=0, surface_form="نَمْلِكُ", lemma_id=boredom.lemma_id)
+    db_session.add(sw)
+    db_session.add(LemmaRemapVerdict(old_lemma_id=boredom.lemma_id, new_lemma_id=ant.lemma_id,
+                                     surface_key=lemma_remap.surface_key("نَمْلِكُ"), approved=False,
+                                     reason="neither: we own", judged_at=datetime.now(timezone.utc),
+                                     repair_lemma_ar="مَلَكَ", repair_pos="verb", repair_gloss="to own"))
+    db_session.commit()
+    monkeypatch.setattr("app.services.llm.generate_completion",
+                        lambda **kw: {"verdicts": [{"index": i, "word": "old"}
+                                                   for i in range(kw["prompt"].count("ITEM "))]})
+    stats = lemma_remap.run(apply=True, reverify=False)
+    assert stats["repaired_rows"] == 1
+    db_session.expire_all()
+    assert db_session.get(SentenceWord, sw.id).lemma_id == own.lemma_id
