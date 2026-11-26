@@ -1,0 +1,402 @@
+[
+ {
+  "lemma_id": 4990,
+  "lemma_ar": "أَبْصَرَ",
+  "pos": "verb",
+  "gloss_en": "was born",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to see, perceive, catch sight of",
+  "set_phrase": {
+   "ar": "أَبْصَرَ النُّورَ",
+   "en": "was born; came out, appeared"
+  },
+  "confidence": "high",
+  "note": "'Was born' is the idiom أبصر النور, not the verb's meaning."
+ },
+ {
+  "lemma_id": 5009,
+  "lemma_ar": "جَارَى",
+  "pos": "verb",
+  "gloss_en": "be matched or rivaled",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to keep pace with, keep up with; to go along with; to rival",
+  "set_phrase": {
+   "ar": "لَا يُجَارَى",
+   "en": "unrivaled, unmatched"
+  },
+  "confidence": "high",
+  "note": "Passive idiom meaning stored for an active verb."
+ },
+ {
+  "lemma_id": 4996,
+  "lemma_ar": "مَطَاف",
+  "pos": "noun",
+  "gloss_en": "journey",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "circuit, round; course (of a journey)",
+  "set_phrase": {
+   "ar": "انْتَهَى بِهِ الْمَطَافُ",
+   "en": "he ended up (somewhere)"
+  },
+  "confidence": "high",
+  "note": "'Journey' comes from the idiom انتهى به المطاف / في نهاية المطاف."
+ },
+ {
+  "lemma_id": 4992,
+  "lemma_ar": "تَعَاقُد",
+  "pos": "noun",
+  "gloss_en": "contractual employment",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "contracting, entering into a contract; contract",
+  "set_phrase": {
+   "ar": "بِالتَّعَاقُدِ",
+   "en": "on a contract basis"
+  },
+  "confidence": "high",
+  "note": "Verbal noun of تعاقد; 'contractual employment' is the context of بالتعاقد."
+ },
+ {
+  "lemma_id": 4999,
+  "lemma_ar": "يُثِيرُ",
+  "pos": "verb",
+  "gloss_en": "arouse",
+  "problem": [
+   "citation_form"
+  ],
+  "proposed_lemma_ar": "أَثَارَ",
+  "proposed_pos": null,
+  "proposed_gloss_en": "to stir up, arouse, provoke; to raise (a question)",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "Present tense stored as headword; check for an existing أثار lemma before creating."
+ },
+ {
+  "lemma_id": 4998,
+  "lemma_ar": "مُعَايَنَات",
+  "pos": "noun",
+  "gloss_en": "medical examinations",
+  "problem": [
+   "citation_form",
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": "مُعَايَنَة",
+  "proposed_pos": null,
+  "proposed_gloss_en": "inspection, examination; viewing",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "Plural stored as headword; 'medical' is from the context."
+ },
+ {
+  "lemma_id": 4806,
+  "lemma_ar": "قِيل",
+  "pos": "noun",
+  "gloss_en": "it was said; hearsay",
+  "problem": [
+   "citation_form",
+   "pos",
+   "wrong_word"
+  ],
+  "proposed_lemma_ar": "قَالَ",
+  "proposed_pos": "verb",
+  "proposed_gloss_en": "to say",
+  "set_phrase": {
+   "ar": "قِيلَ",
+   "en": "it was said"
+  },
+  "confidence": "high",
+  "note": "قيل in running text is the passive of قال; should map to the existing قال lemma, not a noun."
+ },
+ {
+  "lemma_id": 4849,
+  "lemma_ar": "مُشَوَّهَة",
+  "pos": "adj",
+  "gloss_en": "distorted",
+  "problem": [
+   "citation_form"
+  ],
+  "proposed_lemma_ar": "مُشَوَّه",
+  "proposed_pos": null,
+  "proposed_gloss_en": "distorted, deformed, disfigured",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "Adjective stored only in the feminine."
+ },
+ {
+  "lemma_id": 4993,
+  "lemma_ar": "اِسْتِشَارِيَّة",
+  "pos": "noun",
+  "gloss_en": "consultant",
+  "problem": [
+   "citation_form",
+   "pos"
+  ],
+  "proposed_lemma_ar": "اِسْتِشَارِيّ",
+  "proposed_pos": "adj",
+  "proposed_gloss_en": "advisory, consultative; (as noun) consultant",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "Feminine adjective form stored as a noun."
+ },
+ {
+  "lemma_id": 4839,
+  "lemma_ar": "أَحْرَى",
+  "pos": "adj",
+  "gloss_en": "more precisely; rather",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "more fitting, more appropriate; more likely",
+  "set_phrase": {
+   "ar": "بِالْأَحْرَى",
+   "en": "rather; or more precisely"
+  },
+  "confidence": "high",
+  "note": "'Rather' is بالأحرى; أحرى alone is an elative 'more fitting'."
+ },
+ {
+  "lemma_id": 4193,
+  "lemma_ar": "دَعَكَ",
+  "pos": "verb",
+  "gloss_en": "leave aside",
+  "problem": [
+   "wrong_word"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to rub, scrub; to knead, massage",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "'Leave aside' is دَعْكَ مِن, imperative of وَدَعَ + pronoun, not the verb دعك 'rub'; that surface should map to ودع/دع."
+ },
+ {
+  "lemma_id": 4196,
+  "lemma_ar": "تَقْبِيل",
+  "pos": "noun",
+  "gloss_en": "by kissing",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "kissing",
+  "set_phrase": null,
+  "confidence": "high",
+  "note": "Gloss carries the preposition from بالتقبيل."
+ },
+ {
+  "lemma_id": 4187,
+  "lemma_ar": "قَذَفَ",
+  "pos": "verb",
+  "gloss_en": "ejaculate",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to throw, hurl; to accuse (of slander); to ejaculate",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Sexual sense is one of several; the general sense is 'throw, hurl'."
+ },
+ {
+  "lemma_id": 4186,
+  "lemma_ar": "مَصَّ",
+  "pos": "verb",
+  "gloss_en": "suck sexually",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to suck",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "General verb narrowed to a sexual context."
+ },
+ {
+  "lemma_id": 4201,
+  "lemma_ar": "تَمْرِير",
+  "pos": "noun",
+  "gloss_en": "scrolling",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "passing, conveying; passing (a ball, a law); scrolling",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Verbal noun of مرّر; 'scrolling' is a modern narrow sense."
+ },
+ {
+  "lemma_id": 4244,
+  "lemma_ar": "لَفَتَ",
+  "pos": "verb",
+  "gloss_en": "attract attention",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to turn (something); to draw (attention)",
+  "set_phrase": {
+   "ar": "لَفَتَ الِانْتِبَاهَ",
+   "en": "to attract attention"
+  },
+  "confidence": "medium",
+  "note": "Gloss is the meaning of the collocation لفت الانتباه/النظر."
+ },
+ {
+  "lemma_id": 4220,
+  "lemma_ar": "اِسْتَطْرَدَ",
+  "pos": "verb",
+  "gloss_en": "continued",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "to digress; to go on (speaking)",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "'Continued' is the narrative use استطرد قائلا; core sense is 'digress'."
+ },
+ {
+  "lemma_id": 4330,
+  "lemma_ar": "صُلْب",
+  "pos": "noun",
+  "gloss_en": "steel; hard, firm",
+  "problem": [
+   "pos"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": "adj",
+  "proposed_gloss_en": "hard, solid, firm; tough",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Used here as an adjective; 'steel' is a secondary noun sense and should not lead."
+ },
+ {
+  "lemma_id": 4847,
+  "lemma_ar": "عَمَلِيَّة",
+  "pos": "noun",
+  "gloss_en": "surgery, surgical operation; process; military/political operation",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "process, operation; surgical operation; military operation",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Surgery is listed first because of the context; 'process, operation' is the common sense."
+ },
+ {
+  "lemma_id": 4845,
+  "lemma_ar": "عُمُومِيّ",
+  "pos": "adj",
+  "gloss_en": "general (as in General Assembly)",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "public; general",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "'General Assembly' is one collocation; عمومي mostly means 'public'."
+ },
+ {
+  "lemma_id": 4793,
+  "lemma_ar": "قَوْمِيّ",
+  "pos": "adj",
+  "gloss_en": "nationalist",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "national; nationalist",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "قومي is commonly 'national' (الأمن القومي)."
+ },
+ {
+  "lemma_id": 5007,
+  "lemma_ar": "مُقِيم",
+  "pos": "noun",
+  "gloss_en": "resident; one who establishes or maintains (e.g. relationships)",
+  "problem": [
+   "sentence_meaning"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "resident; residing, staying; permanent",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "'One who maintains relationships' comes from a one-off translated phrase."
+ },
+ {
+  "lemma_id": 4785,
+  "lemma_ar": "ثَمانِين",
+  "pos": "noun",
+  "gloss_en": "eighty; the eighties",
+  "problem": [
+   "citation_form"
+  ],
+  "proposed_lemma_ar": "ثَمَانُونَ",
+  "proposed_pos": null,
+  "proposed_gloss_en": null,
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Oblique case form ثمانين stored; nominative ثمانون is the citation form."
+ },
+ {
+  "lemma_id": 4192,
+  "lemma_ar": "مُلْتَصِق",
+  "pos": "adj",
+  "gloss_en": "pressed against",
+  "problem": [
+   "too_narrow"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": "stuck, adhering; attached, adjacent",
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "'Pressed against' is the context sense."
+ },
+ {
+  "lemma_id": 5002,
+  "lemma_ar": "أُصُول",
+  "pos": "noun",
+  "gloss_en": "origins; ancestry",
+  "problem": [
+   "citation_form"
+  ],
+  "proposed_lemma_ar": null,
+  "proposed_pos": null,
+  "proposed_gloss_en": null,
+  "set_phrase": null,
+  "confidence": "medium",
+  "note": "Plural أصول is a lexical entry (origins, principles); singular أصل 'origin, root' may be the better headword. Borderline."
+ }
+]
