@@ -21,12 +21,15 @@ import {
   checkLookupSense,
   getSnapHistory,
   getSnapPage,
+  getSnapPrematch,
+  logCardShown,
   lookupReviewWord,
   lookupReviewWordFresh,
   recordLookupMiss,
 } from "../lib/api";
 import type {
-  DiscoverWord, LookupSense, SnapHistoryItem, SnapResult, WordFailureCause, WordLookupResult,
+  DiscoverWord, LookupSense, SnapHistoryItem, SnapPrematch, SnapResult, WordFailureCause,
+  WordLookupResult,
 } from "../lib/types";
 import DockWordPanel from "../lib/review/DockWordPanel";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
@@ -74,6 +77,12 @@ type Lookup =
 const lookupKey = (t: { text: string; sentence: string }) => `${t.text}\u0000${t.sentence}`;
 
 const ARABIC_LETTER = /[\u0621-\u064A]/;
+// The backend tokenizer (_ARABIC_TOKEN in routers/discover.py): the page pass
+// keys its answers by these tokens.
+const ARABIC_TOKEN = /[\u0621-\u064A\u064B-\u065F\u0670-\u06FF\u0750-\u077F]+/g;
+// The page pass takes about 25 s after OCR; stop asking after three minutes.
+const PREMATCH_POLL_MS = 3000;
+const PREMATCH_POLL_TRIES = 60;
 // Words the learner already studies show their state instead of an Add button.
 const STUDIED_STATES = new Set(["acquiring", "learning", "known", "lapsed", "suspended"]);
 
@@ -194,6 +203,36 @@ export default function SnapScreen() {
   const [selected, setSelected] = useState<Token | null>(null);
   // lookupKey(token) -> lookup result, so re-tapping a word is instant
   const [lookups, setLookups] = useState<Record<string, Lookup>>({});
+  // The page's words matched and checked in the background; a tap on one of
+  // them needs no model call. Until it arrives, taps use the per-tap lookup.
+  const [prematch, setPrematch] = useState<NonNullable<SnapPrematch["words"]>>({});
+  useEffect(() => {
+    setPrematch({});
+    const id = result?.snap_id;
+    if (!id) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
+    const poll = async () => {
+      try {
+        const r = await getSnapPrematch(id);
+        if (cancelled) return;
+        if (r.status === "ready") {
+          setPrematch(r.words ?? {});
+          return;
+        }
+        if (r.status === "failed") return;
+      } catch {
+        // Offline or a server error: taps keep using the per-tap lookup.
+      }
+      if (!cancelled && ++tries < PREMATCH_POLL_TRIES) timer = setTimeout(poll, PREMATCH_POLL_MS);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [result?.snap_id]);
   const paragraphs = useMemo(
     () => (result ? tokenizePage(result.arabic_text) : []),
     [result]
@@ -269,8 +308,35 @@ export default function SnapScreen() {
     return focus.link !== null && (s.links[focus.link]?.en.has(i) ?? false);
   }
 
+  function logTap(t: Token, source: "prematch" | "live", started: number, extra: Record<string, unknown>) {
+    logCardShown({
+      card_type: "snap_tap",
+      detail: {
+        snap_id: result?.snap_id ?? null, surface: t.text, source,
+        ms: Date.now() - started, ...extra,
+      },
+    });
+  }
+
   async function fetchLookup(t: Token) {
     const key = lookupKey(t);
+    const started = Date.now();
+    const tokens = t.text.match(ARABIC_TOKEN) ?? [];
+    const stored = tokens.length === 1 ? prematch[tokens[0]] : undefined;
+    if (stored) {
+      setLookups((p) => ({
+        ...p,
+        [key]: {
+          status: "done",
+          word: stored.word,
+          sense: stored.sense ? { status: "done", sense: stored.sense } : undefined,
+        },
+      }));
+      logTap(t, "prematch", started, {
+        lemma_id: stored.word.lemma_id ?? null, verdict: stored.sense?.verdict ?? null,
+      });
+      return;
+    }
     setLookups((p) => ({ ...p, [key]: { status: "loading" } }));
     let word: DiscoverWord | null;
     try {
@@ -286,13 +352,19 @@ export default function SnapScreen() {
       ...p,
       [key]: { status: "done", word, sense: lemmaId ? { status: "checking" } : undefined },
     }));
-    if (!lemmaId) return;
+    if (!lemmaId) {
+      logTap(t, "live", started, { lemma_id: word?.lemma_id ?? null, verdict: null });
+      return;
+    }
     let sense: SenseState;
     try {
       sense = { status: "done", sense: await checkLookupSense(lemmaId, t.text, t.sentence) };
     } catch {
       sense = { status: "error" };
     }
+    logTap(t, "live", started, {
+      lemma_id: lemmaId, verdict: sense.status === "done" ? sense.sense.verdict : null,
+    });
     setLookups((p) => {
       const cur = p[key];
       return cur?.status === "done" ? { ...p, [key]: { ...cur, sense } } : p;

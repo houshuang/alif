@@ -1,0 +1,35 @@
+SAME     أوثق | tap: وَثِيق different firm, close, strong, reliable  || pre: واثِق -> sibling وَثِيق confident, sure
+SAME GAP ناحية | tap: ناحِيَة broader respect, aspect, regard; side, || pre: ناحِيَة -> fits ناحِيَة respect, aspect, regard; side,
+SAME     الرابط | tap: رَابِطٌ fits link, linkage || pre: رَابِطٌ -> fits رَابِطٌ link, linkage
+SAME GAP غالباً | tap: غالِب broader often, usually (as adverb); pr || pre: غالِب -> fits غالِب often, usually (as adverb); pr
+SAME     أميناً | tap: أَمِين fits trustee, secretary, trustworth || pre: أَمِين -> fits أَمِين trustee, secretary, trustworth
+SAME     عاماً | tap: عَامّ different general; universal || pre: عَام -> sibling عَامّ year
+SAME     شقيق | tap: شَقِيق fits brother || pre: شَقِيق -> fits شَقِيق brother
+DIFF     الداخلية | tap: دَاخِلِيّ different internal; interior; inner; dom || pre: دَاخِلِيَّة -> broader دَاخِلِيَّة medical residency/internship; 
+SAME     اجتازها | tap: اِجْتَازَ fits to cross, pass through; to pas || pre: اِجْتَازَ -> fits اِجْتَازَ to cross, pass through; to pas
+SAME     بتفوّق“. | tap: تَفَوُّق different superiority, excellence, outst || pre: تَفَوُّق -> fits تَفَوُّق superiority, excellence, outst
+SAME     عيون، | tap: عَيْن fits eye || pre: عَيْن -> fits عَيْن eye
+SAME GAP بدورهما. | tap: دَوْرٌ broader turn (in sequence); role, part || pre: دَوْرٌ -> fits دَوْرٌ turn (in sequence); role, part
+SAME     أعمالها | tap: عَمَل fits work; action, deed || pre: عَمَل -> fits عَمَل work; action, deed
+SAME     تحتلّ | tap: اِحْتَلَّ fits to occupy || pre: اِحْتَلَّ -> fits اِحْتَلَّ to occupy
+SAME     مراقبة | tap: مُرَاقَبَة different monitoring, supervision, overs || pre: مُرَاقَبَة -> fits مُرَاقَبَة monitoring, supervision, overs
+DIFF     مثيراً | tap: مُثِيرَة fits exciting || pre: مُثِير -> fits مُثِير exciting, provoking
+SAME     مردوده، | tap: مَرْدُود different yield, return, profit; revenue || pre: مَرْدُود -> fits مَرْدُود yield, return, profit; revenue
+SAME     الحرّ. | tap: حُرّ broader private, independent (of work) || pre: حُرّ -> broader حُرّ free; independent, private (pr
+SAME     عيّنت | tap: عَيَّنَ different to appoint, assign, designate; || pre: عَيْن -> different عَيَّنَ to appoint, assign; to designa
+SAME     الكلى، | tap: كُلْيَة different kidney || pre: كُلْيَة -> fits كُلْيَة kidney
+SAME     إثر | tap: إِثْر different right after, following, as a r || pre: إِثْر -> fits إِثْر right after, following, as a r
+DIFF     خضوعها | tap: خَضَع broader to undergo (surgery, etc.); to || pre: خُضُوع -> broader خُضُوع undergoing (e.g. surgery); sub
+SAME     لعملية | tap: عَمَلِيَّة broader surgery, surgical operation; p || pre: عَمَلِيّ -> different عَمَلِيَّة operation, surgery; process
+SAME     العصي. | tap: عَصَا fits stick, staff, cane || pre: عَصَا -> fits عَصَا stick, staff, cane
+SAME     تعود | tap: عَادَ different to return; (with negation) to  || pre: تَعَوَّد -> different عَادَ to return; to go back to, trac
+DIFF     وصلب، | tap: صَلْب different solid, hard, firm; tough, stro || pre: صُلْب -> fits صُلْب hard, solid, firm; steel
+SAME     ميل | tap: مَيْل fits inclination || pre: مَيْل -> fits مَيْل inclination
+SAME     “مقيم | tap: مُقِيم different resident; one who establishes  || pre: مُقِيم -> broader مُقِيم one who establishes or maintai
+SAME     متواضعة“، | tap: مُتَواضِع fits modest, humble || pre: مُتَواضِع -> fits مُتَواضِع modest, humble
+SAME     ارتقاء | tap: اِرْتِقَاء different rise, ascent, advancement, pro || pre: اِرْتِقَاء -> fits اِرْتِقَاء rise, ascent, advancement, pro
+SAME     (”اللامع | tap: لَامِع fits shiny, bright || pre: لَامِع -> fits لَامِع shiny, bright
+SAME     حلّ | tap: حَلَّ different to solve, to settle in, to bef || pre: حَلّ -> sibling حَلَّ solution
+SAME     واحتلّ | tap: اِحْتَلَّ fits to occupy || pre: اِحْتَلَّ -> fits اِحْتَلَّ to occupy
+SAME     أمضت | tap: أَمْضَى different to spend (time); to carry out, || pre: أَمْضَى -> fits أَمْضَى to spend (time); to sign
+{'same_word': 30, 'diff_word': 4, 'gloss_gap': 3, 'n': 34}

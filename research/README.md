@@ -1,5 +1,12 @@
 # Alif — Research Index
 
+## Snap page pre-match — November 26, 2026
+
+[Measurement](snap-prematch-2026-11/README.md): one background pass per snapped page gives the same
+final word as the per-tap sense check on 30 of 34 logged checks (the other 4 acceptable), covers
+all 62 logged taps, and flags 14–20 % of matched surfaces as another word or too narrow a gloss.
+The check must be per surface, not per entry. Decision: experiment-log `2026-11-26 "Snap page pre-match"`.
+
 ## Reading automaticity — November 3, 2026
 
 [Audit and clean reading timing](automaticity-2026-11-03/README.md): September–November

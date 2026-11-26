@@ -118,6 +118,32 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (2): Snap page pre-match — every page word matched and checked in the background
+
+**Why.** A Snap tap waited on `/lookup` and then a Sonnet sense check (3.7 s median, 6.0 s p90).
+Stian: "when I select a word it takes quite a long time … I do want it to be very accurate".
+
+**Measurement** (`research/snap-prematch-2026-11/README.md`, four pages, 34 logged checks with
+a verdict, 62 logged taps): one background pass per page ends on the same word as the per-tap
+check for 30 of 34 (the other 4 acceptable on inspection), covers all 62 taps, and flags 14–20 %
+of matched surfaces as another word or too narrow a gloss, so the model step stays. Checking one
+line per vocabulary entry (as pre-read does) got عيون and إثر wrong because the resolver grouped
+them with عيّنت and آثار; one line per surface fixed both. 22–27 s per page after OCR.
+
+**Change (branch `sh/snap-prematch`).** `services/snap_prematch.py` runs after `/snap` saves the
+page (and when an older page is opened): vocabulary matching with no model call, then per-surface
+`check_senses` in parallel chunks of 40 while unmatched words are glossed. Answers are stored in
+`snap_pages.prematch_json` (migration `ed4f5a6b7c89`) in the `/lookup` + `/lookup/sense` shapes,
+served by `GET /api/discover/snaps/{id}/prematch`. The Snap screen polls it and answers taps from
+it; taps before it is ready, or on surfaces whose check failed, use the per-tap path. A `broader`
+verdict widens the stored gloss (compare-and-set), as pre-read and the chip check already do.
+No scheduling effect.
+
+**Readout.** Taps are logged as `card_shown`/`card_type="snap_tap"` with `detail.source`
+(`prematch`/`live`) and `detail.ms`. After Stian's next reading sessions: share of taps answered
+from the pass, wait time by source, and any tap where the stored answer was wrong (his report).
+Still open: the translation-first async snap (the pass cannot start before OCR finishes, ~14 s).
+
 ## 2026-11-26: Snap word sheet = missed-word card; Snap reasons open recovery misses (`lookup_miss_v1`); general glosses on Add
 
 **Why.** Snap taps on studied words showed only a "known" badge, and 17 of 62 taps (18 Nov–25 Nov)
