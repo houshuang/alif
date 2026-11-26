@@ -118,6 +118,23 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (6): Stale word links moved automatically (cron Step 0c)
+
+**Why.** Another session found نهر "river" stored on نَهار "day time" in imported sentences and
+54 Quran words since April: a word stored before its own lemma existed keeps the look-alike, and
+Step 0b heals only empty links. `remap_to_new_lemmas.py` (PR #358) covered two lemma sources,
+a date filter (useless for the 1 April bulk stamp) and sentence words only.
+
+**Change (branch `sh/stale-link-remap`).** `services/lemma_remap.py`: all lemma sources, all
+three word tables, Quranic orthography folded; resolver sure + surface spells the new noun or
+adjective (headword or stored forms) and not the stored lemma; each distinct move judged once by
+Opus with up to three sentences (`lemma_remap_verdicts`). Cron Step 0c applies approved moves.
+
+**Probe on prod (read-only, before judging).** 3,631 candidate rows (sentence 1,985, story 358,
+Quran 1,288) in 1,706 distinct moves: mostly real corrections (ٱلۡإِنسَٰن on آنِسَة "Miss",
+ٱلۡقِيَٰمَة on قِيمَة "value", بِيَدِهِ on بَادَ "to perish"), some homographs the judge must
+refuse (الْمَقَالَ → مِقْلَاة "frying pan"); كذلك → ذُلّ is blocked by the spelling guard.
+
 ## 2026-11-26 (5): Gloss gate — every widening judged before it is written
 
 **Why.** Restoring the 110 lemmas also dropped 78 good widenings; Stian: "this all needs
