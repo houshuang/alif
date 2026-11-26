@@ -452,7 +452,7 @@ def resolve_repairs() -> dict[tuple, int]:
                     lid = resolve_canonical_lemma_id(db, lid)
                     lemma = db.get(Lemma, lid)
                     if (lemma is not None and lemma.gates_completed_at is not None
-                            and _vocalized_key(lemma.lemma_ar or "") == _vocalized_key(v.repair_lemma_ar)
+                            and same_citation(lemma.lemma_ar or "", v.repair_lemma_ar)
                             and _candidate_matches_correction(lemma, v.repair_gloss or "", v.repair_pos or "")
                             and lid not in (v.old_lemma_id, v.new_lemma_id)):
                         found = lid
@@ -463,6 +463,19 @@ def resolve_repairs() -> dict[tuple, int]:
                 for v in db.query(LemmaRemapVerdict).filter(LemmaRemapVerdict.repair_lemma_id.isnot(None))}
     finally:
         db.close()
+
+
+def same_citation(stored: str, named: str) -> bool:
+    """The stored headword is the named citation form: identical once case
+    endings are dropped, or the same letters with no vowel or shadda that
+    contradicts (a stored داخِلِيّ that lacks one mark is دَاخِلِيّ)."""
+    from app.services.preread_service import _vocalized_key
+
+    if _vocalized_key(stored) == _vocalized_key(named):
+        return True
+    a = "".join(ch for ch, _ in _letters(stored))
+    b = "".join(ch for ch, _ in _letters(named))
+    return bool(a) and a == b and spells_headword(stored, named) and spells_headword(named, stored)
 
 
 def bare_key_for(ar: str) -> str:

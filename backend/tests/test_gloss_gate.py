@@ -63,3 +63,16 @@ def test_check_senses_marks_broader_verdicts(monkeypatch):
     out = ps.check_senses("في القرن الماضي", [
         {"index": 0, "lemma_ar": "قَرْن", "gloss_en": "horn", "pos": "noun", "forms": ["القرن"]}])
     assert out[0]["verdict"] == "broader" and out[0]["approved"] is True
+
+
+def test_check_senses_flags_guessed_matches_in_the_prompt(monkeypatch):
+    seen = {}
+
+    def fake(**kw):
+        seen["prompt"] = kw["prompt"]
+        return {"mismatches": []}
+
+    monkeypatch.setattr("app.services.llm.generate_completion", fake)
+    ps.check_senses("وزارة", [{"index": 0, "lemma_ar": "زَارَ", "gloss_en": "to visit",
+                               "forms": ["وزارة"], "guess": True}])
+    assert "زَارَ (?) — to visit [in the pages: وزارة] [guessed match]" in seen["prompt"]

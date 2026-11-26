@@ -43,6 +43,7 @@ from app.database import SessionLocal
 from app.models import Lemma, UserLemmaKnowledge
 from app.services.llm import generate_completion, AllProvidersFailed
 from app.services.sentence_validator import (
+    LemmaMatchProvenance,
     _is_function_word,
     _strip_clitics,
     build_comprehensive_lemma_lookup,
@@ -184,7 +185,13 @@ def classify_token(
             "status": "function",
         }
 
-    lemma_id = lookup_lemma_id(bare, lemma_lookup, strict_fallback=True)
+    # The surface keeps its vowels (the resolver breaks homograph ties with
+    # them); a match only CAMeL guessed is no match for a reading aid.
+    provenance = LemmaMatchProvenance()
+    surface = strip_punctuation(strip_tatweel(token)).strip() or bare
+    lemma_id = lookup_lemma_id(surface, lemma_lookup, provenance, strict_fallback=True)
+    if lemma_id is not None and provenance.is_guess:
+        lemma_id = None
     if lemma_id is None:
         # Even if the comprehensive lookup didn't match, the user might still
         # know a lemma with this bare form (e.g. a clitic-stripped match).
@@ -1271,6 +1278,11 @@ def introduce(input_path: Path, top_n: int = 25, dry_run: bool = False) -> None:
         # resolved. No-op if the user is already at a higher state.
         seeded = 0
         upgraded = 0
+        from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+        # Knowledge rows belong to canonical lemmas (quality gates may have
+        # folded a new entry into an existing one as a variant).
+        resolved = list(dict.fromkeys(resolve_canonical_lemma_id(db, lid) for lid in resolved))
         for lid in resolved:
             ulk = db.query(UserLemmaKnowledge).filter(
                 UserLemmaKnowledge.lemma_id == lid,

@@ -383,6 +383,7 @@ def check_senses(text: str, items: list[dict], allow_name: bool = False) -> dict
     lines = [
         f'{it["index"]}. {it["lemma_ar"]} ({it.get("pos") or "?"}) — {it.get("gloss_en") or ""}'
         + (f' [in the pages: {", ".join(it["forms"][:5])}]' if it.get("forms") else "")
+        + (" [guessed match]" if it.get("guess") else "")
         + (
             " [other entries with this spelling: "
             + "; ".join(candidate_line(c) for c in it["candidates"])
@@ -404,8 +405,10 @@ def check_senses(text: str, items: list[dict], allow_name: bool = False) -> dict
         "gloss that puts the meaning used here first and keeps the stored meanings, "
         'e.g. "century; horn". It must stay generally usable, not tied to this book.\n'
         '- "different": the pages use a different word that merely shares the '
-        "spelling: another verb form, another vocalization, another part of speech "
-        "or an unrelated homograph (pages have عَمَدَ إلى \"to set about\" but the entry "
+        "spelling: another verb form, another vocalization, another part of speech, "
+        "a different root once prefixes and attached pronouns are removed (أمضت is "
+        "أَمْضَى \"to spend (time)\", not ماضٍ \"past\"; ابنها is اِبْن \"son\", not "
+        "أَب \"father\"), or an unrelated homograph (pages have عَمَدَ إلى \"to set about\" but the entry "
         'is عَمَّدَ "to baptize"; pages have the plural أعراق of عِرْق "race" but the '
         'entry is the verb عَرَقَ). Give lemma_ar: the fully vocalized citation form '
         "of the word used here (singular noun, past-tense 3ms verb, no ال), pos, "
@@ -417,7 +420,10 @@ def check_senses(text: str, items: list[dict], allow_name: bool = False) -> dict
         + ('- "name": the pages use this spelling as (part of) a proper name of a '
            "person, place or organization. Give no gloss.\n"
            if allow_name else "")
-        + "Do not report entries that fit, or rewordings or reorderings of a gloss "
+        + "Entries marked [guessed match] were chosen by a morphological analyzer, "
+        "not a dictionary key, and are wrong more often than not: check them with "
+        "particular care. "
+        "Do not report entries that fit, or rewordings or reorderings of a gloss "
         "that already covers the use"
         + ("" if allow_name else ", or words used as part of a name")
         + ". Keep glosses under 80 characters.\n\n"
@@ -595,7 +601,8 @@ def _apply_senses(
     for i, w in enumerate(checked):
         item = {"index": i, "lemma_id": w.get("lemma_id"), "lemma_ar": w["lemma_ar"],
                 "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
-                "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
+                "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]],
+                "guess": w.get("match_guess")}
         if w.get("tie_candidates"):
             item["candidates"] = w["tie_candidates"]
         items.append(item)

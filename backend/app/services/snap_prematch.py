@@ -125,7 +125,8 @@ def _database_matches(text: str) -> tuple[list[dict], list[dict], list[tuple[dic
             candidates = load_candidates(db, w.get("homograph_candidates"))
             for form in w.get("surface_forms") or [w["surface"]]:
                 item = {"index": len(items), "lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
-                        "gloss_en": w.get("gloss_en"), "pos": w.get("pos"), "forms": [form]}
+                        "gloss_en": w.get("gloss_en"), "pos": w.get("pos"), "forms": [form],
+                        "guess": w.get("match_guess")}
                 if candidates:
                     item["candidates"] = candidates
                 items.append(item)
