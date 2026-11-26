@@ -485,6 +485,33 @@ def bare_key_for(ar: str) -> str:
     return normalize_alef(strip_diacritics(ar or ""))
 
 
+def repair_rows(db, repairs: dict, lemmas: dict) -> list[Move]:
+    """Rows a resolved repair applies to, found directly in the stored tables:
+    every row on the old lemma (or one of its variants) with that surface. A
+    repair cannot wait for the resolver to propose the move again: the named
+    word may be a verb (never proposed) or now tie with another entry."""
+    from app.services.canonical_resolution import resolve_canonical_via_map
+
+    if not repairs:
+        return []
+    parents = {lid: lem.canonical_lemma_id for lid, lem in lemmas.items()}
+    by_old: dict[int, dict[str, int]] = defaultdict(dict)
+    for (old, _new, skey), target in repairs.items():
+        by_old[old][skey] = target
+    stored_ids = [lid for lid in lemmas if resolve_canonical_via_map(lid, parents) in by_old]
+    out: list[Move] = []
+    for name, model, owner_col in _tables():
+        rows = (db.query(model.id, owner_col, model.surface_form, model.lemma_id)
+                .filter(model.lemma_id.in_(stored_ids)).all()) if stored_ids else []
+        for row_id, owner_id, surface, stored in rows:
+            old = resolve_canonical_via_map(stored, parents)
+            text = fold_quranic(surface or "") if name == "quranic_verse_words" else (surface or "")
+            target = by_old.get(old, {}).get(surface_key(text)) or by_old.get(old, {}).get(surface_key(surface))
+            if target and target != old:
+                out.append(Move(name, row_id, owner_id, surface, stored, old, target))
+    return out
+
+
 def _targets(moves: list[Move], verdicts: dict, repairs: dict) -> list[Move]:
     """Approved moves, plus "neither" moves redirected to the repaired word."""
     from dataclasses import replace
@@ -498,13 +525,17 @@ def _targets(moves: list[Move], verdicts: dict, repairs: dict) -> list[Move]:
     return out
 
 
-def apply_moves(moves: list[Move], verdicts: dict, lemmas: dict, repairs: dict | None = None) -> dict:
-    """Apply approved (and repaired) moves compare-and-set. Returns stats with
-    the reviewable sentence ids that changed."""
+def apply_moves(moves: list[Move], verdicts: dict, lemmas: dict, repairs: dict | None = None,
+                extra: list[Move] | None = None) -> dict:
+    """Apply approved (and repaired) moves compare-and-set, plus ``extra``
+    repair rows found directly. Returns stats with the reviewable sentence ids
+    that changed."""
     from app.models import ActivityLog, Sentence
     from app.services.sentence_eligibility import MAPPING_VERIFICATION_MIN_AT
 
     approved = _targets(moves, verdicts, repairs or {})
+    seen = {(m.table, m.row_id) for m in approved}
+    approved += [m for m in extra or [] if (m.table, m.row_id) not in seen]
     models = {name: model for name, model, _ in _tables()}
     db = SessionLocal()
     try:
@@ -572,6 +603,11 @@ def run(apply: bool = False, judge_limit: int | None = None, reverify: bool = Tr
         db.close()
     verdicts = judge_moves(moves, lemmas, limit=judge_limit) if moves else {}
     repairs = resolve_repairs()
+    db = SessionLocal()
+    try:
+        repaired = repair_rows(db, repairs, lemmas)
+    finally:
+        db.close()
     keys = {m.key for m in moves}
     stats = {
         "candidates": len(moves),
@@ -581,10 +617,10 @@ def run(apply: bool = False, judge_limit: int | None = None, reverify: bool = Tr
         "unjudged_distinct": sum(1 for k in keys if k not in verdicts),
         "approved_rows": sum(1 for m in moves if verdicts.get(m.key) is True),
         "repaired_distinct": sum(1 for k in keys if repairs.get(k)),
-        "repaired_rows": sum(1 for m in moves if verdicts.get(m.key) is not True and repairs.get(m.key)),
+        "repaired_rows": len(repaired),
     }
     if apply and (stats["approved_rows"] or stats["repaired_rows"]):
-        applied = apply_moves(moves, verdicts, lemmas, repairs)
+        applied = apply_moves(moves, verdicts, lemmas, repairs, extra=repaired)
         stats.update(applied)
         if reverify and applied["reviewable"]:
             from app.services.mapping_rescue import reverify_all_active_sentences
