@@ -91,3 +91,13 @@ def test_phrase_met_in_reading_is_offered_to_the_word_card(db_session):
     inputs = gather_inputs(db_session, [lemma.lemma_id], {lemma.lemma_id: [("عين الماء", 3)]})
 
     assert inputs[0]["book_phrases"] == ["أَبْصَرَ النُّورَ", "عين الماء"]
+
+
+def test_a_tap_without_snap_or_sentence_still_keeps_one_row(db_session):
+    lemma = _word(db_session, "known")
+    for causes in (["retrieval_lapse"], ["unfamiliar_form"]):
+        discover.lookup_miss(
+            discover.LookupMissIn(lemma_id=lemma.lemma_id, surface="عيون", causes=causes), db_session
+        )
+
+    assert db_session.query(LookupMiss).count() == 1

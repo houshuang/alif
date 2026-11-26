@@ -1220,7 +1220,10 @@ def lookup_miss(req: LookupMissIn, db: Session = Depends(get_db)):
     existing = (
         db.query(LookupMiss)
         .filter(LookupMiss.source == "snap", LookupMiss.lemma_id == lemma_id,
-                LookupMiss.snap_id == req.snap_id, LookupMiss.sentence_ar == req.context)
+                LookupMiss.snap_id.is_(req.snap_id) if req.snap_id is None
+                else LookupMiss.snap_id == req.snap_id,
+                LookupMiss.sentence_ar.is_(None) if req.context is None
+                else LookupMiss.sentence_ar == req.context)
         .first()
     )
     state = (
