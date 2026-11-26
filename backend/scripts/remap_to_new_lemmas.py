@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Move stored sentence words onto lemmas that were created after the sentence.
 
+Superseded by services/lemma_remap.py (scripts/remap_stale_links.py, cron Step 0c),
+which covers every lemma source and the story and Quran word tables and judges
+each move. Kept for its dry-run listing by source and date.
+
 A sentence stored before a word had its own lemma maps that word to whatever
 caught it then: a participle or verbal noun to its verb (مُجْتَمَع on اِجْتَمَعَ), a
 noun to a look-alike. Creating the lemma fixes new sentences only. This script
@@ -49,60 +53,8 @@ from app.services.sentence_validator import (  # noqa: E402
 DEFAULT_SOURCES = ("book_frequency", "textbook_list")
 
 
-MARKS = "\u064b\u064c\u064d\u064e\u064f\u0650\u0651\u0652"
-SHADDA = "\u0651"
-TANWEEN = "\u064b\u064c\u064d"
-PROCLITICS = ("وبال", "فبال", "وكال", "ولل", "فلل", "وال", "فال", "بال", "كال", "لل", "ال", "و", "ف", "ب", "ل", "ك", "")
-MOVABLE_POS = {"noun", "adj", "adjective"}
-
-
-def _letters(text: str) -> list[tuple[str, str]]:
-    """(letter, marks) pairs; wasla and a kasra-carrying initial alif are plain alif."""
-    out: list[tuple[str, str]] = []
-    for ch in text:
-        if ch in MARKS:
-            if out:
-                out[-1] = (out[-1][0], out[-1][1] + ch)
-        elif "\u0621" <= ch <= "\u064a" or ch == "\u0671":
-            out.append(("ا" if ch == "\u0671" else ch, ""))
-    return out
-
-
-def spells_headword(surface: str, headword: str) -> bool:
-    surf, head = _letters(surface), _letters(headword)
-    if not head:
-        return False
-    if head[0][0] == "ا":
-        head[0] = ("ا", "")
-    vocalised = sum(1 for _, marks in surf if marks) >= 2
-    bare = "".join(letter for letter, _ in surf)
-    stem = [letter for letter, _ in head]
-    for clitic in PROCLITICS:
-        if not bare.startswith(clitic):
-            continue
-        start = len(clitic)
-        segment = surf[start:start + len(head)]
-        if len(segment) < len(head):
-            continue
-        ok = True
-        for index, ((s_letter, s_marks), (h_letter, h_marks)) in enumerate(zip(segment, head)):
-            last = index == len(head) - 1
-            if s_letter != h_letter and not (last and h_letter == "ة" and s_letter == "ت"):
-                ok = False
-                break
-            ends_here = last and start + len(head) == len(surf)
-            assimilated = index == 0 and clitic.endswith("ل") and SHADDA in s_marks
-            if (SHADDA in h_marks) != (SHADDA in s_marks) and (vocalised or ends_here) and not assimilated:
-                ok = False
-                break
-            s_vowel = s_marks.replace(SHADDA, "")
-            h_vowel = h_marks.replace(SHADDA, "")
-            if not last and s_vowel and h_vowel and s_vowel != h_vowel:
-                ok = False
-                break
-        if ok and stem:
-            return True
-    return False
+# The spelling test lives in the service that superseded this script.
+from app.services.lemma_remap import MOVABLE_POS, spells_headword  # noqa: E402,F401
 
 
 def find_moves(db, sources: set[str], since: datetime) -> tuple[list[dict], dict[int, Lemma]]:

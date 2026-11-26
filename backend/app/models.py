@@ -597,6 +597,24 @@ class SnapPage(Base):
     prematch_json = Column(JSON, nullable=True)
 
 
+class LemmaRemapVerdict(Base):
+    """A judged move of stored word links (sentence, story or Quran words with
+    this surface) from one lemma to another (services/lemma_remap.py), so each
+    move is judged once. Lemma ids are not foreign keys."""
+    __tablename__ = "lemma_remap_verdicts"
+    __table_args__ = (
+        UniqueConstraint("old_lemma_id", "new_lemma_id", "surface_key", name="uq_lemma_remap_verdict"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    old_lemma_id = Column(Integer, nullable=False)
+    new_lemma_id = Column(Integer, nullable=False)
+    surface_key = Column(Text, nullable=False)
+    approved = Column(Boolean, nullable=False)
+    reason = Column(Text, nullable=True)
+    judged_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class LookupMiss(Base):
     """A reason the learner gave for not recognising a word they study, while
     reading outside review (a Snap tap). ``opens_miss`` rows (words in FSRS

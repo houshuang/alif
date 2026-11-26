@@ -1637,6 +1637,21 @@ async def main() -> int:
             except Exception as exc:
                 print(f"  Remap step failed: {exc}")
 
+        # Stored links that point at the wrong lemma (a word stored before its
+        # own lemma existed): re-resolve, judge each distinct move once, apply
+        # approved ones. ALIF_LINK_REMAP=0 switches it off.
+        print("\n═══ Step 0c: Move stale word links (sentence/story/Quran words) ═══")
+        if args.dry_run or os.environ.get("ALIF_LINK_REMAP", "1") == "0":
+            print("  Skipped")
+        else:
+            from app.services import lemma_remap
+            try:
+                db.commit()  # no write lock across the judge's model calls
+                print(f"  {lemma_remap.run(apply=True, judge_limit=200)}")
+            except Exception as exc:
+                db.rollback()
+                print(f"  Link remap step failed: {exc}")
+
         sent_a = step_backfill_sentences(
             db,
             args.dry_run,
