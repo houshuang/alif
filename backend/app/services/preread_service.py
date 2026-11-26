@@ -532,8 +532,35 @@ def _tie_candidates(db: Session, words: list[dict], now: datetime) -> None:
         w["tie_candidates"] = candidates
 
 
+_STORED_FITS = {"verdict": "fits"}
+
+
+def stored_verdict(w: dict, page_senses: list[dict]) -> dict | None:
+    """The pages' pre-match answer for a matched word, read from its most
+    frequent spelling that the pre-match matched to the same entry (checked
+    per surface against its own page). ``_STORED_FITS`` when the entry fits
+    (or a widening was refused); None when no page covers the word."""
+    for form in w.get("surface_forms") or [w.get("surface")]:
+        for words in page_senses:
+            entry = words.get(form)
+            if not entry or (entry.get("word") or {}).get("lemma_id") != w.get("lemma_id"):
+                continue
+            sense = entry.get("sense") or {}
+            verdict = sense.get("verdict")
+            if verdict == "different" and sense.get("word"):
+                used = sense["word"]
+                return {"verdict": "different", "lemma_ar": used.get("lemma_ar"),
+                        "gloss_en": used.get("gloss_en"), "pos": used.get("pos")}
+            if verdict == "broader" and sense.get("written"):
+                # Already widened by the pre-match; show the stored gloss.
+                return {"verdict": "broader", "gloss_en": sense["gloss_en"], "approved": True}
+            if verdict:
+                return _STORED_FITS
+    return None
+
+
 def _apply_senses(
-    text: str, learn: list[dict], shaky: list[dict]
+    text: str, learn: list[dict], shaky: list[dict], page_senses: list[dict] | None = None
 ) -> tuple[list[dict], list[dict], int, int]:
     """Annotate matched words with the sense check. A widened gloss is stored
     on the word as ``regloss`` (written by the router); a different lexeme
@@ -546,7 +573,10 @@ def _apply_senses(
     shaky, n_checked, n_held_back)."""
     from app.routers.discover import _normalize
 
-    checked = [w for w in learn + shaky if w.get("lemma_id")]
+    matched = [w for w in learn + shaky if w.get("lemma_id")]
+    stored = {id(w): v for w in matched
+              if (v := stored_verdict(w, page_senses or [])) is not None}
+    checked = [w for w in matched if id(w) not in stored]
     items = []
     for i, w in enumerate(checked):
         item = {"index": i, "lemma_id": w.get("lemma_id"), "lemma_ar": w["lemma_ar"],
@@ -555,18 +585,24 @@ def _apply_senses(
         if w.get("tie_candidates"):
             item["candidates"] = w["tie_candidates"]
         items.append(item)
-    verdicts = check_senses(text, items)
+    verdicts = check_senses(text, items) if items else {}
+    held: set[int] = set()
     if verdicts is None:
         # An unchecked match can be a same-skeleton neighbour (أمضت → ماضٍ):
         # do not enter or pull forward any of them on a failed check.
-        unchecked = {id(w) for w in checked}
-        logger.warning("preread: sense check failed; holding back %d matched words", len(unchecked))
-        return ([w for w in learn if id(w) not in unchecked],
-                [w for w in shaky if id(w) not in unchecked], 0, len(unchecked))
+        held = {id(w) for w in checked}
+        logger.warning("preread: sense check failed; holding back %d matched words", len(held))
+        verdicts = {}
+    by_word = {id(w): verdicts.get(i) for i, w in enumerate(checked)}
+    by_word.update({k: (None if v is _STORED_FITS else v) for k, v in stored.items()})
+    learn = [w for w in learn if id(w) not in held]
+    shaky = [w for w in shaky if id(w) not in held]
     groups = {id(w): "learn" for w in learn} | {id(w): "shaky" for w in shaky}
-    for i, w in enumerate(checked):
+    for w in matched:
+        if id(w) in held:
+            continue
         w["sense_checked"] = True
-        v = verdicts.get(i)
+        v = by_word.get(id(w))
         if not v:
             continue
         if v["verdict"] == "sibling":
@@ -602,7 +638,8 @@ def _apply_senses(
             groups[id(w)] = "learn"
     everything = learn + shaky
     return ([w for w in everything if groups.get(id(w)) == "learn"],
-            [w for w in everything if groups.get(id(w)) == "shaky"], len(checked), 0)
+            [w for w in everything if groups.get(id(w)) == "shaky"],
+            len(matched) - len(held), len(held))
 
 
 def regloss(db: Session, words: list[dict], source: str | None = None) -> list[int]:
@@ -632,8 +669,11 @@ def regloss(db: Session, words: list[dict], source: str | None = None) -> list[i
     return []
 
 
-def analyze_pages(db: Session, pages: list[str]) -> dict:
-    """Build the automatic plan for these pages. Read-only."""
+def analyze_pages(db: Session, pages: list[str], page_senses: list[dict] | None = None) -> dict:
+    """Build the automatic plan for these pages. Read-only except for the
+    widenings the gloss gate approves. ``page_senses`` are the pages' stored
+    pre-match answers ({surface: {word, sense}}); words they cover are not
+    checked again."""
     from app.routers.discover import _ARABIC_TOKEN, discover_words_in_text
 
     pages = [p for p in pages if (p or "").strip()]
@@ -713,7 +753,7 @@ def analyze_pages(db: Session, pages: list[str]) -> dict:
 
     _tie_candidates(db, learn + shaky, now)
     db.rollback()  # hold no transaction across the sense check
-    learn, shaky, n_checked, held_back = _apply_senses(text, learn, shaky)
+    learn, shaky, n_checked, held_back = _apply_senses(text, learn, shaky, page_senses)
 
     names = _merge_names(names)
     for group in (learn, shaky):

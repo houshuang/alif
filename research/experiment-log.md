@@ -118,6 +118,17 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (8): Snap chips and pre-read use the page pre-match
+
+From the OCR-surface audit (gaps 1–4). Snap ran the chip check and the page pre-match side by
+side on the same words (two Sonnet checks, two gate calls, two new-word glosses that could
+disagree); chips are now picked from the pre-match after it finishes (`chips_from_prematch`), so
+they appear ~30 s after the page instead of ~12 s and always match a tap. Pre-read checked one
+line per entry over all pages joined (cut at 24,000 characters) and its pages re-ran the
+pre-match when opened in Snap; now each pre-read page runs the pre-match after OCR and the plan
+takes per-surface verdicts from it (`stored_verdict`), checking only uncovered words. Branch
+`sh/snap-one-engine`.
+
 ## 2026-11-26 (7): Intake gloss prompts share the general-meaning rule; story import write lock
 
 From the OCR-surface audit (`research/snap-prematch-2026-11/ocr-surfaces-audit-2026-11-26.md`).

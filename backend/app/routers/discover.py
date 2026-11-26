@@ -770,16 +770,97 @@ def _store_snap_chips(snap_id: int, count: int, selection: str, include_oov: boo
         db.close()
 
 
-def _finish_snap(snap_id: int, count: int, selection: str, include_oov: bool) -> None:
-    """After a new page is returned: its suggested words and the page pre-match,
-    side by side (background tasks would otherwise run one after the other)."""
-    from concurrent.futures import ThreadPoolExecutor
+def chips_from_prematch(text: str, words: dict, count: int, selection: str) -> list[dict]:
+    """The page's suggested words, picked from the page pre-match so a chip and
+    a tap on the same word show the same answer: the word the check settled on
+    (a "different" verdict's word, with ``sense_from``), not yet learning, not a
+    name, with a gloss; ranked as ``discover_words_in_text`` ranks them."""
+    ranks = _load_rank_map()
+    occurrences: dict[str, int] = {}
+    for tok in _ARABIC_TOKEN.findall(text or ""):
+        occurrences[tok] = occurrences.get(tok, 0) + 1
+    find_example = _example_finder(text)
+    chosen: dict[str, dict] = {}
+    for surface, entry in (words or {}).items():
+        base = entry.get("word") or {}
+        sense = entry.get("sense") or {}
+        rerouted = sense.get("verdict") == "different" and bool(sense.get("word"))
+        w = dict(sense["word"]) if rerouted else dict(base)
+        if rerouted:
+            w["sense_from"] = {"lemma_id": base.get("lemma_id"), "lemma_ar": base.get("lemma_ar"),
+                               "gloss_en": base.get("gloss_en")}
+        if sense.get("verdict") == "broader":
+            if sense.get("written"):
+                w["gloss_en"] = sense["gloss_en"]
+            else:
+                w["gloss_here"] = w.get("gloss_here") or sense["gloss_en"]
+        if (w.get("is_proper_noun") or (w.get("pos") or "").lower() in _PROPER_NOUN_POS
+                or w.get("knowledge_state") in _ALREADY_LEARNING_STATES or not w.get("gloss_en")):
+            continue
+        key = _normalize(w.get("lemma_ar_bare") or w.get("lemma_ar") or surface)
+        if not key or _is_function_word(key):
+            continue
+        n = occurrences.get(surface, 1)
+        if key in chosen:
+            c = chosen[key]
+            c["count_in_text"] += n
+            if surface not in c["surface_forms"]:
+                c["surface_forms"].append(surface)
+            continue
+        w.update(surface=surface, surface_forms=[surface], count_in_text=n,
+                 freq_rank=ranks.get(key), homograph_candidates=[])
+        chosen[key] = w
+    if selection == "distinctive":
+        def score(w):
+            return -w["count_in_text"] * math.log10((w["freq_rank"] or _OOV_RANK) + 10)
+    else:
+        def score(w):
+            return (0, w["freq_rank"], 0) if w["freq_rank"] else (1, 0, -w["count_in_text"])
+    out = sorted(chosen.values(), key=score)[:max(1, min(count, _MAX_WORDS))]
+    for w in out:
+        w["surface_forms"].sort(key=lambda f: -occurrences.get(f, 0))
+        w["surface"] = w["surface_forms"][0]
+        w["example_ar"] = find_example(set(w["surface_forms"]))
+    return out
 
+
+def _store_chips_from_prematch(snap_id: int, count: int, selection: str, include_oov: bool) -> None:
+    """Suggested words from the stored page pre-match; the older discovery path
+    when the pre-match is missing or failed."""
+    db = SessionLocal()
+    try:
+        page = db.get(SnapPage, snap_id)
+        if page is None:
+            return
+        pm = page.prematch_json or {}
+        text = page.arabic_text
+        if pm.get("status") != "ready":
+            db.close()
+            _store_snap_chips(snap_id, count, selection, include_oov)
+            return
+        page.words_json = chips_from_prematch(text, pm.get("words") or {}, count, selection)
+        db.commit()
+        log_interaction(event="snap_words_ready", snap_id=snap_id,
+                        word_count=len(page.words_json), source="prematch")
+    except Exception:
+        logger.exception("snap suggestions from the pre-match failed for page %s", snap_id)
+        db.rollback()
+        page = db.get(SnapPage, snap_id)
+        if page is not None and page.words_json is None:
+            page.words_json = []
+            db.commit()
+    finally:
+        db.close()
+
+
+def _finish_snap(snap_id: int, count: int, selection: str, include_oov: bool) -> None:
+    """After a new page is returned: the page pre-match, then the suggested
+    words picked from it (one check per page, and a chip always agrees with a
+    tap on the same word)."""
     from app.services.snap_prematch import run_prematch
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        pool.submit(_store_snap_chips, snap_id, count, selection, include_oov)
-        pool.submit(run_prematch, snap_id)
+    run_prematch(snap_id)
+    _store_chips_from_prematch(snap_id, count, selection, include_oov)
 
 
 def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:

@@ -194,7 +194,7 @@ def test_run_preread_reads_pages_and_enters_words_outside_budget(client, db_sess
     monkeypatch.setattr(pr, "_prepare_material", lambda new, ex, hooks=None: material.append((new, ex)))
     seen_texts = []
 
-    def fake_analyze(db, texts):
+    def fake_analyze(db, texts, page_senses=None):
         seen_texts.extend(texts)
         return {
             "learn": [_word("محرك", lemma_id=enc.lemma_id, count=1, gloss="engine"),
@@ -428,3 +428,25 @@ def test_check_senses_drops_no_op_verdicts(monkeypatch):
     out = _real_check_senses("نص", items)
     assert list(out) == [3] and out[3]["lemma_ar"] == "عَمَدَ"
     assert "[in the pages: العثمانية]" in prompts[0]
+
+
+def test_stored_page_answers_replace_the_batch_check(monkeypatch):
+    """Words the pages' pre-match covered take its per-surface answer; only the
+    rest go to check_senses."""
+    calls = []
+    monkeypatch.setattr(ps, "check_senses", lambda text, items: calls.append(items) or {})
+    past = {"lemma_id": 1, "lemma_ar": "مَاضٍ", "gloss_en": "past", "surface_forms": ["أمضت"]}
+    qarn = {"lemma_id": 2, "lemma_ar": "قَرْن", "gloss_en": "horn", "surface_forms": ["القرن"]}
+    other = {"lemma_id": 3, "lemma_ar": "وَقْت", "gloss_en": "time", "surface_forms": ["الوقت"]}
+    pages = [{
+        "أمضت": {"word": {"lemma_id": 1}, "sense": {"verdict": "different", "word": {
+            "lemma_ar": "أَمْضَى", "gloss_en": "to spend (time)", "pos": "verb", "lemma_id": None}}},
+        "القرن": {"word": {"lemma_id": 2}, "sense": {"verdict": "broader", "gloss_en": "century; horn",
+                                                     "written": True}},
+    }]
+    learn, shaky, n_checked, held = ps._apply_senses("أمضت القرن الوقت", [past, qarn, other], [], pages)
+    assert [it["forms"] for it in calls[0]] == [["الوقت"]]  # only the uncovered word
+    assert n_checked == 3 and held == 0
+    rerouted = next(w for w in learn if w.get("sense_from"))
+    assert rerouted["lemma_ar"] == "أَمْضَى" and rerouted["lemma_id"] is None
+    assert qarn["gloss_en"] == "century; horn"
