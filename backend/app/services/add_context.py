@@ -108,7 +108,8 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
             if lemma.canonical_lemma_id:
                 lemma = db.get(Lemma, lemma.canonical_lemma_id) or lemma
             lemma_id = lemma.lemma_id
-            entry = {"lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en, "pos": lemma.pos}
+            entry = {"lemma_id": lemma.lemma_id, "lemma_ar": lemma.lemma_ar,
+                     "gloss_en": lemma.gloss_en, "pos": lemma.pos}
             sentence, surface = row.sentence_ar, row.surface or lemma.lemma_ar
             if lookup is None:
                 from app.services.sentence_validator import build_comprehensive_lemma_lookup
@@ -130,8 +131,9 @@ def verify_add_contexts(context_ids: list[int]) -> dict[str, int]:
 
             written = False
             if v["verdict"] == "broader":
-                w = {"lemma_id": lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"]}}
-                regloss(db, [w])
+                w = {"lemma_id": lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"],
+                                                        "approved": v.get("approved") is True}}
+                regloss(db, [w], source="add_context")
                 written = bool(w.get("reglossed"))
             row = db.get(WordAddContext, cid)
             row.check_verdict = v["verdict"]

@@ -38,7 +38,7 @@ def test_confirmed_guess_is_accepted_and_different_one_is_not(db_session, monkey
 
 def test_broader_guess_widens_gloss(db_session, monkeypatch):
     def verdicts(items):
-        return {it["index"]: {"verdict": "broader", "gloss_en": "to visit; visit (n.)"}
+        return {it["index"]: {"verdict": "broader", "gloss_en": "to visit; visit (n.)", "approved": True}
                 for it in items if it["forms"][0] == "زيارات"}
     visit, lookup, words, _ = _setup(db_session, monkeypatch, verdicts)
     accepted, _ = ocr_service._check_scan_guesses(db_session, words, lookup)

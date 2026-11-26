@@ -1,0 +1,23 @@
+138s
+good      approved  62  refused  16
+noop      approved   0  refused  10
+doubtful  approved   2  refused   9
+bad       approved   0  refused  14
+#23 [good→refused:no_value] ضَابِط | officer → officer; controller | 'controller' is marginal, not supported by the entry; officer suffices
+#26 [good→refused:idiom] ماضِي | past → past; last (as in last century) | 'last' comes from القرن الماضي; 'past' already covers it
+#27 [good→refused:no_value] مُؤَكَّد | certain, confirmed → certain, confirmed; sure | 'sure' is a synonym of 'certain'
+#39 [good→refused:no_value] عَدِيد | many → a number of, many; numerous | numerous/a number of are synonyms of 'many'; 'a number of' comes from العديد من
+#40 [good→refused:no_value] سُلالَة | dynasty, breed, lineage → lineage, descent; dynasty, breed | reordering plus near-synonym 'descent'
+#41 [good→refused:no_value] عَلاقَة | relationship → relationship; relation, connection | relation/connection are synonyms of relationship
+#43 [good→refused:drops_meaning] اِنْحَدَرَ | to descend, flow → to descend from, originate; to flow down | replaces general 'to descend' with narrower 'descend from'/'flow down'
+#44 [good→refused:no_value] عُثُور | finding → finding, coming across; discovery | coming across/discovery are near-synonyms of finding
+#51 [good→refused:no_value] مَحَلّ | shop, place → place, position; shop | mostly a reorder; 'position' adds little over place
+#56 [good→refused:no_value] جُمْهُورِيّ | republican → republican; of the republic | 'of the republic' just restates 'republican'.
+#60 [good→refused:idiom] سَوَاء | equal, same → whether; equal, same | 'whether' comes from the سواء…أو construction, not the adjective's own meaning.
+#63 [good→refused:no_value] غالِب | often, usually (as adverb); prevailing, predominant; most → most, the majority; often, usually; prevailing | Mostly a reordering; 'most' already present, and it drops 'predominant'.
+#85 [doubtful→APPROVED] أَحْدَث | to happen → to bring about, cause, create; to happen | bring about/cause is the core form IV sense (Wiktionary: to produce, trigger)
+#97 [doubtful→APPROVED] مُبارَأَة | match → competition, exam contest; match | competition is a listed sense; 'exam contest' leans regional, could keep only 'competition'
+#104 [good→refused:other_word] أَصْل | origin, root, source → origin, root, source; (pl.) ancestry | (pl.) ancestry belongs to plural أصول, a separate entry
+#106 [good→refused:drops_meaning] ضَمان | social security; guarantee; warranty → guarantee; certainty, security; social security | drops warranty; social security is an idiom
+#108 [good→refused:wrong_pos] مَرِيض | sick → patient; sick | patient is the noun use; lemma is adjective
+#111 [good→refused:no_value] طِبَابَة | medicine (medical profession) → medical practice; medicine (profession) | rewording of medical profession

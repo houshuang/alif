@@ -118,6 +118,24 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (5): Gloss gate — every widening judged before it is written
+
+**Why.** Restoring the 110 lemmas also dropped 78 good widenings; Stian: "this all needs
+to happen automatically, with stricter tests … you have to be [the expert judge]".
+`_is_widening` (one shared word) let through another word's meaning, narrowings and idioms.
+
+**Change (branch `sh/widening-gate`).** `services/gloss_gate.py`: rules, then a Claude Opus
+judge (not the proposing model) with same-root entries and Wiktionary senses (new
+`data/wiktionary_index.json.gz`); a verdict is required per item. `check_senses` and
+`check_lookup_sense` mark each "broader" verdict `approved`; `regloss` writes only approved
+ones, for all six writers (pre-read, Snap tap, chips, page pass, add contexts, story import,
+textbook scan), keeps memory hooks and logs `gloss_widened`. Snap page pass version 3 writes
+approved widenings; rerun on all pages after deploy.
+
+**Measurement** (113 labelled widenings, two runs): bad 0/14 and 0/14 approved, doubtful 2/11
+and 1/11, no-value 0/10, good 62/78 both runs. Readout: `gloss_gate` and `gloss_widened`
+events; spot-check a sample of approved writes weekly while volume is new.
+
 ## 2026-11-26 (4): Snap pre-match no longer writes glosses; 110 widenings restored
 
 **Why.** A Fable review of the deployed pre-match (`research/snap-prematch-2026-11/review-2026-11-26.md`)

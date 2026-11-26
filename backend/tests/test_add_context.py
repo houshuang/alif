@@ -15,9 +15,17 @@ def _lemma(db, ar, bare, gloss, pos, state=None):
     return lem
 
 
+def _gated(v, res):
+    """What check_lookup_sense returns after the gloss gate: a widening is
+    approved unless the test says otherwise."""
+    if v and v["verdict"] == "broader":
+        v["approved"] = res.get("approved", True)
+    return v
+
+
 def _stub_sense(monkeypatch, res):
     monkeypatch.setattr(lookup_sense, "check_lookup_sense",
-                        lambda sentence, surface, entry: validate_verdict(res, entry))
+                        lambda sentence, surface, entry: _gated(validate_verdict(res, entry), res))
 
 
 def test_add_records_context_and_schedules_check(client, db_session, monkeypatch):
@@ -115,7 +123,7 @@ def test_snap_chips_sense_check(db_session, monkeypatch):
         by = {it["lemma_ar"]: it["index"] for it in items}
         return {
             by["مَاضٍ"]: {"verdict": "different", "lemma_ar": "أَمْضَى", "gloss_en": "to spend (time)", "pos": "verb"},
-            by["حِصَّة"]: {"verdict": "broader", "gloss_en": "share; class period"},
+            by["حِصَّة"]: {"verdict": "broader", "gloss_en": "share; class period", "approved": True},
             by["أَب"]: {"verdict": "different", "lemma_ar": "اِبْن", "gloss_en": "son", "pos": "noun"},
         }
     monkeypatch.setattr(ps, "check_senses", fake)

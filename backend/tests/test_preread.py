@@ -362,7 +362,8 @@ def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypa
     def fake_senses(text, items):
         by = {it["lemma_ar"]: it["index"] for it in items}
         return {
-            by["قرن"]: {"verdict": "broader", "gloss_en": "century; horn", "lemma_ar": None, "pos": None},
+            by["قرن"]: {"verdict": "broader", "gloss_en": "century; horn", "lemma_ar": None, "pos": None,
+                        "approved": True},
             by["عمد"]: {"verdict": "different", "gloss_en": "to set about, proceed deliberately",
                        "lemma_ar": "عَمَدَ", "pos": "verb"},
         }
@@ -370,7 +371,7 @@ def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypa
 
     plan = ps.analyze_pages(db_session, ["القرن التاسع عشر عمد إلى"])
     assert [w["lemma_ar_bare"] for w in plan["shaky"]] == ["قرن"]
-    assert plan["shaky"][0]["regloss"] == {"from": "horn", "to": "century; horn"}
+    assert plan["shaky"][0]["regloss"] == {"from": "horn", "to": "century; horn", "approved": True}
     assert [w["lemma_ar"] for w in plan["learn"]] == ["عَمَدَ"]
     assert plan["learn"][0]["lemma_ar_bare"] == "عمد"
     assert plan["learn"][0]["sense_from"]["lemma_id"] == baptize_id
@@ -381,8 +382,9 @@ def test_sense_check_widens_glosses_and_reroutes_homographs(db_session, monkeypa
 
     db_session.expire_all()
     q = db_session.get(Lemma, qarn_id)
-    assert q.gloss_en == "century; horn" and q.memory_hooks_json is None
-    assert applied["hook_ids"] == [qarn_id]
+    # An approved widening keeps every stored meaning, so the hook stays.
+    assert q.gloss_en == "century; horn" and q.memory_hooks_json == {"mnemonic": "a rhino horn"}
+    assert applied["hook_ids"] == []
     new = plan["learn"][0]
     assert new["added"] and new["lemma_id"] not in (None, baptize_id)
     assert db_session.get(Lemma, new["lemma_id"]).gloss_en == "to set about, proceed deliberately"

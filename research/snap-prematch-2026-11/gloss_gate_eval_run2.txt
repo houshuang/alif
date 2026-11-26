@@ -1,0 +1,22 @@
+129s
+good      approved  62  refused  16
+noop      approved   0  refused  10
+doubtful  approved   1  refused  10
+bad       approved   0  refused  14
+#5 [good→refused:no_value] مَرْحَلَةِ | stage → stage; phase; period | 'phase' is a synonym of 'stage'; 'period' is not really a sense of مرحلة
+#11 [good→refused:narrowing] خَدَم | to serve → to serve (in the army or a post); to wait on | parenthetical restricts the general 'to serve' to army/post service
+#23 [good→refused:wrong_meaning] ضَابِط | officer → officer; controller | 'controller' is not a standard sense of ضابط and not the one used here
+#27 [good→refused:no_value] مُؤَكَّد | certain, confirmed → certain, confirmed; sure | 'sure' is a synonym of 'certain'
+#39 [good→refused:no_value] عَدِيد | many → a number of, many; numerous | numerous/a number of are synonyms of stored 'many'
+#40 [good→refused:no_value] سُلالَة | dynasty, breed, lineage → lineage, descent; dynasty, breed | reordering plus 'descent', a synonym of lineage
+#43 [good→refused:drops_meaning] اِنْحَدَرَ | to descend, flow → to descend from, originate; to flow down | replaces plain 'to descend' (come down) with 'descend from'
+#56 [good→refused:no_value] جُمْهُورِيّ | republican → republican; of the republic | 'of the republic' only restates 'republican'
+#60 [good→refused:idiom] سَوَاء | equal, same → whether; equal, same | 'whether' comes from the construction سواء…أو, not the adjective itself
+#63 [good→refused:no_value] غالِب | often, usually (as adverb); prevailing, predominant; most → most, the majority; often, usually; prevailing | mostly a reordering; 'the majority' is a synonym of 'most'
+#85 [doubtful→APPROVED] أَحْدَث | to happen → to bring about, cause, create; to happen | Form IV أحدث is 'to bring about, cause, produce' (Wiktionary). This adds the core sense. Note that the kept 't
+#104 [good→refused:other_word] أَصْل | origin, root, source → origin, root, source; (pl.) ancestry | The plural أصول has its own entry, 'origins; ancestry'.
+#106 [good→refused:drops_meaning] ضَمان | social security; guarantee; warranty → guarantee; certainty, security; social security | Drops the correct sense 'warranty'.
+#108 [good→refused:wrong_pos] مَرِيض | sick → patient; sick | 'Patient' is the noun use. The lemma is the adjective.
+#109 [good→refused:no_value] دَوام | permanence, working hours → constant continuation; permanence; working hours | 'Constant continuation' means much the same as 'permanence' and was suggested by على الدوام.
+#111 [good→refused:no_value] طِبَابَة | medicine (medical profession) → medical practice; medicine (profession) | This rewords the stored gloss and adds nothing.
+#112 [good→refused:no_value] رَابِطٌ | link, linkage → link, linkage; bond, tie | 'bond, tie' mostly repeats 'link, linkage'. 'Tie' can also be confused with رِبْطَة/رابِطَة. Wiktionary gives 

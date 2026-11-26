@@ -106,3 +106,7 @@ polyglot/data/textbooks/
 
 # Local scratch (source texts, request dumps)
 /tmp/
+
+# Wiktionary extract and the gloss-gate index built from it (scripts/build_wiktionary_index.py)
+backend/data/wiktionary_arabic.jsonl.gz
+backend/data/wiktionary_index.json.gz

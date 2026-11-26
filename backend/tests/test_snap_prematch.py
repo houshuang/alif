@@ -160,3 +160,40 @@ def test_finish_snap_runs_suggestions_and_prematch(monkeypatch):
     monkeypatch.setattr(snap_prematch, "run_prematch", lambda sid: calls.append(("prematch", sid)))
     discover._finish_snap(7, 5, "common_first", True)
     assert sorted(calls) == [("chips", (7, 5, "common_first", True)), ("prematch", 7)]
+
+
+def test_regloss_writes_only_gate_approved_widenings(db_session):
+    from app.services.preread_service import regloss
+
+    a = _lemma(db_session, "قَرْن", "قرن", "horn", "noun")
+    b = _lemma(db_session, "حِصَّة", "حصة", "class period", "noun")
+    a.memory_hooks_json = {"mnemonic": "a rhino horn"}
+    db_session.commit()
+    ok = {"lemma_id": a.lemma_id, "regloss": {"from": "horn", "to": "century; horn", "approved": True}}
+    refused = {"lemma_id": b.lemma_id, "regloss": {"from": "class period", "to": "share; class period"}}
+    regloss(db_session, [ok, refused], source="test")
+    db_session.commit()
+    assert ok.get("reglossed") and refused.get("regloss_refused")
+    db_session.refresh(a)
+    db_session.refresh(b)
+    assert a.gloss_en == "century; horn" and a.memory_hooks_json == {"mnemonic": "a rhino horn"}
+    assert b.gloss_en == "class period"
+
+
+def test_page_pass_writes_approved_widenings_only(db_session, monkeypatch):
+    qarn = _lemma(db_session, "قَرْن", "قرن", "horn", "noun", "known")
+    hissa = _lemma(db_session, "حِصَّة", "حصة", "class period", "noun", "known")
+    page = _page(db_session, "القرن الحصة")
+    _stub_checks(monkeypatch, {
+        "القرن": {"index": 0, "verdict": "broader", "gloss_en": "century; horn", "approved": True},
+        "الحصة": {"index": 1, "verdict": "broader", "gloss_en": "share; class period", "approved": False},
+    })
+    _stub_gloss(monkeypatch, {})
+
+    out = snap_prematch.prematch_page(page.id)
+
+    assert out["words"]["القرن"]["sense"]["written"] is True
+    assert out["words"]["الحصة"]["sense"]["written"] is False
+    db_session.expire_all()
+    assert db_session.get(Lemma, qarn.lemma_id).gloss_en == "century; horn"
+    assert db_session.get(Lemma, hissa.lemma_id).gloss_en == "class period"

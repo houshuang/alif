@@ -68,7 +68,8 @@ def test_fitting_guess_links(db_session, setup):
 def test_broader_guess_links_and_widens_gloss(db_session, setup):
     visit, story, lookup, use_verdicts, _, _ = setup
     use_verdicts(lambda items: {items[0]["index"]: {"verdict": "broader",
-                                                    "gloss_en": "to visit; visit (n.)"}})
+                                                    "gloss_en": "to visit; visit (n.)",
+                                                    "approved": True}})
     story_service._import_unknown_words(db_session, story, lookup)
     sw = _ministry(story)
     assert (sw.lemma_id, sw.gloss_en) == (visit.lemma_id, "to visit; visit (n.)")

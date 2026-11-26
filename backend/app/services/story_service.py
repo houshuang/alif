@@ -401,8 +401,9 @@ def _check_story_guesses(
         lem = lemmas.get(lid)
         if lem is None:
             continue
-        items.append({"index": index, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
-                      "pos": lem.pos, "forms": [analysis["surface"]]})
+        items.append({"index": index, "lemma_id": lid, "lemma_ar": lem.lemma_ar,
+                      "gloss_en": lem.gloss_en, "pos": lem.pos, "forms": [analysis["surface"]],
+                      "context": analysis["context"]})
         contexts.append(analysis["context"])
     tie_items: dict[int, tuple[dict, int]] = {}
     for offset, (analysis, lid, tied) in enumerate(tie_links):
@@ -412,9 +413,9 @@ def _check_story_guesses(
             continue
         index = len(guessed_links) + offset
         tie_items[index] = (analysis, lid)
-        items.append({"index": index, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
-                      "pos": lem.pos, "forms": [analysis["surface"]],
-                      "candidates": candidates})
+        items.append({"index": index, "lemma_id": lid, "lemma_ar": lem.lemma_ar,
+                      "gloss_en": lem.gloss_en, "pos": lem.pos, "forms": [analysis["surface"]],
+                      "candidates": candidates, "context": analysis["context"]})
         contexts.append(analysis["context"])
     if not items:
         return []
@@ -443,7 +444,8 @@ def _check_story_guesses(
             elif verdict is not None and verdict["verdict"] == "broader":
                 guess_reglosses.append({
                     "lemma_id": lid,
-                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"]},
+                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"],
+                                "approved": verdict.get("approved") is True},
                 })
                 for sw in analysis["story_words"]:
                     resolved_updates.append((sw, lid, None, False))
@@ -456,7 +458,8 @@ def _check_story_guesses(
             if verdict is not None:
                 guess_reglosses.append({
                     "lemma_id": lid,
-                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"]},
+                    "regloss": {"from": item["gloss_en"], "to": verdict["gloss_en"],
+                                "approved": verdict.get("approved") is True},
                 })
             continue
         lex = verdict["lemma_ar"]
@@ -596,7 +599,7 @@ def _import_unknown_words(
         if guess_reglosses:
             from app.services.preread_service import regloss
 
-            regloss(db, guess_reglosses)
+            regloss(db, guess_reglosses, source="story_import")
             for word in guess_reglosses:
                 if word.get("reglossed"):
                     resolved_gloss_map[word["lemma_id"]] = word["regloss"]["to"]

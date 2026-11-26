@@ -455,7 +455,46 @@ def check_senses(text: str, items: list[dict]) -> dict[int, dict] | None:
             "lemma_ar": (r.get("lemma_ar") or "").strip() or None,
             "pos": (r.get("pos") or "").strip() or None,
         }
+    gate_widenings(text, [(by_index[i], v) for i, v in out.items()])
     return out
+
+
+def _clause_with(text: str, form: str) -> str:
+    """The clause of ``text`` that contains ``form`` (for the gloss gate)."""
+    import re
+
+    for clause in re.split(r"(?<=[.!?؟\n])\s*", text or ""):
+        if form and form in clause:
+            return clause.strip()[:300]
+    return ""
+
+
+def gate_widenings(text: str, pairs: list[tuple[dict, dict]]) -> None:
+    """Mark each "broader" verdict ``approved`` (or not) by the gloss gate.
+
+    ``pairs``: (sense-check item {lemma_id?, lemma_ar, gloss_en, pos, forms?},
+    verdict). Only an approved widening may be written (``regloss``)."""
+    from app.services.gloss_gate import review_widenings
+
+    broader = [(it, v) for it, v in pairs if v.get("verdict") == "broader"]
+    if not broader:
+        return
+    reqs = []
+    for n, (it, v) in enumerate(broader):
+        form = (it.get("forms") or [it.get("surface") or ""])[0]
+        reqs.append({"index": n, "lemma_id": it.get("lemma_id"), "lemma_ar": it.get("lemma_ar"),
+                     "pos": it.get("pos"), "old_gloss": it.get("gloss_en") or "",
+                     "new_gloss": v["gloss_en"], "surface": form,
+                     "context": it.get("context") or _clause_with(text, form)})
+    try:
+        decisions = review_widenings(reqs)
+    except Exception:
+        logger.exception("gloss gate failed; no widening approved")
+        decisions = {}
+    for n, (_, v) in enumerate(broader):
+        d = decisions.get(n) or {"approved": False, "reason": "unchecked"}
+        v["approved"] = bool(d["approved"])
+        v["gate_reason"] = d["reason"]
 
 
 def _plan_group(state: str | None, disposition: str | None, retrievability: float | None) -> str | None:
@@ -510,7 +549,8 @@ def _apply_senses(
     checked = [w for w in learn + shaky if w.get("lemma_id")]
     items = []
     for i, w in enumerate(checked):
-        item = {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
+        item = {"index": i, "lemma_id": w.get("lemma_id"), "lemma_ar": w["lemma_ar"],
+                "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
                 "forms": w.get("surface_forms") or [w.get("surface") or w["lemma_ar"]]}
         if w.get("tie_candidates"):
             item["candidates"] = w["tie_candidates"]
@@ -546,8 +586,10 @@ def _apply_senses(
             )
             continue
         if v["verdict"] == "broader":
-            w["regloss"] = {"from": w.get("gloss_en"), "to": v["gloss_en"]}
-            w["gloss_en"] = v["gloss_en"]
+            w["regloss"] = {"from": w.get("gloss_en"), "to": v["gloss_en"],
+                            "approved": v.get("approved") is True}
+            if v.get("approved") is True:
+                w["gloss_en"] = v["gloss_en"]
         else:
             w["sense_from"] = {"lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
                                "gloss_en": w.get("gloss_en")}
@@ -563,24 +605,31 @@ def _apply_senses(
             [w for w in everything if groups.get(id(w)) == "shaky"], len(checked), 0)
 
 
-def regloss(db: Session, words: list[dict]) -> list[int]:
-    """Write the widened glosses from the sense check. Compare-and-set on the
-    old gloss so a concurrent edit wins. Memory hooks built on the old sense
-    are cleared so they can be regenerated. Caller commits."""
-    changed = []
+def regloss(db: Session, words: list[dict], source: str | None = None) -> list[int]:
+    """Write the widened glosses from the sense check, only those the gloss
+    gate approved (``regloss["approved"] is True``, set by ``gate_widenings``
+    or ``check_lookup_sense``); others get ``regloss_refused``. Compare-and-set
+    on the old gloss so a concurrent edit wins. An approved widening keeps
+    every stored meaning, so memory hooks stay. Every write is logged
+    (``gloss_widened``). Caller commits. Returns lemma ids whose hooks need
+    regenerating (none since the gate, 2026-11-26)."""
+    from app.services.interaction_logger import log_interaction
+
     for w in words:
         rg = w.get("regloss")
         if not rg or not w.get("lemma_id"):
+            continue
+        if rg.get("approved") is not True:
+            w["regloss_refused"] = True
             continue
         lemma = db.get(Lemma, w["lemma_id"])
         if lemma is None or (lemma.gloss_en or "") != (rg["from"] or ""):
             continue
         lemma.gloss_en = rg["to"]
-        if lemma.memory_hooks_json:
-            lemma.memory_hooks_json = None
-            changed.append(lemma.lemma_id)
         w["reglossed"] = True
-    return changed
+        log_interaction(event="gloss_widened", lemma_id=lemma.lemma_id, gloss_from=rg["from"],
+                        gloss_to=rg["to"], source=source)
+    return []
 
 
 def analyze_pages(db: Session, pages: list[str]) -> dict:

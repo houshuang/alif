@@ -13,11 +13,12 @@ puts different words under one entry (عيون and عيّنت both → عَيْ�
 verdict per entry then mislabels the other. Evidence:
 research/snap-prematch-2026-11/README.md.
 
-A "broader" verdict is stored as a proposal and never written to the lemma.
-Version 1 wrote them (compare-and-set, like pre-read) for every flagged word on
-the page; a review of its 113 writes found 14 wrong (another word's meaning,
-a narrowing, a book-specific sense) and 80 memory hooks cleared, mostly on known
-words nobody tapped, and all 110 lemmas were restored from backup (2026-11-26).
+A "broader" verdict is written only when the gloss gate approves it
+(services/gloss_gate.py); otherwise it stays a proposal on the page, shown as
+"Here: …". Version 1 wrote every proposal: a review of its 113 writes found 14
+wrong (another word's meaning, a narrowing, a book-specific sense) and 80 memory
+hooks cleared, and all 110 lemmas were restored from backup (2026-11-26). The
+gate refused all 14 of those and approved 62 of the 78 good ones.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from app.models import SnapPage
 
 logger = logging.getLogger(__name__)
 
-PREMATCH_VERSION = 2
+PREMATCH_VERSION = 3
 # A failed pass is retried when the page is opened again after this long.
 RETRY_FAILED_AFTER = timedelta(minutes=10)
 # Surfaces per sense-check call; a page has about 100, so three calls in parallel.
@@ -123,7 +124,7 @@ def _database_matches(text: str) -> tuple[list[dict], list[dict], list[tuple[dic
         for w in matched:
             candidates = load_candidates(db, w.get("homograph_candidates"))
             for form in w.get("surface_forms") or [w["surface"]]:
-                item = {"index": len(items), "lemma_ar": w["lemma_ar"],
+                item = {"index": len(items), "lemma_id": w["lemma_id"], "lemma_ar": w["lemma_ar"],
                         "gloss_en": w.get("gloss_en"), "pos": w.get("pos"), "forms": [form]}
                 if candidates:
                     item["candidates"] = candidates
@@ -169,6 +170,7 @@ def prematch_page(snap_id: int) -> dict:
     """Run the pass for one page and return what to store on it."""
     from app.routers.discover import _resolve_different_word, _sibling_word
     from app.services.interaction_logger import log_interaction
+    from app.services.preread_service import regloss
     from app.services.sentence_validator import build_comprehensive_lemma_lookup
 
     started = time.monotonic()
@@ -207,8 +209,18 @@ def prematch_page(snap_id: int) -> dict:
             v = verdicts.get(i) or {"verdict": "fits"}
             counts[v["verdict"]] = counts.get(v["verdict"], 0) + 1
             if v["verdict"] == "broader":
+                rg = {"lemma_id": w["lemma_id"], "regloss": {
+                    "from": w.get("gloss_en"), "to": v["gloss_en"],
+                    "approved": v.get("approved") is True}}
+                if rg["regloss"]["approved"]:
+                    try:
+                        regloss(db, [rg], source="snap_page")
+                        db.commit()
+                    except Exception:
+                        logger.exception("snap prematch regloss failed for %s", w["lemma_id"])
+                        db.rollback()
                 sense = {"verdict": "broader", "gloss_en": v["gloss_en"],
-                         "gloss_from": w.get("gloss_en"), "written": False}
+                         "gloss_from": w.get("gloss_en"), "written": bool(rg.get("reglossed"))}
             elif v["verdict"] == "sibling":
                 real = _sibling_word(db, v["lemma_id"], form)
                 db.rollback()

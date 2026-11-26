@@ -792,13 +792,21 @@ def test_snap_pages_are_saved_listed_and_reopened(client, db_session, monkeypatc
     assert client.get("/api/discover/snaps/999999").status_code == 404
 
 
+def _gated(v, res):
+    """What check_lookup_sense returns after the gloss gate: a widening is
+    approved unless the test says otherwise."""
+    if v and v["verdict"] == "broader":
+        v["approved"] = res.get("approved", True)
+    return v
+
+
 def _stub_sense(monkeypatch, res):
     from app.services import lookup_sense
     from app.services.lookup_sense import validate_verdict
 
     monkeypatch.setattr(
         lookup_sense, "check_lookup_sense",
-        lambda sentence, surface, entry: validate_verdict(res, entry),
+        lambda sentence, surface, entry: _gated(validate_verdict(res, entry), res),
     )
 
 

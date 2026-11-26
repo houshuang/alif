@@ -420,6 +420,8 @@ def generate_completion(
     CLAUDE_CLI_MODELS = {
         "claude_sonnet": "sonnet",
         "claude_haiku": os.environ.get("ALIF_CLAUDE_HAIKU_CLI_MODEL", "haiku").strip() or "haiku",
+        # Independent judge for gloss changes (services/gloss_gate.py).
+        "claude_opus": "opus",
     }
 
     # Dense due-word sentences: Codex writes first, Sonnet is the fallback.
@@ -466,7 +468,9 @@ def generate_completion(
                 raise AllProvidersFailed(
                     f"Claude CLI disabled for {cli_model}: {_CLAUDE_CLI_DISABLED_REASON}"
                 )
-            if model_override and model_override in CLAUDE_CLI_MODELS:
+            if model_override == "claude_opus":
+                model_override = "opus"
+            elif model_override and model_override in CLAUDE_CLI_MODELS:
                 model_override = None
         else:
             try:
@@ -483,8 +487,11 @@ def generate_completion(
                 mark_claude_cli_unavailable_from_error(exc)
                 if cli_only:
                     raise AllProvidersFailed(f"Claude CLI failed for {cli_model} and cli_only=True")
-                # CLI unavailable — fall through to API chain
-                if model_override and model_override in CLAUDE_CLI_MODELS:
+                # CLI unavailable — fall through to API chain. The gloss judge
+                # stays on Opus rather than ending on a weaker model.
+                if model_override == "claude_opus":
+                    model_override = "opus"
+                elif model_override and model_override in CLAUDE_CLI_MODELS:
                     model_override = None  # don't try to find "claude_haiku" in MODELS
 
     if model_override:
