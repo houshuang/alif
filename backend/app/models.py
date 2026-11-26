@@ -593,6 +593,25 @@ class SnapPage(Base):
     words_json = Column(JSON, nullable=True)
 
 
+class LookupMiss(Base):
+    """A reason the learner gave for not recognising a word they study, while
+    reading outside review (a Snap tap). ``opens_miss`` rows (words in FSRS
+    review) open a missed-word recovery entry like a sentence miss; they never
+    touch FSRS or the review log. ``lemma_id`` is canonical and not a foreign key."""
+    __tablename__ = "lookup_misses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    lemma_id = Column(Integer, nullable=False, index=True)
+    source = Column(String(20), nullable=False)  # snap
+    surface = Column(Text, nullable=True)
+    sentence_ar = Column(Text, nullable=True)
+    snap_id = Column(Integer, nullable=True)
+    causes_json = Column(JSON, nullable=False)
+    knowledge_state = Column(String(20), nullable=True)
+    opens_miss = Column(Boolean, nullable=False, default=False)
+
+
 class WordFragment(Base):
     """A two-to-three-word phrase for one word, shown as a same-day retry after a
     miss (`fragment_retest_v1`, services/word_fragments.py). Deliberately not a
@@ -646,6 +665,9 @@ class WordAddContext(Base):
     sentence_ar = Column(Text, nullable=False)
     snap_id = Column(Integer, nullable=True)
     preread_set_id = Column(Integer, nullable=True)
+    # A set phrase that gave the sentence its meaning ({"ar", "en"}); offered to
+    # the word card as an attested phrase, never stored as the gloss.
+    phrase_json = Column(JSON, nullable=True)
     gloss_at_add = Column(Text, nullable=True)
     # fits / broader / different / name, or NULL until checked
     check_verdict = Column(String(20), nullable=True)

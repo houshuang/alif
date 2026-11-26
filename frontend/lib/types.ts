@@ -1507,6 +1507,10 @@ export interface DiscoverWord {
   lemma_source: string;
   lemma_id?: number | null;
   knowledge_state?: string | null;
+  // The meaning in the tapped sentence when it differs from gloss_en (display only).
+  gloss_here?: string | null;
+  // The set phrase that gives the sentence its meaning; saved with the add context.
+  phrase?: { ar: string; en: string } | null;
   // Set when the page check replaced a wrongly matched entry with this word.
   sense_from?: { lemma_id: number; lemma_ar: string; gloss_en: string | null } | null;
 }

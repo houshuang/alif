@@ -34,7 +34,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge, WordAddContext
 from app.services.sentence_validator import (
     _is_function_word,
     normalize_alef,
@@ -220,6 +220,14 @@ def load_phrase_candidates(path: Path = PHRASE_CANDIDATES_PATH) -> dict[int, lis
 def gather_inputs(db: Session, lemma_ids: list[int], phrase_candidates: dict[int, list[tuple[str, int]]]) -> list[dict]:
     """Read-only: everything the prompt and the validation need, as plain data."""
     lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
+    # Set phrases the learner met the word in (Snap/pre-read adds) count as attested.
+    met: dict[int, list[str]] = {}
+    for lid, phrase in (
+        db.query(WordAddContext.lemma_id, WordAddContext.phrase_json)
+        .filter(WordAddContext.lemma_id.in_(lemma_ids), WordAddContext.phrase_json.isnot(None))
+    ):
+        if isinstance(phrase, dict) and phrase.get("ar"):
+            met.setdefault(lid, []).append(phrase["ar"])
     out = []
     for lemma in lemmas:
         family = []
@@ -248,7 +256,7 @@ def gather_inputs(db: Session, lemma_ids: list[int], phrase_candidates: dict[int
             "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
             "forms": forms,
             "family": family,
-            "book_phrases": [p for p, _ in phrase_candidates.get(lemma.lemma_id, [])],
+            "book_phrases": met.get(lemma.lemma_id, []) + [p for p, _ in phrase_candidates.get(lemma.lemma_id, [])],
         })
     return out
 
@@ -381,9 +389,12 @@ def call_model(inputs: list[dict]) -> dict[int, dict] | None:
 
 def enrich_word_cards(db: Session, limit: int, dry_run: bool = False) -> dict[str, int]:
     """Select, call, validate and write. Returns counts for logging."""
-    from app.services.sentence_validator import build_comprehensive_lemma_lookup, lookup_lemma_id
+    return enrich_word_cards_for(db, select_candidates(db, limit), dry_run=dry_run)
 
-    ids = select_candidates(db, limit)
+
+def enrich_word_cards_for(db: Session, ids: list[int], dry_run: bool = False) -> dict[str, int]:
+    """Write word cards for exactly these lemma ids (skips ones that have a card)."""
+    from app.services.sentence_validator import build_comprehensive_lemma_lookup, lookup_lemma_id
     candidates = load_phrase_candidates()
     lookup = build_comprehensive_lemma_lookup(db)
     db.rollback()  # release the read transaction before any model call

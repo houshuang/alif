@@ -2401,6 +2401,8 @@ card), within 30 days. While open and FSRS-due, the word is scheduled regardless
 focus cohort and frequency lane and competes for a reserved share of base cards;
 `generate_due_menu_material` puts open misses at the head of each menu.
 
+**Snap reasons open misses (`lookup_miss_v1`, 2026-11-26).** A reason given on a Snap tap for a word in FSRS review (known/learning/lapsed) writes a `lookup_misses` row with `opens_miss`; `open_misses()` merges these rows with review rows by time and treats each as a rating-1 miss that does not raise `misses_in_run` (so it never counts toward the leech run). It closes like any miss. FSRS state, `ReviewLog` and seen/correct counters are untouched; reasons on acquiring words are evidence only.
+
 **Phrase follow-ups (`fragment_followup_v1`, 2026-11-20).** The retry-card trial was
 switched off the day it launched (`RETEST_AB_ACTIVE = False`): every same-day retry is a
 word card. Until 2026-11-25 a trial hashed each miss into `phrase` or `sentence`; it was

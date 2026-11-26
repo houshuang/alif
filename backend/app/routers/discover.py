@@ -114,6 +114,11 @@ _GLOSS_SCHEMA = {
                 "properties": {
                     "index": {"type": "integer"},
                     "gloss_en": {"type": "string"},
+                    # The meaning in the example clause, for the reader only; never stored.
+                    "gloss_here": {"type": "string"},
+                    # A set phrase or idiom that gives the clause its meaning, if any.
+                    "phrase_ar": {"type": "string"},
+                    "phrase_en": {"type": "string"},
                     "pos": {"type": "string"},
                     "transliteration": {"type": "string"},
                     "is_proper_noun": {"type": "boolean"},
@@ -237,9 +242,19 @@ def _gloss(items: list[dict]) -> dict[int, dict]:
             head += f' — example: «{it["example"]}»'
         lines.append(head)
     prompt = (
-        "Give a precise English study gloss for each Arabic lemma below, AS USED in "
-        "its example clause when one is given.\n"
-        "- gloss_en: 1-5 words, the core meaning in context (no leading article).\n"
+        "Give English glosses for each Arabic lemma below. gloss_en is stored in a "
+        "learner's dictionary and is shown for this word in every future sentence, so "
+        "it must be the word's own general meaning, never a meaning that only an idiom "
+        "or this one clause gives it.\n"
+        "- gloss_en: 1-6 words, the general dictionary meaning(s) of the lemma, most "
+        "common first, including the sense used in the example when it is a sense of "
+        "the word itself (no leading article). Example: أَبْصَرَ in «أبصر النور» is "
+        "\"to see, perceive, catch sight of\", not \"was born\".\n"
+        "- gloss_here: the meaning in the example clause, 1-6 words (\"was born\" "
+        "for the example above). Same as gloss_en when nothing differs.\n"
+        "- phrase_ar / phrase_en: only when the clause meaning comes from a set phrase "
+        "or idiom: the vocalized phrase containing the word (أَبْصَرَ النُّورَ) and its "
+        "meaning (was born; came out). Omit otherwise.\n"
         "- pos: noun / verb / adjective / adverb / particle / proper_noun.\n"
         "- transliteration: ALA-LC romanization of the lemma.\n"
         "- is_proper_noun: true ONLY for actual names of people/places/organizations.\n"
@@ -443,6 +458,7 @@ def discover_words_in_text(
     glosses = {
         i: {
             "gloss_en": v.get("gloss_en"),
+            "gloss_here": None,
             "pos": v.get("pos"),
             "transliteration": v.get("transliteration"),
             "is_proper_noun": (v.get("pos") or "").lower() in _PROPER_NOUN_POS,
@@ -500,6 +516,8 @@ def discover_words_in_text(
                 "lemma_ar_bare": lemma_bare,
                 "root": v["root"],
                 "gloss_en": g.get("gloss_en"),
+                "gloss_here": _gloss_here(g),
+                "phrase": _gloss_phrase(g),
                 "pos": g.get("pos") or v["pos"],
                 "is_proper_noun": is_proper,
                 "register": g.get("register"),
@@ -517,6 +535,17 @@ def discover_words_in_text(
             }
         )
     return words
+
+
+def _gloss_here(g: dict) -> str | None:
+    """The clause meaning when it differs from the stored gloss, for display."""
+    here = (g.get("gloss_here") or "").strip()
+    return here if here and here.lower() != (g.get("gloss_en") or "").strip().lower() else None
+
+
+def _gloss_phrase(g: dict) -> dict | None:
+    ar, en = (g.get("phrase_ar") or "").strip(), (g.get("phrase_en") or "").strip()
+    return {"ar": ar, "en": en} if ar and en else None
 
 
 class LookupIn(BaseModel):
@@ -874,6 +903,9 @@ class WordIn(BaseModel):
     surface: str | None = None
     context_ar: str | None = None
     snap_id: int | None = None
+    # A set phrase that gave the sentence its meaning ({"ar", "en"}); offered to the
+    # word card. ``gloss_en`` stays the general gloss.
+    phrase: dict | None = None
 
 
 def _gate_and_generate(lemma_ids: list[int]) -> None:
@@ -1076,6 +1108,9 @@ def _introduce_existing(
         introduced=bool(res.get("introduced_at")),
     )
     if context is not None:
+        phrase = w.phrase or {}
+        if (phrase.get("ar") or "").strip() and (phrase.get("en") or "").strip():
+            context.phrase_json = {"ar": phrase["ar"].strip(), "en": phrase["en"].strip()}
         db.flush()
     return {
         "context_id": context.id if context is not None else None,
@@ -1105,9 +1140,33 @@ def _log_add(out: dict) -> None:
     )
 
 
+def _enrich_now(lemma_id: int, created: bool) -> None:
+    """Gate and fully enrich one word, then write its word card, before replying.
+    Own session: the request's session holds nothing across the model calls."""
+    from app.services.word_card import enrich_word_cards_for
+
+    session = SessionLocal()
+    try:
+        if created:
+            run_quality_gates(session, [lemma_id], background_enrich=False)
+            session.commit()
+        enrich_word_cards_for(session, [lemma_id])
+        session.commit()
+    except Exception:
+        logger.exception("enrich-now failed for %s", lemma_id)
+        session.rollback()
+    finally:
+        session.close()
+
+
 @router.post("/add")
-def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Create/stage one word; quality-gate in the background."""
+def add_word(
+    w: WordIn, background_tasks: BackgroundTasks,
+    enrich: bool = Query(default=False),
+    db: Session = Depends(get_db),
+):
+    """Create/stage one word; quality-gate in the background. With ``enrich``
+    the gates, enrichment and word card run before the reply (Snap's Enrich)."""
     lemma_lookup = build_comprehensive_lemma_lookup(db)
     try:
         out = _create_and_introduce(db, w, lemma_lookup)
@@ -1119,11 +1178,74 @@ def add_word(w: WordIn, background_tasks: BackgroundTasks, db: Session = Depends
     # Check the entry against the sentence before material is generated for it.
     if out["context_id"]:
         background_tasks.add_task(verify_add_contexts, [out["context_id"]])
-    if out["created"]:
+    if enrich:
+        _enrich_now(out["lemma_id"], out["created"])
+        if out["created"]:
+            background_tasks.add_task(_ensure_material, [out["lemma_id"]])
+    elif out["created"]:
         background_tasks.add_task(_gate_and_generate, [out["lemma_id"]])
-    elif out["state"] == "acquiring" and not out["already_known"]:
+    if not out["created"] and out["state"] == "acquiring" and not out["already_known"]:
         background_tasks.add_task(_ensure_material, [out["lemma_id"]])
     return out
+
+
+class LookupMissIn(BaseModel):
+    lemma_id: int
+    surface: str | None = None
+    context: str | None = None
+    snap_id: int | None = None
+    # Current reasons for this tap; an empty list withdraws the tap's miss.
+    causes: list[str]
+
+
+_LOOKUP_CAUSES = {"retrieval_lapse", "mixed_up", "unfamiliar_form", "missing_tashkeel"}
+_FSRS_STATES = {"known", "learning", "lapsed"}
+
+
+@router.post("/lookup/miss")
+def lookup_miss(req: LookupMissIn, db: Session = Depends(get_db)):
+    """Reasons the learner did not recognise a word they study, from a Snap tap.
+
+    One row per (snap, word, sentence): a new reason list replaces it, an empty
+    list removes it. A word in FSRS review gets an open missed-word entry (it
+    comes back in review soon); FSRS and the review log are untouched. For a
+    word still being acquired the reasons are kept as evidence only."""
+    from app.models import LookupMiss
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    causes = sorted({c for c in req.causes if c in _LOOKUP_CAUSES})
+    lemma_id = resolve_canonical_lemma_id(db, req.lemma_id)
+    if db.get(Lemma, lemma_id) is None:
+        raise HTTPException(status_code=404, detail="Lemma not found")
+    existing = (
+        db.query(LookupMiss)
+        .filter(LookupMiss.source == "snap", LookupMiss.lemma_id == lemma_id,
+                LookupMiss.snap_id == req.snap_id, LookupMiss.sentence_ar == req.context)
+        .first()
+    )
+    state = (
+        db.query(UserLemmaKnowledge.knowledge_state)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id).scalar()
+    )
+    if not causes:
+        if existing is not None:
+            db.delete(existing)
+    elif existing is not None:
+        existing.causes_json = causes
+    else:
+        db.add(LookupMiss(
+            lemma_id=lemma_id, source="snap", surface=req.surface, sentence_ar=req.context,
+            snap_id=req.snap_id, causes_json=causes, knowledge_state=state,
+            opens_miss=state in _FSRS_STATES,
+        ))
+    db.commit()
+    log_interaction(
+        event="discover_lookup_miss", lemma_id=lemma_id, surface=req.surface,
+        snap_id=req.snap_id, causes=causes, knowledge_state=state,
+        context=(req.context or "")[:500],
+    )
+    return {"lemma_id": lemma_id, "causes": causes,
+            "opens_miss": bool(causes) and state in _FSRS_STATES}
 
 
 class WordsIn(BaseModel):
