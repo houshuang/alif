@@ -14,6 +14,8 @@ Index of durable memories — one line per file in this directory, grouped by in
 - [Prefer focused sessions](feedback_focused_sessions.md) — multi-feature sessions repeatedly blow the context window; split 4+-part tasks.
 - [Parallel sessions share the checkout](feedback_parallel_sessions_shared_checkout.md) — another session's `git checkout main` can silently move HEAD off your feature branch; verify `git branch --show-current` in the same command as every commit/push.
 - [DB query gotchas](feedback_db_queries.md) — read `docs/data-model.md` before ad-hoc scripts; key table/column name traps.
+- [Be the Arabic judge](feedback_be_the_arabic_judge.md) — Stian doesn't speak Arabic: never ask him to rule on glosses; gate + measure + apply automatically.
+- [OTA publish from a worktree](feedback_ota_publish_worktree.md) — never pull `main` inside the publish worktree; it desyncs the primary checkout.
 - [gh CLI / Go-binary TLS error in sandbox](feedback_gh_sandbox_tls.md) — `OSStatus -26276` = sandbox blocking trustd; retry with `dangerouslyDisableSandbox: true`.
 
 ## Deploy & ops (how to ship safely)
