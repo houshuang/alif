@@ -64,9 +64,30 @@ other findings (verdict for every line, names, repeated surfaces with different
 meanings, partial-failure retry) are open; see its fix list.
 
 ## Files
+## The gloss gate (same day)
+
+All widenings now pass `services/gloss_gate.py`: rules, then an independent Claude
+Opus judge with the same-root vocabulary entries and Wiktionary senses. Run over the
+113 widenings above, labelled by the review (`fable_labels.json`, `eval_gloss_gate.py`):
+
+| Label | Approved, run 1 | Approved, run 2 |
+|---|---|---|
+| bad (14) | 0 | 0 |
+| doubtful (11) | 2 | 1 |
+| no-value (10) | 0 | 0 |
+| good (78) | 62 | 62 |
+
+Nine items changed between runs, all borderline synonym additions. The 16 good ones
+it refuses are mostly synonyms that add nothing ("relationship" → "relation,
+connection") or meanings from a construction (سَوَاء "whether", الماضي "last"); the
+two approved doubtful ones are أَحْدَث "to bring about" (right) and مُبَارَاة
+"competition". Rerunning the page pass (version 3) re-proposes and gates the
+widenings on all stored pages, so the good ones return without a manual list.
+
 
 - `measure_prematch.py` — the per-surface measurement run.
 - `compare_final_word.py` — the final-word comparison.
 - `review-2026-11-26.md` — the Fable review of the deployed version.
+- `eval_gloss_gate.py`, `fable_labels.json`, `gloss_gate_eval_run*.txt` — the gate measurement.
 - `per_tap_comparison.txt` — its output for the 34 checks. In the "pre" column
   the gloss shown is today's stored gloss; the check itself used the tap's.

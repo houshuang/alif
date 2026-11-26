@@ -847,7 +847,7 @@ def _check_scan_guesses(
         lid, arabic, tied = checked[key]
         lem = lemmas.get(lid)
         if lem is not None:
-            item = {"index": i, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
+            item = {"index": i, "lemma_id": lid, "lemma_ar": lem.lemma_ar, "gloss_en": lem.gloss_en,
                     "pos": lem.pos, "forms": [arabic]}
             if tied:
                 item["candidates"] = load_candidates(db, tied)
@@ -870,7 +870,9 @@ def _check_scan_guesses(
         elif v["verdict"] == "sibling":
             accepted[key] = v["lemma_id"]
         elif v["verdict"] == "broader":
-            regloss(db, [{"lemma_id": lid, "regloss": {"from": item["gloss_en"], "to": v["gloss_en"]}}])
+            regloss(db, [{"lemma_id": lid, "regloss": {"from": item["gloss_en"], "to": v["gloss_en"],
+                                                       "approved": v.get("approved") is True}}],
+                    source="textbook_scan")
             accepted[key] = lid
         elif key in ties:
             # A different word than every same-spelling entry: the resolver's

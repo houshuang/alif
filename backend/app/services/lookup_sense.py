@@ -106,7 +106,15 @@ def check_lookup_sense(sentence: str, surface: str, entry: dict) -> dict | None:
     except Exception as e:
         logger.warning("lookup sense check failed: %s", e)
         return None
-    return validate_verdict(res, entry)
+    v = validate_verdict(res, entry)
+    if v and v["verdict"] == "broader":
+        from app.services.preread_service import gate_widenings
+
+        item = {"lemma_id": entry.get("lemma_id"), "lemma_ar": entry.get("lemma_ar"),
+                "pos": entry.get("pos"), "gloss_en": entry.get("gloss_en"),
+                "forms": [surface], "context": sentence[:300]}
+        gate_widenings(sentence, [(item, v)])
+    return v
 
 
 def validate_verdict(res: object, entry: dict) -> dict | None:

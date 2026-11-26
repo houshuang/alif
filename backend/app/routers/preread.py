@@ -162,7 +162,7 @@ def _apply_plan(plan: dict, set_id: int | None = None, snap_ids: list[int] | Non
     snap_ids = snap_ids or []
     try:
         try:
-            hook_ids = regloss(db, plan["learn"] + plan["shaky"])
+            hook_ids = regloss(db, plan["learn"] + plan["shaky"], source="preread")
             db.commit()
         except Exception as e:
             db.rollback()

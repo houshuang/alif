@@ -2931,9 +2931,9 @@ no picking step.
   existing lemma goes through one Sonnet pass (`preread_service.check_senses`) that
   compares the stored gloss with how the pages use the word. `broader` (same word, gloss
   lacks this sense, e.g. قَرْن "horn" where the pages mean "century") widens the gloss to
-  a general one with the page's sense first ("century; horn"); the router writes it
-  compare-and-set on the old gloss (`preread_service.regloss`), clears memory hooks built
-  on the old sense and regenerates them in the material phase. `different` (a homograph
+  a general one with the page's sense first ("century; horn"); since 2026-11-26 it is
+  written only when the gloss gate approves it (`services/gloss_gate.py`), compare-and-set
+  on the old gloss (`preread_service.regloss`), and memory hooks are kept. `different` (a homograph
   or another verb form, e.g. عَمَدَ "to set about" matched to عَمَّدَ "to baptize")
   replaces the word's identity with the page's lexeme so `_create_and_introduce`'s sense
   gate re-routes to a sibling or creates it; a shaky word of that kind moves to the

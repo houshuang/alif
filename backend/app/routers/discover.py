@@ -658,7 +658,8 @@ def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
     lemma = db.get(Lemma, req.lemma_id)
     if lemma is None:
         raise HTTPException(status_code=404, detail="Lemma not found")
-    entry = {"lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en, "pos": lemma.pos}
+    entry = {"lemma_id": lemma.lemma_id, "lemma_ar": lemma.lemma_ar, "gloss_en": lemma.gloss_en,
+             "pos": lemma.pos}
     # A homograph tie: offer the same-spelling entries the word did not rule out.
     provenance = LemmaMatchProvenance()
     tied_owner = lookup_lemma_id(
@@ -678,9 +679,10 @@ def lookup_sense(req: LookupSenseIn, db: Session = Depends(get_db)):
         if out["word"] is None:
             out = {"verdict": None}
     elif v and v["verdict"] == "broader":
-        w = {"lemma_id": req.lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"]}}
+        w = {"lemma_id": req.lemma_id, "regloss": {"from": entry["gloss_en"], "to": v["gloss_en"],
+                                                    "approved": v.get("approved") is True}}
         try:
-            regloss(db, [w])
+            regloss(db, [w], source="snap_tap")
             db.commit()
         except Exception:
             logger.exception("lookup regloss failed for %s", req.lemma_id)
@@ -793,8 +795,9 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
         return words
     items = []
     for i, w in enumerate(matched):
-        item = {"index": i, "lemma_ar": w["lemma_ar"], "gloss_en": w.get("gloss_en"),
-                "pos": w.get("pos"), "forms": w.get("surface_forms") or [w["surface"]]}
+        item = {"index": i, "lemma_id": w.get("lemma_id"), "lemma_ar": w["lemma_ar"],
+                "gloss_en": w.get("gloss_en"), "pos": w.get("pos"),
+                "forms": w.get("surface_forms") or [w["surface"]]}
         candidates = load_candidates(db, w.get("homograph_candidates"))
         if candidates:
             item["candidates"] = candidates
@@ -809,10 +812,14 @@ def _sense_check_chips(db: Session, text: str, words: list[dict]) -> list[dict]:
         if not v:
             continue
         if v["verdict"] == "broader":
-            rg = {"lemma_id": w["lemma_id"], "regloss": {"from": w.get("gloss_en"), "to": v["gloss_en"]}}
-            regloss(db, [rg])
+            rg = {"lemma_id": w["lemma_id"], "regloss": {"from": w.get("gloss_en"), "to": v["gloss_en"],
+                                                          "approved": v.get("approved") is True}}
+            regloss(db, [rg], source="snap_chip")
             db.commit()
-            w["gloss_en"] = v["gloss_en"]
+            if rg.get("reglossed"):
+                w["gloss_en"] = v["gloss_en"]
+            else:
+                w["gloss_here"] = w.get("gloss_here") or v["gloss_en"]
             continue
         if v["verdict"] == "sibling":
             real = _sibling_word(db, v["lemma_id"], w["surface"])
