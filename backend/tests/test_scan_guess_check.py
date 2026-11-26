@@ -16,7 +16,7 @@ def _setup(db, monkeypatch, verdicts):
     monkeypatch.setattr(sv, "_camel_headword_match", guess)
     calls = []
 
-    def fake(text, items):
+    def fake(text, items, **kw):
         calls.append((text, items))
         return verdicts(items) if callable(verdicts) else verdicts
     monkeypatch.setattr(ps, "check_senses", fake)

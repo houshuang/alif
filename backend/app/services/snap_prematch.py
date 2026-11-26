@@ -34,7 +34,7 @@ from app.models import SnapPage
 
 logger = logging.getLogger(__name__)
 
-PREMATCH_VERSION = 3
+PREMATCH_VERSION = 4
 # A failed pass is retried when the page is opened again after this long.
 RETRY_FAILED_AFTER = timedelta(minutes=10)
 # Surfaces per sense-check call; a page has about 100, so three calls in parallel.
@@ -158,7 +158,7 @@ def _check_chunks(text: str, items: list[dict]) -> tuple[dict[int, dict], set[in
     verdicts: dict[int, dict] = {}
     failed: set[int] = set()
     with ThreadPoolExecutor(max_workers=max(1, len(chunks))) as pool:
-        for chunk, part in zip(chunks, pool.map(lambda ch: check_senses(text, ch), chunks)):
+        for chunk, part in zip(chunks, pool.map(lambda ch: check_senses(text, ch, allow_name=True), chunks)):
             if part is None:
                 failed.update(it["index"] for it in chunk)
             else:
@@ -198,7 +198,7 @@ def prematch_page(snap_id: int) -> dict:
         for form in w.get("surface_forms") or [w["surface"]]:
             out.setdefault(form, {"word": {**w, "surface": form, "surface_forms": [form]}})
 
-    counts = {"fits": 0, "broader": 0, "different": 0, "sibling": 0}
+    counts = {"fits": 0, "broader": 0, "different": 0, "sibling": 0, "name": 0}
     db = SessionLocal()
     try:
         lookup = build_comprehensive_lemma_lookup(db)
@@ -227,6 +227,8 @@ def prematch_page(snap_id: int) -> dict:
                 if real is None:
                     continue
                 sense = {"verdict": "different", "sibling": True, "word": real}
+            elif v["verdict"] == "name":
+                sense = {"verdict": "name"}
             elif v["verdict"] == "different":
                 sense = {"verdict": "different",
                          "word": _resolve_different_word(db, form, w["lemma_id"], v, lookup)}

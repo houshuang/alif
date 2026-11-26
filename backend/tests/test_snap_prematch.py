@@ -24,7 +24,7 @@ def _page(db, text):
 def _stub_checks(monkeypatch, by_form, calls=None):
     """check_senses stub: by_form maps a surface to a raw mismatch row, or to
     "fail" to fail that surface's whole chunk."""
-    def fake(text, items):
+    def fake(text, items, **kw):
         if calls is not None:
             calls.append([it["forms"][0] for it in items])
         if any(by_form.get(it["forms"][0]) == "fail" for it in items):
@@ -223,3 +223,30 @@ def test_page_pass_writes_approved_widenings_only(db_session, monkeypatch):
     db_session.expire_all()
     assert db_session.get(Lemma, qarn.lemma_id).gloss_en == "century; horn"
     assert db_session.get(Lemma, hissa.lemma_id).gloss_en == "class period"
+
+
+def test_a_name_on_the_page_is_a_name_not_a_chip(db_session, monkeypatch):
+    rose = _lemma(db_session, "رُوز", "روز", "rice", "noun")
+    page = _page(db_session, "روزي")
+    monkeypatch.setattr(discover, "lookup_lemma_id", lambda tok, *a, **k: rose.lemma_id if tok == "روزي" else None)
+    _stub_checks(monkeypatch, {"روزي": {"index": 0, "verdict": "name"}})
+    _stub_gloss(monkeypatch, {})
+    out = snap_prematch.prematch_page(page.id)
+    assert out["words"]["روزي"]["sense"] == {"verdict": "name"}
+    assert discover.chips_from_prematch("روزي", out["words"], 5, "common_first") == []
+
+
+def test_check_senses_reports_names_only_when_asked(monkeypatch):
+    from app.services import preread_service as ps
+
+    monkeypatch.setattr("app.services.llm.generate_completion",
+                        lambda **kw: {"mismatches": [{"index": 0, "verdict": "name"}]})
+    item = [{"index": 0, "lemma_ar": "رُوز", "gloss_en": "rice", "forms": ["روزي"]}]
+    assert ps.check_senses("قالت روزي", item, allow_name=True) == {0: {"verdict": "name"}}
+    assert ps.check_senses("قالت روزي", item) == {}
+
+
+def test_a_proposed_word_glossed_as_a_name_is_a_name(db_session):
+    w = discover._resolve_different_word(
+        db_session, "روزي", 0, {"lemma_ar": "رُوزِي", "gloss_en": "Rosie (personal name)", "pos": "noun"})
+    assert w["is_proper_noun"] is True

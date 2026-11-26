@@ -118,6 +118,14 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26 (9): Names are names in the page check
+
+On a test snap the chips offered «رُوزِي» ("Rosie (personal name)") as a word to learn: the batched
+sense check had no "name" verdict, so a name came back as "different" and `_resolve_different_word`
+marked the proposal `is_proper_noun: False` (also in the Fable review, ~14 cases). `check_senses`
+now takes `allow_name` (page pre-match v4 and pre-read use it); a proposal whose POS or gloss says
+it is a name is flagged as one. Branch `sh/sense-name-verdict`.
+
 ## 2026-11-26 (8): Snap chips and pre-read use the page pre-match
 
 From the OCR-surface audit (gaps 1–4). Snap ran the chip check and the page pre-match side by

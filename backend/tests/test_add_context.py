@@ -96,7 +96,7 @@ def test_verify_failure_leaves_row_unchecked(db_session, monkeypatch):
 
 
 def test_preread_holds_back_matched_words_when_check_fails(monkeypatch):
-    monkeypatch.setattr(ps, "check_senses", lambda text, items: None)
+    monkeypatch.setattr(ps, "check_senses", lambda text, items, **kw: None)
     learn = [{"lemma_id": 5, "lemma_ar": "مَاضٍ", "surface": "أمضت"},
              {"lemma_id": None, "lemma_ar": "جَدِيد", "surface": "جديد"}]
     shaky = [{"lemma_id": 6, "lemma_ar": "قَرْن", "surface": "القرن"}]
@@ -119,7 +119,7 @@ def test_snap_chips_sense_check(db_session, monkeypatch):
         {"surface": "منفى", "lemma_ar": "مَنْفَى", "gloss_en": "exile", "pos": "noun", "lemma_id": None},
     ]
 
-    def fake(text, items):
+    def fake(text, items, **kw):
         by = {it["lemma_ar"]: it["index"] for it in items}
         return {
             by["مَاضٍ"]: {"verdict": "different", "lemma_ar": "أَمْضَى", "gloss_en": "to spend (time)", "pos": "verb"},
