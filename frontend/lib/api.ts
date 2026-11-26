@@ -16,6 +16,7 @@ import {
   BookPageCompleteResult,
   StoryLookupResult,
   WordLookupResult,
+  WordFailureCause,
   DiscoverWord,
   LookupSense,
   AddCheck,
@@ -1285,9 +1286,11 @@ export async function resolveAddCheck(
 // so the entry can be checked against real use.
 export async function addDiscoveredWord(
   word: DiscoverWord,
-  context?: { surface?: string | null; sentence?: string | null; snapId?: number | null }
+  context?: { surface?: string | null; sentence?: string | null; snapId?: number | null },
+  /** Gate, enrich and build the word card before replying (Snap's Enrich). */
+  enrich = false,
 ): Promise<DiscoverAddResult> {
-  return fetchApi("/api/discover/add", {
+  return fetchApi(`/api/discover/add${enrich ? "?enrich=true" : ""}`, {
     method: "POST",
     body: JSON.stringify({
       lemma_ar_bare: word.lemma_ar_bare,
@@ -1301,8 +1304,30 @@ export async function addDiscoveredWord(
       surface: context?.surface ?? word.surface,
       context_ar: context?.sentence ?? word.example_ar,
       snap_id: context?.snapId ?? null,
+      phrase: word.phrase ?? null,
     }),
-    timeoutMs: 20000,
+    timeoutMs: enrich ? 180000 : 20000,
+  });
+}
+
+/** Word lookup for the word card, skipping the cache (after Enrich wrote new data). */
+export async function lookupReviewWordFresh(lemmaId: number): Promise<WordLookupResult> {
+  const result = await fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
+  cacheWordLookup(lemmaId, result).catch(() => {});
+  return result;
+}
+
+/** Reasons a studied word was not recognised on a Snap page; [] withdraws them. */
+export async function recordLookupMiss(payload: {
+  lemmaId: number; surface: string; context: string; snapId: number | null; causes: WordFailureCause[];
+}): Promise<{ opens_miss: boolean }> {
+  return fetchApi("/api/discover/lookup/miss", {
+    method: "POST",
+    body: JSON.stringify({
+      lemma_id: payload.lemmaId, surface: payload.surface, context: payload.context,
+      snap_id: payload.snapId, causes: payload.causes,
+    }),
+    timeoutMs: 15000,
   });
 }
 

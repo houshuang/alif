@@ -118,6 +118,35 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-26: Snap word sheet = missed-word card; Snap reasons open recovery misses (`lookup_miss_v1`); general glosses on Add
+
+**Why.** Snap taps on studied words showed only a "known" badge, and 17 of 62 taps (18 Nov–25 Nov)
+landed on words recorded as known, most of them a different word on a known root (عيّنت matched
+عَيْن "eye" for عَيَّنَ). New words were glossed "as used in the example clause" and that gloss
+became the stored `gloss_en`: lemma 4990 أَبْصَرَ was stored as "was born" (from أبصر النور).
+
+**Change (branch `sh/snap-word-card`).**
+- Snap sheet: a studied word (acquiring/learning/known/lapsed/suspended) shows the review word
+  card (`DockWordPanel`) with the reason row (Forgot / Mixed / Form / Vowels). A new word shows its
+  general gloss, "Here: …" when the sentence meaning differs, the set phrase if one gave that
+  meaning, Add, and Enrich (`/api/discover/add?enrich=true`: gates, full enrichment and word
+  card before the reply, then the card replaces the row). Only the tapped Arabic word is
+  highlighted; the rest of its translation phrase is underlined.
+- `lookup_miss_v1`: a reason on a Snap tap writes one `lookup_misses` row per (snap, word,
+  sentence); changing reasons replaces it, clearing them deletes it. For a word in FSRS review
+  (known/learning/lapsed) the row opens a missed-word recovery entry in `open_misses()` (rating 1,
+  `misses_in_run` not increased, so it never moves a word toward suspension); it closes like any
+  other miss after two sentence successes. FSRS, `ReviewLog`, `times_seen` and the leech counters
+  are untouched. Acquiring words: evidence only. "Mixed" is a plain toggle in Snap (no naming
+  popover yet).
+- `_gloss()` returns `gloss_en` (general dictionary meaning, stored on Add), `gloss_here`
+  (display only) and `phrase_ar`/`phrase_en`; Add saves the phrase in
+  `word_add_contexts.phrase_json`, and the word card offers it as an attested set phrase.
+
+**Readout.** Count `discover_lookup_miss` events and how often a Snap-opened miss closes within
+14 days, against sentence-opened misses. Check that no Snap reason lands on a word the page check
+re-routed (reasons are hidden until the check finishes).
+
 ## 2026-11-25 (8): Second word batch (282 lemmas) and stored sentence words moved onto the new lemmas
 
 **What was done (production, backups `alif_pre_word_batch2_*.db`, `alif_pre_remap_*.db`).**

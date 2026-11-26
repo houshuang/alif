@@ -21,8 +21,15 @@ import {
   checkLookupSense,
   getSnapHistory,
   getSnapPage,
+  lookupReviewWord,
+  lookupReviewWordFresh,
+  recordLookupMiss,
 } from "../lib/api";
-import type { DiscoverWord, LookupSense, SnapHistoryItem, SnapResult } from "../lib/types";
+import type {
+  DiscoverWord, LookupSense, SnapHistoryItem, SnapResult, WordFailureCause, WordLookupResult,
+} from "../lib/types";
+import DockWordPanel from "../lib/review/DockWordPanel";
+import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import {
   alignSentences,
   firstArabicToken,
@@ -356,6 +363,20 @@ export default function SnapScreen() {
     }
   }
 
+  async function enrichWord(w: DiscoverWord, sentence: string): Promise<number | null> {
+    const key = w.lemma_ar_bare;
+    try {
+      const r = await addDiscoveredWord(w, {
+        surface: selected?.text, sentence, snapId: result?.snap_id,
+      }, true);
+      setAdds((p) => ({ ...p, [key]: r.already_known ? "known" : "added" }));
+      return r.lemma_id ?? null;
+    } catch {
+      setAdds((p) => ({ ...p, [key]: "error" }));
+      return null;
+    }
+  }
+
   async function addAll() {
     if (!result) return;
     for (const w of result.words) {
@@ -507,7 +528,8 @@ export default function SnapScreen() {
                               <Text
                                 key={t.key}
                                 onPress={() => tapArabic(s, t)}
-                                style={arHighlighted(s, t) ? styles.tokenSelected : undefined}
+                                style={selected?.key === t.key ? styles.tokenSelected
+                                  : arHighlighted(s, t) ? styles.tokenLinked : undefined}
                                 accessibilityRole="button"
                               >
                                 {t.text}
@@ -605,10 +627,14 @@ export default function SnapScreen() {
     </ScrollView>
     {selected && (
       <WordPanel
+        key={lookupKey(selected)}
         surface={selected.text}
+        sentence={selected.sentence}
+        snapId={result?.snap_id ?? null}
         lookup={selectedLookup}
         addState={(w) => adds[w.lemma_ar_bare] || "idle"}
         onAdd={(w) => addWord(w, selected.sentence)}
+        onEnrich={(w) => enrichWord(w, selected.sentence)}
         onRetry={() => fetchLookup(selected)}
         onClose={() => {
           setSelected(null);
@@ -622,21 +648,30 @@ export default function SnapScreen() {
 
 function WordPanel({
   surface,
+  sentence,
+  snapId,
   lookup,
   addState,
   onAdd,
+  onEnrich,
   onRetry,
   onClose,
 }: {
   surface: string;
+  sentence: string;
+  snapId: number | null;
   lookup: Lookup | undefined;
   addState: (w: DiscoverWord) => AddState;
   onAdd: (w: DiscoverWord) => void;
+  /** Add (if needed) and enrich now; resolves to the lemma id, or null on failure. */
+  onEnrich: (w: DiscoverWord) => Promise<number | null>;
   onRetry: () => void;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const matched = lookup?.status === "done" ? lookup.word : null;
   const sense = lookup?.status === "done" ? lookup.sense : undefined;
+  const checking = sense?.status === "checking";
   const verdict = sense?.status === "done" ? sense.sense : null;
   // A different word: show the one the sentence uses, and the wrong match below it.
   const replaced = verdict?.verdict === "different" && verdict.word ? matched : null;
@@ -644,6 +679,43 @@ function WordPanel({
   if (word && verdict?.verdict === "broader" && verdict.gloss_en) {
     word = { ...word, gloss_en: verdict.gloss_en };
   }
+  const isName = verdict?.verdict === "name" || !!word?.is_proper_noun
+    || (word?.pos || "").toLowerCase().startsWith("proper");
+  const studied = !!word?.knowledge_state && STUDIED_STATES.has(word.knowledge_state);
+
+  // A word the learner studies, or one just enriched, shows the review word card.
+  const [enrichedId, setEnrichedId] = useState<number | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const cardLemmaId = enrichedId ?? (studied && !isName ? word?.lemma_id ?? null : null);
+  const [card, setCard] = useState<WordLookupResult | null>(null);
+  const [cardError, setCardError] = useState(false);
+  const [causes, setCauses] = useState<WordFailureCause[]>([]);
+  useEffect(() => {
+    setCard(null);
+    setCardError(false);
+    if (cardLemmaId == null) return;
+    let live = true;
+    (enrichedId != null ? lookupReviewWordFresh(cardLemmaId) : lookupReviewWord(cardLemmaId))
+      .then((r) => { if (live) setCard(r); })
+      .catch(() => { if (live) setCardError(true); });
+    return () => { live = false; };
+  }, [cardLemmaId, enrichedId]);
+
+  function toggleCause(cause: WordFailureCause) {
+    if (cardLemmaId == null) return;
+    const next = causes.includes(cause) ? causes.filter((c) => c !== cause) : [...causes, cause];
+    setCauses(next);
+    recordLookupMiss({ lemmaId: cardLemmaId, surface, context: sentence, snapId, causes: next })
+      .catch(() => setCauses(causes));
+  }
+
+  async function enrich(w: DiscoverWord) {
+    setEnriching(true);
+    const id = await onEnrich(w);
+    setEnriching(false);
+    if (id != null) setEnrichedId(id);
+  }
+
   return (
     <View style={styles.panel}>
       <View style={styles.panelHeader}>
@@ -664,28 +736,71 @@ function WordPanel({
       {lookup?.status === "done" && !word && (
         <Text style={styles.panelMuted}>Function word or name</Text>
       )}
-      {word && (
-        <WordRow
-          word={word}
-          name={verdict?.verdict === "name"}
-          unchecked={sense?.status === "checking"}
-          addState={addState(word)}
-          onAdd={() => onAdd(word!)}
-        />
-      )}
-      {sense?.status === "checking" && (
+      {checking && (
         <View style={styles.panelRow}>
           <ActivityIndicator size="small" color={colors.textSecondary} />
           <Text style={styles.panelNote}>Checking the meaning here…</Text>
         </View>
       )}
-      {verdict?.verdict === "broader" && verdict.written && (
-        <Text style={styles.panelNote}>Gloss widened (was: {verdict.gloss_from || "—"})</Text>
-      )}
       {replaced && (
         <Text style={styles.panelNote}>
           Not {replaced.lemma_ar} “{replaced.gloss_en || "—"}”
         </Text>
+      )}
+      {word && cardLemmaId != null && (
+        <>
+          <ScrollView style={styles.cardScroll} nestedScrollEnabled>
+            {card ? (
+              <DockWordPanel
+                result={card}
+                surfaceForm={surface}
+                markState={causes.length ? "missed" : null}
+                onNavigateToDetail={(id) => router.push(`/word/${id}`)}
+                onNavigateToRoot={(id) => router.push(`/root/${id}`)}
+              />
+            ) : cardError ? (
+              <WordRow word={word} name={isName} unchecked={false} addState="known" onAdd={() => {}} />
+            ) : (
+              <ActivityIndicator color={colors.accent} style={styles.panelSpinner} />
+            )}
+          </ScrollView>
+          {!checking && (
+            <AssistedRecognitionCauses
+              compact
+              otherWordSurface={null}
+              rating={1}
+              selected={causes}
+              missingTashkeelApplicable
+              onToggle={toggleCause}
+            />
+          )}
+        </>
+      )}
+      {word && cardLemmaId == null && (
+        <>
+          <WordRow word={word} name={isName} unchecked={checking} addState={addState(word)} onAdd={() => onAdd(word!)} />
+          {word.gloss_here ? (
+            <Text style={styles.panelNote}>Here: {word.gloss_here}</Text>
+          ) : null}
+          {word.phrase ? (
+            <Text style={styles.panelNote}>{word.phrase.ar} · {word.phrase.en}</Text>
+          ) : null}
+          {verdict?.verdict === "broader" && verdict.written && (
+            <Text style={styles.panelNote}>Gloss widened (was: {verdict.gloss_from || "—"})</Text>
+          )}
+          {!isName && !checking && (
+            <Pressable
+              style={styles.enrichBtn}
+              disabled={enriching}
+              onPress={() => enrich(word!)}
+              accessibilityLabel="Add and enrich this word now"
+            >
+              {enriching ? <ActivityIndicator size="small" color={colors.accent} />
+                : <Ionicons name="sparkles-outline" size={18} color={colors.accent} />}
+              <Text style={styles.enrichText}>{enriching ? "Enriching…" : "Enrich"}</Text>
+            </Pressable>
+          )}
+        </>
       )}
     </View>
   );
@@ -893,6 +1008,15 @@ const styles = StyleSheet.create({
   arabicLabel: { marginTop: 24 },
   arabicParagraph: { marginTop: 12 },
   tokenSelected: { backgroundColor: colors.accent + "33", color: colors.text },
+  // The rest of the tapped word's translation phrase: marked, not selected.
+  tokenLinked: { textDecorationLine: "underline", textDecorationColor: colors.accent + "88" },
+  cardScroll: { maxHeight: 300 },
+  enrichBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    height: 44, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surfaceLight, marginTop: 10,
+  },
+  enrichText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
   panel: {
     position: "absolute",
     left: 0,

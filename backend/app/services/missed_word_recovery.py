@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import ReviewLog
+from app.models import LookupMiss, ReviewLog
 
 MISSED_RECOVERY_VERSION = "missed_word_recovery_v1"
 FRAGMENT_REVIEW_MODE = "fragment"
@@ -92,9 +92,33 @@ def open_misses(
     if lemma_id is not None:
         query = query.filter(ReviewLog.lemma_id == lemma_id)
     rows = query.order_by(ReviewLog.reviewed_at, ReviewLog.id).all()
+    # A reason given for a word met while reading outside review (a Snap tap)
+    # opens a miss too. It is not a review: it never counts toward the leech run.
+    lookup_query = db.query(LookupMiss).filter(
+        LookupMiss.opens_miss.is_(True),
+        LookupMiss.created_at >= cutoff,
+        LookupMiss.created_at <= now.replace(tzinfo=None),
+    )
+    if lemma_id is not None:
+        lookup_query = lookup_query.filter(LookupMiss.lemma_id == lemma_id)
+    events: list[tuple[datetime, int, object]] = [(r.reviewed_at, 0, r) for r in rows]
+    events += [(m.created_at, 1, m) for m in lookup_query.all()]
+    events.sort(key=lambda e: (e[0], e[1]))
     state: dict[int, dict] = {}
-    for row in rows:
+    for _, _, row in events:
         entry = state.get(row.lemma_id)
+        if isinstance(row, LookupMiss):
+            missed_at = row.created_at.replace(tzinfo=timezone.utc) if row.created_at.tzinfo is None else row.created_at
+            still_open = entry is not None and _successes(entry) < _required_successes(entry)
+            state[row.lemma_id] = {
+                "missed_at": missed_at,
+                "rating": 1,
+                "sentence_successes": 0,
+                "fragment_successes": 0,
+                "word_card_misses": 0,
+                "misses_in_run": entry["misses_in_run"] if still_open else 0,
+            }
+            continue
         if row.review_mode == "quiz":
             if entry is not None and row.rating == 1:
                 entry["word_card_misses"] += 1
