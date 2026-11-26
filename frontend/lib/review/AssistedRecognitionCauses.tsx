@@ -38,7 +38,7 @@ export function AssistedRecognitionCauses({
   const legendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   useEffect(() => () => { if (legendTimer.current) clearTimeout(legendTimer.current); }, []);
-  const [legend, setLegend] = useState<string | null>(null);
+  const [legend, setLegend] = useState<WordFailureCause | null>(null);
   const legends: Record<WordFailureCause, string> = { retrieval_lapse: "Forgot — I could not recall this word", mixed_up: "Mixed — I mistook this for another word", unfamiliar_form: "Form — familiar word, unfamiliar form", missing_tashkeel: "Vowels — missing vowel marks made it hard" };
   const causes = missingTashkeelApplicable
     ? [
@@ -50,6 +50,9 @@ export function AssistedRecognitionCauses({
 
   return (
     <View style={[styles.container, compact && styles.compactContainer]}>
+      {compact && legend && <View pointerEvents="none" style={styles.legend}>
+        <Text style={styles.legendText}>{legends[legend]}</Text>
+      </View>}
       <View style={[styles.row, compact && styles.compactRow]}>
         {otherWordSurface ? (
           <Text style={[styles.arabic, { color: accent }]} numberOfLines={1}>
@@ -85,14 +88,11 @@ export function AssistedRecognitionCauses({
                 active && { borderColor: accent, backgroundColor: `${accent}29` },
               ]}
             >
-              {compact && legend === cause.value && <View pointerEvents="none" style={styles.legend}>
-                <Text style={styles.legendText}>{legends[cause.value]}</Text>
-              </View>}
               {compact ? <View style={styles.namedIcon}><Ionicons
                 name={cause.value === "retrieval_lapse" ? "refresh-outline"
                   : cause.value === "mixed_up" ? "shuffle-outline"
                   : cause.value === "unfamiliar_form" ? "layers-outline" : "text-outline"}
-                size={20} color={active ? accent : colors.textSecondary} /><Text style={styles.iconName}>{cause.label}</Text></View> : <Text
+                size={18} color={active ? accent : colors.textSecondary} /><Text style={[styles.iconName, active && { color: accent, fontWeight: "700" }]}>{cause.label}</Text></View> : <Text
                 style={[styles.chipText, active && { color: accent, fontWeight: "700" }]}
                 numberOfLines={1}
               >
@@ -108,14 +108,15 @@ export function AssistedRecognitionCauses({
 }
 
 const styles = StyleSheet.create({
-  namedIcon: { alignItems: "center", gap: 1 },
-  iconName: { fontSize: 10, color: colors.textSecondary, textAlign: "center" },
-  legend: { position: "absolute", right: 49, width: 210, padding: 9, borderRadius: 6,
+  // Compact: one full-width row under the word panel, icon and name side by side.
+  namedIcon: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  iconName: { fontSize: 13, color: colors.textSecondary },
+  legend: { position: "absolute", left: 0, right: 0, bottom: 48, padding: 9, borderRadius: 6,
     backgroundColor: colors.surfaceLight, borderWidth: 1, borderColor: colors.border, zIndex: 100 },
-  legendText: { color: colors.text, fontSize: 12, lineHeight: 17 },
-  compactContainer: { width: 44, marginTop: 2, paddingHorizontal: 0, alignSelf: "flex-start" },
-  compactRow: { flexDirection: "column", gap: 4 },
-  iconButton: { flexGrow: 0, flexShrink: 0, flexBasis: 44, width: 44, height: 44, paddingVertical: 0, paddingHorizontal: 0, justifyContent: "center", borderRadius: 12 },
+  legendText: { color: colors.text, fontSize: 12, lineHeight: 17, textAlign: "center" },
+  compactContainer: { marginTop: 6, marginBottom: 0, paddingHorizontal: 0 },
+  compactRow: { gap: 6 },
+  iconButton: { flex: 1, height: 44, paddingVertical: 0, paddingHorizontal: 2, justifyContent: "center", borderRadius: 12 },
   container: {
     width: "100%",
     maxWidth: 500,

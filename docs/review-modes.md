@@ -147,7 +147,8 @@ batch loads behind the card, and a word card used to render in its place.
 
 ### Confusion-pair teaching (deployed 2026-11-23)
 
-Reason icons have visible short names and a 350ms long-press legend (2.5s;
+Reason buttons (Forgot, Mixed, Form, Vowels) sit in one full-width row under the word
+panel, icon and name side by side, with a 350ms long-press legend shown above the row (2.5s;
 long-press never toggles the cause). More → Confusion pairs separates confirmed
 pairs and manually entered descriptions needing matching. Checked contrast
 lessons and two-exercise blocks can appear at sentence-submission boundaries,

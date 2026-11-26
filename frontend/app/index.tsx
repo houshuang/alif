@@ -388,6 +388,9 @@ function getFormIBase(
 const introducedGrammarKeys = new Set<string>();
 
 const FOLLOWUP_AFTER_RETRY_MS = 30 * 60 * 1000;
+// Reason row under the word panel (44 + margin) and the dock's own border/padding.
+const REASON_ROW_HEIGHT = 50;
+const WORD_DOCK_PADDING = 12;
 
 export default function ReadingScreen() {
   const launchReady = useContext(ReviewLaunchReadyContext);
@@ -407,6 +410,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const online = useNetStatus();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
+  // The word panel takes the room the sentence leaves, between today's fixed
+  // cap (so long sentences keep their space) and 60% of the reading region.
+  const [readingRegionHeight, setReadingRegionHeight] = useState(0);
+  const [sentenceContentHeight, setSentenceContentHeight] = useState(0);
+  // With the reason row shown, panel + row together keep the old floor.
+  const wordPanelMaxHeight = (reasonRowShown: boolean) => {
+    const floor = Math.min(256, viewportHeight * 0.32) - (reasonRowShown ? REASON_ROW_HEIGHT : 0);
+    if (readingRegionHeight <= 0 || sentenceContentHeight <= 0) return floor;
+    const free = readingRegionHeight - sentenceContentHeight - WORD_DOCK_PADDING
+      - (reasonRowShown ? REASON_ROW_HEIGHT : 0);
+    return Math.max(floor, Math.min(readingRegionHeight * 0.6, free));
+  };
   const router = useRouter();
   const navigation = useNavigation();
   const [lookupMinimized, setLookupMinimized] = useState(false);
@@ -2233,7 +2248,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     >
                       <Text style={{ fontSize: 14, fontWeight: "600", fontFamily: fontFamily.arabic, writingDirection: "rtl", color: "#9b59b6" }}>{wc.root}</Text>
                       {wc.root_meaning && (
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#9b59b6" }} numberOfLines={1}>{wc.root_meaning}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#9b59b6", flexShrink: 1 }} numberOfLines={1}>{wc.root_meaning}</Text>
                       )}
                       <Text style={{ color: "#9b59b660", fontSize: 10 }}>{" \u203A"}</Text>
                     </Pressable>
@@ -2245,7 +2260,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     >
                       <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }}>{wc.wazn}</Text>
                       {wc.wazn_meaning && (
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }} numberOfLines={1}>{wc.wazn_meaning}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12", flexShrink: 1 }} numberOfLines={1}>{wc.wazn_meaning}</Text>
                       )}
                       <Text style={{ color: "#f39c1260", fontSize: 10 }}>{" \u203A"}</Text>
                     </Pressable>
@@ -3366,10 +3381,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
       />
 
+      <View style={{ flex: 1, minHeight: 0 }} onLayout={(e) => setReadingRegionHeight(e.nativeEvent.layout.height)}>
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[styles.sentenceArea, !isListening && styles.readingSentenceArea]}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={(_w, h) => setSentenceContentHeight(h)}
       >
         {isListening ? (
           <SentenceListeningCard
@@ -3414,7 +3431,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
        <View style={[styles.wordDockContent, styles.wordDockInner]}>
         <View style={[styles.lookupRow, styles.wordDockInner]}>
           <ScrollView
-            style={[styles.lookupContent, { maxHeight: Math.min(256, viewportHeight * 0.32) }]}
+            style={[styles.lookupContent, { maxHeight: wordPanelMaxHeight(activeAssistedRecognitionIndex != null
+              && activeAssistedRecognitionIndex === focusedReviewWordIndex && assistedWord != null) }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled
@@ -3462,6 +3480,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </Pressable>
             )}
           </ScrollView>
+        </View>
 
           {!lookupMinimized && !isListening
             && activeAssistedRecognitionIndex != null
@@ -3494,7 +3513,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 onToggle={handleToggleAssistedCause}
               />
           )}
-        </View>
         {!isListening && !lookupMinimized && (<>
               {/* Named capture stays bound to the focused marked token, red or yellow. */}
               {activeAssistedRecognitionIndex === focusedReviewWordIndex
@@ -3528,6 +3546,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
        </View>
       </View>
       )}
+      </View>
 
       <View style={styles.bottomActions}>
         {isListening ? (
@@ -6104,6 +6123,8 @@ const styles = StyleSheet.create({
   eiChipOutline: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 1,
+    maxWidth: "100%",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
