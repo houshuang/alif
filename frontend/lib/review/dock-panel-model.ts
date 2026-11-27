@@ -89,7 +89,20 @@ export function dockPanelModel(
     .slice(0, ROOT_WORDS);
 
   const phrases = card?.phrases ?? [];
+  const senses = card?.senses ?? [];
 
-  return { currentKey, formName, chain, strip, family, phrases };
+  return { currentKey, formName, chain, strip, family, phrases, senses };
 }
 
+
+/** The meaning line for a word: with a senses list (most common first), the most
+ *  common meaning leads and the others follow; otherwise the stored gloss as is. */
+export function headlineMeanings(
+  gloss: string | null | undefined,
+  senses: { en: string }[] | null | undefined,
+): { main: string; others: string[] } {
+  if (senses && senses.length >= 2) {
+    return { main: senses[0].en, others: senses.slice(1).map((s) => s.en) };
+  }
+  return { main: gloss ?? "", others: [] };
+}

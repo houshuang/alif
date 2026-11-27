@@ -13,7 +13,7 @@ class _FakeSession:
 
 
 def _patch_pass(monkeypatch, introduced):
-    calls = {"refresh": 0, "introduce": 0, "warm": 0}
+    calls = {"refresh": 0, "introduce": 0, "warm": 0, "cards": []}
     monkeypatch.setattr(intake_pass, "SessionLocal", _FakeSession)
     monkeypatch.setattr(intake_pass, "_last_session_id", None)
     monkeypatch.setattr("app.services.automatic_attention.refresh_attention",
@@ -26,6 +26,8 @@ def _patch_pass(monkeypatch, introduced):
     monkeypatch.setattr(ss, "introduce_reserved_words", introduce)
     monkeypatch.setattr("app.services.material_generator.warm_sentence_cache",
                         lambda: calls.__setitem__("warm", calls["warm"] + 1))
+    monkeypatch.setattr("app.services.word_card.enrich_word_cards_for",
+                        lambda db, ids: calls["cards"].append(list(ids)))
     return calls
 
 
@@ -35,13 +37,13 @@ def test_pass_runs_once_per_session_and_warms_sentences(monkeypatch):
     assert intake_pass.run_intake_pass("s1") == []
     assert intake_pass.run_intake_pass(None) == []
     assert intake_pass.run_intake_pass("s2") == [7]
-    assert calls == {"refresh": 2, "introduce": 2, "warm": 2}
+    assert calls == {"refresh": 2, "introduce": 2, "warm": 2, "cards": [[7], [7]]}
 
 
 def test_pass_without_introductions_does_not_generate(monkeypatch):
     calls = _patch_pass(monkeypatch, [])
     assert intake_pass.run_intake_pass("s1") == []
-    assert calls == {"refresh": 1, "introduce": 1, "warm": 0}
+    assert calls == {"refresh": 1, "introduce": 1, "warm": 0, "cards": []}
 
 
 def test_reserved_slots_close_when_acquisition_is_full(db_session, monkeypatch):

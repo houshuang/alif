@@ -3771,6 +3771,7 @@ def _build_reintro_cards(
             "root_family": family,
             "memory_hooks": lemma.memory_hooks_json,
             "etymology": lemma.etymology_json,
+            "word_card": lemma.word_card_json,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
             "source": _display_source(k, lemma),

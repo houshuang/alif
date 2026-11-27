@@ -1,4 +1,4 @@
-import { dockPanelModel } from "../review/dock-panel-model";
+import { dockPanelModel, headlineMeanings } from "../review/dock-panel-model";
 import type { WordLookupResult } from "../types";
 
 function result(over: Partial<WordLookupResult> = {}): WordLookupResult {
@@ -77,5 +77,15 @@ describe("dockPanelModel", () => {
   it("ignores a one-step chain", () => {
     const m = dockPanelModel(result({ word_card: { ...card, chain: card.chain.slice(0, 1) } }), null, null);
     expect(m.chain).toEqual([]);
+  });
+});
+
+describe("headlineMeanings", () => {
+  it("leads with the most common sense and keeps the gloss when there are no senses", () => {
+    const senses = [{ en: "to solve" }, { en: "to settle in, arrive" }, { en: "to befall" }];
+    expect(headlineMeanings("to place or rank; to settle in; to solve; to befall", senses))
+      .toEqual({ main: "to solve", others: ["to settle in, arrive", "to befall"] });
+    expect(headlineMeanings("solution", [])).toEqual({ main: "solution", others: [] });
+    expect(headlineMeanings(null, undefined)).toEqual({ main: "", others: [] });
   });
 });

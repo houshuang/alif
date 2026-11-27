@@ -51,4 +51,19 @@ def run_intake_pass(session_id: str | None) -> list[int]:
         logger.info("intake pass introduced %s after session %s", introduced, session_id)
         from app.services.material_generator import warm_sentence_cache
         warm_sentence_cache()
+        _write_word_cards(introduced)
     return introduced
+
+
+def _write_word_cards(lemma_ids: list[int]) -> None:
+    """The intro card shows the word card: write it before the next session."""
+    from app.services.word_card import enrich_word_cards_for
+
+    db = SessionLocal()
+    try:
+        enrich_word_cards_for(db, lemma_ids)
+    except Exception:
+        logger.exception("word cards failed for introduced words %s", lemma_ids)
+        db.rollback()
+    finally:
+        db.close()

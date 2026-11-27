@@ -153,6 +153,86 @@ def test_enrich_writes_cards_and_skips_failed_batches(db_session, monkeypatch):
     stats = enrich_word_cards(db_session, 5)
     assert stats["written"] == 1
     db_session.refresh(lemma)
-    assert lemma.word_card_json["version"] == 1
+    assert lemma.word_card_json["version"] == word_card.WORD_CARD_VERSION
     assert lemma.word_card_json["chain"][-1]["lemma_id"] == lemma.lemma_id
     assert select_candidates(db_session, 5) == []
+
+
+def _senses(*items):
+    return [{"en": en, "ar": ar, "example_en": "x"} for en, ar in items]
+
+
+def test_validate_keeps_distinct_senses_whose_example_contains_the_word():
+    raw = _raw(senses=_senses(
+        ("teacher", "مُعَلِّمُ الصَّفِّ"),
+        ("master craftsman", "مُعَلِّمُ النِّجَارَةِ"),
+        ("teacher", "مُعَلِّمٌ جَدِيدٌ"),        # duplicate meaning
+        ("lesson", "دَرْسٌ صَعْبٌ"),             # example lacks the word
+        ("guide", "مُعَلِّم"),                   # one-word example
+    ))
+    card = validate(_inp(), raw)
+    assert [s["en"] for s in card["senses"]] == ["teacher", "master craftsman"]
+    assert card["senses"][0]["ar"] == "مُعَلِّمُ الصَّفِّ"
+
+
+def test_validate_stores_a_single_sense_as_none():
+    card = validate(_inp(), _raw(senses=_senses(("teacher", "مُعَلِّمُ الصَّفِّ"))))
+    assert card["senses"] == []
+    assert validate(_inp(), _raw())["senses"] == []  # older answers without the field
+
+
+def test_select_candidates_puts_new_words_first_and_stale_multi_meaning_cards_last(db_session):
+    known = _seed(db_session, "known", 50.0)
+    s = db_session.query(Sentence).first()
+
+    def add(ar, bare, gloss, state, card=None, times_seen=0):
+        lemma = Lemma(lemma_ar=ar, lemma_ar_bare=bare, gloss_en=gloss, pos="verb",
+                      gates_completed_at=datetime.utcnow())
+        if card is not None:  # an explicit None would store JSON null, not SQL NULL
+            lemma.word_card_json = card
+        db_session.add(lemma); db_session.flush()
+        db_session.add(UserLemmaKnowledge(lemma_id=lemma.lemma_id, knowledge_state=state, times_seen=times_seen))
+        db_session.add(SentenceWord(sentence_id=s.id, position=lemma.lemma_id, surface_form=bare, lemma_id=lemma.lemma_id))
+        return lemma
+
+    new = add("كَتَبَ", "كتب", "to write", "acquiring")
+    acquiring = add("دَرَسَ", "درس", "to study", "acquiring", times_seen=3)
+    stale_multi = add("حَلَّ", "حل", "to solve; to arrive", "known", card={"version": 1, "chain": []})
+    add("ذَهَبَ", "ذهب", "to go, to leave", "known", card={"version": 1, "chain": []})          # one meaning
+    add("قَرَأَ", "قرأ", "to read; to recite", "known",
+        card={"version": word_card.WORD_CARD_VERSION, "chain": []})                               # current
+    db_session.commit()
+
+    assert select_candidates(db_session, 10) == [new.lemma_id, acquiring.lemma_id, known.lemma_id, stale_multi.lemma_id]
+
+
+def test_enrich_replaces_an_old_card_but_never_a_current_one(db_session, monkeypatch):
+    lemma = _seed(db_session)
+    lemma.gloss_en = "teacher; master"
+    lemma.word_card_json = {"version": 1, "chain": [], "forms": {}, "phrases": []}
+    db_session.commit()
+    monkeypatch.setattr(word_card, "load_phrase_candidates", lambda: {})
+    senses = _senses(("teacher", "مُعَلِّمُ الصَّفِّ"), ("master craftsman", "مُعَلِّمُ النِّجَارَةِ"))
+    monkeypatch.setattr(word_card, "call_model",
+                        lambda inputs: {lemma.lemma_id: _raw(lemma_id=lemma.lemma_id, senses=senses)})
+    assert enrich_word_cards(db_session, 5)["written"] == 1
+    db_session.refresh(lemma)
+    assert lemma.word_card_json["version"] == word_card.WORD_CARD_VERSION
+    assert len(lemma.word_card_json["senses"]) == 2
+
+    monkeypatch.setattr(word_card, "call_model",
+                        lambda inputs: {lemma.lemma_id: _raw(lemma_id=lemma.lemma_id, senses=[])})
+    word_card.enrich_word_cards_for(db_session, [lemma.lemma_id])
+    db_session.refresh(lemma)
+    assert len(lemma.word_card_json["senses"]) == 2
+
+
+def test_senses_that_leave_out_the_stored_main_meaning_are_not_stored():
+    # Seen on حَلّ "solution": the model listed dissolution and untying only.
+    inp = _inp(gloss="solution")
+    raw = _raw(senses=_senses(("dissolution", "مُعَلِّمُ الصَّفِّ"), ("untying", "مُعَلِّمُ النِّجَارَةِ")))
+    assert validate(inp, raw)["senses"] == []
+    # The gloss's first meaning may come later in the list (most common first).
+    inp = _inp(gloss="to place or rank; to solve")
+    raw = _raw(senses=_senses(("to solve", "مُعَلِّمُ الصَّفِّ"), ("to rank", "مُعَلِّمُ النِّجَارَةِ")))
+    assert [s["en"] for s in validate(inp, raw)["senses"]] == ["to solve", "to rank"]

@@ -560,6 +560,7 @@ class ReintroCardOut(BaseModel):
     root_family: list[dict] = []
     memory_hooks: dict | None = None
     etymology: dict | None = None
+    word_card: dict | None = None
     wazn: str | None = None
     wazn_meaning: str | None = None
     source: str | None = None
