@@ -60,6 +60,8 @@ export default function DockWordPanel({
 
   const { currentKey, formName, chain, strip, family, phrases, senses } = dockPanelModel(result, surfaceForm, confusionData ?? null);
   const meaning = headlineMeanings(result.gloss_en, senses);
+  // The parsed form (tense, person, number) when the analysis is sure; else the stored form's name.
+  const formLine = confusionData?.form_description || formName;
 
   return (
     <View>
@@ -93,7 +95,7 @@ export default function DockWordPanel({
                 {` · ${result.cefr_level.toUpperCase()}`}
               </Text>
             ) : null}
-            {formName ? <Text style={{ color: mark }}>{` · ${formName}`}</Text> : null}
+            {formLine ? <Text style={{ color: mark }}>{` · ${formLine}`}</Text> : null}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />

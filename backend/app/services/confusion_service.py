@@ -7,6 +7,7 @@ or visual similarity to other known words/forms. All rule-based, no LLM calls.
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, Root, UserLemmaKnowledge
+from app.services.form_description import describe_surface_form
 from app.services.sentence_validator import (
     PROCLITICS,
     ENCLITICS,
@@ -989,4 +990,5 @@ def analyze_confusion(
         "similar_words": similar_words,
         "phonetic_similar": phonetic_similar,
         "prefix_hint": prefix_hint,
+        "form_description": describe_surface_form(surface_form, lemma.lemma_ar, lemma.lemma_ar_bare),
     }
