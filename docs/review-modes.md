@@ -88,7 +88,7 @@ Cards are shown in the order above, then sentences begin.
 
 After all sentences are reviewed:
 
-1. **Wrap-up cards** — mini-quiz for acquiring + missed words. Info-dense layout matching reintro cards: Arabic on front, then reveals English + flow chips (POS, clickable root → `/root/{id}`, clickable pattern → `/pattern/{wazn}`), FormsStrip with transliterations, etymology derivation, memory hook mnemonic (hidden since 2026-05-22). Got it / Missed buttons. Backend: `POST /api/review/wrap-up`, response includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`.
+1. **Wrap-up cards** — mini-quiz for acquiring + missed words. Info-dense layout matching reintro cards: Arabic on front, then reveals English + flow chips (POS, clickable root → `/root/{id}`, clickable pattern → `/pattern/{wazn}`), FormsStrip with transliterations, etymology derivation, memory hook mnemonic (hidden since 2026-05-22). Got it / Mixed up / Missed buttons (Mixed up opens the confusion picker and counts as Missed; see `docs/confusion-learning.md`). Backend: `POST /api/review/wrap-up`, response includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`.
 2. **Session summary** — reports review cards separately from child sentences, plus story-card count, Arabic running words, and reviewed-lemma judgments. Red/yellow word percentages are the primary outcome display; whole-sentence “fully understood” remains available in the API only as a length-confounded descriptive signal.
 
 ## Reading Mode

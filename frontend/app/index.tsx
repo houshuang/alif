@@ -448,6 +448,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [confusionData, setConfusionData] = useState<ConfusionAnalysis | null>(null);
   const [confusionCandidateLemmaIds, setConfusionCandidateLemmaIds] = useState<Record<number, number[]>>({});
   const [confusionCaptures, setConfusionCaptures] = useState<Record<number, ConfusionCaptureIn>>({});
+  // "Mixed up" on a word card: the picker and its look-alike data for the current card.
+  const [wrapUpMixOpen, setWrapUpMixOpen] = useState(false);
+  const [wrapUpMixData, setWrapUpMixData] = useState<ConfusionAnalysis | null>(null);
+  const wrapUpMixRequestRef = useRef(0);
   const [failureCausesByIndex, setFailureCausesByIndex] = useState<
     Record<number, WordFailureCause[]>
   >({});
@@ -1946,8 +1950,21 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }
 
-  async function handleWrapUpAnswer(gotIt: boolean) {
+  function openWrapUpMixedUp() {
     const card = wrapUpCards[wrapUpIndex];
+    const request = ++wrapUpMixRequestRef.current;
+    setWrapUpMixData(null);
+    setWrapUpMixOpen(true);
+    getConfusionHelp(card.lemma_id, card.lemma_ar).then((data) => {
+      if (request === wrapUpMixRequestRef.current) setWrapUpMixData(data);
+    });
+  }
+
+  async function handleWrapUpAnswer(gotIt: boolean, capture?: ConfusionCaptureIn) {
+    const card = wrapUpCards[wrapUpIndex];
+    wrapUpMixRequestRef.current += 1;
+    setWrapUpMixOpen(false);
+    setWrapUpMixData(null);
     // Consume on answer; another miss starts a fresh four-minute delay.
     retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== card.lemma_id);
     if (!gotIt) enqueueRetest(card.lemma_id);
@@ -1966,6 +1983,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         primary_lemma_id: card.lemma_id,
         comprehension_signal: gotIt ? "understood" : "no_idea",
         missed_lemma_ids: gotIt ? [] : [card.lemma_id],
+        // A mix-up is a miss of this word that also names the other word.
+        confusion_captures: !gotIt && capture ? [capture] : undefined,
         response_ms: Date.now() - showTime.current,
         session_id: sentenceSession?.session_id ?? generateUuid(),
         review_mode: isFollowup ? "fragment" : "quiz",
@@ -2319,6 +2338,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 <Text style={styles.actionButtonText}>Got it</Text>
               </Pressable>
               <Pressable
+                style={[styles.actionButton, { backgroundColor: colors.confused }]}
+                accessibilityLabel="Mixed up with another word"
+                onPress={openWrapUpMixedUp}
+              >
+                <Text style={styles.actionButtonText}>Mixed up</Text>
+              </Pressable>
+              <Pressable
                 style={[styles.actionButton, styles.continueButton]}
                 onPress={() => handleWrapUpAnswer(false)}
               >
@@ -2327,6 +2353,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             </View>
           )}
         </View>
+        {wrapUpMixOpen && (
+          <ConfusionPicker
+            key={`${wrapUpVariant}:${wrapUpIndex}:${wc.lemma_id}`}
+            visible
+            failedLemmaId={wc.lemma_id}
+            confusionData={wrapUpMixData}
+            onClose={() => setWrapUpMixOpen(false)}
+            onClear={() => {}}
+            onSave={(capture) => { void handleWrapUpAnswer(false, capture); }}
+          />
+        )}
       </View>
     );
   }

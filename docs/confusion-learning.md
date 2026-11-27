@@ -21,7 +21,15 @@ retained as forgetting notes, not fabricated lexical pairs.
 
 More → Confusion pairs has separate Pairs and Needs matching views. A manual entry
 can be searched in Arabic/English, confirmed against an existing word, or marked
-as a forgetting note. Original text and capture remain intact. Resolutions live only in the new teaching
+as a forgetting note. Search (`lexical_candidates`, 2026-11-27) also matches
+plain-letter transliteration ("saida" → صَعِدَ) and a consonant-only sound key
+("said", "saed" → s-d), ranked strong match → sound match → weak fuzzy guess, up to
+20 results. Transliteration is never an auto-link key at intake ("man" would match
+مَنْ). The matching view first lists the word's sound-alikes and look-alikes
+(`confusionSuggestions`: exact sound-alikes such as سعد/صعد first, then look-alikes,
+then near sound-alikes); the reading picker shows the same six. Before 2026-11-27 an
+exact sound-alike (phonetic distance 0) was dropped from `find_phonetically_similar`,
+so صَعِدَ was never offered for سَعِد. Original text and capture remain intact. Resolutions live only in the new teaching
 link; they do not fill the legacy capture `resolved_lemma_id` consumed by sentence
 selection. This prevents intake from silently changing the ongoing trial's selector. Marked notes can
 still be searched and reassigned. Canonical self-pairs are refused with an
@@ -129,6 +137,10 @@ clean-context count and clean dates. FSRS is never updated by this subsystem.
 
 Migration `a2d4f6c8b019` follows `f3b5d7e9a1c4`; no historical timing or FSRS backfill.
 Pair views also carry `due_now`, `practice_step`, `practice_start`, `practice_retired`, `next_due`.
+Word cards (Quick check, Missed word, Wrap-up) have a **Mixed up** button since
+2026-11-27: it opens the same picker and submits the card as Missed together with the
+capture (rating 1, no sentence id), so the pair enters intake like a reading capture.
+
 Routes: `GET /api/confusions`, `POST /refresh`, `GET /search?q=…`,
 `POST /captures/{id}/confirm`, `POST /{id}/prepare`, `POST /{id}/attempts` (all under
 `/api/confusions`). Local preview data and generated examples are private.
