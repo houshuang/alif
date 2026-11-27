@@ -1,5 +1,14 @@
 # Alif — Master Ideas File
 
+## 🔵 [PROPOSED 2026-11-27] Spread a word's sentences across its meanings
+
+Word cards (version 2) now list a word's distinct meanings, most common first (حَلَّ: solve / arrive,
+settle / befall / finish in a place). Sentence generation still writes for the word as a whole, so the
+learner may only ever meet its most common meaning in review. Next step: pass `word_card.senses` to the
+per-word generator and ask for one sentence per meaning before repeating one, and record which meaning a
+stored sentence uses so selection can rotate through them. Touches the verified generation pipeline, so
+it needs its own experiment-log entry and a check that verification still passes at the same rate.
+
 ## 🔵 [PROPOSED 2026-11-26] Pre-read, story import and scan checks: one line per surface, not per entry
 
 The Snap page measurement (`research/snap-prematch-2026-11/README.md`) found that checking one

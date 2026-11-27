@@ -5,10 +5,11 @@ import { colors, fontFamily, arabicText } from "../theme";
 import { ConfusionAnalysis, WordLookupResult } from "../types";
 import { getCefrColor } from "../frequency";
 import { bareArabicForm, bestVocalizedDisplayForm } from "../arabic-display";
-import { dockPanelModel, FORM_ROLE, shortGloss } from "./dock-panel-model";
+import { dockPanelModel, FORM_ROLE, headlineMeanings, shortGloss } from "./dock-panel-model";
+import { ChainRow, PhraseList, SenseList } from "./WordCardParts";
 
 /** The word panel docked under a marked word in reading review (Stack layout,
- *  2026-11-25): header, derivation chain, other forms, set phrases, root words.
+ *  2026-11-25): header, derivation chain, meanings, other forms, set phrases, root words.
  *  No row labels; each section is recognisable from its content. The chain,
  *  form glosses and phrases come from `word_card`, written lazily by the
  *  backend; until a word has one, the panel shows forms and root words only. */
@@ -57,7 +58,8 @@ export default function DockWordPanel({
   const lemmaAr = display.arabic || result.lemma_ar;
   const translit = display.transliteration || result.transliteration;
 
-  const { currentKey, formName, chain, strip, family, phrases } = dockPanelModel(result, surfaceForm, confusionData ?? null);
+  const { currentKey, formName, chain, strip, family, phrases, senses } = dockPanelModel(result, surfaceForm, confusionData ?? null);
+  const meaning = headlineMeanings(result.gloss_en, senses);
 
   return (
     <View>
@@ -79,7 +81,10 @@ export default function DockWordPanel({
       >
         <Text style={s.lemma}>{lemmaAr}</Text>
         <View style={s.headText}>
-          <Text style={s.gloss}>{result.gloss_en ?? "?"}</Text>
+          <Text style={s.gloss}>
+            {meaning.main || "?"}
+            {meaning.others.length > 0 ? <Text style={s.otherMeanings}>{` · ${meaning.others.join(" · ")}`}</Text> : null}
+          </Text>
           <Text style={s.meta} numberOfLines={2}>
             {translit ? <Text style={s.metaTranslit}>{translit}</Text> : null}
             {result.pos ? ` · ${result.pos.replace(/_/g, " ")}` : ""}
@@ -95,25 +100,14 @@ export default function DockWordPanel({
       </Pressable>
 
       {chain.length > 0 && (
-        <View style={[s.section, s.chain]}>
-          {chain.map((node, i) => {
-            const isThis = i === chain.length - 1;
-            const tappable = !isThis && node.lemma_id != null && !!onNavigateToDetail;
-            return (
-              <React.Fragment key={`${node.ar}-${i}`}>
-                {i > 0 && <Text style={s.arrow}>←</Text>}
-                <Pressable
-                  style={s.node}
-                  disabled={!tappable}
-                  onPress={tappable ? () => onNavigateToDetail!(node.lemma_id!) : undefined}
-                >
-                  <Text style={[s.nodeAr, isThis && { color: mark }]}>{node.ar}</Text>
-                  <Text style={s.nodeEn}>{node.en}</Text>
-                  <Text style={s.nodeTag}>{node.tag}</Text>
-                </Pressable>
-              </React.Fragment>
-            );
-          })}
+        <View style={s.section}>
+          <ChainRow chain={chain} highlight={mark} onNavigateToDetail={onNavigateToDetail} />
+        </View>
+      )}
+
+      {senses.length > 0 && (
+        <View style={s.section}>
+          <SenseList senses={senses} />
         </View>
       )}
 
@@ -133,12 +127,7 @@ export default function DockWordPanel({
 
       {phrases.length > 0 && (
         <View style={s.section}>
-          {phrases.map((p) => (
-            <View key={p.ar} style={s.phrase}>
-              <Text style={s.phraseEn}>{p.en}</Text>
-              <Text style={s.phraseAr}>{p.ar}</Text>
-            </View>
-          ))}
+          <PhraseList phrases={phrases} />
         </View>
       )}
 
@@ -181,6 +170,7 @@ const s = StyleSheet.create({
   lemma: { ...arabicText(28, 42), color: colors.arabic, writingDirection: "rtl", flexShrink: 1 },
   headText: { flex: 1, minWidth: 90 },
   gloss: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  otherMeanings: { color: colors.textSecondary, fontSize: 13, fontWeight: "400" },
   meta: { color: colors.textSecondary, fontSize: 11.5, marginTop: 1 },
   metaTranslit: { fontFamily: fontFamily.translit },
   section: {
@@ -188,20 +178,11 @@ const s = StyleSheet.create({
     borderTopColor: colors.border,
     paddingVertical: 6,
   },
-  chain: { flexDirection: "row-reverse", alignItems: "flex-start", justifyContent: "flex-end", gap: 2 },
-  node: { flexShrink: 1, flexBasis: 0, flexGrow: 1, maxWidth: 120, alignItems: "center" },
-  nodeAr: { ...arabicText(20, 34), color: colors.arabic, textAlign: "center" },
-  nodeEn: { color: "#b8b8cc", fontSize: 10.5, lineHeight: 13, textAlign: "center", marginTop: 1 },
-  nodeTag: { color: colors.textSecondary, fontSize: 9.5, letterSpacing: 0.4, textAlign: "center" },
-  arrow: { color: "#4a4a6a", fontSize: 13, paddingTop: 10 },
   strip: { flexDirection: "row-reverse", flexWrap: "wrap", columnGap: 14, rowGap: 4 },
   form: { alignItems: "center" },
   formAr: { ...arabicText(20, 34), color: colors.arabic },
   formRole: { color: colors.textSecondary, fontSize: 10.5, lineHeight: 13, marginTop: 1 },
   formEn: { color: "#b8b8cc" },
-  phrase: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  phraseEn: { color: "#c8c8d8", fontSize: 12, flexShrink: 1 },
-  phraseAr: { ...arabicText(19, 33), color: colors.text, writingDirection: "rtl", flexShrink: 1, textAlign: "right" },
   rootHead: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   rootLetters: { ...arabicText(18, 30), color: colors.targetWord },
   rootMeaning: { color: colors.textSecondary, fontSize: 11, flexShrink: 1 },

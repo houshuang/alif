@@ -6,19 +6,25 @@ and root words, three things the lemma row does not hold:
 - a derivation chain from the basic word to this one
   (عَلِمَ know → عَلَّمَ teach (II) → مُعَلِّم one who teaches);
 - short glosses for the stored forms (مُسْتَخْدِم "user", اِسْتِخْدَام "use");
-- two or three set phrases that contain the word (حُرِّيَّةُ التَّنَقُّلِ).
+- two or three set phrases that contain the word (حُرِّيَّةُ التَّنَقُّلِ);
+- for a word with clearly different meanings, each meaning with one short
+  example (حَلَّ: solve حَلَّ الْمُشْكِلَةَ · arrive حَلَّ الضَّيْفُ · fall حَلَّ الظَّلَامُ).
 
 They are written lazily into ``Lemma.word_card_json`` by
 ``scripts/enrich_word_cards.py``, most useful words first: open misses, then
 words being learned, then known words in active sentences by lowest FSRS
-stability. Phrase candidates counted from the book corpus
+stability. A word just introduced gets its card first (the intro card shows it), and
+the intake pass writes it right after introducing the word. Version-1 cards
+(before meanings existed) whose gloss lists several meanings are rewritten after the
+missing ones. Phrase candidates counted from the book corpus
 (``scripts/build_phrase_candidates.py``) are shown to the model, and a phrase it
 keeps from them is marked ``attested``.
 
 The model output is never trusted as is: a chain must end at this lemma and use
 words from its root family or its own forms (one unlisted step allowed), form
 glosses are kept only for forms the lemma stores, and a phrase is kept only when
-one of its tokens resolves to this lemma or contains one of its forms.
+one of its tokens resolves to this lemma or contains one of its forms. The same
+check applies to each meaning's example; fewer than two meanings are stored as none.
 
 Phases follow the SQLite write-lock rule: read inputs and close the transaction,
 call the model, then write each result in a short transaction.
@@ -28,10 +34,12 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge, WordAddContext
@@ -43,11 +51,13 @@ from app.services.sentence_validator import (
 
 logger = logging.getLogger(__name__)
 
-WORD_CARD_VERSION = 1
+WORD_CARD_VERSION = 2
 BATCH_SIZE = 8
 MAX_FAMILY_IN_PROMPT = 25
 MAX_PHRASES = 3
 MAX_PHRASE_WORDS = 5
+MAX_SENSES = 4
+MAX_SENSE_EXAMPLE_WORDS = 8
 # Forms the panel shows, in the order it shows them; glosses are asked only for these.
 FORM_KEYS = ("present", "masdar", "active_participle", "passive_participle", "plural", "feminine", "elative")
 CHAIN_TAGS = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
@@ -73,7 +83,16 @@ PROMPT_HEADER = """For each word below, return:
    - Every phrase must contain this word or one of its forms. Not example sentences.
    - Prefer combinations from "book phrases" (counted in real books) when they are genuine collocations, and set
      from_book true for those. You may add very common MSA collocations not in that list (from_book false).
+   - No grammatical-analysis terms (فِي مَحَلِّ رَفْعٍ "in a nominative position"): only phrases met in ordinary reading.
    - Return fewer, or none, rather than weak ones.
+4. senses: ONLY when the word has two or more clearly different meanings a reader really meets (not near-synonyms
+   or shades of one meaning), e.g. حَلَّ: "to solve" / "to arrive, settle in" / "to befall, fall (night)".
+   - The senses MUST include the first meaning given in "gloss", in the gloss's own words (gloss "solution" -> a sense
+     "solution" with its own example). Most common meaning first, at most 4 in all.
+   - en: the meaning in 1-4 English words.
+   - ar: one short natural example of 2 to 8 words, fully vocalized, that contains this word or one of its forms
+     and only makes sense with that meaning. example_en: its English translation.
+   - Return an empty list for a word with one meaning.
 
 Words:
 """
@@ -123,8 +142,21 @@ SCHEMA: dict[str, Any] = {
                             "additionalProperties": False,
                         },
                     },
+                    "senses": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "en": {"type": "string"},
+                                "ar": {"type": "string"},
+                                "example_en": {"type": "string"},
+                            },
+                            "required": ["en", "ar", "example_en"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
-                "required": ["lemma_id", "chain", "forms", "phrases"],
+                "required": ["lemma_id", "chain", "forms", "phrases", "senses"],
                 "additionalProperties": False,
             },
         }
@@ -160,10 +192,13 @@ def _fsrs_stability(ulk: UserLemmaKnowledge) -> float:
 
 
 def select_candidates(db: Session, limit: int, now: datetime | None = None) -> list[int]:
-    """Lemma ids without a word card, most useful first.
+    """Lemma ids without a word card, most useful first, then stale cards.
 
-    Order: open misses, then acquiring/learning/lapsed words, then known words by
-    lowest FSRS stability. Only gated, canonical, non-name content words that
+    Order: words just introduced (acquiring, never reviewed: the intro card shows
+    the word card), open misses, then acquiring/learning/lapsed words, then known
+    words by lowest FSRS stability. After every word without a card come cards
+    older than WORD_CARD_VERSION whose gloss lists several meanings ("a; b"), the
+    words that may need senses. Only gated, canonical, non-name content words that
     appear in at least one active sentence.
     """
     from app.services.missed_word_recovery import open_misses
@@ -179,7 +214,7 @@ def select_candidates(db: Session, limit: int, now: datetime | None = None) -> l
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
-            Lemma.word_card_json.is_(None),
+            or_(Lemma.word_card_json.is_(None), Lemma.gloss_en.like("%;%")),
             Lemma.gates_completed_at.isnot(None),
             Lemma.canonical_lemma_id.is_(None),
             Lemma.lemma_id.in_(in_sentences),
@@ -195,19 +230,39 @@ def select_candidates(db: Session, limit: int, now: datetime | None = None) -> l
 
     ranked: list[tuple[tuple, int]] = []
     for lemma, ulk in rows:
+        stale = lemma.word_card_json is not None
+        if stale and not card_is_stale(lemma.word_card_json):
+            continue
         if lemma.word_category in {"proper_name", "onomatopoeia"} or lemma.pos == "particle":
             continue
         if lemma.function_word_override or _is_function_word(_bare(lemma.lemma_ar_bare)):
             continue
-        if lemma.lemma_id in missed:
+        if ulk.knowledge_state == "acquiring" and not (ulk.times_seen or 0):
             tier = 0
-        elif ulk.knowledge_state in ("acquiring", "learning", "lapsed"):
+        elif lemma.lemma_id in missed:
             tier = 1
-        else:
+        elif ulk.knowledge_state in ("acquiring", "learning", "lapsed"):
             tier = 2
-        ranked.append(((tier, _fsrs_stability(ulk), lemma.lemma_id), lemma.lemma_id))
+        else:
+            tier = 3
+        ranked.append(((stale, tier, _fsrs_stability(ulk), lemma.lemma_id), lemma.lemma_id))
     ranked.sort(key=lambda item: item[0])
     return [lid for _, lid in ranked[:limit]]
+
+
+def card_is_stale(card: Any) -> bool:
+    """A stored card from before the current version (or unreadable)."""
+    if isinstance(card, str):
+        try:
+            card = json.loads(card)
+        except ValueError:
+            return True
+    if not isinstance(card, dict):
+        return True
+    try:
+        return int(card.get("version") or 0) < WORD_CARD_VERSION
+    except (TypeError, ValueError):
+        return True
 
 
 def load_phrase_candidates(path: Path = PHRASE_CANDIDATES_PATH) -> dict[int, list[tuple[str, int]]]:
@@ -303,6 +358,22 @@ def _contains_word(phrase_ar: str, inp: dict, resolve) -> bool:
     return False
 
 
+_GLOSS_FILLER = {"to", "a", "an", "the", "of", "be", "one", "who", "s", "sth", "someone", "something"}
+
+
+def _gloss_words(text: str | None) -> set[str]:
+    return {w for w in re.findall(r"[a-z]+", (text or "").casefold()) if w not in _GLOSS_FILLER}
+
+
+def _shares_word(sense_en: str, gloss: str | None) -> bool:
+    """The sense names the gloss's first meaning (one shared word, or a shared 5-letter stem)."""
+    first = re.split(r"[;,/]", gloss or "")[0]
+    a, b = _gloss_words(sense_en), _gloss_words(first)
+    if not b:
+        return True  # nothing to check against
+    return bool(a & b) or any(x[:5] == y[:5] for x in a for y in b if len(x) >= 5 and len(y) >= 5)
+
+
 def validate(inp: dict, raw: dict, resolve=None) -> dict:
     """Turn one model answer into a stored word card, dropping anything unchecked."""
     family_ids = {f["lemma_id"]: f for f in inp["family"]}
@@ -355,11 +426,31 @@ def validate(inp: dict, raw: dict, resolve=None) -> dict:
         if len(phrases) >= MAX_PHRASES:
             break
 
+    senses: list[dict] = []
+    seen_en: set[str] = set()
+    for item in raw.get("senses") or []:
+        en = (item.get("en") or "").strip()
+        ar = (item.get("ar") or "").strip()
+        example_en = (item.get("example_en") or "").strip()
+        words = len(ar.split())
+        if not en or len(en) > 40 or not example_en or not 2 <= words <= MAX_SENSE_EXAMPLE_WORDS:
+            continue
+        if en.casefold() in seen_en or not _contains_word(ar, inp, resolve):
+            continue
+        seen_en.add(en.casefold())
+        senses.append({"en": en, "ar": ar, "example_en": example_en[:80]})
+        if len(senses) >= MAX_SENSES:
+            break
+    # A list that leaves out the stored main meaning would mislead: store none.
+    if len(senses) < 2 or not any(_shares_word(x["en"], inp["gloss"]) for x in senses):
+        senses = []
+
     return {
         "version": WORD_CARD_VERSION,
         "chain": chain,
         "forms": forms,
         "phrases": phrases,
+        "senses": senses,
         "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds"),
     }
 
@@ -393,7 +484,7 @@ def enrich_word_cards(db: Session, limit: int, dry_run: bool = False) -> dict[st
 
 
 def enrich_word_cards_for(db: Session, ids: list[int], dry_run: bool = False) -> dict[str, int]:
-    """Write word cards for exactly these lemma ids (skips ones that have a card)."""
+    """Write word cards for exactly these lemma ids (never replaces a current-version card)."""
     from app.services.sentence_validator import build_comprehensive_lemma_lookup, lookup_lemma_id
     candidates = load_phrase_candidates()
     lookup = build_comprehensive_lemma_lookup(db)
@@ -425,7 +516,10 @@ def enrich_word_cards_for(db: Session, ids: list[int], dry_run: bool = False) ->
                 print(json.dumps({"lemma_id": lid, **card}, ensure_ascii=False))
         else:
             for lid, card in cards.items():
-                db.query(Lemma).filter(Lemma.lemma_id == lid, Lemma.word_card_json.is_(None)).update(
+                db.query(Lemma).filter(Lemma.lemma_id == lid, or_(
+                    Lemma.word_card_json.is_(None),
+                    func.coalesce(func.json_extract(Lemma.word_card_json, "$.version"), 0) < WORD_CARD_VERSION,
+                )).update(
                     {Lemma.word_card_json: card}, synchronize_session=False
                 )
             db.commit()

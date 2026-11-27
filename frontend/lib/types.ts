@@ -361,6 +361,8 @@ export interface WordCard {
   forms: Record<string, string>;
   /** Set phrases containing the word; attested = also counted in the book corpus. */
   phrases: { ar: string; en: string; attested: boolean }[];
+  /** Version 2+: two or more clearly different meanings, each with a short example; empty for one meaning. */
+  senses?: { en: string; ar: string; example_en: string }[];
   generated_at?: string;
 }
 
@@ -478,6 +480,7 @@ export interface ReintroCard {
   }[];
   memory_hooks?: { mnemonic?: string; cognates?: string; collocations?: string; usage_context?: string; fun_fact?: string } | null;
   etymology?: { derivation?: string; pattern?: string; loanwords?: string; cultural_note?: string } | null;
+  word_card?: WordCard | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
   source?: string | null;

@@ -76,6 +76,8 @@ import { useConfusionPractice } from "../lib/review/use-confusion-practice";
 import { useReadingTimer } from "../lib/review/use-reading-timer";
 import { WordDetailsModal } from "../lib/review/WordDetailsModal";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
+import { ChainRow, PhraseList, SenseList } from "../lib/review/WordCardParts";
+import { headlineMeanings } from "../lib/review/dock-panel-model";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
 import {
@@ -2601,7 +2603,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const freqRank = card.frequency_rank ?? null;
     const freqSourceCount = card.frequency_source_count ?? null;
     const eiHasMnemonic = showMnemonic(card.memory_hooks);
-    const eiHasEtymology = !!card.etymology?.derivation;
+    const eiChain = card.word_card && card.word_card.chain.length >= 2 ? card.word_card.chain : [];
+    const eiSenses = card.word_card?.senses ?? [];
+    const eiPhrases = card.word_card?.phrases ?? [];
+    const eiMeaning = headlineMeanings(card.gloss_en, eiSenses);
+    // The derivation chain is the structured form of the etymology line.
+    const eiHasEtymology = !!card.etymology?.derivation && eiChain.length === 0;
     const eiHasFunFact = !!card.memory_hooks?.fun_fact;
     const eiHasCulturalNote = !!card.etymology?.cultural_note;
     const eiHasUsageContext = !!card.memory_hooks?.usage_context;
@@ -2672,7 +2679,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             </View>
             <Text style={styles.eiArabic}>{card.lemma_ar}</Text>
             <Text style={styles.introMeaningLabel}>Meaning</Text>
-            <Text style={styles.eiEnglish}>{card.gloss_en}</Text>
+            <Text style={styles.eiEnglish}>{eiMeaning.main}</Text>
+            {eiMeaning.others.length > 0 && (
+              <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: "center", marginTop: 2 }}>
+                {eiMeaning.others.join(" · ")}
+              </Text>
+            )}
             {card.transliteration && (
               <Text style={styles.eiTranslit}>{card.transliteration}</Text>
             )}
@@ -2715,6 +2727,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
           {/* Info sections below hero */}
           <View style={styles.eiInfoSections}>
+            {eiSenses.length > 0 && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Meanings</Text>
+                <SenseList senses={eiSenses} />
+              </View>
+            )}
+
+            {eiChain.length > 0 && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Derivation</Text>
+                <ChainRow chain={eiChain} highlight={colors.accent} />
+              </View>
+            )}
+
             {eiHasEtymology && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
@@ -2776,7 +2802,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {card.example_ar && (
+            {eiPhrases.length > 0 && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Phrases</Text>
+                <PhraseList phrases={eiPhrases} />
+              </View>
+            )}
+
+            {card.example_ar && eiSenses.length === 0 && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Example</Text>
                 <Text style={{ ...arabicText(18, 30), color: colors.arabic, writingDirection: "rtl", textAlign: "right" }}>{card.example_ar}</Text>
