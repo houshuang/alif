@@ -770,9 +770,10 @@ def find_phonetically_similar(
         phon_bare = to_phonetic(bare)
         if abs(len(phon_bare) - len(target_phonetic)) > 1:
             continue
-        # Phonetic edit distance
+        # Phonetic edit distance. Distance 0 with a different spelling is an
+        # exact sound-alike (سعد/صعد), the strongest listening confusion.
         phon_ed = edit_distance(target_phonetic, phon_bare)
-        if phon_ed > 2 or phon_ed == 0:
+        if phon_ed > 2 or bare == lemma_bare:
             continue
 
         # Find which phonetic pairs are responsible for the confusion
