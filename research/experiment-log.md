@@ -118,6 +118,24 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-27: New confusion pairs per day raised from 2 to 5
+
+**Decision (learner, 2026-11-27).** Show more new confusion pairs a day.
+
+**State before.** 60 pairs, 10 with a lesson, 50 waiting; at two a day the queue needed 25
+days. Since the spacing change of 25 November no pair appeared in more than one session a
+day, exactly two new pairs were first shown each day, and 52 of 54 scored answers since
+23 November were correct.
+
+**Change.** `NEW_PAIRS_PER_DAY` 2 → 5 in `confusion_learning.py`. Lesson preparation follows
+the same limit, so up to five lessons are generated a day. Spacing (20 h / 14 d / 60 d),
+resets and one run per pair per session are unchanged; FSRS untouched.
+
+**Expected.** The queue clears in about ten days. Pair cards in reading rise to at most
+five lessons a day plus the reviews falling due (each new pair returns after 20 h, so up
+to about ten two-question runs a day while the queue drains). If that is too many, set the
+constant back; nothing else depends on it.
+
 ## 2026-11-26 (12): Missing words from the remap; last OCR-audit items
 
 - 23 words the remap judge named but the vocabulary lacked (مَلَكَ "to own", مَرَّ "to pass",

@@ -203,8 +203,10 @@ def test_three_spaced_runs_then_retired_until_error(db_session):
     assert (s["practice_step"], s["due_now"]) == (0, True)
 
 
-def test_only_two_new_pairs_a_day_but_reviews_are_not_limited(client, db_session):
+def test_new_pairs_a_day_are_limited_but_reviews_are_not(client, db_session, monkeypatch):
+    from app.routers import confusions
     from app.routers.confusions import limit_new_pairs
+    monkeypatch.setattr(confusions, "NEW_PAIRS_PER_DAY", 2)
     p, a, b = fixture_pair(db_session)
     db_session.add(ConfusionAttempt(client_attempt_id="view-old", pair_id=p.id, session_id="x", question_index=-1,
         target_lemma_id=a.lemma_id, correct=False, assisted=True, created_at=datetime(2026, 11, 25, 8)))
