@@ -1408,6 +1408,8 @@ export interface ConfusionAnalysis {
   similar_words: SimilarWordItem[];
   phonetic_similar: PhoneticSimilarItem[];
   prefix_hint: PrefixHint | null;
+  /** Which form the sentence shows ("present · they (m.)", "feminine · plural"); null when unsure. */
+  form_description?: string | null;
 }
 
 export interface WordJourneyItem {

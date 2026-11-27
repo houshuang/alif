@@ -417,7 +417,7 @@ preserve independent scrolling and the minimize/restore behavior, and never cove
 absolute overlay. Checked at iPhone 16 size (393×759 pt usable) on 2026-11-26.
 
 Dock content (Stack layout, 2026-11-25, `DockWordPanel.tsx`; meanings 2026-11-27): headword + gloss (the sentence's
-form on the meta line), derivation chain, meanings, other forms with glosses, set phrases, root words in two
+form on the meta line, parsed as tense · person · number by `form_description.py` when CAMeL is sure), derivation chain, meanings, other forms with glosses, set phrases, root words in two
 columns. No row labels, no clitic split, no expand/minimise buttons (grab bar minimises, headword
 opens the full card). Chain, meanings, form glosses and phrases come from `Lemma.word_card_json`, written
 lazily by `scripts/enrich_word_cards.py` in the material cron (new words first, then open misses) and by

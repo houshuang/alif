@@ -1218,3 +1218,5 @@ class ConfusionAnalysisOut(BaseModel):
     similar_words: list[SimilarWord] = []
     phonetic_similar: list[PhoneticSimilarWord] = []
     prefix_hint: PrefixHint | None = None
+    # Which form the sentence shows, e.g. "present · they (m.)"; None when unsure or nothing to say.
+    form_description: str | None = None
