@@ -1,4 +1,4 @@
-import { confusionSuggestions } from "../confusion-suggestions";
+import { confusionSuggestions, isNamedMixUp } from "../confusion-suggestions";
 import { ConfusionAnalysis } from "../../types";
 
 const visual = (lemma_id: number) => ({ lemma_id, lemma_ar: `v${lemma_id}`, lemma_ar_bare: "", gloss_en: null, pos: null,
@@ -13,5 +13,15 @@ describe("confusionSuggestions", () => {
     expect(confusionSuggestions(data, 9, 4).map(w => w.lemma_id)).toEqual([5, 2, 1, 3]);
     expect(confusionSuggestions(data, 9).map(w => w.lemma_id)).toEqual([5, 2, 1, 3, 4]);
     expect(confusionSuggestions(null, 9)).toEqual([]);
+  });
+});
+
+describe("isNamedMixUp", () => {
+  it("counts picked words and typed words, not forgetting notes", () => {
+    const base = { failed_lemma_id: 1, candidates_shown: [] };
+    expect(isNamedMixUp({ ...base, capture_method: "suggested_pick", confused_with_lemma_id: 2 })).toBe(true);
+    expect(isNamedMixUp({ ...base, capture_method: "free_text", confused_with_text: "happy" })).toBe(true);
+    expect(isNamedMixUp({ ...base, capture_method: "free_text", confused_with_text: " Forgot " })).toBe(false);
+    expect(isNamedMixUp(undefined)).toBe(false);
   });
 });

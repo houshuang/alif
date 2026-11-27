@@ -344,3 +344,52 @@ def test_prompt_marks_only_varied_verbs():
     lines = {line.split(":")[0]: line for line in prompt.splitlines() if line.startswith("- lemma_id")}
     assert lines["- lemma_id 1"].endswith("[VARY TENSE]")
     assert "[VARY TENSE]" not in lines["- lemma_id 2"]
+
+
+def _capture(db, lemma_id, when, **kw):
+    from app.models import ConfusionCapture
+    db.add(ConfusionCapture(failed_lemma_id=lemma_id, rating=1, captured_at=when.replace(tzinfo=None), **kw))
+    db.commit()
+
+
+def test_named_mixup_retires_the_phrase_followup_until_a_later_plain_miss(db_session):
+    from app.services.sentence_selector import build_session
+
+    _due_word_with_sentence(db_session)
+    db_session.add(Lemma(lemma_id=2, lemma_ar="كَاتِبٌ", lemma_ar_bare="كاتب", gloss_en="writer", pos="noun"))
+    missed = _miss_in_followup_arm(db_session, 1, wf.PHRASE_ARM)
+    db_session.add(WordFragment(lemma_id=1, arabic_text="كِتَابٌ جَدِيدٌ", english_translation="a new book", target_surface="كِتَابٌ"))
+    # Free text: a picked word also starts the older confusion-context selection, which
+    # reserves the word's sentence on its own and would hide what this test checks.
+    _capture(db_session, 1, missed + timedelta(minutes=5), capture_method="free_text", confused_with_text="writer")
+
+    result = build_session(db_session, limit=5, log_events=False, allow_intro_mutations=False)
+    assert result["followup_fragments"] == []
+
+    # The word comes back with a new miss that names no mix-up.
+    sentence = Sentence(arabic_text="x", english_translation="x", target_lemma_id=1)
+    db_session.add(sentence); db_session.flush()
+    db_session.add(ReviewLog(lemma_id=1, rating=1, review_mode="reading", is_acquisition=False,
+                             sentence_id=sentence.id, reviewed_at=datetime.now(timezone.utc) - timedelta(hours=3),
+                             fsrs_log_json={}))
+    db_session.commit()
+    result = build_session(db_session, limit=5, log_events=False, allow_intro_mutations=False)
+    assert [f["lemma_id"] for f in result["followup_fragments"]] == [1]
+
+
+def test_forgetting_notes_and_older_captures_are_not_named_mixups(db_session):
+    from app.models import ConfusionCapture, ConfusionLink
+    from app.services.confusion_learning import named_mixups_since
+
+    for lid in (1, 2, 3, 4):
+        db_session.add(Lemma(lemma_id=lid, lemma_ar=f"w{lid}", lemma_ar_bare=f"w{lid}", gloss_en="x", pos="noun"))
+    db_session.add(Lemma(lemma_id=5, lemma_ar="v", lemma_ar_bare="v", gloss_en="x", pos="noun", canonical_lemma_id=4))
+    db_session.commit()
+    miss = datetime.now(timezone.utc) - timedelta(hours=1)
+    _capture(db_session, 1, miss, capture_method="free_text", confused_with_text="Forgot")
+    _capture(db_session, 2, miss - timedelta(days=1), capture_method="free_text", confused_with_text="happy")
+    _capture(db_session, 3, miss, capture_method="free_text", confused_with_text="happy")
+    cap = db_session.query(ConfusionCapture).filter_by(failed_lemma_id=3).one()
+    db_session.add(ConfusionLink(capture_id=cap.id, state="not_a_word")); db_session.commit()
+    _capture(db_session, 5, miss, capture_method="free_text", confused_with_text="happy")  # variant of 4
+    assert named_mixups_since(db_session, {lid: miss for lid in (1, 2, 3, 4)}) == {4}

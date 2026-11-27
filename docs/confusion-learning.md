@@ -140,6 +140,9 @@ Pair views also carry `due_now`, `practice_step`, `practice_start`, `practice_re
 Word cards (Quick check, Missed word, Wrap-up) have a **Mixed up** button since
 2026-11-27: it opens the same picker and submits the card as Missed together with the
 capture (rating 1, no sentence id), so the pair enters intake like a reading capture.
+A named mix-up anywhere (reading or word card) retires that miss's word cards: no Quick
+check retry, no wrap-up card, no phrase follow-up, until a later miss of the word names no
+mix-up (`named_mixups_since`, app `mixedUpRef`; 2026-11-27). Forgetting notes do not count.
 
 Routes: `GET /api/confusions`, `POST /refresh`, `GET /search?q=…`,
 `POST /captures/{id}/confirm`, `POST /{id}/prepare`, `POST /{id}/attempts` (all under
