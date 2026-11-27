@@ -2413,7 +2413,9 @@ card with the session (`followup_fragment_cards`) in place of a reserved sentenc
 the session has one base card fewer per phrase. The phrase is the scheduled review
 (`review_mode="fragment"`, rating 3 or 1, ordinary FSRS update). A correct phrase counts
 toward closing the miss, but the last required success must be a full sentence; a missed
-phrase is a new miss. No phrase in stock means the ordinary sentence card.
+phrase is a new miss. No phrase in stock means the ordinary sentence card. A miss with a named
+mix-up (2026-11-27, `confusion_learning.named_mixups_since`) gets no phrase follow-up and, in the
+app, no same-day retry or wrap-up card; the pair practice takes over until a later miss without one.
 
 **Verb forms in phrases (`verb_phrase_forms_v1`, 2026-11-25, running).** Each verb is
 hashed by lemma into `varied` or `standard` (`verb_forms_arm`). Phrases written for a

@@ -82,6 +82,38 @@ def lexical_index(db, transliteration=False):
     return index, by_id
 
 
+FORGET_TEXTS = {"forget", "forgot", "forgotten", "don't know", "dont know", "no idea", "?"}
+# A capture is stored with the review that recorded the miss; allow for clock skew.
+MIXUP_MISS_TOLERANCE = timedelta(minutes=2)
+
+
+def named_mixups_since(db, since_by_lemma):
+    """Canonical lemma ids with a named mix-up at or after the given time (a miss).
+
+    A named mix-up (a picked word, or free text that is not a forgetting note and
+    was not matched as "no other word") retires that miss's word cards: the pair
+    practice takes over. A later miss without one brings them back.
+    """
+    if not since_by_lemma:
+        return set()
+    earliest = min(naive(t) for t in since_by_lemma.values()) - MIXUP_MISS_TOLERANCE
+    rows = (db.query(ConfusionCapture, ConfusionLink.state)
+            .outerjoin(ConfusionLink, ConfusionLink.capture_id == ConfusionCapture.id)
+            .filter(ConfusionCapture.captured_at >= earliest).all())
+    named = set()
+    for cap, state in rows:
+        if state == "not_a_word" or (cap.capture_method == "free_text" and clean(cap.confused_with_text).casefold() in FORGET_TEXTS):
+            continue
+        try:
+            lid = canonical(db, cap.failed_lemma_id)
+        except ValueError:
+            continue
+        since = since_by_lemma.get(lid)
+        if since is not None and naive(cap.captured_at) >= naive(since) - MIXUP_MISS_TOLERANCE:
+            named.add(lid)
+    return named
+
+
 def lexical_candidates(db, query):
     from limbic.hippocampus.resolve import candidates
     from app.services.sentence_validator import strip_diacritics
@@ -124,7 +156,7 @@ def import_captures(db):
                 except ValueError: db.add(ConfusionLink(capture_id=cap.id, state="needs_confirmation", candidates_json=[]))
                 continue
             query = clean(cap.confused_with_text)
-            if query.casefold() in {"forget", "forgot", "forgotten", "don't know", "dont know", "no idea", "?"}:
+            if query.casefold() in FORGET_TEXTS:
                 db.add(ConfusionLink(capture_id=cap.id, state="not_a_word", candidates_json=[])); continue
             hits = candidates(index, strip_diacritics(query), k=8, kind="word", fuzzy=True)
             failed = canonical(db, cap.failed_lemma_id)

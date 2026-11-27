@@ -77,6 +77,7 @@ import { useReadingTimer } from "../lib/review/use-reading-timer";
 import { WordDetailsModal } from "../lib/review/WordDetailsModal";
 import { ConfusionPicker } from "../lib/review/ConfusionPicker";
 import { ChainRow, PhraseList, SenseList } from "../lib/review/WordCardParts";
+import { isNamedMixUp } from "../lib/review/confusion-suggestions";
 import { headlineMeanings } from "../lib/review/dock-panel-model";
 import { AssistedRecognitionCauses } from "../lib/review/AssistedRecognitionCauses";
 import { canSkipDueObligations } from "../lib/review/auto-skip";
@@ -513,6 +514,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // minutes later would only test short-term memory.
   const retryAnsweredAtRef = useRef<Map<number, number>>(new Map());
   const retestQueueRef = useRef<Array<{ lemmaId: number; failedAtMs: number; cardsSince: number }>>([]);
+  // Words whose latest miss named a mix-up: no missed-word cards (retry, follow-up,
+  // wrap-up) until a later miss without one; the pair practice takes over.
+  const mixedUpRef = useRef(new Set<number>());
   const lastCheckpointAtRef = useRef(0);
   const checkpointBoundaryRef = useRef(0);
   const [sessionStopped, setSessionStopped] = useState(false);
@@ -1611,7 +1615,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           }
         }
       }
-      for (const lid of failedCanonicalIds) enqueueRetest(lid);
+      const namedMixUps = new Set<number>();
+      for (const capture of Object.values(confusionCaptures)) {
+        if (!isNamedMixUp(capture)) continue;
+        const w = item.words.find(x => x.lemma_id === capture.failed_lemma_id);
+        namedMixUps.add(w?.canonical_lemma_id ?? capture.failed_lemma_id);
+      }
+      for (const lid of namedMixUps) retireMissedWordCards(lid);
+      for (const lid of failedCanonicalIds) {
+        if (namedMixUps.has(lid)) continue;
+        mixedUpRef.current.delete(lid);
+        enqueueRetest(lid);
+      }
     }
 
     const clientReviewId = generateUuid();
@@ -1787,6 +1802,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     persistRetests();
   }
 
+  function retireMissedWordCards(lemmaId: number) {
+    mixedUpRef.current.add(lemmaId);
+    retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== lemmaId);
+    followupQueueRef.current = followupQueueRef.current.filter(c => c.lemma_id !== lemmaId);
+    persistRetests();
+  }
+
   function persistRetests() {
     saveRetests(retestQueueRef.current, lastCheckpointAtRef.current);
   }
@@ -1800,6 +1822,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const now = Date.now();
     const card = followupQueueRef.current.find(c =>
       !followupAnsweredRef.current.has(c.lemma_id)
+      && !mixedUpRef.current.has(c.lemma_id)
       && now - (retryAnsweredAtRef.current.get(c.lemma_id) ?? 0) >= FOLLOWUP_AFTER_RETRY_MS
     );
     if (!card) return false;
@@ -1925,15 +1948,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
     // Collect lemma IDs of words the user missed (failed=true in wordOutcomes)
     const missedIds: number[] = [];
+    const mixedUp = (lemmaId: number, canonical?: number | null) =>
+      mixedUpRef.current.has(lemmaId) || (canonical != null && mixedUpRef.current.has(canonical));
     for (const [lemmaId, outcome] of wordOutcomes) {
-      if (outcome.failed) missedIds.push(lemmaId);
+      if (outcome.failed && !mixedUp(lemmaId, outcome.canonical_lemma_id)) missedIds.push(lemmaId);
     }
     try {
-      const cards = await getWrapUpCards(
-        Array.from(seenLemmaIds),
+      const cards = (await getWrapUpCards(
+        Array.from(seenLemmaIds).filter(id => !mixedUp(id, wordOutcomes.get(id)?.canonical_lemma_id)),
         missedIds,
         sentenceSession?.session_id
-      );
+      )).filter(c => !mixedUp(c.lemma_id));
       if (cards.length > 0) {
         setWrapUpCards(cards);
         setWrapUpIndex(0);
@@ -1969,7 +1994,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setWrapUpMixData(null);
     // Consume on answer; another miss starts a fresh four-minute delay.
     retestQueueRef.current = retestQueueRef.current.filter(e => e.lemmaId !== card.lemma_id);
-    if (!gotIt) enqueueRetest(card.lemma_id);
+    if (!gotIt && isNamedMixUp(capture)) retireMissedWordCards(card.lemma_id);
+    else if (!gotIt) { mixedUpRef.current.delete(card.lemma_id); enqueueRetest(card.lemma_id); }
     persistRetests();
     const isFollowup = wrapUpVariant === "followup";
     if (!isFollowup) retryAnsweredAtRef.current.set(card.lemma_id, Date.now());

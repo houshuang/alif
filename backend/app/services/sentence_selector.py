@@ -2825,6 +2825,10 @@ def build_session(
         )
 
         if fragment_retest_enabled():
+            from app.services.confusion_learning import named_mixups_since
+
+            # A miss with a named mix-up gets no word card: the pair practice takes over.
+            mixed_up = named_mixups_since(db, {lid: m.missed_at for lid, m in open_missed.items()})
             for lemma_id in recovery_order(open_missed):
                 if len(followup_fragments) >= missed_lane_slots or limit <= 1:
                     break
@@ -2832,6 +2836,7 @@ def build_session(
                 if (
                     lemma_id not in remaining_due
                     or miss.remaining < 2
+                    or lemma_id in mixed_up
                     or followup_arm(lemma_id, miss.missed_at) != PHRASE_ARM
                     or recent_followup_exists(db, lemma_id, now)
                 ):

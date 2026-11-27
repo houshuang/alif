@@ -118,6 +118,28 @@ This changes the model, not the existing Arabic quality calibration.
 
 ═══════════════════════ ENTRIES (newest first) ═══════════════════════
 
+## 2026-11-27: A named mix-up retires the missed-word cards for that miss
+
+**Decision (learner, 2026-11-27).** "If I mark confused on a missed word card, I don't want to
+see the missed word card again until I've resolved the confusion" — then: "archive the missed
+word card for good, unless it reappears in the future, the confusion work should be enough."
+Applies to a mix-up named anywhere (reading or word card).
+
+**Change.** When a miss comes with a named mix-up (a picked word, or typed text that is not a
+forgetting note and not matched as "no other word"), that miss gets no word cards: no
+same-day retry (Quick check), no wrap-up card, no phrase follow-up ("Missed word"). Server:
+`confusion_learning.named_mixups_since()` is checked in `build_session` before a phrase
+follow-up (capture at or after the open miss's `missed_at`, two-minute tolerance). App:
+`mixedUpRef` in `app/index.tsx` keeps the word out of the retry queue, the wrap-up and loaded
+follow-ups. A later miss without a named mix-up brings the cards back. Sentence cards for
+the open miss and its recovery lane are unchanged; the pair practice (`docs/confusion-learning.md`)
+does the teaching.
+
+**What to watch.** Phrase follow-ups per open miss fall by the share of misses with a named
+mix-up (not measured before the change). The verb-tense
+phrase trial (`verb_phrase_forms_v1`) reads out at the sentence that closes a miss, so fewer
+phrases for mixed-up words lower both arms alike (the arm is a hash of the lemma).
+
 ## 2026-11-27: New confusion pairs per day raised from 2 to 5
 
 **Decision (learner, 2026-11-27).** Show more new confusion pairs a day.
