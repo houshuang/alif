@@ -513,6 +513,22 @@ class TestPhonetic:
         assert len(results) >= 1
         assert results[0]["lemma_id"] == 251
 
+    def test_exact_sound_alike_comes_first(self):
+        """سعد (be happy) and صعد (ascend) differ only in س/ص: a distance-0 sound-alike."""
+        def word(lid, ar, bare, gloss):
+            w = MagicMock()
+            w.lemma_id, w.lemma_ar, w.lemma_ar_bare, w.gloss_en = lid, ar, bare, gloss
+            w.canonical_lemma_id = None
+            return w
+        ascend = word(3227, "صَعِدَ", "صعد", "to ascend")
+        thunder = word(9, "رَعْد", "رعد", "thunder")
+        homograph = word(8, "سَعَّدَ", "سعد", "x")
+        results = find_phonetically_similar(
+            MagicMock(), 2028, "سعد", set(),
+            candidates=[(thunder, "known"), (ascend, "known"), (homograph, "known")],
+        )
+        assert [r["lemma_id"] for r in results] == [3227, 9]
+
     def test_no_phonetic_for_visual_match(self):
         """Words already in visual results are excluded from phonetic."""
         db = MagicMock()

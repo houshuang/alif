@@ -216,3 +216,24 @@ def test_only_two_new_pairs_a_day_but_reviews_are_not_limited(client, db_session
     assert {x["id"] for x in pairs if x["due_now"]} == {p.id, 903}
     limit_new_pairs(db_session, pairs := [fake(905, "2026-11-23"), fake(906, "2026-11-22")], at=datetime(2026, 11, 26, 12))
     assert all(x["due_now"] for x in pairs)
+
+
+def test_search_finds_a_word_by_sound_in_plain_letters(client, db_session):
+    a, b = words(db_session)
+    a.transliteration_ala_lc, b.transliteration_ala_lc = "ṣaʿida", "saʿīd"
+    db_session.add(Lemma(lemma_ar="حَزِين", lemma_ar_bare="حزين", gloss_en="sad", pos="adjective"))
+    db_session.commit()
+    for query in ("said", "saed", "saida"):
+        found = [w["arabic"] for w in client.get("/api/confusions/search", params={"q": query}).json()]
+        assert "صَعِدَ" in found and "سَعِيد" in found, query
+    # A plain-letter sound match ranks above a weak fuzzy English guess.
+    found = [w["arabic"] for w in client.get("/api/confusions/search", params={"q": "saed"}).json()]
+    assert found.index("صَعِدَ") < found.index("حَزِين") if "حَزِين" in found else True
+
+
+def test_transliteration_never_auto_links_free_text(db_session):
+    a, b = words(db_session)
+    b.transliteration_ala_lc = "man"
+    cap = ConfusionCapture(failed_lemma_id=a.lemma_id, rating=2, capture_method="free_text", confused_with_text="man")
+    db_session.add(cap); db_session.commit(); import_captures(db_session); db_session.commit()
+    assert db_session.query(ConfusionPair).count() == 0

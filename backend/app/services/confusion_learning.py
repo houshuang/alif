@@ -1,6 +1,7 @@
 """Teaching and evidence for confusion pairs, independent of word scheduling."""
 import re
 import sqlite3
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -61,13 +62,22 @@ def link_capture(db, cap, other_id, method):
     return pair
 
 
-def lexical_index(db):
-    from limbic.hippocampus.resolve import build_index, candidates
+def plain_latin(text):
+    """ṣaʿida -> saida, so a learner can search by sound in plain letters."""
+    folded = unicodedata.normalize("NFKD", text or "").casefold()
+    return re.sub(r"[^a-z ]", "", "".join(ch for ch in folded if not unicodedata.combining(ch))).strip()
+
+
+def lexical_index(db, transliteration=False):
+    # Transliteration only for learner-driven search: as an auto-link key an English
+    # word could match a transliteration ("man" = مَنْ).
+    from limbic.hippocampus.resolve import build_index
     from app.services.sentence_validator import strip_diacritics
     rows = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
     by_id = {w.lemma_id: w for w in rows}
     index = build_index(sqlite3.connect(":memory:"), [dict(id=str(w.lemma_id), name=strip_diacritics(w.lemma_ar),
-        aliases=[w.lemma_ar, *(clean(x).removeprefix("to ") for x in re.split(r"[,;/]", w.gloss_en or ""))],
+        aliases=[w.lemma_ar, *(clean(x).removeprefix("to ") for x in re.split(r"[,;/]", w.gloss_en or "")),
+                 *([plain_latin(w.transliteration_ala_lc)] if transliteration and plain_latin(w.transliteration_ala_lc) else [])],
         summary=w.gloss_en or "") for w in rows], kind="word")
     return index, by_id
 
@@ -75,11 +85,27 @@ def lexical_index(db):
 def lexical_candidates(db, query):
     from limbic.hippocampus.resolve import candidates
     from app.services.sentence_validator import strip_diacritics
-    index, by_id = lexical_index(db)
+    index, by_id = lexical_index(db, transliteration=True)
     try:
-        return [word_card(by_id[int(h.id)]) for h in candidates(index, strip_diacritics(clean(query)), k=8, kind="word", fuzzy=True)]
+        cards = candidates(index, strip_diacritics(clean(query)), k=20, kind="word", fuzzy=True)
     finally:
         index.conn.close()
+    strong = [int(h.id) for h in cards if h.score >= .93]
+    weak = [int(h.id) for h in cards if h.score < .93]
+    # Sound match on consonants: "said", "saed" and ṣaʿida all reduce to "sd".
+    # It ranks above weak fuzzy guesses, which for "saed" were "sad" and "saved".
+    key = consonants(plain_latin(query))
+    sounds = []
+    if len(key) >= 2 and " " not in key:
+        sounds = sorted((w.lemma_id for w in by_id.values() if w.lemma_id not in strong
+                         and consonants(plain_latin(w.transliteration_ala_lc)) == key),
+                        key=lambda lid: by_id[lid].frequency_rank or 10**6)[:12]
+    ordered = list(dict.fromkeys(strong + sounds + weak))
+    return [word_card(by_id[lid]) for lid in ordered[:20]]
+
+
+def consonants(latin):
+    return re.sub(r"[aeiou]", "", latin)
 
 
 def import_captures(db):

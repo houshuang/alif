@@ -3,6 +3,7 @@ import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
 import { ConfusionAnalysis, ConfusionCaptureIn } from "../types";
+import { confusionSuggestions } from "./confusion-suggestions";
 
 /** Side-icon launched popover; no persistent row in the reading dock. */
 export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave, onClear, visible, onClose }: {
@@ -16,9 +17,8 @@ export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave
 }) {
   const { width, height } = useWindowDimensions();
   const [text, setText] = useState(existing?.confused_with_text ?? "");
-  const candidates = [...(confusionData?.similar_words ?? []), ...(confusionData?.phonetic_similar ?? [])]
-    .filter((w, i, all) => w.lemma_id !== failedLemmaId && all.findIndex(x => x.lemma_id === w.lemma_id) === i);
-  const ids = candidates.slice(0, 4).map(w => w.lemma_id);
+  const candidates = confusionSuggestions(confusionData, failedLemmaId);
+  const ids = candidates.map(w => w.lemma_id);
   const close = () => { onClose(); Keyboard.dismiss(); };
   const save = (capture: ConfusionCaptureIn) => {
     setText(capture.capture_method === "free_text" ? capture.confused_with_text ?? "" : "");
@@ -50,7 +50,7 @@ export function ConfusionPicker({ failedLemmaId, confusionData, existing, onSave
         </Pressable>
       </View>
       {candidates.length > 0 && <View style={styles.candidates}>
-        {candidates.slice(0, 4).map(w => <Pressable key={w.lemma_id} style={styles.candidate}
+        {candidates.map(w => <Pressable key={w.lemma_id} style={styles.candidate}
           accessibilityRole="button" accessibilityLabel={`Confused with ${w.lemma_ar}: ${w.gloss_en}`}
           onPress={() => save({ failed_lemma_id: failedLemmaId, capture_method: "suggested_pick",
             confused_with_lemma_id: w.lemma_id, candidates_shown: ids })}>
