@@ -143,7 +143,7 @@ def import_captures(db):
 # Wait after each clean practice run; a run after the last step retires the pair
 # from reading practice until a new report, mixed-up mark or error reopens it.
 PRACTICE_INTERVALS = [timedelta(hours=20), timedelta(days=14), timedelta(days=60)]
-NEW_PAIRS_PER_DAY = 2
+NEW_PAIRS_PER_DAY = 5
 QUESTIONS_PER_RUN = 2
 
 

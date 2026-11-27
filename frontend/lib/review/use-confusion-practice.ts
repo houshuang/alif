@@ -5,7 +5,7 @@ import { listConfusions, prepareConfusion, refreshConfusions } from "../api";
 type ActivePractice = {pair: ConfusionPair; start: number; showLesson: boolean};
 
 /** Prepare in the background; present only at a sentence submission boundary.
- * The server decides which pairs are due (spaced runs, two new pairs a day); each due
+ * The server decides which pairs are due (spaced runs, a daily limit on new pairs); each due
  * pair appears at most once per session as one two-question run. */
 export function useConfusionPractice(sessionId: string | null, enabled: boolean) {
   const [active, setActive] = useState<ActivePractice | null>(null);

@@ -76,7 +76,7 @@ most once per session, as one two-question run:
 - Any reset returns the pair to step 0 (due, with the lesson card). Later runs skip
   the lesson and ask the next two questions (`practice_start`), so reviews reach the
   sentence exercises.
-- New pairs: at most two first shown per UTC day, newest report first. A pair counts
+- New pairs: at most five first shown per UTC day (`NEW_PAIRS_PER_DAY`; two until 2026-11-27), newest report first. A pair counts
   as shown when its lesson is first displayed. Slots also cover lessons still being
   prepared, so lessons are generated only for pairs that will be shown. Reviews are
   not limited.
